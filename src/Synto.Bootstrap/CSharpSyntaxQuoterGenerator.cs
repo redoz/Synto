@@ -135,8 +135,11 @@ namespace Synto.Bootstrap
 
                         arguments.Add(argExpr);
                     }
-                    CSharpSyntaxQuoter.Quote()
+                    var arg = SF.ArgumentList(SF.SeparatedList(arguments.Select(arg => SF.Argument(arg))));
 
+                    var quotedArg = CSharpSyntaxQuoter.Quote(arg, exclude: arguments);
+
+                    expr = expr.AddArgumentListArguments(SF.Argument(quotedArg));
 
                     var commentText = expr.NormalizeWhitespace().GetText(Encoding.UTF8);
 

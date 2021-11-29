@@ -31,6 +31,13 @@ internal class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
 
     }
 
+    public override ExpressionSyntax? VisitTypeArgumentList(Microsoft.CodeAnalysis.CSharp.Syntax.TypeArgumentListSyntax node)
+    {
+        // Microsoft.CodeAnalysis.CSharp.SyntaxFactory.InvocationExpression(Microsoft.CodeAnalysis.CSharp.SyntaxFactory.MemberAccessExpression(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SimpleMemberAccessExpression, SyntaxFactoryType, Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.DotToken), Microsoft.CodeAnalysis.CSharp.SyntaxFactory.IdentifierName("TypeArgumentList")), Microsoft.CodeAnalysis.CSharp.SyntaxFactory.ArgumentList(Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.OpenParenToken), Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList(new[]{Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Argument(null, Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.None), Visit(node.LessThanToken)!), Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Argument(null, Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.None), Visit(node.Arguments)!), Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Argument(null, Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.None), Visit(node.GreaterThanToken)!)}, new[]{Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.CommaToken), Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.CommaToken)}), Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.CloseParenToken)))
+        return SF.InvocationExpression(SF.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, SyntaxFactoryType, SF.Token(SyntaxKind.DotToken), SF.IdentifierName("TypeArgumentList")), SF.ArgumentList(SF.Token(SyntaxKind.OpenParenToken), SF.SeparatedList(new[] { SF.Argument(null, SF.Token(SyntaxKind.None), Visit(node.LessThanToken)!), SF.Argument(null, SF.Token(SyntaxKind.None), Visit(node.Arguments)!), SF.Argument(null, SF.Token(SyntaxKind.None), Visit(node.GreaterThanToken)!) }, new[] { SF.Token(SyntaxKind.CommaToken), SF.Token(SyntaxKind.CommaToken) }), SF.Token(SyntaxKind.CloseParenToken)));
+    }
+
+
     public override ExpressionSyntax? VisitBlock(BlockSyntax node)
     {
         return SyntaxFactoryInvocation(nameof(SF.Block), node.Statements.Accept(this));
