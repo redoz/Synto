@@ -106,11 +106,11 @@ namespace Synto.Bootstrap
                     var expr = SF.InvocationExpression(
                         SF.MemberAccessExpression(
                             SyntaxKind.SimpleMemberAccessExpression,
-                            factoryTypeNameExpr,
+                            SF.IdentifierName("SyntaxFactory"),
                             SF.IdentifierName(factoryMethod.Name)));
 
 
-                    expr = (InvocationExpressionSyntax)CSharpSyntaxQuoter.Quote(expr, exclude: factoryTypeNameExpr);
+                    //expr = (InvocationExpressionSyntax)CSharpSyntaxQuoter.Quote(expr, exclude: factoryTypeNameExpr);
 
                     //SF.InvocationExpression(SF.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, syntaxFactoryExpr,  ))
                     List<ExpressionSyntax> arguments = new(factoryMethod.Parameters.Length);
@@ -137,15 +137,19 @@ namespace Synto.Bootstrap
                     }
                     var arg = SF.ArgumentList(SF.SeparatedList(arguments.Select(arg => SF.Argument(arg))));
 
-                    var quotedArg = CSharpSyntaxQuoter.Quote(arg, exclude: arguments);
+                    expr = expr.WithArgumentList(arg);
 
-                    expr = expr.AddArgumentListArguments(SF.Argument(quotedArg));
+                    //var quotedArg = CSharpSyntaxQuoter.Quote(arg, exclude: arguments);
+
+                    // expr = expr.AddArgumentListArguments(SF.Argument(quotedArg));
 
                     var commentText = expr.NormalizeWhitespace().GetText(Encoding.UTF8);
 
                     //var quotedExpr = CSharpSyntaxQuoter.Quote(expr, exclude: factoryTypeNameExpr);
 
-                    body = SF.Block().AddStatements(SF.ReturnStatement(expr).WithLeadingTrivia(SF.Comment("// " + commentText)));
+                    var quotedExpr = CSharpSyntaxQuoter.Quote(expr, exclude: arguments);
+
+                    body = SF.Block().AddStatements(SF.ReturnStatement(quotedExpr).WithLeadingTrivia(SF.Comment("// " + commentText)));
                 }
 
 
