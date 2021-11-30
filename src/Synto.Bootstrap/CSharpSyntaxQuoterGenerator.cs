@@ -36,7 +36,12 @@ namespace Synto.Bootstrap
             var semanticModel = context.Compilation.GetSemanticModel(targetClass.SyntaxTree);
             var typeSymbol = semanticModel.GetDeclaredSymbol(targetClass)!;
 
-            var allMembers = typeSymbol.BaseType!.GetMembers();
+            // this is a bit weird, but it finds the type we need
+            INamedTypeSymbol baseType = typeSymbol.BaseType!;
+            while (baseType.Name != "CSharpSyntaxVisitor" && baseType.BaseType is not null)
+                baseType = baseType.BaseType;
+
+            var allMembers = baseType.GetMembers();
 
             List<MemberDeclarationSyntax> members = new();
 
@@ -132,9 +137,14 @@ namespace Synto.Bootstrap
 
                         ExpressionSyntax argExpr = SF.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, SF.IdentifierName(paramSymbol.Name), SF.IdentifierName(sourceMemberName));
 
+                        bool argType = 
                         if (sourceMemberSymbol is IMethodSymbol)
                             argExpr = SF.InvocationExpression(argExpr);
-                        else if (sourceMemberSymbol is not IPropertySymbol)
+                        else if (sourceMemberSymbol is IPropertySymbol)
+                        {
+
+                        }
+                        else
                         {
                             throw new Exception( $"Was not expecting SyntaxNode member {sourceMemberName} to be of type {sourceMemberSymbol.GetType().FullName}");
                         }

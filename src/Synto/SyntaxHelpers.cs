@@ -20,17 +20,16 @@ namespace Synto
                 return SyntaxFactory.IdentifierName(symbol.Name);
             return SyntaxFactory.QualifiedName(GetNamespaceName(symbol.ContainingNamespace), SyntaxFactory.IdentifierName(symbol.Name));
         }
-        public static T? GetAncestor<T>(this SyntaxNode syntax) where T : SyntaxNode
+        public static T? GetAncestor<T>(this SyntaxNode? syntax) where T : SyntaxNode
         {
             var parent = syntax?.Parent;
 
-            if (parent is null)
-                return null;
-
-            if (parent is T t)
-                return t;
-
-            return GetAncestor<T>(parent);
+            return parent switch
+            {
+                null => null,
+                T t => t,
+                _ => GetAncestor<T>(parent)
+            };
         }
     }
 }

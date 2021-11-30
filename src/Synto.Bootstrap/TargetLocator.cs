@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
+using System.Diagnostics;
 
 namespace Synto.Bootstrap
 {
@@ -12,6 +13,7 @@ namespace Synto.Bootstrap
         {
             if (context.Node is ClassDeclarationSyntax cdl && StringComparer.Ordinal.Equals("CSharpSyntaxQuoter", cdl.Identifier.Text))
             {
+                //Debugger.Launch();
                 this.TargetNode = cdl;
             }
         }
