@@ -79,12 +79,21 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
 
     public virtual ExpressionSyntax Visit(SyntaxToken token)
     {
+        tODO you are HERE!
+        //SyntaxFactory.SyntaxTrivia
+        //SyntaxFactory.TriviaList()[9[]]
+        //SyntaxFactory.Token(token.LeadingTrivia, token.Kind(), token.Text, token.ValueText, token.TrailingTrivia);
         return SyntaxFactoryInvocation(nameof(Token), Visit(token.Kind()));
     }
 
     public virtual ExpressionSyntax Visit(SyntaxTokenList tokenList)
     {
         return SyntaxFactoryInvocation(nameof(TokenList), tokenList.Select(Visit).ToArray());
+    }
+
+    public override ExpressionSyntax? DefaultVisit(SyntaxNode node)
+    {
+        throw new NotImplementedException($"Unable to visit node of type {node.GetType().FullName}");
     }
 }
 

@@ -12,6 +12,22 @@ namespace Synto.Test
         private partial class SF { };
 
         [Fact]
+        public void Test0()
+        {
+            [Template(typeof(SF), Bare = true)]
+            static void Simple()
+            {
+                Console.WriteLine("Hello ");
+            }
+
+            StatementSyntax node = SF.Simple();
+
+            var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
+
+            Assert.Equal("Console.WriteLine(\"Hello \" + \"World\");", source);
+        }
+
+        [Fact]
         public void Test1()
         {
             [Template(typeof(SF), Bare = true)]
