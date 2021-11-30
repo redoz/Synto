@@ -3,11 +3,12 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
+
 namespace Synto.Generated
 {
-    public partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
+    // this needs to be a base-class because for some reason the generates source cannot see the contents of it's partial class
+    public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
     {
-
         protected static readonly NameSyntax SyntaxFactoryToken = SF.ParseName(typeof(SyntaxFactory).FullName!);
 
         protected static InvocationExpressionSyntax SyntaxFactoryInvocation(string functionName, params ExpressionSyntax[] arguments)
@@ -79,6 +80,9 @@ namespace Synto.Generated
         {
             return SyntaxFactoryInvocation(nameof(SF.TokenList), tokenList.Select(Visit));
         }
+    }
 
+    public partial class CSharpSyntaxQuoter :  CSharpSyntaxQuoterBase
+    {
     }
 }

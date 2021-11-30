@@ -116,7 +116,28 @@ namespace Synto.Bootstrap
                     List<ExpressionSyntax> arguments = new(factoryMethod.Parameters.Length);
                     foreach (var parameter in factoryMethod.Parameters)
                     {
-                        ExpressionSyntax argExpr = SF.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, SF.IdentifierName(paramSymbol.Name), SF.IdentifierName(char.ToUpperInvariant(parameter.Name[0]) + parameter.Name.Substring(1)));
+                        // find the member on the node type
+                        var sourceMemberName = char.ToUpperInvariant(parameter.Name[0]) + parameter.Name.Substring(1);
+                        ITypeSymbol nodeTypeSymbol = paramSymbol.Type;
+                        ISymbol? sourceMemberSymbol;
+                        do
+                        {
+                            sourceMemberSymbol = nodeTypeSymbol.GetMembers(sourceMemberName).SingleOrDefault();
+                        } while (sourceMemberSymbol is null && (nodeTypeSymbol = nodeTypeSymbol!.BaseType!) is not null);
+
+                        if (sourceMemberSymbol is null)
+                        {
+                            throw new Exception($"Unable to find SyntaxNode member {sourceMemberName} on type {paramSymbol.Type.ToDisplayString()}");
+                        }
+
+                        ExpressionSyntax argExpr = SF.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, SF.IdentifierName(paramSymbol.Name), SF.IdentifierName(sourceMemberName));
+
+                        if (sourceMemberSymbol is IMethodSymbol)
+                            argExpr = SF.InvocationExpression(argExpr);
+                        else if (sourceMemberSymbol is not IPropertySymbol)
+                        {
+                            throw new Exception( $"Was not expecting SyntaxNode member {sourceMemberName} to be of type {sourceMemberSymbol.GetType().FullName}");
+                        }
 
                         argExpr = SF.InvocationExpression(SF.IdentifierName("Visit")).AddArgumentListArguments(SF.Argument(argExpr));
 
