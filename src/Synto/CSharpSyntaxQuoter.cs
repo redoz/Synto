@@ -79,10 +79,29 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
 
     public virtual ExpressionSyntax Visit(SyntaxToken token)
     {
-        tODO you are HERE!
-        //SyntaxFactory.SyntaxTrivia
-        //SyntaxFactory.TriviaList()[9[]]
         //SyntaxFactory.Token(token.LeadingTrivia, token.Kind(), token.Text, token.ValueText, token.TrailingTrivia);
+        //return SyntaxFactoryInvocation(
+        //    nameof(Token),
+        //    SyntaxFactoryInvocation(nameof(TriviaList)),
+        //    Visit(token.Kind()),
+        //    Visit(token.Text),
+        //    Visit(token.ValueText),
+        //    SyntaxFactoryInvocation(nameof(TriviaList)));
+        switch (token.Kind())
+        {
+            BadToken = 8507,
+            IdentifierToken = 8508,
+            NumericLiteralToken = 8509,
+            CharacterLiteralToken = 8510,
+            StringLiteralToken = 8511,
+            XmlEntityLiteralToken = 8512,  // &lt; &gt; &quot; &amp; &apos; or &name; or &#nnnn; or &#xhhhh;
+            XmlTextLiteralToken = 8513,    // xml text node text
+            XmlTextLiteralNewLineToken = 8514,
+
+            InterpolatedStringToken = 8515,                 // terminal for a whole interpolated string $" ... { expr } ..."
+                                                            // This only exists in transient form during parsing.
+            InterpolatedStringTextToken = 8517,             // literal text that is part of an interpolated string
+        }
         return SyntaxFactoryInvocation(nameof(Token), Visit(token.Kind()));
     }
 
@@ -95,8 +114,32 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
     {
         throw new NotImplementedException($"Unable to visit node of type {node.GetType().FullName}");
     }
+
+
 }
 
 public partial class CSharpSyntaxQuoter :  CSharpSyntaxQuoterBase
 {
+    public override ExpressionSyntax? VisitIdentifierName(IdentifierNameSyntax node)
+    {
+        // IdentifierName(node.Identifier.Text)
+        return InvocationExpression(
+            MemberAccessExpression(
+                SyntaxKind.SimpleMemberAccessExpression,
+                SyntaxFactoryToken,
+                IdentifierName(nameof(IdentifierName))),
+            ArgumentList(
+                SingletonSeparatedList(
+                    Argument(
+                        LiteralExpression(
+                            SyntaxKind.StringLiteralExpression,
+                            Literal(
+                                node.Identifier.ValueText))))));
+    }
+
+    //public override ExpressionSyntax? VisitLiteralExpression(LiteralExpressionSyntax node)
+    //{
+    //    LiteralExpression(node.Kind(), Literal(node.))
+    //    return base.VisitLiteralExpression(node);
+    //}
 }

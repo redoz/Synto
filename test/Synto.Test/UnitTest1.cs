@@ -25,6 +25,27 @@ namespace Synto.Test
             var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
 
             Assert.Equal("Console.WriteLine(\"Hello \" + \"World\");", source);
+
+            var x = SyntaxFactory.ExpressionStatement(
+                SyntaxFactory.List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
+                SyntaxFactory.InvocationExpression(
+                    SyntaxFactory.MemberAccessExpression(
+                        SyntaxKind.SimpleMemberAccessExpression, 
+                        SyntaxFactory.IdentifierName(
+                            SyntaxFactory.Token(
+                                SyntaxFactory.TriviaList(), 
+                                SyntaxKind.IdentifierToken, 
+                                "Console", 
+                                "Console", 
+                                SyntaxFactory.TriviaList())), 
+                        SyntaxFactory.Token(
+                            SyntaxFactory.TriviaList(), 
+                            SyntaxKind.DotToken, 
+                            ".", 
+                            ".", 
+                            SyntaxFactory.TriviaList()), 
+                        SyntaxFactory.IdentifierName(SyntaxFactory.Token(SyntaxFactory.TriviaList(), SyntaxKind.IdentifierToken, "WriteLine", "WriteLine", SyntaxFactory.TriviaList()))), SyntaxFactory.ArgumentList(SyntaxFactory.Token(SyntaxFactory.TriviaList(), SyntaxKind.OpenParenToken, "(", "(", SyntaxFactory.TriviaList()), SyntaxFactory.SeparatedList(new[] { SyntaxFactory.Argument(null, SyntaxFactory.Token(SyntaxFactory.TriviaList(), SyntaxKind.None, "", "", SyntaxFactory.TriviaList()), SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Token(SyntaxFactory.TriviaList(), SyntaxKind.StringLiteralToken, "\"Hello \"", "Hello ", SyntaxFactory.TriviaList()))) }, Array.Empty<SyntaxToken>()), SyntaxFactory.Token(SyntaxFactory.TriviaList(), SyntaxKind.CloseParenToken, ")", ")", SyntaxFactory.TriviaList()))), SyntaxFactory.Token(SyntaxFactory.TriviaList(), SyntaxKind.SemicolonToken, ";", ";", SyntaxFactory.TriviaList()));
+
         }
 
         [Fact]

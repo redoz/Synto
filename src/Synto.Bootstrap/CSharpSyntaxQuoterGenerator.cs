@@ -4,11 +4,8 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using Microsoft.CodeAnalysis.Text;
-using Synto.Bootstrap;
 
 namespace Synto.Bootstrap
 {
@@ -53,34 +50,38 @@ namespace Synto.Bootstrap
             var syntaxFactoryExpr = SF.ParseName(typeof(SF).FullName);
 
 
-            const string syntaxFactoryTypeName = "SyntaxFactoryType";
-            members.Add(SF.FieldDeclaration(
-                SF.VariableDeclaration(
-                    SF.ParseTypeName(typeof(TypeSyntax).FullName),
-                    SF.SingletonSeparatedList(
-                        SF.VariableDeclarator(
-                            SF.Identifier(syntaxFactoryTypeName),
-                            null,
-                            SF.EqualsValueClause(
-                                SF.InvocationExpression(
-                                    SF.MemberAccessExpression(
-                                        SyntaxKind.SimpleMemberAccessExpression,
-                                        SF.ParseTypeName(typeof(SyntaxFactory).FullName),
-                                        SF.IdentifierName(nameof(SyntaxFactory.ParseTypeName))),
-                                    SF.ArgumentList(
-                                        SF.SingletonSeparatedList(
-                                            SF.Argument(
-                                                SF.LiteralExpression(
-                                                    SyntaxKind.StringLiteralExpression,
-                                                    SF.Literal(typeof(SyntaxFactory).FullName)))))))))))
-                .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.ReadOnlyKeyword)));
+            //const string syntaxFactoryTypeName = "SyntaxFactoryType";
+            //members.Add(SF.FieldDeclaration(
+            //    SF.VariableDeclaration(
+            //        SF.ParseTypeName(typeof(TypeSyntax).FullName),
+            //        SF.SingletonSeparatedList(
+            //            SF.VariableDeclarator(
+            //                SF.Identifier(syntaxFactoryTypeName),
+            //                null,
+            //                SF.EqualsValueClause(
+            //                    SF.InvocationExpression(
+            //                        SF.MemberAccessExpression(
+            //                            SyntaxKind.SimpleMemberAccessExpression,
+            //                            SF.ParseTypeName(typeof(SyntaxFactory).FullName),
+            //                            SF.IdentifierName(nameof(SyntaxFactory.ParseTypeName))),
+            //                        SF.ArgumentList(
+            //                            SF.SingletonSeparatedList(
+            //                                SF.Argument(
+            //                                    SF.LiteralExpression(
+            //                                        SyntaxKind.StringLiteralExpression,
+            //                                        SF.Literal(typeof(SyntaxFactory).FullName)))))))))))
+            //    .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.ReadOnlyKeyword)));
 
-            var factoryTypeNameExpr = SF.IdentifierName(syntaxFactoryTypeName);
+            //var factoryTypeNameExpr = SF.IdentifierName(syntaxFactoryTypeName);
 
             //   Debugger.Launch();
 
             foreach (var item in filteredMembers)
             {
+                // skip things already defined in target
+                if (targetClass.Members.OfType<MethodDeclarationSyntax>().Any(member => member.Identifier.ValueText == item.Name))
+                    continue;
+
                 var paramSymbol = item.Parameters.Single();
 
                 var parameterSyntax = SF.Parameter(SF.Identifier(paramSymbol.Name))
@@ -94,13 +95,14 @@ namespace Synto.Bootstrap
                 var factoryMethods = candidateMethods.OrderByDescending(method => method.Parameters.Length).ToArray();
                 IMethodSymbol factoryMethod;
 
+                
                 BlockSyntax? body = null;
                 if (factoryMethods.Length >= 2 && factoryMethods[0].Parameters.Length == factoryMethods[1].Parameters.Length)
                 {
                     factoryMethod = factoryMethods[0].ReturnType switch
                     {
-                        { MetadataName: nameof(IdentifierNameSyntax) } =>
-                                factoryMethods.Single(method => method.Parameters[0].Name == "identifier"),
+                        //{ MetadataName: nameof(IdentifierNameSyntax) } =>
+//                                null,//factoryMethods.Single(method => method.Parameters[0].Name == "name"),
                         { MetadataName: nameof(XmlTextSyntax) } =>
                                 factoryMethods.Single(method => method.Parameters[0].Name == "textTokens" && method.Parameters[0].Type.MetadataName == "SyntaxTokenList"),
                         { MetadataName: nameof(AnonymousMethodExpressionSyntax) } =>
@@ -144,7 +146,7 @@ namespace Synto.Bootstrap
                     }
 
                     ExpressionSyntax argExpr = SF.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, SF.IdentifierName(paramSymbol.Name), SF.IdentifierName(sourceMemberName));
-
+                    
                     ITypeSymbol argType = parameter.Type;
                     if (sourceMemberSymbol is IMethodSymbol)
                     {
