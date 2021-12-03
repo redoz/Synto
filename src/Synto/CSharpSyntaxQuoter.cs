@@ -87,20 +87,20 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
         //    Visit(token.Text),
         //    Visit(token.ValueText),
         //    SyntaxFactoryInvocation(nameof(TriviaList)));
-        switch (token.Kind())
+        return token.Kind() switch
         {
-            BadToken = 8507,
-            IdentifierToken = 8508,
-            NumericLiteralToken = 8509,
-            CharacterLiteralToken = 8510,
-            StringLiteralToken = 8511,
-            XmlEntityLiteralToken = 8512,  // &lt; &gt; &quot; &amp; &apos; or &name; or &#nnnn; or &#xhhhh;
-            XmlTextLiteralToken = 8513,    // xml text node text
-            XmlTextLiteralNewLineToken = 8514,
+            SyntaxKind.BadToken => SyntaxFactory.BadToken(token.LeadingTrivia, token.Text, token.TrailingTrivia),
+            SyntaxKind.IdentifierToken => Identifier(token.LeadingTrivia, token.Kinf),
+            SyntaxKind.NumericLiteralToken,
+            SyntaxKind.CharacterLiteralToke,
+            SyntaxKind.StringLiteralToken,
+            SyntaxKind.XmlEntityLiteralToken,  // &lt; &gt; &quot; &amp; &apos; or &name; or &#nnnn; or &#xhhhh;
+            SyntaxKind.XmlTextLiteralToken,    // xml text node text
+            SyntaxKind.XmlTextLiteralNewLineToken,
 
-            InterpolatedStringToken = 8515,                 // terminal for a whole interpolated string $" ... { expr } ..."
-                                                            // This only exists in transient form during parsing.
-            InterpolatedStringTextToken = 8517,             // literal text that is part of an interpolated string
+            SyntaxKind.InterpolatedStringToken = 8515,                 // terminal for a whole interpolated string $" ... { expr } ..."
+                                                    // This only exists in transient form during parsing.
+            SyntaxKind.InterpolatedStringTextToken = 8517,             // literal text that is part of an interpolated string
         }
         return SyntaxFactoryInvocation(nameof(Token), Visit(token.Kind()));
     }
