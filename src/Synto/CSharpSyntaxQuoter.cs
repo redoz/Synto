@@ -87,21 +87,33 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
         //    Visit(token.Text),
         //    Visit(token.ValueText),
         //    SyntaxFactoryInvocation(nameof(TriviaList)));
-        return token.Kind() switch
+        var to =  token.Kind() switch
         {
-            SyntaxKind.BadToken => SyntaxFactory.BadToken(token.LeadingTrivia, token.Text, token.TrailingTrivia),
-            SyntaxKind.IdentifierToken => Identifier(token.LeadingTrivia, token.Kinf),
-            SyntaxKind.NumericLiteralToken,
-            SyntaxKind.CharacterLiteralToke,
-            SyntaxKind.StringLiteralToken,
-            SyntaxKind.XmlEntityLiteralToken,  // &lt; &gt; &quot; &amp; &apos; or &name; or &#nnnn; or &#xhhhh;
-            SyntaxKind.XmlTextLiteralToken,    // xml text node text
-            SyntaxKind.XmlTextLiteralNewLineToken,
+            SyntaxKind.BadToken => BadToken(token.LeadingTrivia, token.Text, token.TrailingTrivia),
+            SyntaxKind.IdentifierToken => Identifier(token.LeadingTrivia, token.Text, token.TrailingTrivia),
+            SyntaxKind.NumericLiteralToken => token.Value switch
+            {
+                byte value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
+                sbyte value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
+                short value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
+                ushort value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
+                int value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
+                uint value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
+                long value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
+                ulong value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
+                decimal value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
+                double value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
+                float value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
+                _ => throw new NotSupportedException($"Unable to create literal token of type {token.Value?.GetType().FullName ?? "null"}")
+            },
+            SyntaxKind.CharacterLiteralToken => Literal(token.LeadingTrivia, token.Text, (char)token.Value!, token.TrailingTrivia),
+            SyntaxKind.StringLiteralToken => Literal(token.LeadingTrivia, token.Text, (string)token.Value!, token.TrailingTrivia),
+            SyntaxKind.XmlEntityLiteralToken => XmlEntity(token.LeadingTrivia, token.Text, (string)token.Value!, token.TrailingTrivia),
+            SyntaxKind.XmlTextLiteralToken => XmlText((string)token.Value!),
+            SyntaxKind.XmlTextLiteralNewLineToken => XmlTextLiteral(token.Text, (string)token.Value!),
 
-            SyntaxKind.InterpolatedStringToken = 8515,                 // terminal for a whole interpolated string $" ... { expr } ..."
-                                                    // This only exists in transient form during parsing.
-            SyntaxKind.InterpolatedStringTextToken = 8517,             // literal text that is part of an interpolated string
-        }
+            SyntaxKind.InterpolatedStringTextToken => Token(token.LeadingTrivia ,token.Kind(), token.Text, token.ValueText, token.TrailingTrivia),     
+        };
         return SyntaxFactoryInvocation(nameof(Token), Visit(token.Kind()));
     }
 
