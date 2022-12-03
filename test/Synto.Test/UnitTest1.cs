@@ -125,34 +125,4 @@ public partial class UnitTest1
     }
 
 
-    [Fact]
-    public void Test5()
-    {
-
-        [Template(typeof(SF), Options = TemplateOption.Bare)]
-        static void Unroll([Unquote] int count)
-        {
-            int ret = 0;
-            for (int i = 0; i < count; i++)
-            {
-                ret++;
-            }
-        }
-
-        BlockSyntax node = SF.Unroll(4);
-
-
-        var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
-        string expected = """ 
-                              {
-                                  int ret = 0;
-                                      ret++;
-                                      ret++;
-                                      ret++;
-                                      ret++; 
-                              }
-                              """;
-
-        Assert.Equal(expected, source);
-    }
 }
