@@ -10,7 +10,7 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Synto;
 
-// this needs to be a base-class because for some reason the generates source cannot see the contents of it's partial class
+// this needs to be a base-class because for some reason the generates source cannot see the contents of its partial class
 public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
 {
     protected static readonly NameSyntax SyntaxFactoryToken = ParseName(typeof(SyntaxFactory).FullName!);
@@ -87,34 +87,47 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
         //    Visit(token.Text),
         //    Visit(token.ValueText),
         //    SyntaxFactoryInvocation(nameof(TriviaList)));
-        var to =  token.Kind() switch
+
+
+
+        return token.Kind() switch
         {
-            SyntaxKind.BadToken => BadToken(token.LeadingTrivia, token.Text, token.TrailingTrivia),
-            SyntaxKind.IdentifierToken => Identifier(token.LeadingTrivia, token.Text, token.TrailingTrivia),
+            SyntaxKind.BadToken => SyntaxFactoryInvocation(nameof(BadToken),  Visit(token.LeadingTrivia), token.Text.ToLiteral(), Visit(token.TrailingTrivia)),
+            SyntaxKind.IdentifierToken => SyntaxFactoryInvocation(nameof(Identifier), Visit(token.LeadingTrivia), token.Text.ToLiteral(), Visit(token.TrailingTrivia)),
             SyntaxKind.NumericLiteralToken => token.Value switch
             {
-                byte value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
-                sbyte value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
-                short value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
-                ushort value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
-                int value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
-                uint value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
-                long value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
-                ulong value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
-                decimal value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
-                double value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
-                float value => Literal(token.LeadingTrivia, token.Text, value, token.TrailingTrivia),
-                _ => throw new NotSupportedException($"Unable to create literal token of type {token.Value?.GetType().FullName ?? "null"}")
+                byte value => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), value.ToLiteral(), Visit(token.TrailingTrivia)),
+                sbyte value => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), value.ToLiteral(), Visit(token.TrailingTrivia)),
+                short value => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), value.ToLiteral(), Visit(token.TrailingTrivia)),
+                ushort value => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), value.ToLiteral(), Visit(token.TrailingTrivia)),
+                int value => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), value.ToLiteral(), Visit(token.TrailingTrivia)),
+                uint value => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), value.ToLiteral(), Visit(token.TrailingTrivia)),
+                long value => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), value.ToLiteral(), Visit(token.TrailingTrivia)),
+                ulong value => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), value.ToLiteral(), Visit(token.TrailingTrivia)),
+                decimal value => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), value.ToLiteral(), Visit(token.TrailingTrivia)),
+                double value => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), value.ToLiteral(), Visit(token.TrailingTrivia)),
+                float value => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), value.ToLiteral(), Visit(token.TrailingTrivia)),
+                _ => throw new NotImplementedException($"Unable to create literal token of type {token.Value?.GetType().FullName ?? "null"}")
             },
-            SyntaxKind.CharacterLiteralToken => Literal(token.LeadingTrivia, token.Text, (char)token.Value!, token.TrailingTrivia),
-            SyntaxKind.StringLiteralToken => Literal(token.LeadingTrivia, token.Text, (string)token.Value!, token.TrailingTrivia),
-            SyntaxKind.XmlEntityLiteralToken => XmlEntity(token.LeadingTrivia, token.Text, (string)token.Value!, token.TrailingTrivia),
-            SyntaxKind.XmlTextLiteralToken => XmlText((string)token.Value!),
-            SyntaxKind.XmlTextLiteralNewLineToken => XmlTextLiteral(token.Text, (string)token.Value!),
+            SyntaxKind.CharacterLiteralToken => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), ((char)token.Value!).ToLiteral(), Visit(token.TrailingTrivia)),
+            SyntaxKind.StringLiteralToken => SyntaxFactoryInvocation(nameof(Literal), Visit(token.LeadingTrivia), token.Text.ToLiteral(), ((string)token.Value!).ToLiteral(), Visit(token.TrailingTrivia)),
 
-            SyntaxKind.InterpolatedStringTextToken => Token(token.LeadingTrivia ,token.Kind(), token.Text, token.ValueText, token.TrailingTrivia),     
+            SyntaxKind.None => SyntaxFactoryInvocation(nameof(Token), Visit(token.LeadingTrivia), Visit(SyntaxKind.None), Visit(token.TrailingTrivia)),
+            //SyntaxKind.XmlEntityLiteralToken => XmlEntity(token.LeadingTrivia, token.Text, (string)token.Value!, token.TrailingTrivia),
+            //SyntaxKind.XmlTextLiteralToken => XmlText((string)token.Value!),
+            //SyntaxKind.XmlTextLiteralNewLineToken => XmlTextLiteral(token.Text, (string)token.Value!),
+
+            //SyntaxKind.InterpolatedStringTextToken => Token(token.LeadingTrivia, token.Kind(), token.Text, token.ValueText, token.TrailingTrivia),
+            //_ => throw new NotImplementedException($"Unable to create literal token (Kind: {token.Kind()}, Type {token.Value?.GetType().FullName ?? "null"}): '{token.ToFullString()}'")
+
+            var tokenKind => SyntaxFactoryInvocation(nameof(Token), Visit(token.LeadingTrivia), Visit(tokenKind), token.Text.ToLiteral(), ((string)token.Value!).ToLiteral(), Visit(token.TrailingTrivia)),
         };
-        return SyntaxFactoryInvocation(nameof(Token), Visit(token.Kind()));
+    }
+
+    private ExpressionSyntax Visit(SyntaxTriviaList triviaList)
+    {
+        // TODO this just returns an empty trivia list
+        return SyntaxFactoryInvocation(nameof(TriviaList));
     }
 
     public virtual ExpressionSyntax Visit(SyntaxTokenList tokenList)
@@ -124,7 +137,7 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
 
     public override ExpressionSyntax? DefaultVisit(SyntaxNode node)
     {
-        throw new NotImplementedException($"Unable to visit node of type {node.GetType().FullName}");
+        throw new NotImplementedException($"Unable to visit node (Kind: {node.Kind()}, Type: {node.GetType().FullName}: '{node.ToString()}'");
     }
 
 

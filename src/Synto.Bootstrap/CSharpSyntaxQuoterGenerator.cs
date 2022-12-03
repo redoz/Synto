@@ -29,7 +29,7 @@ namespace Synto.Bootstrap
 
         private void ExecuteInternal(GeneratorExecutionContext context, ClassDeclarationSyntax targetClass)
         {
-            //Debugger.Launch();
+            //System.Diagnostics.Debugger.Launch();
 
             var semanticModel = context.Compilation.GetSemanticModel(targetClass.SyntaxTree);
             var typeSymbol = semanticModel.GetDeclaredSymbol(targetClass)!;
@@ -107,7 +107,9 @@ namespace Synto.Bootstrap
                                 factoryMethods.Single(method => method.Parameters[0].Name == "textTokens" && method.Parameters[0].Type.MetadataName == "SyntaxTokenList"),
                         { MetadataName: nameof(AnonymousMethodExpressionSyntax) } =>
                                 factoryMethods.Single(method => method.Parameters[0].Name == "modifiers"),
-                        var other => throw new NotImplementedException($"Not yet implemented: {other.MetadataName}")
+                        { MetadataName: nameof(SubpatternSyntax) } =>
+                                factoryMethods.Single(method => method.Parameters[0].Name == "nameColon"),
+                        var other => throw new NotImplementedException($"Item is: {item.Name}, Not yet implemented: {other.MetadataName}")
                     };
                 }
                 else
