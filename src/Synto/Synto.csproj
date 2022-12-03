@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <DebugType>embedded</DebugType>
-    <Copyright>$(Authors) 2021</Copyright>
+    <Copyright>$(Authors) 2021-2022</Copyright>
     <PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
     <RepositoryUrl>https://github.com/redoz/Synto.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
