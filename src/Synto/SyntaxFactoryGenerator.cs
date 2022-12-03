@@ -208,7 +208,7 @@ public class SyntaxFactoryGenerator : ISourceGenerator
                 NamespaceRewriter namespaceRewriter = new(compilation.GetSemanticModel(compilationUnit.SyntaxTree));
                 compilationUnit = (CompilationUnitSyntax)compilationUnit.Accept(namespaceRewriter)!;
 
-                var sourceText = compilationUnit.NormalizeWhitespace().GetText(Encoding.UTF8);
+                var sourceText = compilationUnit.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8);
 
                 context.AddSource($"{template.Target.FullName}.{template.Source!.Identifier}.cs", sourceText);
             }
