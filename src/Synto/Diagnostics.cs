@@ -93,5 +93,19 @@ internal static class Diagnostics
                                     source.Body?.GetLocation() ?? source.Identifier.GetLocation(),
                                     source.Identifier.ValueText);
     }
+
+    private static readonly DiagnosticDescriptor _MultipleStatementsNotAllowed = new(IdPrefix + "1006",
+        "Invalid Source",
+        "Source function '{0}' can not have multiple statement when Single is specified",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static Diagnostic MultipleStatementsNotAllowed(SourceFunction source)
+    {
+        return Diagnostic.Create(_MultipleStatementsNotAllowed,
+            source.Body?.GetLocation() ?? source.Identifier.GetLocation(),
+            source.Identifier.ValueText);
+    }
 }
 

@@ -78,12 +78,19 @@ public class SyntaxFactoryGenerator : ISourceGenerator
 
                 var semanticModel = context.Compilation.GetSemanticModel(source.Syntax.SyntaxTree);
 
-                bool bare = template.ProjectionAttribute
-                                    .ArgumentList!
-                                    .Arguments.Any(arg => arg.NameEquals is NameEqualsSyntax nameEquals &&
-                                                   StringComparer.Ordinal.Equals(nameEquals.Name.Identifier.Value,
-                                                                                 nameof(TemplateAttribute.Bare)) &&
-                                                   semanticModel.GetConstantValue(arg.Expression) is { HasValue: true, Value: true});
+                //Debugger.Launch();
+
+                var optionsArg =
+                    template.ProjectionAttribute
+                    .ArgumentList!
+                    .Arguments.SingleOrDefault(arg => arg.NameEquals is NameEqualsSyntax nameEquals &&
+                                          StringComparer.Ordinal.Equals(nameEquals.Name.Identifier.Value, nameof(TemplateAttribute.Options))) ;// &&
+
+                TemplateOption options =
+                    optionsArg is not null && semanticModel.GetConstantValue(optionsArg.Expression) is
+                        {HasValue: true, Value: int rawValue} // this comes out as int, so unbox it
+                        ? (TemplateOption)rawValue // then cast it
+                        : TemplateOption.Default;
 
                 // rewrite Syntax/Syntax<T> parameters
                 var targetParams = new ParameterSyntax[source.ParameterListSyntax.Parameters.Count];
@@ -118,17 +125,29 @@ public class SyntaxFactoryGenerator : ISourceGenerator
 
                 ExpressionSyntax? syntaxTreeExpr;
                 TypeSyntax? returnType;
-                if (bare)
+
+                //Debugger.Launch();
+
+                if (options.HasFlag(TemplateOption.Bare))
                 {
                     if (source.Body.Statements.Count == 0)
                     {
                         context.ReportDiagnostic(Diagnostics.BareSourceCannotBeEmpty(source));
                         continue;
                     }
-                    else if (source.Body.Statements.Count == 1)
+
+                    if ((options & TemplateOption.Single) == TemplateOption.Single)
                     {
-                        syntaxTreeExpr = source.Body.Statements[0].Accept(quoter);
-                        returnType = SF.ParseTypeName(source.Body.Statements[0].GetType().FullName);
+                        if (source.Body.Statements.Count == 1)
+                        {
+                            syntaxTreeExpr = source.Body.Statements[0].Accept(quoter);
+                            returnType = SF.ParseTypeName(source.Body.Statements[0].GetType().FullName);
+                        }
+                        else
+                        {
+                            context.ReportDiagnostic(Diagnostics.MultipleStatementsNotAllowed(source));
+                            continue;
+                        }
                     }
                     else
                     {
@@ -190,7 +209,7 @@ public class SyntaxFactoryGenerator : ISourceGenerator
 
                 var sourceText = compilationUnit.NormalizeWhitespace().GetText(Encoding.UTF8);
 
-                context.AddSource($"{template.Target.FullName}.{template.Source.Identifier}.cs", sourceText);
+                context.AddSource($"{template.Target.FullName}.{template.Source!.Identifier}.cs", sourceText);
             }
 
         }

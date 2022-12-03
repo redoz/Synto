@@ -39,7 +39,10 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
                         Identifier(nameof(Array.Empty)),
                         TypeArgumentList(SingletonSeparatedList(elementType)))));
         }
-        return ImplicitArrayCreationExpression(
+
+        return ArrayCreationExpression(
+            ArrayType(elementType,
+                SingletonList(ArrayRankSpecifier(SingletonSeparatedList<ExpressionSyntax>(OmittedArraySizeExpression())))),
             InitializerExpression(
                 SyntaxKind.ArrayInitializerExpression,
                 SeparatedList(list)));
@@ -64,9 +67,23 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
 
     public virtual ExpressionSyntax Visit<TNode>(SeparatedSyntaxList<TNode> nodeList) where TNode : SyntaxNode
     {
-        return SyntaxFactoryInvocation(nameof(SeparatedList),
-            ToArrayLiteral(nodeList.Select(t => Visit(t)!), ParseTypeName(typeof(TNode).FullName!)),
-            ToArrayLiteral(nodeList.GetSeparators().Select(Visit), ParseTypeName(typeof(SyntaxToken).FullName!)));
+        TypeSyntax elementType = ParseTypeName(typeof(TNode).FullName!);
+        return InvocationExpression(
+            MemberAccessExpression(
+                SyntaxKind.SimpleMemberAccessExpression,
+                SyntaxFactoryToken,
+                GenericName(
+                    Identifier(nameof(SeparatedList)),
+                    TypeArgumentList(
+                        SingletonSeparatedList(elementType)))),
+            ArgumentList(SyntaxFactory.SeparatedList(new[]
+            {
+                Argument(ToArrayLiteral(nodeList.Select(t => Visit(t)!), ParseTypeName(typeof(TNode).FullName!))),
+                Argument(ToArrayLiteral(nodeList.GetSeparators().Select(Visit), ParseTypeName(typeof(SyntaxToken).FullName!)))
+            })));
+
+
+
     }
 
     public virtual ExpressionSyntax Visit(SyntaxKind kind)

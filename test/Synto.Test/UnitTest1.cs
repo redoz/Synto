@@ -1,8 +1,8 @@
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Text;
+using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
 namespace Synto.Test
@@ -14,7 +14,7 @@ namespace Synto.Test
         [Fact]
         public void Test0()
         {
-            [Template(typeof(SF), Bare = true)]
+            [Template(typeof(SF), Options = TemplateOption.Bare)]
             static void Simple()
             {
                 Console.WriteLine("Hello World");
@@ -30,7 +30,7 @@ namespace Synto.Test
         [Fact]
         public void Test1()
         {
-            [Template(typeof(SF), Bare = true)]
+            [Template(typeof(SF), Options = TemplateOption.Bare)]
             static void Hello(string message)
             {
                 Console.WriteLine("Hello " + message);
@@ -46,14 +46,14 @@ namespace Synto.Test
         [Fact]
         public void Test2()
         {
-            [Template(typeof(SF), Bare = true)]
+            [Template(typeof(SF), Options = TemplateOption.Single)]
             static void Inner()
             {
                 new StringBuilder("Something").Append("Foo").ToString();
             }
 
 
-            [Template(typeof(SF), Bare = true)]
+            [Template(typeof(SF), Options = TemplateOption.Single)]
             static void Outer(Syntax<string> message)
             {
                 Console.WriteLine("Hello " + message());
@@ -69,22 +69,21 @@ namespace Synto.Test
         [Fact]
         public void Test3()
         {
-            
 
-            [Template(typeof(SF), Bare = true)]
+
+            [Template(typeof(SF), Options = TemplateOption.Single)]
             static void Greeting(string message)
             {
                 Console.WriteLine("Hello " + message);
             }
 
 
-            [Template(typeof(SF), Bare = true)]
+            [Template(typeof(SF), Options = TemplateOption.Bare)]
             static void Repeater(Syntax item)
             {
                 item();
                 item();
             }
-
 
             BlockSyntax node = SF.Repeater(SF.Greeting("World").Expression);
 
@@ -94,5 +93,67 @@ namespace Synto.Test
         }
 
 
+        [Fact]
+        public void Test4()
+        {
+
+            [Template(typeof(SF), Options = TemplateOption.Bare)]
+            static void Unroll(int count)
+            {
+                int ret = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    ret++;
+                }
+            }
+
+            BlockSyntax node = SF.Unroll(4);
+
+
+            var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
+            string expected = """ 
+                              {
+                                  int ret = 0;
+                                  for (int i = 0; i < 4; i++)
+                                  {
+                                      ret++;
+                                  }
+                              }
+                              """;
+
+            Assert.Equal(expected, source);
+        }
+
+
+        [Fact]
+        public void Test5()
+        {
+
+            [Template(typeof(SF), Options = TemplateOption.Bare)]
+            static void Unroll([Unquote] int count)
+            {
+                int ret = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    ret++;
+                }
+            }
+
+            BlockSyntax node = SF.Unroll(4);
+
+
+            var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
+            string expected = """ 
+                              {
+                                  int ret = 0;
+                                      ret++;
+                                      ret++;
+                                      ret++;
+                                      ret++; 
+                              }
+                              """;
+
+            Assert.Equal(expected, source);
+        }
     }
 }

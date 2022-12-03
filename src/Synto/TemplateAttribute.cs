@@ -1,46 +1,47 @@
 ﻿using System;
-using System.Dynamic;
-using System.Linq.Expressions;
 
 namespace Synto
 {
+    [Flags]
+    public enum TemplateOption
+    {
+        Default = 0, 
+        /// <summary>
+        /// Reduces output to only the Body of the templated method.
+        /// </summary>
+        Bare = 1,
+
+        /// <summary>
+        /// Unwraps BlockExpression to first Statement
+        /// </summary>
+        Single = 2 | Bare
+
+        // should probably add some kind of option to minimize the output
+    }
+
     [AttributeUsage(AttributeTargets.Method)]
     public class TemplateAttribute : Attribute
     {
+        public TemplateOption Options { get; set; }
+
         public Type Target { get; }
 
         public TemplateAttribute(Type target)
         {
             Target = target;
+            Options = TemplateOption.Default;
         }
 
-        public bool Bare { get; set; }
     }
-
-
-    //public sealed class Syntax 
-    //{
-    //    DynamicMetaObject IDynamicMetaObjectProvider.GetMetaObject(Expression parameter)
-    //    {
-    //        throw new NotImplementedException("Something has gone wrong, this object just acts as compile-time placeholder");
-    //    }
-    //}
 
     public delegate void Syntax();
 
     public delegate T Syntax<T>();
 
+    [AttributeUsage(AttributeTargets.Parameter)]
+    public class UnquoteAttribute : Attribute
+    {
 
-    //public sealed class Syntax<T>
-    //{
-    //    public Syntax()
-    //    {
-    //    }
+    }
 
-    //    public static implicit operator T(Syntax<T> self)
-    //    {
-    //        // we'll never actually execute this so just need to quiet the compiler here
-    //        return default!;
-    //    }
-    //}
 }
