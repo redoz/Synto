@@ -7,6 +7,8 @@ using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Synto;
 
+
+
 internal class TemplateSyntaxQutoer : CSharpSyntaxQuoter
 {
     private readonly SourceFunction? _source;
@@ -30,7 +32,7 @@ internal class TemplateSyntaxQutoer : CSharpSyntaxQuoter
     {
         var exprSymbol = _semanticModel.GetSymbolInfo(node.Expression);
 
-        if (exprSymbol.Symbol is IParameterSymbol parameterSymbol && Array.FindIndex(_parameterSymbols, item => SymbolEqualityComparer.Default.Equals(item, parameterSymbol)) is int index && index >= 0)
+        if (exprSymbol.Symbol is IParameterSymbol parameterSymbol && Array.FindIndex(_parameterSymbols, item => SymbolEqualityComparer.Default.Equals(item, parameterSymbol)) >= 0)
         {
             return SF.IdentifierName(parameterSymbol.Name);
         }
@@ -54,22 +56,6 @@ internal class TemplateSyntaxQutoer : CSharpSyntaxQuoter
                 //    SyntaxFactoryInvocation(nameof(SF.Literal), SF.IdentifierName(node.Identifier)));
             
         }
-        // TODO prety sure i need the semantic model to check that these symbols match
-
-        //if (parameters?.SingleOrDefault(p => p.Identifier.IsEquivalentTo(node.Identifier)) is ParameterSyntax paramSyntax && paramSyntax.Type is not null)
-        //{
-
-        //    if (paramSyntax.Type is PredefinedTypeSyntax predefined)
-        //    {
-        //        return SyntaxFactoryInvocation(
-        //            nameof(SF.LiteralExpression),
-        //            (predefined.Kind() switch
-        //            {
-        //                _ => SyntaxKind.StringLiteralExpression
-        //            }).QuoteSyntaxKind(),
-        //            SyntaxFactoryInvocation(nameof(SF.Literal), SF.IdentifierName(node.Identifier)));
-        //    }
-        //}
 
         return base.VisitIdentifierName(node);
     }

@@ -1,14 +1,14 @@
 ﻿using Microsoft.CodeAnalysis;
 
-namespace Synto.Bootstrap
+namespace Synto.Bootstrap;
+
+internal static class SymbolExtensions
 {
-    internal static class SymbolExtensions
+    public static bool IsPrimitive(this ITypeSymbol type)
     {
-        public static bool IsPrimitive(this ITypeSymbol type)
+        return type.SpecialType switch
         {
-            return type.SpecialType switch
-            {
-                SpecialType.System_Boolean
+            SpecialType.System_Boolean
                 or SpecialType.System_SByte
                 or SpecialType.System_Int16
                 or SpecialType.System_Int32
@@ -22,8 +22,7 @@ namespace Synto.Bootstrap
                 or SpecialType.System_Char
                 or SpecialType.System_String
                 or SpecialType.System_Object => true,
-                _ => false,
-            };
-        }
+            _ => false,
+        };
     }
 }

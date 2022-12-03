@@ -2,64 +2,63 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Synto
+namespace Synto;
+
+internal class TemplateInfo
 {
-    internal class TemplateInfo
+    public readonly TypeInfo Temp;
+
+    public TemplateInfo(AttributeSyntax projectionAttribute, TargetType target, SourceFunction? source, TypeInfo temp)
     {
-        public readonly TypeInfo Temp;
-
-        public TemplateInfo(AttributeSyntax projectionAttribute, TargetType target, SourceFunction? source, TypeInfo temp)
-        {
-            this.Temp = temp;
-            this.ProjectionAttribute = projectionAttribute;
-            this.Target = target;
-            Source = source;
-        }
-
-        public AttributeSyntax ProjectionAttribute { get; }
-        public TargetType Target { get; }
-        public SourceFunction? Source { get; }
+        this.Temp = temp;
+        this.ProjectionAttribute = projectionAttribute;
+        this.Target = target;
+        Source = source;
     }
 
-    internal class SourceFunction
-    {
-        public SourceFunction(SyntaxNode syntax, SyntaxToken identifier, ParameterListSyntax parameterListSyntax, BlockSyntax? body)
-        {
-            this.Syntax = syntax;
-            this.Identifier = identifier;
-            this.ParameterListSyntax = parameterListSyntax;
-            this.Body = body;
-        }
+    public AttributeSyntax ProjectionAttribute { get; }
+    public TargetType Target { get; }
+    public SourceFunction? Source { get; }
+}
 
-        public SyntaxNode Syntax { get; }
-        public SyntaxToken Identifier { get; }
-        public BlockSyntax? Body { get; }
-        public ParameterListSyntax ParameterListSyntax { get; }
+internal class SourceFunction
+{
+    public SourceFunction(SyntaxNode syntax, SyntaxToken identifier, ParameterListSyntax parameterListSyntax, BlockSyntax? body)
+    {
+        this.Syntax = syntax;
+        this.Identifier = identifier;
+        this.ParameterListSyntax = parameterListSyntax;
+        this.Body = body;
     }
 
-    internal class TargetType
+    public SyntaxNode Syntax { get; }
+    public SyntaxToken Identifier { get; }
+    public BlockSyntax? Body { get; }
+    public ParameterListSyntax ParameterListSyntax { get; }
+}
+
+internal class TargetType
+{
+    public ITypeSymbol? Type { get; }
+
+    public TypeSyntax Reference { get; }
+
+    public TargetType(TypeSyntax reference, ITypeSymbol? type)
     {
-        public ITypeSymbol? Type { get; }
+        this.Reference = reference ?? throw new ArgumentNullException(nameof(reference));
+        this.Type = type;
+    }
 
-        public TypeSyntax Reference { get; }
-
-        public TargetType(TypeSyntax reference, ITypeSymbol? type)
+    public string FullName
+    {
+        get
         {
-            this.Reference = reference ?? throw new ArgumentNullException(nameof(reference));
-            this.Type = type;
-        }
+            if (Type is null)
+                return "<unknown>";
 
-        public string FullName
-        {
-            get
-            {
-                if (Type is null)
-                    return "<unknown>";
-
-                return Type.ToDisplayString(new SymbolDisplayFormat(SymbolDisplayGlobalNamespaceStyle.Omitted,
-                                                                    SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
-                                                                    SymbolDisplayGenericsOptions.IncludeTypeParameters));
-            }
+            return Type.ToDisplayString(new SymbolDisplayFormat(SymbolDisplayGlobalNamespaceStyle.Omitted,
+                SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+                SymbolDisplayGenericsOptions.IncludeTypeParameters));
         }
     }
 }

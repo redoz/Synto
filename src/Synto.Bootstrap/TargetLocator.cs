@@ -2,19 +2,18 @@
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 
-namespace Synto.Bootstrap
-{
-    internal class TargetLocator : ISyntaxContextReceiver
-    {
-        public ClassDeclarationSyntax? TargetNode { get; private set; }
+namespace Synto.Bootstrap;
 
-        public void OnVisitSyntaxNode(GeneratorSyntaxContext context)
+internal class TargetLocator : ISyntaxContextReceiver
+{
+    public ClassDeclarationSyntax? TargetNode { get; private set; }
+
+    public void OnVisitSyntaxNode(GeneratorSyntaxContext context)
+    {
+        if (context.Node is ClassDeclarationSyntax cdl && StringComparer.Ordinal.Equals("CSharpSyntaxQuoter", cdl.Identifier.Text))
         {
-            if (context.Node is ClassDeclarationSyntax cdl && StringComparer.Ordinal.Equals("CSharpSyntaxQuoter", cdl.Identifier.Text))
-            {
-                //Debugger.Launch();
-                this.TargetNode = cdl;
-            }
+            //Debugger.Launch();
+            this.TargetNode = cdl;
         }
     }
 }
