@@ -14,7 +14,7 @@ public partial class UnitTest1
     [Fact]
     public void Test0()
     {
-        [Template(typeof(SF), Options = TemplateOption.Bare)]
+        [Template(typeof(SF), Options = TemplateOption.Single)]
         static void Simple()
         {
             Console.WriteLine("Hello World");
@@ -30,7 +30,7 @@ public partial class UnitTest1
     [Fact]
     public void Test1()
     {
-        [Template(typeof(SF), Options = TemplateOption.Bare)]
+        [Template(typeof(SF), Options = TemplateOption.Single)]
         static void Hello(string message)
         {
             Console.WriteLine("Hello " + message);
@@ -89,14 +89,19 @@ public partial class UnitTest1
 
         var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
 
-        Assert.Equal("{\r\n    Console.WriteLine(\"Hello \" + \"World\");\r\n    Console.WriteLine(\"Hello \" + \"World\");\r\n}", source);
+        Assert.Equal("""
+                     {
+                         Console.WriteLine("Hello " + "World");
+                         Console.WriteLine("Hello " + "World");
+                     }
+                     """
+                     , source);
     }
 
 
     [Fact]
     public void Test4()
     {
-
         [Template(typeof(SF), Options = TemplateOption.Bare)]
         static void NoUnroll(int count)
         {
