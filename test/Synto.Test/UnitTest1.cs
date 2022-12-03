@@ -98,7 +98,7 @@ public partial class UnitTest1
     {
 
         [Template(typeof(SF), Options = TemplateOption.Bare)]
-        static void Unroll(int count)
+        static void NoUnroll(int count)
         {
             int ret = 0;
             for (int i = 0; i < count; i++)
@@ -107,7 +107,7 @@ public partial class UnitTest1
             }
         }
 
-        BlockSyntax node = SF.Unroll(4);
+        BlockSyntax node = SF.NoUnroll(4);
 
 
         var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
