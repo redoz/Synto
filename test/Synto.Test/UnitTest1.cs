@@ -22,7 +22,7 @@ public partial class UnitTest1
 
         StatementSyntax node = SF.Simple();
 
-        var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
 
         Assert.Equal("Console.WriteLine(\"Hello World\");", source);
     }
@@ -38,7 +38,7 @@ public partial class UnitTest1
 
         StatementSyntax node = SF.Hello("World");
 
-        var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
 
         Assert.Equal("Console.WriteLine(\"Hello \" + \"World\");", source);
     }
@@ -61,7 +61,7 @@ public partial class UnitTest1
 
         StatementSyntax node = SF.Outer(SF.Inner().Expression);
 
-        var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
 
         Assert.Equal("Console.WriteLine(\"Hello \" + new StringBuilder(\"Something\").Append(\"Foo\").ToString());", source);
     }
@@ -87,7 +87,7 @@ public partial class UnitTest1
 
         BlockSyntax node = SF.Repeater(SF.Greeting("World").Expression);
 
-        var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
 
         Assert.Equal("""
                      {
@@ -115,7 +115,7 @@ public partial class UnitTest1
         BlockSyntax node = SF.NoUnroll(4);
 
 
-        var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
         string expected = """ 
                               {
                                   int ret = 0;
