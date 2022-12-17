@@ -1,10 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
-    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <DebugType>embedded</DebugType>
     <Copyright>$(Authors) 2021-2022</Copyright>
     <PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
@@ -13,19 +12,52 @@
     <PackageTags>Roslyn;Syntax</PackageTags>
     <EnableNETAnalyzers>True</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
+    <PackageOutputPath>$(SolutionDir)\artifacts\</PackageOutputPath>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <Description>Create Roslyn Syntax Trees from your C# code.</Description>
+    <!-- package settings -->
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoPackageAnalysis>true</NoPackageAnalysis>
+
+    <!-- gitversion props -->
+    <UpdateAssemblyInfo>false</UpdateAssemblyInfo>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="..\Synto.Bootstrap\Shared\SyntaxFormatter.cs" Link="Shared\SyntaxFormatter.cs" />
     <Compile Include="..\Synto.Bootstrap\Shared\UsingDirectiveSet.cs" Link="Shared\UsingDirectiveSet.cs" />
   </ItemGroup>
-  
+
+  <!--include output as analyzer -->
   <ItemGroup>
-    <ProjectReference Include="..\Synto.Bootstrap\Synto.Bootstrap.csproj" OutputItemType="Analyzer" />
+	<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+  
+  <ItemGroup>
+	<ProjectReference Include="..\Synto.Bootstrap\Synto.Bootstrap.csproj" OutputItemType="Analyzer">
+      <PrivateAssets>all</PrivateAssets>
+	</ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.4.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.3" PrivateAssets="all" />
   </ItemGroup>
+
+
 </Project>

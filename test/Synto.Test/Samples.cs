@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Text;
 using Xunit;
+#pragma warning disable CS8321
 
 namespace Synto.Test;
 
