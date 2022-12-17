@@ -89,7 +89,13 @@ public partial class UnitTest1
 
         var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
 
-        Assert.Equal("{\r\n    Console.WriteLine(\"Hello \" + \"World\");\r\n    Console.WriteLine(\"Hello \" + \"World\");\r\n}", source);
+        Assert.Equal("""
+        {
+            Console.WriteLine("Hello " + "World");
+            Console.WriteLine("Hello " + "World");
+        }
+        """, 
+        source);
     }
 
 
