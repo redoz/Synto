@@ -85,6 +85,8 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
 
     public virtual ExpressionSyntax Visit(SyntaxToken token)
     {
+        static bool TokenKindHasText(SyntaxKind kind) => SyntaxFacts.GetText(kind) != string.Empty;
+
         return token.Kind() switch
         {
             SyntaxKind.BadToken => SyntaxFactoryInvocation(nameof(BadToken),  Visit(token.LeadingTrivia), token.Text.ToLiteral(), Visit(token.TrailingTrivia)),
@@ -115,6 +117,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
             //SyntaxKind.InterpolatedStringTextToken => Token(token.LeadingTrivia, token.Kind(), token.Text, token.ValueText, token.TrailingTrivia),
             //_ => throw new NotImplementedException($"Unable to create literal token (Kind: {token.Kind()}, Type {token.Value?.GetType().FullName ?? "null"}): '{token.ToFullString()}'")
 
+            var tokenKind when TokenKindHasText(tokenKind) => SyntaxFactoryInvocation(nameof(Token), Visit(token.LeadingTrivia), Visit(tokenKind), Visit(token.TrailingTrivia)),
             var tokenKind => SyntaxFactoryInvocation(nameof(Token), Visit(token.LeadingTrivia), Visit(tokenKind), token.Text.ToLiteral(), ((string)token.Value!).ToLiteral(), Visit(token.TrailingTrivia)),
         };
     }

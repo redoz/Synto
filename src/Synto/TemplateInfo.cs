@@ -13,7 +13,7 @@ internal class TemplateInfo
         this.Temp = temp;
         this.ProjectionAttribute = projectionAttribute;
         this.Target = target;
-        Source = source;
+        this.Source = source;
     }
 
     public AttributeSyntax ProjectionAttribute { get; }

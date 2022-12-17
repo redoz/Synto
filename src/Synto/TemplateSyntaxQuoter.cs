@@ -108,14 +108,6 @@ internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
         if (identifierSymbol.Symbol is IParameterSymbol parameterSymbol && _parameterSymbols.Contains(parameterSymbol, SymbolEqualityComparer.Default))
         {
             return SF.InvocationExpression(SF.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, node, SF.IdentifierName("ToLiteral")));
-                //return SyntaxFactoryInvocation(
-                //    nameof(SF.LiteralExpression),
-                //    (predefined.Kind() switch
-                //    {
-                //        _ => SyntaxKind.StringLiteralExpression
-                //    }).QuoteSyntaxKind(),
-                //    SyntaxFactoryInvocation(nameof(SF.Literal), SF.IdentifierName(node.Identifier)));
-            
         }
 
         return base.VisitIdentifierName(node);
