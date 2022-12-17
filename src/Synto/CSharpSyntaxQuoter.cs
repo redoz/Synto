@@ -4,13 +4,13 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-
+using Synto.Utils;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 
 namespace Synto;
 
-// this needs to be a base-class because for some reason the generates source cannot see the contents of its partial class
+// this needs to be a base-class because for some reason the generated source cannot see the contents of its partial class
 public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
 {
     protected static InvocationExpressionSyntax SyntaxFactoryInvocation(string functionName, params ExpressionSyntax[] arguments)
@@ -64,7 +64,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
             return InvocationExpression(
                 MemberAccessExpression(
                     SyntaxKind.SimpleMemberAccessExpression,
-                    ParseTypeName(typeof(Array).FullName!),
+                    IdentifierName(nameof(Array)),
                     GenericName(
                         Identifier(nameof(Array.Empty)),
                         TypeArgumentList(SingletonSeparatedList(elementType)))));
@@ -80,25 +80,11 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
 
     public virtual ExpressionSyntax Visit(SyntaxKind kind)
     {
-        return MemberAccessExpression(
-            SyntaxKind.SimpleMemberAccessExpression,
-            ParseName(typeof(SyntaxKind).FullName!),
-            IdentifierName(kind.ToString()));
+        return IdentifierName(kind.ToString());
     }
 
     public virtual ExpressionSyntax Visit(SyntaxToken token)
     {
-        //SyntaxFactory.Token(token.LeadingTrivia, token.Kind(), token.Text, token.ValueText, token.TrailingTrivia);
-        //return SyntaxFactoryInvocation(
-        //    nameof(Token),
-        //    SyntaxFactoryInvocation(nameof(TriviaList)),
-        //    Visit(token.Kind()),
-        //    Visit(token.Text),
-        //    Visit(token.ValueText),
-        //    SyntaxFactoryInvocation(nameof(TriviaList)));
-
-
-
         return token.Kind() switch
         {
             SyntaxKind.BadToken => SyntaxFactoryInvocation(nameof(BadToken),  Visit(token.LeadingTrivia), token.Text.ToLiteral(), Visit(token.TrailingTrivia)),
@@ -154,10 +140,13 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
 
 public partial class CSharpSyntaxQuoter :  CSharpSyntaxQuoterBase
 {
+    //private readonly UsingDirectiveSet _additionalUsings;
+
     public static IEnumerable<UsingDirectiveSyntax> RequiredUsings()
     {
         return new List<UsingDirectiveSyntax>()
         {
+            UsingDirective(ParseName(typeof(Array).Namespace)),
             UsingDirective(ParseName(typeof(SyntaxNodeOrToken).Namespace)),
             UsingDirective(ParseName(typeof(ArgumentSyntax).Namespace)),
             UsingDirective(ParseName(typeof(SyntaxFactory).FullName))
@@ -166,6 +155,8 @@ public partial class CSharpSyntaxQuoter :  CSharpSyntaxQuoterBase
                 .WithStaticKeyword(Token(SyntaxKind.StaticKeyword))
         };
     }
+
+
     public override ExpressionSyntax? VisitIdentifierName(IdentifierNameSyntax node)
     {
         // IdentifierName(node.Identifier.Text)

@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <Compile Include="..\Synto.Bootstrap\Shared\SyntaxFormatter.cs" Link="Shared\SyntaxFormatter.cs" />
+    <Compile Include="..\Synto.Bootstrap\Shared\UsingDirectiveSet.cs" Link="Shared\UsingDirectiveSet.cs" />
   </ItemGroup>
   
   <ItemGroup>
@@ -26,9 +27,5 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.4.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.3" PrivateAssets="all" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Shared\" />
   </ItemGroup>
 </Project>
