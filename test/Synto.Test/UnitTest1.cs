@@ -116,7 +116,7 @@ public partial class UnitTest1
         BlockSyntax node = SF.NoUnroll(4);
 
 
-        var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
         string expected = """ 
                               {
                                   int ret = 0;
