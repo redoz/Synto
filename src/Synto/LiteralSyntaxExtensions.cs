@@ -78,13 +78,8 @@ public static class LiteralSyntaxExtensions
         return SF.LiteralExpression(SyntaxKind.CharacterLiteralExpression, SF.Literal(value));
     }
 
-    //public static ExpressionSyntax ToLiteral(this SyntaxKind kind)
+    //public static T ToLiteral<T>(this T node) where T : SyntaxNode
     //{
-    //    return SF.LiteralExpression(SyntaxKind.CharacterLiteralExpression, SF.Literal(value));
+    //    return node;
     //}
-
-    public static T ToLiteral<T>(this T node) where T : SyntaxNode
-    {
-        return node;//CSharpSyntaxQuoter.Quote(node);
-    }
 }

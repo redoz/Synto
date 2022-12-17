@@ -71,23 +71,23 @@ internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
         this._unquoteFinder = new UnquoteFinder(semanticModel, unquotedParameters);
     }
 
-    public override ExpressionSyntax? VisitForStatement(ForStatementSyntax node)
-    {
-        if (_unquoteFinder.ContainsUnquotedParameter(node.Declaration) || node.Incrementors.Any(inc => _unquoteFinder.ContainsUnquotedParameter(inc)) || _unquoteFinder.ContainsUnquotedParameter(node.Condition))
-        {
-            //return SyntaxFactory.ExpressionStatement(node);
-        }
-        return base.VisitForStatement(node);
-    }
+    //public override ExpressionSyntax? VisitForStatement(ForStatementSyntax node)
+    //{
+    //    if (_unquoteFinder.ContainsUnquotedParameter(node.Declaration) || node.Incrementors.Any(inc => _unquoteFinder.ContainsUnquotedParameter(inc)) || _unquoteFinder.ContainsUnquotedParameter(node.Condition))
+    //    {
+    //        //return SyntaxFactory.ExpressionStatement(node);
+    //    }
+    //    return base.VisitForStatement(node);
+    //}
 
-    public override ExpressionSyntax? VisitExpressionStatement(ExpressionStatementSyntax node)
-    {
-        if (_unquoteFinder.ContainsUnquotedParameter(node))
-        {
+    //public override ExpressionSyntax? VisitExpressionStatement(ExpressionStatementSyntax node)
+    //{
+    //    if (_unquoteFinder.ContainsUnquotedParameter(node))
+    //    {
             
-        }
-        return base.VisitExpressionStatement(node);
-    }
+    //    }
+    //    return base.VisitExpressionStatement(node);
+    //}
 
     public override ExpressionSyntax? VisitInvocationExpression(InvocationExpressionSyntax node)
     {

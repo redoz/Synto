@@ -1,4 +1,7 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.CSharp;
+using System.Collections.Generic;
 
 namespace Synto.Bootstrap;
 
@@ -24,5 +27,12 @@ internal static class SymbolExtensions
                 or SpecialType.System_Object => true,
             _ => false,
         };
+    }
+
+    public static NameSyntax GetQualifiedNameSyntax(this ISymbol symbol)
+    {
+        if (symbol.ContainingNamespace is { IsGlobalNamespace: true })
+            return SyntaxFactory.IdentifierName(symbol.Name);
+        return SyntaxFactory.QualifiedName(GetQualifiedNameSyntax(symbol.ContainingNamespace), SyntaxFactory.IdentifierName(symbol.Name));
     }
 }
