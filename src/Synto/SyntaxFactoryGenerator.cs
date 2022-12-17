@@ -122,7 +122,7 @@ public class SyntaxFactoryGenerator : ISourceGenerator
                 }
 
                 
-                TemplateSyntaxQuoter quoter = new(source, targetParams, semanticModel);
+                TemplateSyntaxQuoter quoter = new(source, semanticModel);
 
                 ExpressionSyntax? syntaxTreeExpr;
                 TypeSyntax? returnType;
