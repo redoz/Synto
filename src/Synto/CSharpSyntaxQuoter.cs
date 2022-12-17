@@ -20,6 +20,42 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
     }
 
 
+    public virtual ExpressionSyntax Visit<TNode>(SyntaxList<TNode> nodeList) where TNode : SyntaxNode
+    {
+        var quotedExprs = nodeList.Select(node => Visit(node)!);
+
+        TypeSyntax elementType = ParseTypeName(typeof(TNode).Name);
+        return InvocationExpression(
+                GenericName(
+                    Identifier(nameof(List)),
+                    TypeArgumentList(
+                        SingletonSeparatedList(elementType))),
+            ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs, elementType)))));
+    }
+
+    public virtual ExpressionSyntax Visit<TNode>(SeparatedSyntaxList<TNode> nodeList) where TNode : SyntaxNode
+    {
+        var quotedExprs = nodeList.GetWithSeparators()
+            .Select(item => item.IsToken ? QuoteSyntaxToken(item.AsToken()) : Visit(item.AsNode())!);
+
+        TypeSyntax elementType = ParseTypeName(typeof(TNode).Name);
+        return InvocationExpression(
+                GenericName(
+                    Identifier(nameof(SeparatedList)),
+                    TypeArgumentList(
+                        SingletonSeparatedList(elementType))),
+                ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs, IdentifierName(nameof(SyntaxNodeOrToken)))))));
+    }
+    protected static ExpressionSyntax QuoteSyntaxToken(SyntaxToken token)
+    {
+        return SyntaxFactoryInvocation(nameof(Token), QuoteSyntaxKind(token.Kind()));
+    }
+
+    protected static ExpressionSyntax QuoteSyntaxKind(SyntaxKind kind)
+    {
+        return IdentifierName(kind.ToString());
+    }
+
     protected static ExpressionSyntax ToArrayLiteral(IEnumerable<ExpressionSyntax> nodeList, TypeSyntax elementType)
     {
         var list = nodeList.ToList();
@@ -40,34 +76,6 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
             InitializerExpression(
                 SyntaxKind.ArrayInitializerExpression,
                 SeparatedList(list)));
-    }
-
-
-    public virtual ExpressionSyntax Visit<TNode>(SyntaxList<TNode> nodeList) where TNode : SyntaxNode
-    {
-        var quotedExprs = nodeList.Select(node => Visit(node)!);
-
-        TypeSyntax elementType = ParseTypeName(typeof(TNode).FullName!);
-        return InvocationExpression(GenericName(
-                Identifier(nameof(List)),
-                TypeArgumentList(
-                    SingletonSeparatedList(elementType))),
-            ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs, elementType)))));
-    }
-
-    public virtual ExpressionSyntax Visit<TNode>(SeparatedSyntaxList<TNode> nodeList) where TNode : SyntaxNode
-    {
-        TypeSyntax elementType = ParseTypeName(typeof(TNode).FullName!);
-        return InvocationExpression(
-            GenericName(
-                Identifier(nameof(SeparatedList)),
-                TypeArgumentList(
-                    SingletonSeparatedList(elementType))),
-            ArgumentList(SyntaxFactory.SeparatedList(new[]
-            {
-                Argument(ToArrayLiteral(nodeList.Select(t => Visit(t)!), ParseTypeName(typeof(TNode).FullName!))),
-                Argument(ToArrayLiteral(nodeList.GetSeparators().Select(Visit), ParseTypeName(typeof(SyntaxToken).FullName!)))
-            })));
     }
 
     public virtual ExpressionSyntax Visit(SyntaxKind kind)

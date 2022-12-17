@@ -10,8 +10,6 @@ namespace Synto.Bootstrap;
 
 internal static class Helpers
 {
-
-
     public static InvocationExpressionSyntax SyntaxFactoryInvocation(string functionName, params ExpressionSyntax[] arguments)
     {
         return SF.InvocationExpression(SF.IdentifierName(functionName))
@@ -22,12 +20,6 @@ internal static class Helpers
     {
         return SyntaxFactoryInvocation(functionName, arguments.ToArray());
     }
-
-    //public static IEnumerable<ExpressionSyntax?> Accept<TNode>(this SyntaxList<TNode> nodeList,
-    //                                                           CSharpSyntaxVisitor<ExpressionSyntax> visitor) where TNode : SyntaxNode
-    //{
-    //    return nodeList.Select(visitor.Visit);
-    //}
 
     public static ExpressionSyntax Accept<TNode>(this SyntaxList<TNode> nodeList, CSharpSyntaxVisitor<ExpressionSyntax> visitor) where TNode : SyntaxNode
     {
@@ -53,16 +45,7 @@ internal static class Helpers
                     SF.Identifier(nameof(SF.SeparatedList)),
                     SF.TypeArgumentList(
                         SF.SingletonSeparatedList(elementType))),
-                SF.ArgumentList(SF.SingletonSeparatedList(SF.Argument(quotedExprs.ToArrayLiteral(SF.ParseTypeName(nameof(SyntaxNodeOrToken)))))));
-        
-
-        //return SyntaxFactoryInvocation(nameof(SF.SeparatedList),
-        //    nodeList.GetWithSeparators().Select(item => item.IsToken ? item.AsToken().QuoteSyntaxToken() : visitor.Visit(item.AsNode())!)
-        //        .ToArrayLiteral(SF.ParseTypeName(nameof(SyntaxNodeOrToken))));
-
-        //return SyntaxFactoryInvocation(nameof(SF.SeparatedList),
-        //    nodeList.Select(t => visitor.Visit(t)!).ToArrayLiteral(SF.ParseTypeName(typeof(TNode).FullName)),
-        //    nodeList.GetSeparators().Select(st => st.QuoteSyntaxToken()).ToArrayLiteral(SF.ParseTypeName(typeof(SyntaxToken).FullName)));
+                SF.ArgumentList(SF.SingletonSeparatedList(SF.Argument(quotedExprs.ToArrayLiteral(SF.IdentifierName(nameof(SyntaxNodeOrToken)))))));
     }
     public static ExpressionSyntax ToArrayLiteral(this IEnumerable<ExpressionSyntax> nodeList, TypeSyntax elementType)
     {
@@ -88,9 +71,6 @@ internal static class Helpers
 
     public static ExpressionSyntax QuoteSyntaxKind(this SyntaxKind kind)
     {
-        //return SF.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-        //    SF.ParseName(typeof(SyntaxKind).FullName),
-        //    SF.IdentifierName(kind.ToString()));
         return SF.IdentifierName(kind.ToString());
     }
 
