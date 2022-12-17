@@ -4,7 +4,6 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
-    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <DebugType>embedded</DebugType>
     <Copyright>$(Authors) 2021-2022</Copyright>
     <PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
@@ -17,11 +16,24 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <Description>Create Roslyn Syntax Trees from your C# code.</Description>
+    <!-- package settings -->
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoPackageAnalysis>true</NoPackageAnalysis>
+
+    <!-- gitversion props -->
+    <UpdateAssemblyInfo>false</UpdateAssemblyInfo>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="..\Synto.Bootstrap\Shared\SyntaxFormatter.cs" Link="Shared\SyntaxFormatter.cs" />
     <Compile Include="..\Synto.Bootstrap\Shared\UsingDirectiveSet.cs" Link="Shared\UsingDirectiveSet.cs" />
+  </ItemGroup>
+
+  <!--include output as analyzer -->
+  <ItemGroup>
+	<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -42,11 +54,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="GitVersion.MsBuild" Version="5.11.1">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+	  <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.4.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.3" PrivateAssets="all" />
+    <PackageReference Include="Nerdbank.GitVersioning" Version="3.5.119">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
+
+
 </Project>
