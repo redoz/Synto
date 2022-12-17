@@ -3,9 +3,6 @@
 
 name: Build, Package & Test
 
-env:
-  BUILD_NUMBER: ${{ github.run_number }}
-
 on:
   push:
     branches: [ "main" ]
@@ -20,6 +17,8 @@ jobs:
     steps:
     - name: Get source
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     - name: Restore dependencies
       run: dotnet restore
