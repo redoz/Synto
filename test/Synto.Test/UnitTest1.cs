@@ -89,19 +89,14 @@ public partial class UnitTest1
 
         var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
 
-        Assert.Equal("""
-                     {
-                         Console.WriteLine("Hello " + "World");
-                         Console.WriteLine("Hello " + "World");
-                     }
-                     """
-                     , source);
+        Assert.Equal("{\r\n    Console.WriteLine(\"Hello \" + \"World\");\r\n    Console.WriteLine(\"Hello \" + \"World\");\r\n}", source);
     }
 
 
     [Fact]
     public void Test4()
     {
+
         [Template(typeof(SF), Options = TemplateOption.Bare)]
         static void NoUnroll(int count)
         {
@@ -115,7 +110,7 @@ public partial class UnitTest1
         BlockSyntax node = SF.NoUnroll(4);
 
 
-        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+        var source = node.NormalizeWhitespace().GetText(Encoding.UTF8).ToString().Trim();
         string expected = """ 
                               {
                                   int ret = 0;
@@ -129,5 +124,35 @@ public partial class UnitTest1
         Assert.Equal(expected, source);
     }
 
+
+    //[Fact]
+    //public void Test5()
+    //{
+    //    [Template(typeof(SF), Options = TemplateOption.Bare)]
+    //    static void Unroll([Unquote] int count)
+    //    {
+    //        int ret = 0;
+    //        for (int i = 0; i < count; i++)
+    //        {
+    //            ret++;
+    //        }
+    //    }
+
+    //    BlockSyntax node = SF.Unroll(4);
+
+
+    //    var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+    //    string expected = """ 
+    //                          {
+    //                              int ret = 0;
+    //                                  ret++;
+    //                                  ret++;
+    //                                  ret++;
+    //                                  ret++; 
+    //                          }
+    //                          """;
+
+    //    Assert.Equal(expected, source);
+    //}
 
 }

@@ -14,9 +14,14 @@ public enum TemplateOption
     /// <summary>
     /// Unwraps BlockExpression to first Statement
     /// </summary>
-    Single = 2 | Bare
+    Single = 2 | Bare,
 
     // should probably add some kind of option to minimize the output
+    
+    /// <summary>
+    /// Preserves Whitespace Trivia (includes Comments)
+    /// </summary>
+    PreserveWhitespace = 4
 }
 
 [AttributeUsage(AttributeTargets.Method)]

@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Synto.Utils;
 
 namespace Synto.Bootstrap;
 
@@ -47,32 +48,7 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
 
         var filteredMembers = allMembers.OfType<IMethodSymbol>().Where(member => member.Name.StartsWith("Visit") && member.Name.Length > "Visit".Length);
 
-        var syntaxFactoryExpr = SF.ParseName(typeof(SF).FullName);
-
-
-        //const string syntaxFactoryTypeName = "SyntaxFactoryType";
-        //members.Add(SF.FieldDeclaration(
-        //    SF.VariableDeclaration(
-        //        SF.ParseTypeName(typeof(TypeSyntax).FullName),
-        //        SF.SingletonSeparatedList(
-        //            SF.VariableDeclarator(
-        //                SF.Identifier(syntaxFactoryTypeName),
-        //                null,
-        //                SF.EqualsValueClause(
-        //                    SF.InvocationExpression(
-        //                        SF.MemberAccessExpression(
-        //                            SyntaxKind.SimpleMemberAccessExpression,
-        //                            SF.ParseTypeName(typeof(SyntaxFactory).FullName),
-        //                            SF.IdentifierName(nameof(SyntaxFactory.ParseTypeName))),
-        //                        SF.ArgumentList(
-        //                            SF.SingletonSeparatedList(
-        //                                SF.Argument(
-        //                                    SF.LiteralExpression(
-        //                                        SyntaxKind.StringLiteralExpression,
-        //                                        SF.Literal(typeof(SyntaxFactory).FullName)))))))))))
-        //    .AddModifiers(SF.Token(SyntaxKind.PrivateKeyword), SF.Token(SyntaxKind.ReadOnlyKeyword)));
-
-        //var factoryTypeNameExpr = SF.IdentifierName(syntaxFactoryTypeName);
+        
 
         //   Debugger.Launch();
 
@@ -116,12 +92,13 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
                 factoryMethod = factoryMethods[0];
 
 
-            var expr = SF.InvocationExpression(
-                SF.MemberAccessExpression(
-                    SyntaxKind.SimpleMemberAccessExpression,
-                    SF.IdentifierName("SyntaxFactory"),
-                    SF.IdentifierName(factoryMethod.Name)));
+            //var expr = SF.InvocationExpression(
+            //    SF.MemberAccessExpression(
+            //        SyntaxKind.SimpleMemberAccessExpression,
+            //        SF.IdentifierName("SyntaxFactory"),
+            //        SF.IdentifierName(factoryMethod.Name)));
 
+            var expr = SF.InvocationExpression(SF.IdentifierName(factoryMethod.Name));
 
             //expr = (InvocationExpressionSyntax)CSharpSyntaxQuoter.Quote(expr, exclude: factoryTypeNameExpr);
 
@@ -202,10 +179,8 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
 
             var method = SF.MethodDeclaration(returnTypeSyntax, item.Name)
                 .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.OverrideKeyword))
-                .WithParameterList(SF.ParameterList(SF.SingletonSeparatedList(parameterSyntax)));
-
-            if (body is not null)
-                method = method.WithBody(body);
+                .WithParameterList(SF.ParameterList(SF.SingletonSeparatedList(parameterSyntax)))
+                .WithBody(body);
 
             members.Add(method);
         }
@@ -214,13 +189,21 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
             .WithModifiers(targetClass.Modifiers)
             .WithMembers(SF.List(members));
 
-        var namespaceSyntax = SF.NamespaceDeclaration(typeSymbol.ContainingNamespace.GetQualifiedNameSyntax())
+        var compilationUnit = SF.CompilationUnit()
+            .AddUsings(
+                SF.UsingDirective(SF.ParseName(typeof(SyntaxNodeOrToken).Namespace)),
+                SF.UsingDirective(SF.ParseName(typeof(ArgumentSyntax).Namespace)),
+                SF.UsingDirective(SF.ParseName(typeof(SF).FullName))
+                    .WithStaticKeyword(SF.Token(SyntaxKind.StaticKeyword)),
+                SF.UsingDirective(SF.ParseName(typeof(SyntaxKind).FullName))
+                    .WithStaticKeyword(SF.Token(SyntaxKind.StaticKeyword)))
+            .AddMembers(SF.FileScopedNamespaceDeclaration(typeSymbol.ContainingNamespace.GetQualifiedNameSyntax()))
             .AddMembers(classDeclSyntax);
 
-        var compilationUnit = SF.CompilationUnit()
-            .AddMembers(namespaceSyntax);
-
-        var sourceText = compilationUnit.NormalizeWhitespace().GetText(Encoding.UTF8);
+        // try to make it a bit more readable
+        compilationUnit = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace(eol: Environment.NewLine));
+        
+        var sourceText = compilationUnit.GetText(Encoding.UTF8);
 
         context.AddSource($"{targetClass.Identifier.Text}.cs", sourceText);
     }

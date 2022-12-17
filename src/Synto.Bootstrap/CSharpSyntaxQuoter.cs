@@ -21,9 +21,21 @@ internal class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
         _exclude = new List<ExpressionSyntax>(exclude);
     }
 
+    public static IEnumerable<UsingDirectiveSyntax> RequiredUsings()
+    {
+        return new List<UsingDirectiveSyntax>()
+        {
+            SF.UsingDirective(SF.ParseName(typeof(SyntaxNodeOrToken).Namespace)),
+            SF.UsingDirective(SF.ParseName(typeof(ArgumentSyntax).Namespace)),
+            SF.UsingDirective(SF.ParseName(typeof(SF).FullName))
+                .WithStaticKeyword(SF.Token(SyntaxKind.StaticKeyword)),
+            SF.UsingDirective(SF.ParseName(typeof(SyntaxKind).FullName))
+                .WithStaticKeyword(SF.Token(SyntaxKind.StaticKeyword))
+        };
+    }
+
     public override ExpressionSyntax? Visit(SyntaxNode? node)
     {
-        //Debugger.Launch();
         if (node is ExpressionSyntax expr && _exclude.Find(other => other.IsEquivalentTo(expr)) is not null)
             return expr;
 
@@ -43,11 +55,11 @@ internal class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
     public override ExpressionSyntax? VisitAccessorDeclaration(AccessorDeclarationSyntax node)
     {
         return SyntaxFactoryInvocation(nameof(SF.AccessorDeclaration),
-                                            node.Kind().QuoteSyntaxKind(),
-                                            node.AttributeLists.Accept(this),
-                                            node.Modifiers.QuoteSyntaxTokenList(),
-                                            Visit(node.Body).OrQuotedNullLiteral(),
-                                            Visit(node.ExpressionBody).OrQuotedNullLiteral());
+            node.Kind().QuoteSyntaxKind(),
+            node.AttributeLists.Accept(this),
+            node.Modifiers.QuoteSyntaxTokenList(),
+            Visit(node.Body).OrQuotedNullLiteral(),
+            Visit(node.ExpressionBody).OrQuotedNullLiteral());
     }
 
     public override ExpressionSyntax? VisitInvocationExpression(InvocationExpressionSyntax node)
@@ -70,7 +82,6 @@ internal class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
 
     public override ExpressionSyntax? VisitArgumentList(ArgumentListSyntax node)
     {
-
         return SyntaxFactoryInvocation(nameof(SF.ArgumentList),
             node.OpenParenToken.QuoteSyntaxToken(),
             node.Arguments.Accept(this),
@@ -97,13 +108,13 @@ internal class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
         //SF.Argument(node.NameColon, node.RefKindKeyword, node.Expression)
         return SyntaxFactoryInvocation(nameof(SF.Argument),
             (Visit(node.NameColon)).OrQuotedNullLiteral(),
-            node.RefKindKeyword.QuoteSyntaxToken(), 
+            node.RefKindKeyword.QuoteSyntaxToken(),
             Visit(node.Expression)!);
     }
 
     public override ExpressionSyntax? VisitBinaryExpression(BinaryExpressionSyntax node)
     {
-        //var x = () => SF.BinaryExpression(node.Kind(), node.Left, node.OperatorToken, node.Right);
+        //SF.BinaryExpression(node.Kind(), node.Left, node.OperatorToken, node.Right);
         return SyntaxFactoryInvocation(nameof(SF.BinaryExpression),
             node.Kind().QuoteSyntaxKind(),
             Visit(node.Left)!,
@@ -113,7 +124,7 @@ internal class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
 
     public override ExpressionSyntax? VisitLiteralExpression(LiteralExpressionSyntax node)
     {
-        //var x = SF.LiteralExpression(node.Kind(), node.Token);
+        //SF.LiteralExpression(node.Kind(), node.Token);
         return SyntaxFactoryInvocation(nameof(SF.LiteralExpression),
             node.Kind().QuoteSyntaxKind(),
             SyntaxFactoryInvocation(nameof(SF.Literal), SF.LiteralExpression(node.Kind(), node.Token)));
@@ -132,9 +143,9 @@ internal class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
     public override ExpressionSyntax? VisitQualifiedName(QualifiedNameSyntax node)
     {
         //SF.QualifiedName(left, dotToken, right)
-        return SyntaxFactoryInvocation(nameof(SF.QualifiedName), 
+        return SyntaxFactoryInvocation(nameof(SF.QualifiedName),
             Visit(node.Left)!,
-            node.DotToken.QuoteSyntaxToken(), 
+            node.DotToken.QuoteSyntaxToken(),
             Visit(node.Right)!);
     }
 

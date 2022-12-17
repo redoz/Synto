@@ -5,7 +5,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Synto.Rewrite;
+using Synto.Utils;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Synto;
@@ -31,7 +31,7 @@ public class SyntaxFactoryGenerator : ISourceGenerator
                     continue;
                 }
 
-                if (template.Target.Type?.DeclaringSyntaxReferences.FirstOrDefault() is not SyntaxReference syntaxRef)
+                if (template.Target.Type?.DeclaringSyntaxReferences.FirstOrDefault() is not { } syntaxRef)
                 {
                     context.ReportDiagnostic(Diagnostics.TargetNotDeclaredInSource(template.Target, context.Compilation.AssemblyName));
                     continue;
@@ -84,7 +84,7 @@ public class SyntaxFactoryGenerator : ISourceGenerator
                 var optionsArg =
                     template.ProjectionAttribute
                     .ArgumentList!
-                    .Arguments.SingleOrDefault(arg => arg.NameEquals is NameEqualsSyntax nameEquals &&
+                    .Arguments.SingleOrDefault(arg => arg.NameEquals is { } nameEquals &&
                                           StringComparer.Ordinal.Equals(nameEquals.Name.Identifier.Value, nameof(TemplateAttribute.Options))) ;// &&
 
                 TemplateOption options =
@@ -106,14 +106,13 @@ public class SyntaxFactoryGenerator : ISourceGenerator
                 for (int i = 0; i < source.ParameterListSyntax.Parameters.Count; i++)
                 {
                     var sourceParam = source.ParameterListSyntax.Parameters[i];
-                    var paramSymbol = semanticModel.GetDeclaredSymbol(sourceParam)!; // 🤞
+                    var paramSymbol = semanticModel.GetDeclaredSymbol(sourceParam); // 🤞
                     if (SymbolEqualityComparer.Default.Equals(paramSymbol?.Type, syntaxDelegateSymbol))
                     {
                         targetParams[i] = sourceParam.WithType(SF.ParseTypeName(typeof(ExpressionSyntax).FullName));
                     }
-                    else if (paramSymbol?.Type is INamedTypeSymbol namedTypeSymbol &&
-                            namedTypeSymbol.IsGenericType &&
-                            SymbolEqualityComparer.Default.Equals(namedTypeSymbol.OriginalDefinition, syntaxOfTDelegateSymbol))
+                    else if (paramSymbol?.Type is INamedTypeSymbol {IsGenericType: true} namedTypeSymbol &&
+                             SymbolEqualityComparer.Default.Equals(namedTypeSymbol.OriginalDefinition, syntaxOfTDelegateSymbol))
                     {
                         targetParams[i] = sourceParam.WithType(SF.ParseTypeName(typeof(ExpressionSyntax).FullName));
                     }
@@ -122,7 +121,7 @@ public class SyntaxFactoryGenerator : ISourceGenerator
                 }
 
                 
-                TemplateSyntaxQutoer quoter = new(source, targetParams, semanticModel);
+                TemplateSyntaxQuoter quoter = new(source, targetParams, semanticModel);
 
                 ExpressionSyntax? syntaxTreeExpr;
                 TypeSyntax? returnType;
@@ -190,27 +189,97 @@ public class SyntaxFactoryGenerator : ISourceGenerator
                 }
 
 
-                targetSyntax = SF.NamespaceDeclaration(current.GetNamespaceName())
+                targetSyntax = SF.FileScopedNamespaceDeclaration(current.GetNamespaceName())
                                     .AddMembers(targetSyntax);
 
-                var compilationUnit = SF.CompilationUnit()
-                    .AddMembers(targetSyntax);
+              //  Debugger.Launch();
 
-                // not entirely sure why this is needed, but otherwise things fail when we build from test explorer with a "Inconsistent syntax tree features" error
-                // could be that this is masking something dumb happening elsewhere
-                compilationUnit = compilationUnit.SyntaxTree.WithRootAndOptions(compilationUnit,
-                                                                                context.Compilation.SyntaxTrees.First().Options)
-                                                            .GetCompilationUnitRoot();
+                //var newCompilationUnit = SF.CompilationUnit().AddMembers(targetSyntax);
+
+               // newCompilationUnit = newCompilationUnit.SyntaxTree.WithRootAndOptions(
+               //         newCompilationUnit,
+               //         context.Compilation.SyntaxTrees.First().Options)
+               //     .GetCompilationUnitRoot();
+
+               // var newCompilation = context.Compilation.AddSyntaxTrees(newCompilationUnit.SyntaxTree);
+
+               // var newSemanticModel = newCompilation.GetSemanticModel(newCompilationUnit.SyntaxTree);
+
+               // NamespaceRewriter namespaceRewriter = new(newSemanticModel);
+               //// SF.CompilationUnit()
+
+               //var updatedCompilationUnit = (CompilationUnitSyntax)namespaceRewriter.VisitCompilationUnit(newCompilationUnit)!;
+               //updatedCompilationUnit = updatedCompilationUnit.SyntaxTree.WithRootAndOptions(
+               //        updatedCompilationUnit,
+               //        newCompilationUnit.SyntaxTree.Options)
+               //    .GetCompilationUnitRoot();
 
 
-                // this compilation is created so that we can get a semantic model containing the existing syntax tree as well as the one we just generated
-                Compilation compilation = context.Compilation.AddSyntaxTrees(compilationUnit.SyntaxTree);
-                NamespaceRewriter namespaceRewriter = new(compilation.GetSemanticModel(compilationUnit.SyntaxTree));
-                compilationUnit = (CompilationUnitSyntax)compilationUnit.Accept(namespaceRewriter)!;
+               //var updatedCompilation = newCompilation.ReplaceSyntaxTree(newCompilationUnit.SyntaxTree, updatedCompilationUnit.SyntaxTree);
 
-                var sourceText = compilationUnit.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8);
+               //var updatedSemanticModel = updatedCompilation.GetSemanticModel(updatedCompilationUnit.SyntaxTree);
 
-                context.AddSource($"{template.Target.FullName}.{template.Source!.Identifier}.cs", sourceText);
+               ////// this whole section seems "wrong" but it sorta seems to work 🤷‍
+
+               ////// not entirely sure why this is needed, but otherwise things fail when we build from test explorer with a "Inconsistent syntax tree features" error
+               ////// could be that this is masking something dumb happening elsewhere
+               ////compilationUnit = compilationUnit.SyntaxTree.WithRootAndOptions(compilationUnit,
+               ////                                                                context.Compilation.SyntaxTrees.First().Options)
+               ////                                            .GetCompilationUnitRoot();
+
+
+
+
+               //////Debugger.Launch();
+               ////// this compilation is created so that we can get a semantic model containing the existing syntax tree as well as the one we just generated
+               ////Compilation compilation = context.Compilation.AddSyntaxTrees(compilationUnit.SyntaxTree);
+               ////// clean up the namespaces
+               ////NamespaceRewriter namespaceRewriter = new(compilation.GetSemanticModel(compilationUnit.SyntaxTree));
+               ////compilationUnit = (CompilationUnitSyntax)compilationUnit.Accept(namespaceRewriter)!;
+
+
+
+
+
+               ////static CompilationUnitSyntax RemoveTrivia(CompilationUnitSyntax targetCompilationUnit, GeneratorExecutionContext context)
+               ////{
+               ////    var newCompilationUnit = targetCompilationUnit.SyntaxTree.WithRootAndOptions(targetCompilationUnit, context.Compilation.SyntaxTrees.First().Options) .GetCompilationUnitRoot();
+
+               var compilationUnit = SF.CompilationUnit().AddMembers(targetSyntax);
+                ////    // remove trivia (including whitespace) 
+                ////    // create a new syntax tree with the original options
+                ////    var newSyntaxTree = SyntaxFactory.SyntaxTree(compilationUnit.SyntaxTree.GetRoot(),
+                ////        compilationUnit.SyntaxTree.Options);
+                ////    // create a new compilation from that so we can get a the semantic model
+                ////    compilation = context.Compilation.AddSyntaxTrees(newSyntaxTree);
+                ////    SyntaxTriviaRemover triviaRemover = new(compilation.GetSemanticModel(newSyntaxTree),
+                ////        !options.HasFlag(TemplateOption.PreserveWhitespace));
+                ////    return  (CompilationUnitSyntax) newSyntaxTree.GetCompilationUnitRoot().Accept(triviaRemover)!;
+                ////}
+
+
+                ////compilationUnit = compilationUnit.SyntaxTree.WithRootAndOptions(compilationUnit,
+                ////        context.Compilation.SyntaxTrees.First().Options)
+                ////    .GetCompilationUnitRoot();
+
+
+
+
+                //////Debugger.Launch();
+                ////// this compilation is created so that we can get a semantic model containing the existing syntax tree as well as the one we just generated
+                ////compilation = context.Compilation.AddSyntaxTrees(compilationUnit.SyntaxTree);
+                ////// clean up the namespaces
+                ////SyntaxTriviaRemover triviaRemover = new(compilation.GetSemanticModel(compilationUnit.SyntaxTree));
+                ////compilationUnit = (CompilationUnitSyntax)compilationUnit.Accept(triviaRemover)!;
+                ////  Compilation newCompilation =compilation.ReplaceSyntaxTree()
+
+                compilationUnit = compilationUnit
+                    .AddUsings(CSharpSyntaxQuoter.RequiredUsings().ToArray());
+
+
+               var sourceText = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace(eol: Environment.NewLine)).GetText(Encoding.UTF8);
+
+               context.AddSource($"{template.Target.FullName}.{template.Source!.Identifier}.cs", sourceText);
             }
 
         }

@@ -14,6 +14,10 @@
     <EnableNETAnalyzers>True</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Synto.Bootstrap\Shared\SyntaxFormatter.cs" Link="Shared\SyntaxFormatter.cs" />
+  </ItemGroup>
   
   <ItemGroup>
     <ProjectReference Include="..\Synto.Bootstrap\Synto.Bootstrap.csproj" OutputItemType="Analyzer" />
@@ -22,5 +26,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.4.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Shared\" />
   </ItemGroup>
 </Project>

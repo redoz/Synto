@@ -11,17 +11,11 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 namespace Synto;
 
 // this needs to be a base-class because for some reason the generates source cannot see the contents of its partial class
-public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
+public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
 {
-    protected static readonly NameSyntax SyntaxFactoryToken = ParseName(typeof(SyntaxFactory).FullName!);
-
     protected static InvocationExpressionSyntax SyntaxFactoryInvocation(string functionName, params ExpressionSyntax[] arguments)
     {
-        return InvocationExpression(
-            MemberAccessExpression(
-                SyntaxKind.SimpleMemberAccessExpression,
-                SyntaxFactoryToken,
-                IdentifierName(functionName)))
+        return InvocationExpression(IdentifierName(functionName))
             .AddArgumentListArguments(Array.ConvertAll(arguments, Argument));
     }
 
@@ -54,14 +48,10 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
         var quotedExprs = nodeList.Select(node => Visit(node)!);
 
         TypeSyntax elementType = ParseTypeName(typeof(TNode).FullName!);
-        return InvocationExpression(
-            MemberAccessExpression(
-                SyntaxKind.SimpleMemberAccessExpression,
-                SyntaxFactoryToken,
-                GenericName(
-                    Identifier(nameof(List)),
-                    TypeArgumentList(
-                        SingletonSeparatedList(elementType)))),
+        return InvocationExpression(GenericName(
+                Identifier(nameof(List)),
+                TypeArgumentList(
+                    SingletonSeparatedList(elementType))),
             ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs, elementType)))));
     }
 
@@ -69,21 +59,15 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
     {
         TypeSyntax elementType = ParseTypeName(typeof(TNode).FullName!);
         return InvocationExpression(
-            MemberAccessExpression(
-                SyntaxKind.SimpleMemberAccessExpression,
-                SyntaxFactoryToken,
-                GenericName(
-                    Identifier(nameof(SeparatedList)),
-                    TypeArgumentList(
-                        SingletonSeparatedList(elementType)))),
+            GenericName(
+                Identifier(nameof(SeparatedList)),
+                TypeArgumentList(
+                    SingletonSeparatedList(elementType))),
             ArgumentList(SyntaxFactory.SeparatedList(new[]
             {
                 Argument(ToArrayLiteral(nodeList.Select(t => Visit(t)!), ParseTypeName(typeof(TNode).FullName!))),
                 Argument(ToArrayLiteral(nodeList.GetSeparators().Select(Visit), ParseTypeName(typeof(SyntaxToken).FullName!)))
             })));
-
-
-
     }
 
     public virtual ExpressionSyntax Visit(SyntaxKind kind)
@@ -162,14 +146,22 @@ public class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
 
 public partial class CSharpSyntaxQuoter :  CSharpSyntaxQuoterBase
 {
+    public static IEnumerable<UsingDirectiveSyntax> RequiredUsings()
+    {
+        return new List<UsingDirectiveSyntax>()
+        {
+            UsingDirective(ParseName(typeof(SyntaxNodeOrToken).Namespace)),
+            UsingDirective(ParseName(typeof(ArgumentSyntax).Namespace)),
+            UsingDirective(ParseName(typeof(SyntaxFactory).FullName))
+                .WithStaticKeyword(Token(SyntaxKind.StaticKeyword)),
+            UsingDirective(ParseName(typeof(SyntaxKind).FullName))
+                .WithStaticKeyword(Token(SyntaxKind.StaticKeyword))
+        };
+    }
     public override ExpressionSyntax? VisitIdentifierName(IdentifierNameSyntax node)
     {
         // IdentifierName(node.Identifier.Text)
-        return InvocationExpression(
-            MemberAccessExpression(
-                SyntaxKind.SimpleMemberAccessExpression,
-                SyntaxFactoryToken,
-                IdentifierName(nameof(IdentifierName))),
+        return InvocationExpression(IdentifierName(nameof(IdentifierName)),
             ArgumentList(
                 SingletonSeparatedList(
                     Argument(
