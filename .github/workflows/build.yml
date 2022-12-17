@@ -3,6 +3,9 @@
 
 name: Build, Package & Test
 
+env:
+  BUILD_NUMBER: ${{ github.run_number }}
+
 on:
   push:
     branches: [ "main" ]
@@ -19,10 +22,16 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: 6.0.x
+        dotnet-version: 7.0.x
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
-      run: dotnet build --no-restore
+      run: dotnet build --no-restore --configuration Release
     - name: Test
       run: dotnet test --no-build --verbosity normal
+
+    - name: Archive code coverage results
+      uses: actions/upload-artifact@v3
+      with:
+        name: nuget-package
+        path: artifacts/*.nupkg
