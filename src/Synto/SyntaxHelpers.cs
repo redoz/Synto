@@ -14,11 +14,14 @@ internal static class SyntaxHelpers
         return SyntaxFactory.QualifiedName(GetTypeName(symbol.ContainingType), SyntaxFactory.IdentifierName(symbol.Name));
     }
 
-    public static NameSyntax GetNamespaceName(this ISymbol symbol)
+    public static NameSyntax? GetNamespaceName(this ISymbol symbol)
     {
+        if (symbol is INamespaceSymbol {IsGlobalNamespace: true})
+            return null;
+
         if (symbol.ContainingNamespace is { IsGlobalNamespace: true })
             return SyntaxFactory.IdentifierName(symbol.Name);
-        return SyntaxFactory.QualifiedName(GetNamespaceName(symbol.ContainingNamespace), SyntaxFactory.IdentifierName(symbol.Name));
+        return SyntaxFactory.QualifiedName(GetNamespaceName(symbol.ContainingNamespace)!, SyntaxFactory.IdentifierName(symbol.Name));
     }
     public static T? GetAncestor<T>(this SyntaxNode? syntax) where T : SyntaxNode
     {

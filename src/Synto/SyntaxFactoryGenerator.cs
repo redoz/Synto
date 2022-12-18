@@ -189,11 +189,15 @@ public class SyntaxFactoryGenerator : ISourceGenerator
                     current = current.ContainingSymbol;
                 }
 
+                // if the template is defined in the global namespace this will return null
+                var namespaceName = current.GetNamespaceName();
+                if (namespaceName is not null)
+                {
+                    targetSyntax = SF.FileScopedNamespaceDeclaration(namespaceName)
+                        .AddMembers(targetSyntax);
+                }
 
-                targetSyntax = SF.FileScopedNamespaceDeclaration(current.GetNamespaceName())
-                                    .AddMembers(targetSyntax);
-
-               var compilationUnit = SF.CompilationUnit().AddMembers(targetSyntax);
+                var compilationUnit = SF.CompilationUnit().AddMembers(targetSyntax);
                
                 compilationUnit = compilationUnit
                     .AddUsings(
