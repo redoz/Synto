@@ -25,6 +25,7 @@ internal class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
     {
         return new List<UsingDirectiveSyntax>()
         {
+            SF.UsingDirective(SF.ParseName("Synto.Runtime")),
             SF.UsingDirective(SF.ParseName(typeof(SyntaxNodeOrToken).Namespace)),
             SF.UsingDirective(SF.ParseName(typeof(ArgumentSyntax).Namespace)),
             SF.UsingDirective(SF.ParseName(typeof(SF).FullName))

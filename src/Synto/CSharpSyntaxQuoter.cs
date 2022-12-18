@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Synto.Runtime;
 using Synto.Utils;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
@@ -149,11 +150,16 @@ public partial class CSharpSyntaxQuoter :  CSharpSyntaxQuoterBase
     {
         return new List<UsingDirectiveSyntax>()
         {
+            // Synto.Runtime
+            UsingDirective(ParseName(typeof(LiteralSyntaxExtensions).Namespace)), 
+            // System
             UsingDirective(ParseName(typeof(Array).Namespace)),
             UsingDirective(ParseName(typeof(SyntaxNodeOrToken).Namespace)),
             UsingDirective(ParseName(typeof(ArgumentSyntax).Namespace)),
+            // static SyntaxFactory
             UsingDirective(ParseName(typeof(SyntaxFactory).FullName))
                 .WithStaticKeyword(Token(SyntaxKind.StaticKeyword)),
+            // static SyntaxKind
             UsingDirective(ParseName(typeof(SyntaxKind).FullName))
                 .WithStaticKeyword(Token(SyntaxKind.StaticKeyword))
         };
