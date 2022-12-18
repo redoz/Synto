@@ -17,10 +17,10 @@
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <Description>Create Roslyn Syntax Trees from your C# code.</Description>
     <!-- package settings -->
-    <DevelopmentDependency>true</DevelopmentDependency>
+    <!--<DevelopmentDependency>true</DevelopmentDependency>-->
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <NoPackageAnalysis>true</NoPackageAnalysis>
+    <!--<IncludeBuildOutput>false</IncludeBuildOutput>-->
+    <!--<NoPackageAnalysis>true</NoPackageAnalysis>-->
 
     <!-- gitversion props -->
     <UpdateAssemblyInfo>false</UpdateAssemblyInfo>
@@ -32,9 +32,9 @@
   </ItemGroup>
 
   <!--include output as analyzer -->
-  <ItemGroup>
+  <!--<ItemGroup>
 	<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-  </ItemGroup>
+  </ItemGroup>-->
 
   <ItemGroup>
     <None Include="..\..\LICENSE">
