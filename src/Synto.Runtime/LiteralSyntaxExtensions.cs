@@ -3,8 +3,9 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
-namespace Synto;
+namespace Synto.Runtime;
 
+// TODO would be nicer if this file could be copied into generated output as `file static class` so it isn't visible to the consumer project
 public static class LiteralSyntaxExtensions
 {
     public static ExpressionSyntax ToLiteral(this string? value)
