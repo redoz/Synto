@@ -13,6 +13,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{799691D7-F
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Synto.Bootstrap", "src\Synto.Bootstrap\Synto.Bootstrap.csproj", "{A11BF140-841E-402A-9A67-B1E4207950C5}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{5F2C7F56-31A0-4282-A005-5FF98B1E6C4D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Synto.Samples", "samples\Synto.Samples\Synto.Samples.csproj", "{5351E366-2FB1-4B45-9072-C400D3A79E8A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,6 +35,10 @@ Global
 		{A11BF140-841E-402A-9A67-B1E4207950C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A11BF140-841E-402A-9A67-B1E4207950C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A11BF140-841E-402A-9A67-B1E4207950C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5351E366-2FB1-4B45-9072-C400D3A79E8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5351E366-2FB1-4B45-9072-C400D3A79E8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5351E366-2FB1-4B45-9072-C400D3A79E8A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5351E366-2FB1-4B45-9072-C400D3A79E8A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -39,6 +47,7 @@ Global
 		{025E7AC3-E9A8-4A92-BDA5-057B0A9135EA} = {64E9EAC1-2ACA-4EA2-9EE9-83AF34315391}
 		{79E7901B-27FE-475B-9A1B-2218732FFEC3} = {799691D7-F00F-4A0E-B7FD-C582CFDCA08E}
 		{A11BF140-841E-402A-9A67-B1E4207950C5} = {64E9EAC1-2ACA-4EA2-9EE9-83AF34315391}
+		{5351E366-2FB1-4B45-9072-C400D3A79E8A} = {5F2C7F56-31A0-4282-A005-5FF98B1E6C4D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {AA9F30FD-384C-4E61-8746-529D9218EDAA}
