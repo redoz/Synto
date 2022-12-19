@@ -29,4 +29,4 @@ jobs:
       run: dotnet test --no-build --verbosity normal --configuration Release
 
     - name: Push to GitHub Packages
-      run: dotnet nuget push **.nupkg --api-key ${{ secrets.NUGET_ORG_API_KEY }}
+      run: dotnet nuget push **.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_ORG_API_KEY }}
