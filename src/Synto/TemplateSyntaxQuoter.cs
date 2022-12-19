@@ -15,11 +15,13 @@ internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
     private readonly SourceFunction? _source;
     private readonly SemanticModel _semanticModel;
     private readonly IParameterSymbol[] _parameterSymbols;
+    private readonly INamedTypeSymbol _templateAttributeSymbol;
 
     public TemplateSyntaxQuoter(SourceFunction source, SemanticModel semanticModel) : base()
     {
         this._source = source;
-        this._semanticModel = semanticModel;
+        this._semanticModel = semanticModel; 
+        this._templateAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(Synto.TemplateAttribute).FullName)!;
 
         // resolve the parameter symbols (we kind of assume this won't fail) 🤞
         this._parameterSymbols = source.ParameterListSyntax.Parameters.Select(paramSyntax => semanticModel.GetDeclaredSymbol(paramSyntax)!).ToArray();
@@ -40,7 +42,6 @@ internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
 
     public override ExpressionSyntax? VisitIdentifierName(IdentifierNameSyntax node)
     {
-        //Debugger.Launch();
         var identifierSymbol = _semanticModel.GetSymbolInfo(node);
         if (identifierSymbol.Symbol is IParameterSymbol parameterSymbol && _parameterSymbols.Contains(parameterSymbol, SymbolEqualityComparer.Default))
         {
@@ -48,6 +49,36 @@ internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
         }
 
         return base.VisitIdentifierName(node);
+    }
+
+    public override ExpressionSyntax? VisitAttribute(AttributeSyntax node)
+    {
+        var symbolInfo = this._semanticModel.GetSymbolInfo(node);
+        if (SymbolEqualityComparer.Default.Equals(symbolInfo.Symbol?.ContainingType, _templateAttributeSymbol))
+            return null;
+
+        return base.VisitAttribute(node);
+    }
+
+    public override ExpressionSyntax? VisitAttributeList(AttributeListSyntax node)
+    {
+        // strip out the Template attribute, if there are more attributes in this list the null returned from VisitAttribute will get filtered out by
+        // Visit(SeparatedSyntaxList<TNode>)
+        // this is a bit of a dirty hack and if we end up having to mutate the tree for other reasons we should reconsider this approach
+        // ideally we could just manipulate the tree before passing it down, but that will invalidate our SemanticModel
+        if (node.Attributes.Count == 1)
+        {
+            foreach (var attributeSyntax in node.Attributes)
+            {
+                var symbolInfo = this._semanticModel.GetSymbolInfo(attributeSyntax.Name);
+                if (SymbolEqualityComparer.Default.Equals(symbolInfo.Symbol?.ContainingType, _templateAttributeSymbol))
+                {
+                    return null;
+                }
+            }
+        }
+
+        return base.VisitAttributeList(node);
     }
 }
 

@@ -97,13 +97,34 @@ public partial class Samples
         source);
     }
 
-
     [Fact]
     public void Test4()
     {
+        [Template(typeof(Factory), Options = TemplateOption.Default)]
+        static void FullMethod()
+        {
+            Console.WriteLine("Hello World");
+        }
+
+        StatementSyntax node = Factory.FullMethod();
+
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+
+        Assert.Equal("""
+            static void FullMethod()
+            {
+                Console.WriteLine("Hello World");
+            }
+            """, source);
+    }
+
+
+    [Fact]
+    public void Test5()
+    {
 
         [Template(typeof(Factory), Options = TemplateOption.Bare)]
-        static void NoUnroll(int count)
+        static void Loop(int count)
         {
             int ret = 0;
             for (int i = 0; i < count; i++)
@@ -112,7 +133,7 @@ public partial class Samples
             }
         }
 
-        BlockSyntax node = Factory.NoUnroll(4);
+        BlockSyntax node = Factory.Loop(4);
 
 
         var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();

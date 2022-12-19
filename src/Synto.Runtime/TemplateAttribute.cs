@@ -41,10 +41,6 @@ public class TemplateAttribute : Attribute
 
 public delegate void Syntax();
 
+
 public delegate T Syntax<T>();
 
-[AttributeUsage(AttributeTargets.Parameter)]
-public class UnquoteAttribute : Attribute
-{
-
-}

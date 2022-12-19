@@ -23,7 +23,10 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
 
     public virtual ExpressionSyntax Visit<TNode>(SyntaxList<TNode> nodeList) where TNode : SyntaxNode
     {
-        var quotedExprs = nodeList.Select(node => Visit(node)!);
+        // when attributes are filtered from the syntax tree we will end up in situations where we have nulls in this nodeList
+        // originally we rewrote the syntax tree to exclude the Attribute before passing down the mutated syntax tree, but that 
+        // invalidates our semantic model. This seems to fix the problem even if it's not the nicest solution.
+        IEnumerable<ExpressionSyntax> quotedExprs = nodeList.Select(Visit).Where(node => node is not null)!;
 
         TypeSyntax elementType = ParseTypeName(typeof(TNode).Name);
         return InvocationExpression(
@@ -36,8 +39,24 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
 
     public virtual ExpressionSyntax Visit<TNode>(SeparatedSyntaxList<TNode> nodeList) where TNode : SyntaxNode
     {
+        // when attributes are filtered from the syntax tree we will end up in situations where we have nulls in this nodeList
+        // originally we rewrote the syntax tree to exclude the Attribute before passing down the mutated syntax tree, but that 
+        // invalidates our semantic model. This seems to fix the problem even if it's not the nicest solution.
         var quotedExprs = nodeList.GetWithSeparators()
-            .Select(item => item.IsToken ? QuoteSyntaxToken(item.AsToken()) : Visit(item.AsNode())!);
+            .Select(item => item.IsToken ? QuoteSyntaxToken(item.AsToken()) : Visit(item.AsNode()))
+            .ToList();
+
+        for (int i = 0; i < quotedExprs.Count;)
+        {
+            if (quotedExprs[i] is null)
+            {
+                quotedExprs.RemoveAt(i); // remove null-node
+                if (i < quotedExprs.Count)
+                    quotedExprs.RemoveAt(i); // remove token too
+            } 
+            else
+                i++;
+        }
 
         TypeSyntax elementType = ParseTypeName(typeof(TNode).Name);
         return InvocationExpression(
@@ -45,7 +64,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
                     Identifier(nameof(SeparatedList)),
                     TypeArgumentList(
                         SingletonSeparatedList(elementType))),
-                ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs, IdentifierName(nameof(SyntaxNodeOrToken)))))));
+                ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs!, IdentifierName(nameof(SyntaxNodeOrToken)))))));
     }
     protected static ExpressionSyntax QuoteSyntaxToken(SyntaxToken token)
     {
