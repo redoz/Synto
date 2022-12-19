@@ -6,3 +6,7 @@ This project was inspired by the excellent [RoslynQuoter](https://github.com/Kir
 
 
 See [test/Synto.Test/Samples.cs](test/Synto.Test/Samples.cs) for some simple examples of what currently works.
+
+
+## Notes
+The way this is being packaged is probably not the best way to do this, for now it seems to work but long-term it should probably be cleaned up.
