@@ -6,8 +6,16 @@ name: Build, Test & Package
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.gitignore"
+      - "**/*.gitattributes"    
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.gitignore"
+      - "**/*.gitattributes"    
 
 jobs:
   build:

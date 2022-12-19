@@ -5,6 +5,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <DebugType>embedded</DebugType>
+    <Authors>Patrik Husfloen</Authors>
     <Copyright>$(Authors) 2021-2022</Copyright>
     <PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
     <RepositoryUrl>https://github.com/redoz/Synto.git</RepositoryUrl>
@@ -13,7 +14,7 @@
     <EnableNETAnalyzers>True</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
     <PackageOutputPath>$(SolutionDir)\artifacts\</PackageOutputPath>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReadmeFile>NuGet.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <Description>Create Roslyn Syntax Trees from your C# code.</Description>
     <!-- package settings for Source Generators -->
@@ -47,14 +48,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\LICENSE">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
-    <None Include="..\..\README.md">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
+    <None Include="..\..\LICENSE" Pack="true" Visible="false" PackagePath="\" />
+    <None Include="..\..\NuGet.md" Pack="true" Visible="false" PackagePath="\" />
   </ItemGroup>
   
 
