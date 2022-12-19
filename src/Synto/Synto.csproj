@@ -29,8 +29,8 @@
   </ItemGroup>
 
   <ItemGroup>
-	<ProjectReference Include="..\Synto.Bootstrap\Synto.Bootstrap.csproj" OutputItemType="Analyzer" PrivateAssets="All"/>
-	<ProjectReference Include="..\Synto.Runtime\Synto.Runtime.csproj" PrivateAssets="All"  />
+	<ProjectReference Include="..\Synto.Bootstrap\Synto.Bootstrap.csproj" OutputItemType="Analyzer" PrivateAssets="All" />
+	<ProjectReference Include="..\Synto.Runtime\Synto.Runtime.csproj" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,11 +38,12 @@
     <Compile Include="..\Synto.Bootstrap\Shared\UsingDirectiveSet.cs" Link="Shared\UsingDirectiveSet.cs" />
   </ItemGroup>
 
+
   <!--include output as analyzer -->
   <ItemGroup>
 	<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	<None Include="$(OutputPath)\Synto.Runtime.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <None Include="$(OutputPath)\Synto.Runtime.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
+	<None Include="$(OutputPath)\Synto.Runtime.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
