@@ -1,9 +1,35 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup>
+    <!-- metadata -->
+    <Authors>Patrik Husfloen</Authors>
+    <Copyright>$(Authors) 2021-2022</Copyright>  
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- project settings -->
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <DebugType>embedded</DebugType>
+    <EnableNETAnalyzers>True</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>  
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>      
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>  
+
   <ItemGroup>
     <PackageReference Include="Nerdbank.GitVersioning" Condition="!Exists('packages.config')">
       <PrivateAssets>all</PrivateAssets>
       <Version>3.5.119</Version>
     </PackageReference>
+    <!-- we don't want these included as dependencies -->
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="all" />    
   </ItemGroup>
 </Project>

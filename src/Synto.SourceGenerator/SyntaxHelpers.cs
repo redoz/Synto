@@ -6,7 +6,6 @@ namespace Synto;
 
 internal static class SyntaxHelpers
 {
-
     public static NameSyntax GetTypeName(this ITypeSymbol symbol)
     {
         if (symbol.ContainingSymbol is not ITypeSymbol)
@@ -16,7 +15,7 @@ internal static class SyntaxHelpers
 
     public static NameSyntax? GetNamespaceName(this ISymbol symbol)
     {
-        if (symbol is INamespaceSymbol {IsGlobalNamespace: true})
+        if (symbol is INamespaceSymbol { IsGlobalNamespace: true })
             return null;
 
         if (symbol.ContainingNamespace is { IsGlobalNamespace: true })

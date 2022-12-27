@@ -7,9 +7,9 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 // ReSharper disable once CheckNamespace
-namespace Synto.Utils;
+namespace Synto.CodeAnalysis;
 
-internal class UsingDirectiveSet : IEnumerable<UsingDirectiveSyntax>
+public class UsingDirectiveSet : IEnumerable<UsingDirectiveSyntax>
 {
     private readonly UsingDirectiveSyntax[] _predefined;
     private readonly List<UsingDirectiveSyntax> _usings;

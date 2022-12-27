@@ -6,7 +6,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Synto.Utils;
+using Synto.Formatting;
+using Synto;
+using Synto.CodeAnalysis;
 
 namespace Synto.Bootstrap;
 
@@ -163,14 +165,13 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
                             SF.MemberAccessExpression(
                                 SyntaxKind.SimpleMemberAccessExpression,
                                 argExpr,
-                                SF.IdentifierName("OrQuotedNullLiteral")));
+                                SF.IdentifierName("OrNullLiteralExpression")));
                     }
                     else
                     {
                         argExpr = SF.PostfixUnaryExpression(SyntaxKind.SuppressNullableWarningExpression, argExpr);
                     }
 
-                    //unquoted.Add(argExpr);
                 }
                 else
                 {
@@ -178,24 +179,18 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
                         SF.MemberAccessExpression(SyntaxKind
                                 .SimpleMemberAccessExpression, 
                             argExpr,
-                            SF.IdentifierName("ToLiteral")));
+                            SF.IdentifierName("ToSyntax")));
                 }
                 unquoted.Add(argExpr);
 
                 arguments = arguments.AddArguments(SF.Argument(argExpr));
 
             }
-            //var arg = SF.ArgumentList(SF.SeparatedList(arguments.Select(arg => SF.Argument(arg))));
 
             expr = expr.WithArgumentList(arguments);
 
-            //var quotedArg = CSharpSyntaxQuoter.Quote(arg, exclude: arguments);
-
-            // expr = expr.AddArgumentListArguments(SF.Argument(quotedArg));
-
+            // the Expression of expr is now a nameof() construction, so we replace it with an Identifier to make th comment more readable
             var commentText = expr.WithExpression(SF.IdentifierName(factoryMethod.Name)).NormalizeWhitespace().GetText(Encoding.UTF8);
-
-            //var quotedExpr = CSharpSyntaxQuoter.Quote(expr, exclude: factoryTypeNameExpr);
 
             var quotedExpr = CSharpSyntaxQuoter.Quote(expr, exclude: unquoted);
 
@@ -210,6 +205,7 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
 
             members.Add(method);
         }
+
 
         var classDeclSyntax = SF.ClassDeclaration(targetClass.Identifier)
             .WithModifiers(targetClass.Modifiers)
@@ -228,6 +224,7 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
 
         context.AddSource($"{targetClass.Identifier.Text}.cs", sourceText);
     }
+
 
     public void Initialize(GeneratorInitializationContext context)
     {

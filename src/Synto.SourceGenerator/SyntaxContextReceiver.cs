@@ -1,8 +1,12 @@
 ﻿using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Templating;
 
 namespace Synto;
+
+
+// replace this with the AttributeSyntaxLocator
 
 internal class SyntaxContextReceiver : ISyntaxContextReceiver
 {
@@ -20,7 +24,7 @@ internal class SyntaxContextReceiver : ISyntaxContextReceiver
         if (context.Node is AttributeSyntax syntax)
         {
             var typeInfo = context.SemanticModel.GetTypeInfo(syntax);
-            var knownAttrType = context.SemanticModel.Compilation.GetTypeByMetadataName($"{nameof(Synto)}.{nameof(TemplateAttribute)}");
+            var knownAttrType = context.SemanticModel.Compilation.GetTypeByMetadataName(typeof(TemplateAttribute).FullName);
             if (typeInfo.Type is INamedTypeSymbol typeSymbol && SymbolEqualityComparer.Default.Equals(typeSymbol, knownAttrType))
             {
                 var targetArg = syntax.ArgumentList?.Arguments.FirstOrDefault();
@@ -34,9 +38,6 @@ internal class SyntaxContextReceiver : ISyntaxContextReceiver
                     SourceFunction? source;
                     var attrListSyntax = syntax.GetAncestor<AttributeListSyntax>();
 
-                    //var symbolInfo = context.SemanticModel.GetSymbolInfo(attrListSyntax?.Parent);
-                    //symbolInfo.Symbol.ToDisplayString()
-
                     if (attrListSyntax?.Parent is LocalFunctionStatementSyntax localFunctionSyntax)
                         source = new SourceFunction(attrListSyntax.Parent, localFunctionSyntax.Identifier, localFunctionSyntax.ParameterList, localFunctionSyntax.Body);
                     else if (attrListSyntax?.Parent is MethodDeclarationSyntax methodSyntax)
@@ -46,7 +47,7 @@ internal class SyntaxContextReceiver : ISyntaxContextReceiver
 
 
 
-                    _projectionAttrs.Add(new TemplateInfo(syntax, new TargetType(target, targetType.Type), source, temp: typeInfo));
+                    _projectionAttrs.Add(new TemplateInfo(syntax, new TargetType(target, targetType.Type), source));
                 }
             }
         }

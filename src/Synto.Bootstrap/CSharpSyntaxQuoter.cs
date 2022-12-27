@@ -4,12 +4,15 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using Synto.CodeAnalysis;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 using static Synto.Bootstrap.Helpers;
+
 
 namespace Synto.Bootstrap;
 
-internal class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
+internal partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
 {
     private readonly List<ExpressionSyntax> _exclude;
 
@@ -25,14 +28,131 @@ internal class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
     {
         return new List<UsingDirectiveSyntax>()
         {
-            SF.UsingDirective(SF.ParseName("Synto.Runtime")),
-            SF.UsingDirective(SF.ParseName(typeof(SyntaxNodeOrToken).Namespace)),
-            SF.UsingDirective(SF.ParseName(typeof(ArgumentSyntax).Namespace)),
-            SF.UsingDirective(SF.ParseName(typeof(SF).FullName))
-                .WithStaticKeyword(SF.Token(SyntaxKind.StaticKeyword)),
-            SF.UsingDirective(SF.ParseName(typeof(SyntaxKind).FullName))
-                .WithStaticKeyword(SF.Token(SyntaxKind.StaticKeyword))
+            //UsingDirective(ParseName("Synto.CodeAnalysis")),
+            UsingDirective(ParseName("Microsoft.CodeAnalysis")),
+            UsingDirective(ParseName("Microsoft.CodeAnalysis.CSharp.Syntax")),
+            UsingDirective(ParseName("Microsoft.CodeAnalysis.CSharp.SyntaxFactory"))
+                .WithStaticKeyword(Token(StaticKeyword)),
+            UsingDirective(ParseName("Microsoft.CodeAnalysis.CSharp.SyntaxKind"))
+                .WithStaticKeyword(Token(StaticKeyword))
         };
+    }
+
+    public virtual ExpressionSyntax Visit<TNode>(SyntaxList<TNode> nodeList) where TNode : SyntaxNode
+    {
+        // when attributes are filtered from the syntax tree we will end up in situations where we have nulls in this nodeList
+        // originally we rewrote the syntax tree to exclude the Attribute before passing down the mutated syntax tree, but that 
+        // invalidates our semantic model. This seems to fix the problem even if it's not the nicest solution.
+        IEnumerable<ExpressionSyntax> quotedExprs = nodeList.Select(Visit).Where(node => node is not null)!;
+
+        TypeSyntax elementType = ParseTypeName(typeof(TNode).Name);
+        return InvocationExpression(
+                GenericName(
+                    Identifier(nameof(List)),
+                    TypeArgumentList(
+                        SingletonSeparatedList(elementType))),
+            ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs, elementType)))));
+    }
+
+    public virtual ExpressionSyntax Visit<TNode>(SeparatedSyntaxList<TNode> nodeList) where TNode : SyntaxNode
+    {
+        // when attributes are filtered from the syntax tree we will end up in situations where we have nulls in this nodeList
+        // originally we rewrote the syntax tree to exclude the Attribute before passing down the mutated syntax tree, but that 
+        // invalidates our semantic model. This seems to fix the problem even if it's not the nicest solution.
+        var quotedExprs = nodeList.GetWithSeparators()
+            .Select(item => item.IsToken ? Visit(item.AsToken()) : Visit(item.AsNode()))
+            .ToList();
+
+        for (int i = 0; i < quotedExprs.Count;)
+        {
+            if (quotedExprs[i] is null)
+            {
+                quotedExprs.RemoveAt(i); // remove null-node
+                if (i < quotedExprs.Count)
+                    quotedExprs.RemoveAt(i); // remove token too
+            }
+            else
+                i++;
+        }
+
+        TypeSyntax elementType = ParseTypeName(typeof(TNode).Name);
+        return InvocationExpression(
+                GenericName(
+                    Identifier(nameof(SeparatedList)),
+                    TypeArgumentList(
+                        SingletonSeparatedList(elementType))),
+                ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs!, IdentifierName(nameof(SyntaxNodeOrToken)))))));
+    }
+
+    protected static ExpressionSyntax ToArrayLiteral(IEnumerable<ExpressionSyntax> nodeList, TypeSyntax elementType)
+    {
+        var list = nodeList.ToList();
+        if (list.Count == 0)
+        {
+            return InvocationExpression(
+                MemberAccessExpression(
+                    SimpleMemberAccessExpression,
+                    IdentifierName(nameof(Array)),
+                    GenericName(
+                        Identifier(nameof(Array.Empty)),
+                        TypeArgumentList(SingletonSeparatedList(elementType)))));
+        }
+
+        return ArrayCreationExpression(
+            ArrayType(elementType,
+                SingletonList(ArrayRankSpecifier(SingletonSeparatedList<ExpressionSyntax>(OmittedArraySizeExpression())))),
+            InitializerExpression(
+                ArrayInitializerExpression,
+                SeparatedList(list)));
+    }
+
+    public virtual ExpressionSyntax Visit(SyntaxKind kind)
+    {
+        return IdentifierName(kind.ToString());
+    }
+
+    public virtual ExpressionSyntax Visit(SyntaxToken token)
+    {
+        static bool TokenKindHasText(SyntaxKind kind) => SyntaxFacts.GetText(kind) != string.Empty;
+
+        return token.Kind() switch
+        {
+            SyntaxKind.BadToken => SyntaxFactoryInvocation(nameof(BadToken), token.Text.ToSyntax()),
+            IdentifierToken => SyntaxFactoryInvocation(nameof(Identifier), token.Text.ToSyntax()),
+            NumericLiteralToken => token.Value switch
+            {
+                byte value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
+                sbyte value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
+                short value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
+                ushort value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
+                int value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
+                uint value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
+                long value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
+                ulong value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
+                decimal value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
+                double value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
+                float value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
+                _ => throw new NotImplementedException($"Unable to create literal token of type {token.Value?.GetType().FullName ?? "null"}")
+            },
+            CharacterLiteralToken => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), ((char) token.Value!).ToSyntax()),
+            StringLiteralToken => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), ((string) token.Value!).ToSyntax()),
+
+            None => SyntaxFactoryInvocation(nameof(Token), Visit(None)),
+
+            var tokenKind when TokenKindHasText(tokenKind) => SyntaxFactoryInvocation(nameof(Token), Visit(tokenKind)),
+            var tokenKind => SyntaxFactoryInvocation(nameof(Token), Visit(tokenKind), token.Text.ToSyntax(), ((string) token.Value!).ToSyntax()),
+        };
+
+    }
+
+    public virtual ExpressionSyntax Visit(SyntaxTriviaList triviaList)
+    {
+        return SyntaxFactoryInvocation(nameof(TriviaList));
+    }
+
+    public virtual ExpressionSyntax Visit(SyntaxTokenList tokenList)
+    {
+        return SyntaxFactoryInvocation(nameof(TokenList), tokenList.Select(Visit).ToArray());
     }
 
     public override ExpressionSyntax? Visit(SyntaxNode? node)
@@ -43,119 +163,11 @@ internal class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
         return base.Visit(node);
     }
 
-    public override ExpressionSyntax? VisitBlock(BlockSyntax node)
-    {
-        return SyntaxFactoryInvocation(nameof(SF.Block), node.Statements.Accept(this));
-    }
-
-    public override ExpressionSyntax? VisitExpressionStatement(ExpressionStatementSyntax node)
-    {
-        return SyntaxFactoryInvocation(nameof(SF.ExpressionStatement), Visit(node.Expression)!);
-    }
-
-    public override ExpressionSyntax? VisitAccessorDeclaration(AccessorDeclarationSyntax node)
-    {
-        return SyntaxFactoryInvocation(nameof(SF.AccessorDeclaration),
-            node.Kind().QuoteSyntaxKind(),
-            node.AttributeLists.Accept(this),
-            node.Modifiers.QuoteSyntaxTokenList(),
-            Visit(node.Body).OrQuotedNullLiteral(),
-            Visit(node.ExpressionBody).OrQuotedNullLiteral());
-    }
-
-    public override ExpressionSyntax? VisitInvocationExpression(InvocationExpressionSyntax node)
-    {
-        //SF.InvocationExpression()
-        List<ExpressionSyntax> arguments = new()
-        {
-            Visit(node.Expression)!
-        };
-
-        if (node.ArgumentList is not null && node.ArgumentList.Arguments.Count > 0)
-        {
-            arguments.Add(Visit(node.ArgumentList)!);
-        }
-
-        return SyntaxFactoryInvocation(nameof(SF.InvocationExpression),
-                                            arguments.ToArray());
-
-    }
-
-    public override ExpressionSyntax? VisitArgumentList(ArgumentListSyntax node)
-    {
-        return SyntaxFactoryInvocation(nameof(SF.ArgumentList),
-            node.OpenParenToken.QuoteSyntaxToken(),
-            node.Arguments.Accept(this),
-            node.CloseParenToken.QuoteSyntaxToken());
-    }
-
-    public override ExpressionSyntax? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
-    {
-        return SyntaxFactoryInvocation(nameof(SF.MemberAccessExpression),
-            node.Kind().QuoteSyntaxKind(),
-            Visit(node.Expression)!,
-            node.OperatorToken.QuoteSyntaxToken(),
-            Visit(node.Name)!);
-    }
 
     public override ExpressionSyntax? VisitIdentifierName(IdentifierNameSyntax node)
     {
-        return SyntaxFactoryInvocation(nameof(SF.IdentifierName),
-                                        SF.LiteralExpression(SyntaxKind.StringLiteralExpression, SF.Literal(node.Identifier.ValueText)));
-    }
-
-    public override ExpressionSyntax? VisitArgument(ArgumentSyntax node)
-    {
-        //SF.Argument(node.NameColon, node.RefKindKeyword, node.Expression)
-        return SyntaxFactoryInvocation(nameof(SF.Argument),
-            (Visit(node.NameColon)).OrQuotedNullLiteral(),
-            node.RefKindKeyword.QuoteSyntaxToken(),
-            Visit(node.Expression)!);
-    }
-
-    public override ExpressionSyntax? VisitBinaryExpression(BinaryExpressionSyntax node)
-    {
-        //SF.BinaryExpression(node.Kind(), node.Left, node.OperatorToken, node.Right);
-        return SyntaxFactoryInvocation(nameof(SF.BinaryExpression),
-            node.Kind().QuoteSyntaxKind(),
-            Visit(node.Left)!,
-            node.OperatorToken.QuoteSyntaxToken(),
-            Visit(node.Right)!);
-    }
-
-    public override ExpressionSyntax? VisitLiteralExpression(LiteralExpressionSyntax node)
-    {
-        //SF.LiteralExpression(node.Kind(), node.Token);
-        return SyntaxFactoryInvocation(nameof(SF.LiteralExpression),
-            node.Kind().QuoteSyntaxKind(),
-            SyntaxFactoryInvocation(nameof(SF.Literal), SF.LiteralExpression(node.Kind(), node.Token)));
-    }
-
-    public override ExpressionSyntax? VisitObjectCreationExpression(ObjectCreationExpressionSyntax node)
-    {
-        //SF.ObjectCreationExpression(node.NewKeyword, node.Type, node.ArgumentList, node.Initializer)
-        return SyntaxFactoryInvocation(nameof(SF.ObjectCreationExpression),
-            node.NewKeyword.QuoteSyntaxToken(),
-            Visit(node.Type)!,
-            Visit(node.ArgumentList).OrQuotedNullLiteral(),
-            Visit(node.Initializer).OrQuotedNullLiteral());
-    }
-
-    public override ExpressionSyntax? VisitQualifiedName(QualifiedNameSyntax node)
-    {
-        //SF.QualifiedName(left, dotToken, right)
-        return SyntaxFactoryInvocation(nameof(SF.QualifiedName),
-            Visit(node.Left)!,
-            node.DotToken.QuoteSyntaxToken(),
-            Visit(node.Right)!);
-    }
-
-    public override ExpressionSyntax? VisitPostfixUnaryExpression(PostfixUnaryExpressionSyntax node)
-    {
-        return SyntaxFactoryInvocation(nameof(SF.PostfixUnaryExpression),
-            node.Kind().QuoteSyntaxKind(),
-            Visit(node.Operand)!,
-            node.OperatorToken.QuoteSyntaxToken());
+        return SyntaxFactoryInvocation(nameof(IdentifierName),
+                                        LiteralExpression(StringLiteralExpression, Literal(node.Identifier.ValueText)));
     }
 
     public override ExpressionSyntax? DefaultVisit(SyntaxNode node)

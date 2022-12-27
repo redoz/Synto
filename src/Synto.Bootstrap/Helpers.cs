@@ -84,7 +84,7 @@ internal static class Helpers
         return SyntaxFactoryInvocation(nameof(SF.TokenList), tokenList.Select(token => token.QuoteSyntaxToken()));
     }
 
-    public static ExpressionSyntax OrQuotedNullLiteral(this ExpressionSyntax? expr)
+    public static ExpressionSyntax OrNullLiteralExpression(this ExpressionSyntax? expr)
     {
         return expr ?? SF.LiteralExpression(SyntaxKind.NullLiteralExpression);
     }

@@ -6,11 +6,8 @@ namespace Synto;
 
 internal class TemplateInfo
 {
-    public readonly TypeInfo Temp;
-
-    public TemplateInfo(AttributeSyntax projectionAttribute, TargetType target, SourceFunction? source, TypeInfo temp)
+    public TemplateInfo(AttributeSyntax projectionAttribute, TargetType target, SourceFunction? source)
     {
-        this.Temp = temp;
         this.ProjectionAttribute = projectionAttribute;
         this.Target = target;
         this.Source = source;

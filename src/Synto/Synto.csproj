@@ -2,70 +2,14 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <LangVersion>latest</LangVersion>
-    <Nullable>enable</Nullable>
-    <DebugType>embedded</DebugType>
-    <Authors>Patrik Husfloen</Authors>
-    <Copyright>$(Authors) 2021-2022</Copyright>
-    <PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/redoz/Synto.git</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageTags>Roslyn;Syntax</PackageTags>
-    <EnableNETAnalyzers>True</EnableNETAnalyzers>
-    <AnalysisLevel>latest</AnalysisLevel>
-    <PackageOutputPath>$(SolutionDir)\artifacts\</PackageOutputPath>
-    <PackageReadmeFile>NuGet.md</PackageReadmeFile>
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <Description>Create Roslyn Syntax Trees from your C# code.</Description>
-    <!-- package settings for Source Generators -->
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <NoPackageAnalysis>true</NoPackageAnalysis>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.*" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.3" PrivateAssets="all" />
-  </ItemGroup>
-
-  <ItemGroup>
-	<ProjectReference Include="..\Synto.Bootstrap\Synto.Bootstrap.csproj" OutputItemType="Analyzer" PrivateAssets="All" />
-	<ProjectReference Include="..\Synto.Runtime\Synto.Runtime.csproj" PrivateAssets="All" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="..\Synto.Bootstrap\Shared\SyntaxFormatter.cs" Link="Shared\SyntaxFormatter.cs" />
-    <Compile Include="..\Synto.Bootstrap\Shared\UsingDirectiveSet.cs" Link="Shared\UsingDirectiveSet.cs" />
-  </ItemGroup>
-
-
-  <!--include output as analyzer -->
-  <ItemGroup>
-	<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-	<None Include="$(OutputPath)\Synto.Runtime.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-	<None Include="$(OutputPath)\Synto.Runtime.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="..\..\LICENSE" Pack="true" Visible="false" PackagePath="\" />
-    <None Include="..\..\NuGet.md" Pack="true" Visible="false" PackagePath="\" />
   </ItemGroup>
   
-
-
-  <!--we're injecting Synto.Runtime as a runtime dependency for the analyzer -->
-  <PropertyGroup>
-    <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
-  </PropertyGroup>
-
-  <Target Name="GetDependencyTargetPaths">
-    <ItemGroup>
-      <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)\Synto.Runtime.dll" IncludeRuntimeDependency="true" />
-    </ItemGroup>
-  </Target>
-
-
-
-
+  <ItemGroup>
+    <ProjectReference Include="..\Synto.Bootstrap\Synto.Bootstrap.csproj" OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="False" />
+  </ItemGroup>
 </Project>

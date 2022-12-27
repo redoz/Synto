@@ -1,11 +1,21 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
+using Synto.Templating;
 using Xunit;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+
+
 #pragma warning disable CS8321
 
 namespace Synto.Test;
+
 
 public partial class Samples
 {
@@ -149,6 +159,105 @@ public partial class Samples
 
         Assert.Equal(expected, source);
     }
+
+    //[Fact]
+    //public void Test6()
+    //{
+
+    //    [Template(typeof(Factory), Options = TemplateOption.Single)]
+    //    static void Item(string message)
+    //    {
+    //        Console.WriteLine("Hello " + message);
+    //    }
+
+
+    //    [Template(typeof(Factory), Options = TemplateOption.Bare)]
+    //    static void Sequence(Syntax[] items)
+    //    {
+    //        foreach (var item in items)
+    //            item();
+    //    }
+
+    //    BlockSyntax node = Factory.Sequence(new[]
+    //    {
+    //        Factory.Item("World").Expression,
+    //        Factory.Item("Moon").Expression,
+    //        Factory.Item("Mars").Expression
+    //    });
+
+    //    var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+
+    //    Assert.Equal("""
+    //    {
+    //        Console.WriteLine("Hello " + "World");
+    //        Console.WriteLine("Hello " + "Moon");
+    //        Console.WriteLine("Hello " + "Mars");
+    //    }
+    //    """,
+    //        source);
+
+
+
+    //}
+
+
+    //public static BlockSyntax? Sequence(Syntax[] items)
+    //{
+    //    //return null;
+    //    ////IEnumerable<StatementSyntax> Local1()
+    //    //{
+    //    //    yield return null;
+    //    //    yield return null;
+    //    //    yield return null;
+    //    //    foreach (var item in items)
+    //    //    {
+    //    //        yield return item;
+    //    //    }
+    //    //    yield return null;
+    //    //    yield return null;
+    //    //}
+
+
+    //    return Block(
+    //        List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()),
+    //        Token(OpenBraceToken),
+    //        List<StatementSyntax>()
+    //            .Capture(add =>
+    //            {
+    //                add(null);
+    //                add(null);
+    //                add(null);
+    //                add(null);
+    //                add(null);
+    //            }),
+    //        Token(CloseBraceToken));
+
+    //    //return Block(
+    //    //    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()),
+    //    //    Token(OpenBraceToken),
+    //    //    List<StatementSyntax>(
+    //    //        new StatementSyntax[]{
+    //    //            ForEachStatement(
+    //    //                List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()),
+    //    //                Token(None),
+    //    //                Token(ForEachKeyword),
+    //    //                Token(OpenParenToken),
+    //    //                IdentifierName("var"),
+    //    //                Identifier("item"),
+    //    //                Token(InKeyword),
+    //    //                items.ToSyntax(),
+    //    //                Token(CloseParenToken),
+    //    //                ExpressionStatement(
+    //    //                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()),
+    //    //                    InvocationExpression(
+    //    //                        IdentifierName("item"),
+    //    //                        ArgumentList(
+    //    //                            Token(OpenParenToken),
+    //    //                            SeparatedList<ArgumentSyntax>(Array.Empty<SyntaxNodeOrToken>()),
+    //    //                            Token(CloseParenToken))),
+    //    //                    Token(SemicolonToken)))}),
+    //    //    Token(CloseBraceToken));
+    //}
 }
 
 
