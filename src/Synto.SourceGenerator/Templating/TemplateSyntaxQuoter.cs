@@ -3,15 +3,22 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Synto.CodeAnalysis;
-using Synto.Templating;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 
-namespace Synto;
+namespace Synto.Templating;
 
 internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
 {
+    public new static IEnumerable<UsingDirectiveSyntax> RequiredUsings()
+    {
+        return CSharpSyntaxQuoter.RequiredUsings()
+            .Union(new[]
+            {
+                UsingDirective(IdentifierName("Synto"))
+            });
+    }
+
     private readonly SourceFunction? _source;
     private readonly SemanticModel _semanticModel;
     private readonly IParameterSymbol[] _syntaxParameterSymbols;
@@ -72,7 +79,6 @@ internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
         if (node.Expression.DescendantNodesAndSelf(n => _syntaxParameterSymbols.Contains(_semanticModel.GetSymbolInfo(n).Symbol as IParameterSymbol, SymbolEqualityComparer.Default)).SingleOrDefault() is ParameterSyntax syntaxParam)
         {
             InvocationExpression(IdentifierName(syntaxParam.Identifier));
-
         }
         return base.VisitForEachStatement(node);
     }

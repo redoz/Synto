@@ -6,8 +6,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
-
-namespace Synto.CodeAnalysis;
+namespace Synto;
 
 // this needs to be a base-class because for some reason the generated source cannot see the contents of its partial class
 public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
@@ -25,6 +24,27 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
             .AddArgumentListArguments(Array.ConvertAll(arguments, Argument)); 
     }
 
+    protected static ExpressionSyntax ToArrayLiteral(IEnumerable<ExpressionSyntax> nodeList, TypeSyntax elementType)
+    {
+        var list = nodeList.ToList();
+        if (list.Count == 0)
+        {
+            return InvocationExpression(
+                MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    IdentifierName(nameof(Array)),
+                    GenericName(
+                        Identifier(nameof(Array.Empty)),
+                        TypeArgumentList(SingletonSeparatedList(elementType)))));
+        }
+
+        return ArrayCreationExpression(
+            ArrayType(elementType,
+                SingletonList(ArrayRankSpecifier(SingletonSeparatedList<ExpressionSyntax>(OmittedArraySizeExpression())))),
+            InitializerExpression(
+                SyntaxKind.ArrayInitializerExpression,
+                SeparatedList(list)));
+    }
 
     public virtual ExpressionSyntax Visit<TNode>(SyntaxList<TNode> nodeList) where TNode : SyntaxNode
     {
@@ -72,27 +92,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
                 ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs!, IdentifierName(nameof(SyntaxNodeOrToken)))))));
     }
 
-    protected static ExpressionSyntax ToArrayLiteral(IEnumerable<ExpressionSyntax> nodeList, TypeSyntax elementType)
-    {
-        var list = nodeList.ToList();
-        if (list.Count == 0)
-        {
-            return InvocationExpression(
-                MemberAccessExpression(
-                    SyntaxKind.SimpleMemberAccessExpression,
-                    IdentifierName(nameof(Array)),
-                    GenericName(
-                        Identifier(nameof(Array.Empty)),
-                        TypeArgumentList(SingletonSeparatedList(elementType)))));
-        }
 
-        return ArrayCreationExpression(
-            ArrayType(elementType,
-                SingletonList(ArrayRankSpecifier(SingletonSeparatedList<ExpressionSyntax>(OmittedArraySizeExpression())))),
-            InitializerExpression(
-                SyntaxKind.ArrayInitializerExpression,
-                SeparatedList(list)));
-    }
 
     public virtual ExpressionSyntax Visit(SyntaxKind kind)
     {
@@ -162,6 +162,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
                 var tokenKind when TokenKindHasText(tokenKind) => SyntaxFactoryInvocation(nameof(Token), Visit(tokenKind)),
                 var tokenKind => SyntaxFactoryInvocation(nameof(Token), Visit(tokenKind), token.Text.ToSyntax(), ((string)token.Value!).ToSyntax()),
             };
+
         }
     }
 
@@ -195,19 +196,20 @@ public partial class CSharpSyntaxQuoter :  CSharpSyntaxQuoterBase
         return new List<UsingDirectiveSyntax>()
         {
             // System
-            UsingDirective(ParseName(typeof(Array).Namespace)),
-            UsingDirective(ParseName(typeof(SyntaxNodeOrToken).Namespace)),
-            UsingDirective(ParseName(typeof(ArgumentSyntax).Namespace)),
+            UsingDirective(ParseName("System")),
+            UsingDirective(ParseName("Microsoft.CodeAnalysis")),
+            UsingDirective(ParseName("Microsoft.CodeAnalysis.CSharp.Syntax")),
             // static SyntaxFactory
-            UsingDirective(ParseName(typeof(SyntaxFactory).FullName))
+            UsingDirective(ParseName("Microsoft.CodeAnalysis.CSharp.SyntaxFactory"))
                 .WithStaticKeyword(Token(SyntaxKind.StaticKeyword)),
             // static SyntaxKind
-            UsingDirective(ParseName(typeof(SyntaxKind).FullName))
+            UsingDirective(ParseName("Microsoft.CodeAnalysis.SyntaxKind"))
                 .WithStaticKeyword(Token(SyntaxKind.StaticKeyword))
         };
     }
 
-
+    // by specifying this here we prevent the CSharpSyntaxQuoter Generator from generating this method
+    // there's a reason for it, and if we remove this we could probably rediscover what it is
     public override ExpressionSyntax? VisitIdentifierName(IdentifierNameSyntax node)
     {
         // IdentifierName(node.Identifier.Text)

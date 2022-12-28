@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Synto;
+namespace Synto.Templating;
 
 [Flags]
 public enum TemplateOption

@@ -6,35 +6,51 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Synto.CodeAnalysis;
 using Synto.Formatting;
-using Synto.Templating;
-using Synto;
-using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
-namespace Synto;
-
-// when the Synto.SyntaxContextReceiver has been converted to AttributeSyntaxLocator<TemplateAttribute> we should consider changing
-// the AttributeSyntaxLocator to support multiple attributes so that we can rid of this helper class
+namespace Synto.Templating;
 
 [Generator]
 public class TemplateFactoryGenerator : ISourceGenerator
 {
     public void Execute(GeneratorExecutionContext context)
     {
-        if (context.SyntaxContextReceiver is not SyntaxContextReceiverMultiplexer syntaxReceivers
-            || syntaxReceivers.OfType<SyntaxContextReceiver>() is not { } syntaxReceiver
-            || syntaxReceivers.OfType<AttributeSyntaxLocator<RuntimeAttribute>>() is not { } runtimeLocator)
+        if (context.SyntaxContextReceiver is not CompositeSyntaxContextReceiver syntaxReceivers
+            || syntaxReceivers.OfType<AttributeSyntaxLocator<TemplateAttribute, CSharpSyntaxNode>>() is not { } syntaxReceiver
+            || syntaxReceivers.OfType<AttributeSyntaxLocator<RuntimeAttribute, MemberDeclarationSyntax>>() is not { } runtimeLocator)
         {
             return;
         }
+        try
+        {
+            // lookup runtime types to include in output
+            var runtimeTypes = GetRuntimeTypes(context, runtimeLocator.Locations);
 
+            var templates = GetTemplates(context, syntaxReceiver.Locations);
+
+            foreach (var template in templates)
+            {
+                var semanticModel = context.Compilation.GetSemanticModel(template.Attribute.SyntaxTree);
+                var runtimeKey = template.Attribute.GetNamedArgument<string>(nameof(TemplateAttribute.Runtime), semanticModel) is { HasValue: true } optional ? optional.Value : RuntimeAttribute.Default;
+                if (!runtimeTypes.TryGetValue(runtimeKey, out var runtimeTypeList))
+                    runtimeTypeList = new List<TypeDeclarationSyntax>();
+
+                ProcessTemplate(context, template, runtimeTypeList);
+            }
+        }
+        catch (Exception ex)
+        {
+            context.ReportDiagnostic(Diagnostics.InternalError(ex));
+        }
+    }
+
+    private static Dictionary<string, List<TypeDeclarationSyntax>> GetRuntimeTypes(GeneratorExecutionContext context, IEnumerable<SyntaxLocation<MemberDeclarationSyntax>> locations)
+    {
         var runtimeTypes = new Dictionary<string, List<TypeDeclarationSyntax>>();
 
-        //runtimeTypes.Add(RuntimeAttribute.Default, builtInRuntime);
-
         // collect all runtime inclusions
-        foreach (var runtimeLocation in runtimeLocator.Locations)
+        foreach (var runtimeLocation in locations)
         {
             var runtimeSemanticModel = context.Compilation.GetSemanticModel(runtimeLocation.Attribute.SyntaxTree);
             string runtimeKey = runtimeLocation.Attribute.GetConstructorArguments<string?>(runtimeSemanticModel) ?? RuntimeAttribute.Default;
@@ -49,7 +65,7 @@ public class TemplateFactoryGenerator : ISourceGenerator
                     i++;
             }
 
-            modifiers.Insert(0, SF.Token(SyntaxKind.FileKeyword));
+            modifiers.Insert(0, Token(SyntaxKind.FileKeyword));
 
             if (!runtimeTypes.TryGetValue(runtimeKey, out var typeList))
                 runtimeTypes.Add(runtimeKey, typeList = new List<TypeDeclarationSyntax>());
@@ -57,50 +73,59 @@ public class TemplateFactoryGenerator : ISourceGenerator
             typeList.Add((TypeDeclarationSyntax)cleanTarget.WithModifiers(modifiers));
         }
 
-        try
+        return runtimeTypes;
+    }
+
+    private static IEnumerable<TemplateInfo> GetTemplates(GeneratorExecutionContext context, IEnumerable<SyntaxLocation<CSharpSyntaxNode>> locations)
+    {
+        foreach (var syntaxLocation in locations)
         {
-            foreach (var template in syntaxReceiver.ProjectionAttributes)
+            var targetArg = syntaxLocation.Attribute.ArgumentList?.Arguments.FirstOrDefault();
+            if (targetArg?.Expression is TypeOfExpressionSyntax typeOfExpr)
             {
-                var semanticModel = context.Compilation.GetSemanticModel(template.ProjectionAttribute.SyntaxTree);
-                var runtimeKey = template.ProjectionAttribute.GetNamedArgument<string>(nameof(TemplateAttribute.Runtime), semanticModel) is { HasValue: true } optional ? optional.Value : RuntimeAttribute.Default;
-                if (!runtimeTypes.TryGetValue(runtimeKey, out var runtimeTypeList))
-                    runtimeTypeList = new List<TypeDeclarationSyntax>();
-                
-                ProcessTemplate(context, template, runtimeTypeList);
+                // capture target info
+                var target = typeOfExpr.Type;
+                var targetType = context.Compilation.GetSemanticModel(syntaxLocation.Target.SyntaxTree).GetTypeInfo(target);
+
+                // and source info
+                SourceFunction? source;
+
+                if (syntaxLocation.Target is LocalFunctionStatementSyntax localFunctionSyntax)
+                    source = new SourceFunction(syntaxLocation.Target, localFunctionSyntax.Identifier, localFunctionSyntax.ParameterList, localFunctionSyntax.Body);
+                else if (syntaxLocation.Target is MethodDeclarationSyntax methodSyntax)
+                    source = new SourceFunction(syntaxLocation.Target, methodSyntax.Identifier, methodSyntax.ParameterList, methodSyntax.Body!);
+                else
+                    source = null;
+
+                yield return new TemplateInfo(syntaxLocation.Attribute, new TargetType(target, targetType.Type), source);
             }
-        }
-        catch (Exception ex)
-        {
-            context.ReportDiagnostic(Diagnostics.InternalError(ex));
         }
     }
 
-    private static void ProcessTemplate(GeneratorExecutionContext context, TemplateInfo template, List<TypeDeclarationSyntax> runtimeTypeList)
+    private static bool ValidateTemplate(GeneratorExecutionContext context, TemplateInfo template)
     {
-        // first we do some checking to ensure we were given valid inputs
-
         if (template.Target.Type is null)
         {
             context.ReportDiagnostic(Diagnostics.TargetNotDeclaredInSource(template.Target, "NULL TYPE" + context.Compilation.AssemblyName));
-            return;
+            return false;
         }
 
         if (template.Target.Type?.DeclaringSyntaxReferences.FirstOrDefault() is not { } syntaxRef)
         {
             context.ReportDiagnostic(Diagnostics.TargetNotDeclaredInSource(template.Target, context.Compilation.AssemblyName));
-            return;
+            return false;
         }
 
         if (syntaxRef.GetSyntax() is not ClassDeclarationSyntax classSyntax)
         {
             context.ReportDiagnostic(Diagnostics.TargetNotClass(template.Target));
-            return;
+            return false;
         }
 
         if (!classSyntax.Modifiers.Any(SyntaxKind.PartialKeyword))
         {
             context.ReportDiagnostic(Diagnostics.TargetNotPartial(template.Target));
-            return;
+            return false;
         }
 
         bool EnsureAncestryIsPartial(ClassDeclarationSyntax classDeclarationSyntax)
@@ -122,42 +147,41 @@ public class TemplateFactoryGenerator : ISourceGenerator
         }
 
         if (!EnsureAncestryIsPartial(classSyntax))
+            return false;
+
+
+        if (template.Source?.Body is null)
+            return false;
+        return true;
+    }
+
+    private static void ProcessTemplate(GeneratorExecutionContext context, TemplateInfo template, List<TypeDeclarationSyntax> runtimeTypeList)
+    {
+        // first we do some checking to ensure we were given valid inputs
+        if (ValidateTemplate(context, template)) 
             return;
 
-        // now we need to generate a file containing a namespace + the partial class decls from the Target
-
-        var source = template.Source;
-
-        if (source?.Body is null)
-            return;
+        var source = template.Source!;
 
         var semanticModel = context.Compilation.GetSemanticModel(source.Syntax.SyntaxTree);
 
         //Debugger.Launch();
-
-        var optionsArg =
-            template.ProjectionAttribute
-                .ArgumentList!
-                .Arguments.SingleOrDefault(arg => arg.NameEquals is { } nameEquals &&
-                                                  StringComparer.Ordinal.Equals(nameEquals.Name.Identifier.Value,
-                                                      nameof(TemplateAttribute.Options))); // &&
-
-        TemplateOption options =
-            optionsArg is not null && semanticModel.GetConstantValue(optionsArg.Expression) is
-            { HasValue: true, Value: int rawValue } // this comes out as int, so unbox it
-                ? (TemplateOption)rawValue // then cast it
-                : TemplateOption.Default;
+        TemplateOption options = template.Attribute.GetNamedArgument<int>(nameof(TemplateAttribute.Options), semanticModel) is
+            {HasValue: true, Value: int rawOptions}
+            ? (TemplateOption) rawOptions
+            : TemplateOption.Default;
 
         // rewrite Syntax/Syntax<T> parameters
         var targetParams = new ParameterSyntax[source.ParameterListSyntax.Parameters.Count];
         List<ParameterSyntax> literalParameters = new();
         List<ParameterSyntax> syntaxParameters = new();
 
-        var syntaxDelegateSymbol = context.Compilation.GetTypeByMetadataName("Synto.Syntax");
+        var syntaxDelegateSymbol = context.Compilation.GetTypeByMetadataName("Synto.Templating.Syntax");
         Debug.Assert(syntaxDelegateSymbol != null);
-        var syntaxOfTDelegateSymbol = context.Compilation.GetTypeByMetadataName("Synto.Syntax`1");
+        var syntaxOfTDelegateSymbol = context.Compilation.GetTypeByMetadataName("Synto.Templating.Syntax`1");
         Debug.Assert(syntaxOfTDelegateSymbol != null);
 
+        // we use this to collection additional usings that are required through out the source-generation process
         UsingDirectiveSet additionalUsings = new UsingDirectiveSet(CSharpSyntaxQuoter.RequiredUsings());
 
         //Debugger.Launch();
@@ -167,25 +191,31 @@ public class TemplateFactoryGenerator : ISourceGenerator
             var paramSymbol = semanticModel.GetDeclaredSymbol(sourceParam); // 🤞
             if (SymbolEqualityComparer.Default.Equals(paramSymbol?.Type, syntaxDelegateSymbol))
             {
+
                 syntaxParameters.Add(sourceParam);
-                targetParams[i] = sourceParam.WithType(additionalUsings.GetTypeName(SF.ParseTypeName(typeof(ExpressionSyntax).FullName)));
+                targetParams[i] = sourceParam.WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(StatementSyntax).FullName)));
             }
             else if (paramSymbol?.Type is INamedTypeSymbol { IsGenericType: true } namedTypeSymbol &&
                      SymbolEqualityComparer.Default.Equals(namedTypeSymbol.OriginalDefinition, syntaxOfTDelegateSymbol))
             {
                 syntaxParameters.Add(sourceParam);
-                targetParams[i] = sourceParam.WithType(additionalUsings.GetTypeName(SF.ParseTypeName(typeof(ExpressionSyntax).FullName)));
+                targetParams[i] = sourceParam.WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName)));
+            }
+            else if (paramSymbol?.Type is IArrayTypeSymbol { ElementType: INamedTypeSymbol { IsGenericType: false } nonGenericelementTypeSymbol } &&
+                     SymbolEqualityComparer.Default.Equals(nonGenericelementTypeSymbol.OriginalDefinition, syntaxDelegateSymbol))
+            {
+                syntaxParameters.Add(sourceParam);
+                targetParams[i] = sourceParam.WithType(ArrayType(additionalUsings.GetTypeName(ParseTypeName(typeof(StatementSyntax).FullName))));
             }
             else if (paramSymbol?.Type is IArrayTypeSymbol { ElementType: INamedTypeSymbol { IsGenericType: true } elementTypeSymbol } &&
                      SymbolEqualityComparer.Default.Equals(elementTypeSymbol.OriginalDefinition, syntaxOfTDelegateSymbol))
             {
                 syntaxParameters.Add(sourceParam);
-                targetParams[i] = sourceParam.WithType(additionalUsings.GetTypeName(SF.ParseTypeName(typeof(ExpressionSyntax).FullName)));
+                targetParams[i] = sourceParam.WithType(ArrayType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName))));
             }
             else
                 literalParameters.Add(targetParams[i] = sourceParam);
         }
-
 
         TemplateSyntaxQuoter quoter = new(
             semanticModel,
@@ -201,7 +231,7 @@ public class TemplateFactoryGenerator : ISourceGenerator
 
         if (options.HasFlag(TemplateOption.Bare))
         {
-            if (source.Body.Statements.Count == 0)
+            if (source.Body!.Statements.Count == 0)
             {
                 context.ReportDiagnostic(Diagnostics.BareSourceCannotBeEmpty(source));
                 return;
@@ -211,8 +241,8 @@ public class TemplateFactoryGenerator : ISourceGenerator
             {
                 if (source.Body.Statements.Count == 1)
                 {
-                    syntaxTreeExpr = source.Body.Statements[0].Accept(quoter);
-                    returnType = SF.ParseTypeName(source.Body.Statements[0].GetType().FullName);
+                    syntaxTreeExpr = quoter.Visit(source.Body.Statements[0]);
+                    returnType = ParseTypeName(source.Body.Statements[0].GetType().FullName);
                 }
                 else
                 {
@@ -222,26 +252,26 @@ public class TemplateFactoryGenerator : ISourceGenerator
             }
             else
             {
-                syntaxTreeExpr = source.Body.Accept(quoter);
-                returnType = SF.ParseTypeName(typeof(BlockSyntax).FullName);
+                syntaxTreeExpr = quoter.Visit(source.Body);
+                returnType = ParseTypeName(typeof(BlockSyntax).FullName);
             }
         }
         else
         {
             syntaxTreeExpr = quoter.Visit(source.Syntax);
-            returnType = SF.ParseTypeName(source.Syntax.GetType().FullName);
+            returnType = ParseTypeName(source.Syntax.GetType().FullName);
         }
 
 
-        var syntaxFactoryMethod = SF.MethodDeclaration(additionalUsings.GetTypeName(returnType), source.Identifier)
-            .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.StaticKeyword))
-            .WithParameterList(SF.ParameterList().AddParameters(targetParams))
-            .WithBody(SF.Block().AddStatements(SF.ReturnStatement(syntaxTreeExpr)));
+        var syntaxFactoryMethod = MethodDeclaration(additionalUsings.GetTypeName(returnType), source.Identifier)
+            .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.StaticKeyword))
+            .WithParameterList(ParameterList().AddParameters(targetParams))
+            .WithBody(Block().AddStatements(ReturnStatement(syntaxTreeExpr)));
 
 
-        var targetClassDecl = (ClassDeclarationSyntax)template.Target.Type.DeclaringSyntaxReferences[0].GetSyntax();
+        var targetClassDecl = (ClassDeclarationSyntax)template.Target.Type!.DeclaringSyntaxReferences[0].GetSyntax();
 
-        MemberDeclarationSyntax targetSyntax = SF.ClassDeclaration(targetClassDecl.Identifier)
+        MemberDeclarationSyntax targetSyntax = ClassDeclaration(targetClassDecl.Identifier)
             .WithModifiers(targetClassDecl.Modifiers)
             .AddMembers(syntaxFactoryMethod);
 
@@ -250,7 +280,7 @@ public class TemplateFactoryGenerator : ISourceGenerator
         {
             var classDecls = (ClassDeclarationSyntax)current.DeclaringSyntaxReferences[0].GetSyntax();
 
-            targetSyntax = SF.ClassDeclaration(current.Name)
+            targetSyntax = ClassDeclaration(current.Name)
                 .WithModifiers(classDecls.Modifiers)
                 .AddMembers(targetSyntax);
 
@@ -261,17 +291,17 @@ public class TemplateFactoryGenerator : ISourceGenerator
         var namespaceName = current.GetNamespaceName();
         if (namespaceName is not null)
         {
-            targetSyntax = SF.FileScopedNamespaceDeclaration(namespaceName)
+            targetSyntax = FileScopedNamespaceDeclaration(namespaceName)
                 .AddMembers(targetSyntax);
         }
 
-        var compilationUnit = SF.CompilationUnit()
+        var compilationUnit = CompilationUnit()
             .AddMembers(runtimeTypeList.ToArray())
             .AddMembers(targetSyntax);
 
         compilationUnit = compilationUnit
             .AddUsings(
-                CSharpSyntaxQuoter.RequiredUsings()
+                TemplateSyntaxQuoter.RequiredUsings()
                     .Union(additionalUsings)
                     .ToArray());
 
@@ -282,6 +312,8 @@ public class TemplateFactoryGenerator : ISourceGenerator
     }
 
 
+
+
     public void Initialize(GeneratorInitializationContext context)
     {
 #if DEBUG
@@ -290,7 +322,11 @@ public class TemplateFactoryGenerator : ISourceGenerator
             //Debugger.Launch();
         }
 #endif
-        context.RegisterForSyntaxNotifications(() => new SyntaxContextReceiverMultiplexer(new SyntaxContextReceiver(), new AttributeSyntaxLocator<RuntimeAttribute>()));
+        context.RegisterForSyntaxNotifications(
+            () => 
+                new CompositeSyntaxContextReceiver(
+                    new AttributeSyntaxLocator<TemplateAttribute, CSharpSyntaxNode>(), 
+                    new AttributeSyntaxLocator<RuntimeAttribute, MemberDeclarationSyntax>()));
     }
 }
 

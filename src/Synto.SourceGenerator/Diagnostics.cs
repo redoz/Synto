@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.CodeAnalysis;
+using Synto.Templating;
 
 namespace Synto;
 

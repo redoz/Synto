@@ -160,45 +160,45 @@ public partial class Samples
         Assert.Equal(expected, source);
     }
 
-    //[Fact]
-    //public void Test6()
-    //{
+    [Fact]
+    public void Test6()
+    {
 
-    //    [Template(typeof(Factory), Options = TemplateOption.Single)]
-    //    static void Item(string message)
-    //    {
-    //        Console.WriteLine("Hello " + message);
-    //    }
-
-
-    //    [Template(typeof(Factory), Options = TemplateOption.Bare)]
-    //    static void Sequence(Syntax[] items)
-    //    {
-    //        foreach (var item in items)
-    //            item();
-    //    }
-
-    //    BlockSyntax node = Factory.Sequence(new[]
-    //    {
-    //        Factory.Item("World").Expression,
-    //        Factory.Item("Moon").Expression,
-    //        Factory.Item("Mars").Expression
-    //    });
-
-    //    var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
-
-    //    Assert.Equal("""
-    //    {
-    //        Console.WriteLine("Hello " + "World");
-    //        Console.WriteLine("Hello " + "Moon");
-    //        Console.WriteLine("Hello " + "Mars");
-    //    }
-    //    """,
-    //        source);
+        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        static void Item(string message)
+        {
+            Console.WriteLine("Hello " + message);
+        }
 
 
+        [Template(typeof(Factory), Options = TemplateOption.Bare)]
+        static void Sequence(Syntax[] items)
+        {
+            foreach (var item in items)
+                item();
+        }
 
-    //}
+        BlockSyntax node = Factory.Sequence(new[]
+        {
+            Factory.Item("World").Expression,
+            Factory.Item("Moon").Expression,
+            Factory.Item("Mars").Expression
+        });
+
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+
+        Assert.Equal("""
+        {
+            Console.WriteLine("Hello " + "World");
+            Console.WriteLine("Hello " + "Moon");
+            Console.WriteLine("Hello " + "Mars");
+        }
+        """,
+            source);
+
+
+
+    }
 
 
     //public static BlockSyntax? Sequence(Syntax[] items)

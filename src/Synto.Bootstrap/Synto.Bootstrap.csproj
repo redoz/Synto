@@ -8,8 +8,8 @@
 		<DefineConstants>$(DefineConstants)TRACE;BOOTSTRAP</DefineConstants>
 	</PropertyGroup>
 	<ItemGroup>
-	  <Compile Include="..\Synto\CodeAnalysis\LiteralSyntaxExtensions.cs" Link="LiteralSyntaxExtensions.cs" />
-	  <Compile Include="..\Synto\CodeAnalysis\UsingDirectiveSet.cs" Link="UsingDirectiveSet.cs" />
+	  <Compile Include="..\Synto\LiteralSyntaxExtensions.cs" Link="LiteralSyntaxExtensions.cs" />
+	  <Compile Include="..\Synto\UsingDirectiveSet.cs" Link="UsingDirectiveSet.cs" />
 	  <Compile Include="..\Synto\Formatting\SyntaxFormatter.cs" Link="SyntaxFormatter.cs" />
 	</ItemGroup>
 	

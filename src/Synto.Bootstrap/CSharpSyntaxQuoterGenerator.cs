@@ -1,14 +1,13 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Synto.Formatting;
 using Synto;
-using Synto.CodeAnalysis;
 
 namespace Synto.Bootstrap;
 
@@ -64,12 +63,12 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
 
             //var parameterSyntax = SF.Parameter(SF.Identifier(paramSymbol.Name))
             //    .WithType(SF.IdentifierName(paramSymbol.Type.Name));
-            var parameterSyntax = SF.Parameter(SF.Identifier(paramSymbol.Name))
+            var parameterSyntax = Parameter(Identifier(paramSymbol.Name))
                 .WithType(additionalUsings.GetTypeName(paramSymbol.Type.GetQualifiedNameSyntax()));
 
 
             // identify SyntaxFactory method we should call (this isn't very nice, or robust)
-            var syntaxFactorySymbol = context.Compilation.GetTypeByMetadataName(typeof(SF).FullName /* this is technically not correct, but will work for this type */)!;
+            var syntaxFactorySymbol = context.Compilation.GetTypeByMetadataName(typeof(SyntaxFactory).FullName /* this is technically not correct, but will work for this type */)!;
             var candidateMethods = syntaxFactorySymbol.GetMembers()
                 .OfType<IMethodSymbol>()
                 .Where(method => StringComparer.OrdinalIgnoreCase.Equals(method.Name, item.Name.Substring("Visit".Length)) && method.Parameters.Length > 0);
@@ -95,28 +94,28 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
             else
                 factoryMethod = factoryMethods[0];
 
-            var nameOfExpr = SF.InvocationExpression(
-                SF.IdentifierName(
-                    SF.Identifier(
-                        SF.TriviaList(),
+            var nameOfExpr = InvocationExpression(
+                IdentifierName(
+                    Identifier(
+                        TriviaList(),
                         SyntaxKind.NameOfKeyword,
                         SyntaxFacts.GetText(SyntaxKind.NameOfKeyword),
                         SyntaxFacts.GetText(SyntaxKind.NameOfKeyword),
-                        SF.TriviaList())),
-                SF.ArgumentList(
-                    SF.SingletonSeparatedList(
-                        SF.Argument(SF.IdentifierName(factoryMethod.Name)))));
+                        TriviaList())),
+                ArgumentList(
+                    SingletonSeparatedList(
+                        Argument(IdentifierName(factoryMethod.Name)))));
 
-            var identifierOfNameOfExpr = SF.InvocationExpression(
-                SF.IdentifierName(nameof(SF.IdentifierName)),
-                SF.ArgumentList(
-                    SF.SingletonSeparatedList(
-                        SF.Argument(nameOfExpr))));
+            var identifierOfNameOfExpr = InvocationExpression(
+                IdentifierName(nameof(IdentifierName)),
+                ArgumentList(
+                    SingletonSeparatedList(
+                        Argument(nameOfExpr))));
             
-            var expr = SF.InvocationExpression(identifierOfNameOfExpr);
+            var expr = InvocationExpression(identifierOfNameOfExpr);
             //var expr = SF.InvocationExpression(SF.IdentifierName(factoryMethod.Name));
 
-            var arguments = SF.ArgumentList();
+            var arguments = ArgumentList();
 
             List<ExpressionSyntax> unquoted = new(factoryMethod.Parameters.Length + 1)
             {
@@ -140,15 +139,15 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
                 }
 
 
-                ExpressionSyntax argExpr = SF.MemberAccessExpression(
+                ExpressionSyntax argExpr = MemberAccessExpression(
                     SyntaxKind.SimpleMemberAccessExpression,
                     additionalUsings.GetTypeName(paramSymbol.GetQualifiedNameSyntax()),
-                    SF.IdentifierName(sourceMemberName));
+                    IdentifierName(sourceMemberName));
                     
                 ITypeSymbol argType = parameter.Type;
                 if (sourceMemberSymbol is IMethodSymbol)
                 {
-                    argExpr = SF.InvocationExpression(argExpr);
+                    argExpr = InvocationExpression(argExpr);
                 }
                 else if (sourceMemberSymbol is not IPropertySymbol)
                 {
@@ -157,64 +156,64 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
 
                 if (!argType.IsPrimitive())
                 {
-                    argExpr = SF.InvocationExpression(SF.IdentifierName("Visit")).AddArgumentListArguments(SF.Argument(argExpr));
+                    argExpr = InvocationExpression(IdentifierName("Visit")).AddArgumentListArguments(Argument(argExpr));
 
                     if (parameter.NullableAnnotation == NullableAnnotation.Annotated)
                     {
-                        argExpr = SF.InvocationExpression(
-                            SF.MemberAccessExpression(
+                        argExpr = InvocationExpression(
+                            MemberAccessExpression(
                                 SyntaxKind.SimpleMemberAccessExpression,
                                 argExpr,
-                                SF.IdentifierName("OrNullLiteralExpression")));
+                                IdentifierName("OrNullLiteralExpression")));
                     }
                     else
                     {
-                        argExpr = SF.PostfixUnaryExpression(SyntaxKind.SuppressNullableWarningExpression, argExpr);
+                        argExpr = PostfixUnaryExpression(SyntaxKind.SuppressNullableWarningExpression, argExpr);
                     }
 
                 }
                 else
                 {
-                    argExpr = SF.InvocationExpression(
-                        SF.MemberAccessExpression(SyntaxKind
+                    argExpr = InvocationExpression(
+                        MemberAccessExpression(SyntaxKind
                                 .SimpleMemberAccessExpression, 
                             argExpr,
-                            SF.IdentifierName("ToSyntax")));
+                            IdentifierName("ToSyntax")));
                 }
                 unquoted.Add(argExpr);
 
-                arguments = arguments.AddArguments(SF.Argument(argExpr));
+                arguments = arguments.AddArguments(Argument(argExpr));
 
             }
 
             expr = expr.WithArgumentList(arguments);
 
             // the Expression of expr is now a nameof() construction, so we replace it with an Identifier to make th comment more readable
-            var commentText = expr.WithExpression(SF.IdentifierName(factoryMethod.Name)).NormalizeWhitespace().GetText(Encoding.UTF8);
+            var commentText = expr.WithExpression(IdentifierName(factoryMethod.Name)).NormalizeWhitespace().GetText(Encoding.UTF8);
 
             var quotedExpr = CSharpSyntaxQuoter.Quote(expr, exclude: unquoted);
 
-            body = SF.Block().AddStatements(SF.ReturnStatement(quotedExpr).WithLeadingTrivia(SF.Comment("// " + commentText)));
+            body = Block().AddStatements(ReturnStatement(quotedExpr).WithLeadingTrivia(Comment("// " + commentText)));
 
-            var returnTypeSyntax = SF.NullableType(additionalUsings.GetTypeName(SF.ParseName(typeof(ExpressionSyntax).FullName)));
+            var returnTypeSyntax = NullableType(additionalUsings.GetTypeName(ParseName(typeof(ExpressionSyntax).FullName)));
 
-            var method = SF.MethodDeclaration(returnTypeSyntax, item.Name)
-                .AddModifiers(SF.Token(SyntaxKind.PublicKeyword), SF.Token(SyntaxKind.OverrideKeyword))
-                .WithParameterList(SF.ParameterList(SF.SingletonSeparatedList(parameterSyntax)))
+            var method = MethodDeclaration(returnTypeSyntax, item.Name)
+                .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.OverrideKeyword))
+                .WithParameterList(ParameterList(SingletonSeparatedList(parameterSyntax)))
                 .WithBody(body);
 
             members.Add(method);
         }
 
 
-        var classDeclSyntax = SF.ClassDeclaration(targetClass.Identifier)
+        var classDeclSyntax = ClassDeclaration(targetClass.Identifier)
             .WithModifiers(targetClass.Modifiers)
-            .WithMembers(SF.List(members));
+            .WithMembers(List(members));
 
-        var compilationUnit = SF.CompilationUnit()
+        var compilationUnit = CompilationUnit()
             .AddUsings(CSharpSyntaxQuoter.RequiredUsings()
                 .Union(additionalUsings).ToArray())
-            .AddMembers(SF.FileScopedNamespaceDeclaration(typeSymbol.ContainingNamespace.GetQualifiedNameSyntax()))
+            .AddMembers(FileScopedNamespaceDeclaration(typeSymbol.ContainingNamespace.GetQualifiedNameSyntax()))
             .AddMembers(classDeclSyntax);
 
         // try to make it a bit more readable

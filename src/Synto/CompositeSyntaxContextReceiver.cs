@@ -2,13 +2,13 @@
 using System.Linq;
 using Microsoft.CodeAnalysis;
 
-namespace Synto.CodeAnalysis;
+namespace Synto;
 
-public class SyntaxContextReceiverMultiplexer : ISyntaxContextReceiver
+public class CompositeSyntaxContextReceiver : ISyntaxContextReceiver
 {
     private readonly ISyntaxContextReceiver[] _contextReceivers;
 
-    public SyntaxContextReceiverMultiplexer(params ISyntaxContextReceiver[] contextReceivers)
+    public CompositeSyntaxContextReceiver(params ISyntaxContextReceiver[] contextReceivers)
     {
         _contextReceivers = contextReceivers;
     }

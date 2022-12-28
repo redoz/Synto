@@ -1,28 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Operations;
 
-namespace Synto.CodeAnalysis;
+namespace Synto;
 
-public sealed record SyntaxLocation(AttributeSyntax Attribute, MemberDeclarationSyntax Target)
+public sealed record SyntaxLocation<TTarget>(AttributeSyntax Attribute, TTarget Target) where TTarget : CSharpSyntaxNode
 {
     public AttributeSyntax Attribute { get; } = Attribute;
-    public MemberDeclarationSyntax Target { get; } = Target;
+    public TTarget Target { get; } = Target;
 }
 
 
-public class AttributeSyntaxLocator<TAttribute> : ISyntaxContextReceiver
+public class AttributeSyntaxLocator<TAttribute, TTarget> : ISyntaxContextReceiver where TTarget : CSharpSyntaxNode
 {
-    private readonly List<SyntaxLocation> _projectionAttrs;
+    private readonly List<SyntaxLocation<TTarget>> _projectionAttrs;
 
-    public IEnumerable<SyntaxLocation> Locations => _projectionAttrs;
+    public IEnumerable<SyntaxLocation<TTarget>> Locations => _projectionAttrs;
 
     public AttributeSyntaxLocator()
     {
-        _projectionAttrs = new List<SyntaxLocation>();
+        _projectionAttrs = new List<SyntaxLocation<TTarget>>();
     }
 
     public void OnVisitSyntaxNode(GeneratorSyntaxContext context)
@@ -37,7 +36,7 @@ public class AttributeSyntaxLocator<TAttribute> : ISyntaxContextReceiver
 
             if (typeInfo.Type is INamedTypeSymbol typeSymbol && SymbolEqualityComparer.Default.Equals(typeSymbol, knownAttrType))
             {
-                _projectionAttrs.Add(new SyntaxLocation(syntax, syntax.FirstAncestorOrSelf<MemberDeclarationSyntax>()!));
+                _projectionAttrs.Add(new SyntaxLocation<TTarget>(syntax, (TTarget)syntax.FirstAncestorOrSelf<AttributeListSyntax>()!.Parent!));
             }
         }
     }

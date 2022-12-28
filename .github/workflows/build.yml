@@ -44,7 +44,7 @@ jobs:
         path: artifacts/*.nupkg
 
 
-  publish:
+  publish_github:
     name: Publish package to GitHub Package Repository
     needs: build
     runs-on: ubuntu-latest
@@ -64,4 +64,17 @@ jobs:
         with:
           keep: 5
           names: Synto    
+  
+  publish_nuget:
+    name: Publish Package to NuGet.org
+    needs: build
+    environment: NuGet
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3    
+        
+      - name: Publish to NuGet.org
+        run: dotnet nuget push **.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_ORG_API_KEY }}
 

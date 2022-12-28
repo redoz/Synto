@@ -13,9 +13,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{799691D7-F
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Synto.Bootstrap", "src\Synto.Bootstrap\Synto.Bootstrap.csproj", "{A11BF140-841E-402A-9A67-B1E4207950C5}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{5F2C7F56-31A0-4282-A005-5FF98B1E6C4D}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{5F2C7F56-31A0-4282-A005-5FF98B1E6C4D}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Synto.Samples", "samples\Synto.Samples\Synto.Samples.csproj", "{5351E366-2FB1-4B45-9072-C400D3A79E8A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Synto.Examples", "examples\Synto.Examples\Synto.Examples.csproj", "{5351E366-2FB1-4B45-9072-C400D3A79E8A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Synto.SourceGenerator", "src\Synto.SourceGenerator\Synto.SourceGenerator.csproj", "{B2808B57-1D05-4D6F-B921-F741A6DC0D2E}"
 EndProject

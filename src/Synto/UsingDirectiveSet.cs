@@ -6,8 +6,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-// ReSharper disable once CheckNamespace
-namespace Synto.CodeAnalysis;
+namespace Synto;
 
 public class UsingDirectiveSet : IEnumerable<UsingDirectiveSyntax>
 {

@@ -68,7 +68,6 @@ public class SyntaxFormatter : CSharpSyntaxRewriter
 
         return ret;
     }
-
     public override SeparatedSyntaxList<TNode> VisitList<TNode>(SeparatedSyntaxList<TNode> list)
     {
         _depth++;

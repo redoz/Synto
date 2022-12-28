@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 
-namespace Synto.CodeAnalysis;
+namespace Synto;
 
 public static class SyntaxListExtensions
 {
