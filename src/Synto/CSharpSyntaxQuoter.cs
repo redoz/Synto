@@ -51,7 +51,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
         // when attributes are filtered from the syntax tree we will end up in situations where we have nulls in this nodeList
         // originally we rewrote the syntax tree to exclude the Attribute before passing down the mutated syntax tree, but that 
         // invalidates our semantic model. This seems to fix the problem even if it's not the nicest solution.
-        IEnumerable<ExpressionSyntax> quotedExprs = nodeList.Select(Visit).Where(node => node is not null)!;
+        IEnumerable<ExpressionSyntax> quotedExprs = nodeList.Select(VisitItem).Where(node => node is not null)!;
 
         TypeSyntax elementType = ParseTypeName(typeof(TNode).Name);
         return InvocationExpression(
@@ -68,7 +68,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
         // originally we rewrote the syntax tree to exclude the Attribute before passing down the mutated syntax tree, but that 
         // invalidates our semantic model. This seems to fix the problem even if it's not the nicest solution.
         var quotedExprs = nodeList.GetWithSeparators()
-            .Select(item => item.IsToken ? Visit(item.AsToken()) : Visit(item.AsNode()))
+            .Select(item => item.IsToken ? Visit(item.AsToken()) : VisitItem(item.AsNode()))
             .ToList();
 
         for (int i = 0; i < quotedExprs.Count;)
@@ -92,6 +92,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
                 ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs!, IdentifierName(nameof(SyntaxNodeOrToken)))))));
     }
 
+    public virtual ExpressionSyntax? VisitItem<TNode>(TNode? item) where TNode : SyntaxNode => Visit(item);
 
 
     public virtual ExpressionSyntax Visit(SyntaxKind kind)
@@ -195,14 +196,11 @@ public partial class CSharpSyntaxQuoter :  CSharpSyntaxQuoterBase
     {
         return new List<UsingDirectiveSyntax>()
         {
-            // System
             UsingDirective(ParseName("System")),
             UsingDirective(ParseName("Microsoft.CodeAnalysis")),
             UsingDirective(ParseName("Microsoft.CodeAnalysis.CSharp.Syntax")),
-            // static SyntaxFactory
             UsingDirective(ParseName("Microsoft.CodeAnalysis.CSharp.SyntaxFactory"))
                 .WithStaticKeyword(Token(SyntaxKind.StaticKeyword)),
-            // static SyntaxKind
             UsingDirective(ParseName("Microsoft.CodeAnalysis.SyntaxKind"))
                 .WithStaticKeyword(Token(SyntaxKind.StaticKeyword))
         };
