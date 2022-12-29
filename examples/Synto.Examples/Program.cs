@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto;
 using Spectre.Console;
+using Synto.Templating;
 using static Examples;
 
 

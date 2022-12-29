@@ -201,8 +201,8 @@ public class TemplateFactoryGenerator : ISourceGenerator
                 syntaxParameters.Add(sourceParam);
                 targetParams[i] = sourceParam.WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName)));
             }
-            else if (paramSymbol?.Type is IArrayTypeSymbol { ElementType: INamedTypeSymbol { IsGenericType: false } nonGenericelementTypeSymbol } &&
-                     SymbolEqualityComparer.Default.Equals(nonGenericelementTypeSymbol.OriginalDefinition, syntaxDelegateSymbol))
+            else if (paramSymbol?.Type is IArrayTypeSymbol { ElementType: INamedTypeSymbol { IsGenericType: false } nonGenericElementTypeSymbol } &&
+                     SymbolEqualityComparer.Default.Equals(nonGenericElementTypeSymbol.OriginalDefinition, syntaxDelegateSymbol))
             {
                 syntaxParameters.Add(sourceParam);
                 targetParams[i] = sourceParam.WithType(ArrayType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName))));
