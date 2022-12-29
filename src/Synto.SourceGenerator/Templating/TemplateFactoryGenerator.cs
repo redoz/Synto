@@ -193,7 +193,7 @@ public class TemplateFactoryGenerator : ISourceGenerator
             {
 
                 syntaxParameters.Add(sourceParam);
-                targetParams[i] = sourceParam.WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(StatementSyntax).FullName)));
+                targetParams[i] = sourceParam.WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName)));
             }
             else if (paramSymbol?.Type is INamedTypeSymbol { IsGenericType: true } namedTypeSymbol &&
                      SymbolEqualityComparer.Default.Equals(namedTypeSymbol.OriginalDefinition, syntaxOfTDelegateSymbol))
@@ -205,7 +205,7 @@ public class TemplateFactoryGenerator : ISourceGenerator
                      SymbolEqualityComparer.Default.Equals(nonGenericelementTypeSymbol.OriginalDefinition, syntaxDelegateSymbol))
             {
                 syntaxParameters.Add(sourceParam);
-                targetParams[i] = sourceParam.WithType(ArrayType(additionalUsings.GetTypeName(ParseTypeName(typeof(StatementSyntax).FullName))));
+                targetParams[i] = sourceParam.WithType(ArrayType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName))));
             }
             else if (paramSymbol?.Type is IArrayTypeSymbol { ElementType: INamedTypeSymbol { IsGenericType: true } elementTypeSymbol } &&
                      SymbolEqualityComparer.Default.Equals(elementTypeSymbol.OriginalDefinition, syntaxOfTDelegateSymbol))
