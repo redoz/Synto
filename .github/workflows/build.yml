@@ -68,13 +68,13 @@ jobs:
   publish_nuget:
     name: Publish Package to NuGet.org
     needs: build
-    environment: NuGet
+    environment: NuGet.org
     runs-on: ubuntu-latest
 
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v3    
-        
+
       - name: Publish to NuGet.org
         run: dotnet nuget push **.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_ORG_API_KEY }}
 
