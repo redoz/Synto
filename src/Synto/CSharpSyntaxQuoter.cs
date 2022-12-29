@@ -201,7 +201,7 @@ public partial class CSharpSyntaxQuoter :  CSharpSyntaxQuoterBase
             UsingDirective(ParseName("Microsoft.CodeAnalysis.CSharp.Syntax")),
             UsingDirective(ParseName("Microsoft.CodeAnalysis.CSharp.SyntaxFactory"))
                 .WithStaticKeyword(Token(SyntaxKind.StaticKeyword)),
-            UsingDirective(ParseName("Microsoft.CodeAnalysis.SyntaxKind"))
+            UsingDirective(ParseName("Microsoft.CodeAnalysis.CSharp.SyntaxKind"))
                 .WithStaticKeyword(Token(SyntaxKind.StaticKeyword))
         };
     }
