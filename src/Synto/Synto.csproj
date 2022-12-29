@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <IsPackable>false</IsPackable>
+    <PackageId>Synto.Core</PackageId>
   </PropertyGroup>
 
   <ItemGroup>
