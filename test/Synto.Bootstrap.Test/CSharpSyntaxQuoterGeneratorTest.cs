@@ -12,7 +12,7 @@ public class CSharpSyntaxQuoterGeneratorTest
     {
         var driver = GeneratorDriver();
 
-        return Verify(driver);
+        return Verify(driver).UseDirectory("snapshots");
     }
 
     static GeneratorDriver GeneratorDriver()
@@ -34,6 +34,7 @@ public partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax> 
             new[] {syntaxTree},
             allFiles.Select(file => MetadataReference.CreateFromFile(file))
         );
+
         var generator = new CSharpSyntaxQuoterGenerator();
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);

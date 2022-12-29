@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.45.0" />
     <PackageReference Include="Synto" Version="0.2.15-alpha" />
 
   </ItemGroup>

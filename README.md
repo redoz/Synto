@@ -5,11 +5,7 @@ This is an experimental library designed to make it easy to construct Roslyn syn
 This project was inspired by the excellent [RoslynQuoter](https://github.com/KirillOsenkov/RoslynQuoter) by [Kirill Osenkov](https://github.com/KirillOsenkov/), the [online version](https://roslynquoter.azurewebsites.net/) has been invaluable in understanding the C# syntax structure.
 
 
-See [test/Synto.Test/Samples.cs](test/Synto.Test/Samples.cs) for some simple examples of what currently works.
-
-
-## Notes
-The way this is being packaged is probably not the best way to do this, it seems to work but long-term there's perhaps a better way to do this.
+See [examples/Synto.Examples/Program.cs](examples/Synto.Examples/Program.cs) for some simple examples of what currently works.
 
 
 ## Useful Links

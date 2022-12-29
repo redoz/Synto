@@ -61,7 +61,7 @@
 
   <Target Name="GetDependencyTargetPaths">
     <ItemGroup>
-      <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)\Synto.dll" IncludeRuntimeDependency="true" />
+      <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)\Synto.dll" IncludeRuntimeDependency="true" MSBuildSourceProjectFile="Synto.csproj" />
     </ItemGroup>
   </Target>
 

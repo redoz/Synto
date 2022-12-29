@@ -158,7 +158,7 @@ public class TemplateFactoryGenerator : ISourceGenerator
     private static void ProcessTemplate(GeneratorExecutionContext context, TemplateInfo template, List<TypeDeclarationSyntax> runtimeTypeList)
     {
         // first we do some checking to ensure we were given valid inputs
-        if (ValidateTemplate(context, template)) 
+        if (!ValidateTemplate(context, template)) 
             return;
 
         var source = template.Source!;

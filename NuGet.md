@@ -5,4 +5,4 @@ This is an experimental library designed to make it easy to construct Roslyn syn
 This project was inspired by the excellent [RoslynQuoter](https://github.com/KirillOsenkov/RoslynQuoter) by [Kirill Osenkov](https://github.com/KirillOsenkov/), the [online version](https://roslynquoter.azurewebsites.net/) has been invaluable in understanding the C# syntax structure.
 
 
-See [here](https://github.com/redoz/Synto/blob/main/test/Synto.Test/Samples.cs) for some simple examples of what currently works.
+See [here](https://github.com/redoz/Synto/blob/main/examples/Synto.Examples/Program.cs) for some simple examples of what currently works.

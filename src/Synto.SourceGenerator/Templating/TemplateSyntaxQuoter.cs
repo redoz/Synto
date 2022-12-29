@@ -67,8 +67,8 @@ internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
 
     public override ExpressionSyntax? VisitAttribute(AttributeSyntax node)
     {
-        var symbolInfo = _semanticModel.GetSymbolInfo(node);
-        if (SymbolEqualityComparer.Default.Equals(symbolInfo.Symbol?.ContainingType, _templateAttributeSymbol))
+        var typeInfo = _semanticModel.GetTypeInfo(node);
+        if (SymbolEqualityComparer.Default.Equals(typeInfo.Type, _templateAttributeSymbol))
             return null;
 
         return base.VisitAttribute(node);
@@ -89,12 +89,13 @@ internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
         // Visit(SeparatedSyntaxList<TNode>)
         // this is a bit of a dirty hack and if we end up having to mutate the tree for other reasons we should reconsider this approach
         // ideally we could just manipulate the tree before passing it down, but that will invalidate our SemanticModel
+        //var knownAttrType = _semanticModel.Compilation.GetTypeByMetadataName(typeof(TemplateAttribute).FullName);
         if (node.Attributes.Count == 1)
         {
             foreach (var attributeSyntax in node.Attributes)
             {
-                var symbolInfo = _semanticModel.GetSymbolInfo(attributeSyntax.Name);
-                if (SymbolEqualityComparer.Default.Equals(symbolInfo.Symbol?.ContainingType, _templateAttributeSymbol))
+                var typeInfo = _semanticModel.GetTypeInfo(attributeSyntax);
+                if (SymbolEqualityComparer.Default.Equals(typeInfo.Type, _templateAttributeSymbol))
                 {
                     return null;
                 }
