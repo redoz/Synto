@@ -217,7 +217,7 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
             .AddMembers(classDeclSyntax);
 
         // try to make it a bit more readable
-        compilationUnit = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace(eol: Environment.NewLine));
+        compilationUnit = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace());
         
         var sourceText = compilationUnit.GetText(Encoding.UTF8);
 

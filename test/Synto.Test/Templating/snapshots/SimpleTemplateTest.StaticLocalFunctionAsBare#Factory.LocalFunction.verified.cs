@@ -14,7 +14,7 @@ partial class Factory
                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
                    Token(OpenBraceToken), 
                    List<StatementSyntax>(
-                       new StatementSyntax[]{
+                       new StatementSyntax[] { 
                            ExpressionStatement(
                                List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
                                InvocationExpression(
@@ -26,7 +26,7 @@ partial class Factory
                                    ArgumentList(
                                        Token(OpenParenToken), 
                                        SeparatedList<ArgumentSyntax>(
-                                           new SyntaxNodeOrToken[]{
+                                           new SyntaxNodeOrToken[] { 
                                                Argument(
                                                    null, 
                                                    Token(None), 
@@ -34,9 +34,9 @@ partial class Factory
                                                        StringLiteralExpression, 
                                                        Literal(
                                                            "\"Hello world\"", 
-                                                           "Hello world")))}), 
+                                                           "Hello world"))) }), 
                                        Token(CloseParenToken))), 
-                               Token(SemicolonToken))}), 
+                               Token(SemicolonToken)) }), 
                    Token(CloseBraceToken));
     }
 }

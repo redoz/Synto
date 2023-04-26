@@ -51,7 +51,7 @@ public class SyntaxFormatter : CSharpSyntaxRewriter
     }
     private SyntaxTriviaList GetIndentTrivia()
     {
-        return SyntaxFactory.ParseLeadingTrivia(Environment.NewLine + new string(' ', _offset + _indentation * _depth));
+        return SyntaxFactory.ParseLeadingTrivia('\n' + new string(' ', _offset + _indentation * _depth));
     }
 
     public override TNode? VisitListElement<TNode>(TNode? node) where TNode : class

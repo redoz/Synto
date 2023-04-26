@@ -306,7 +306,7 @@ public class TemplateFactoryGenerator : ISourceGenerator
                     .ToArray());
 
 
-        var sourceText = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace(eol: Environment.NewLine)).GetText(Encoding.UTF8);
+        var sourceText = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace()).GetText(Encoding.UTF8);
 
         context.AddSource($"{template.Target.FullName}.{template.Source!.Identifier}.cs", sourceText);
     }

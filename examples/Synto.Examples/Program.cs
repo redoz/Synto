@@ -30,8 +30,8 @@ for (;;)
                 })
             }));
 
-    // Echo the fruit back to the terminal
-    AnsiConsole.Write(new Rule(choice.Name).Alignment(Justify.Left));
+   
+    AnsiConsole.Write(new Rule(choice.Name).LeftJustified());
     AnsiConsole.WriteLine();
     AnsiConsole.WriteLine(choice.Example());
     AnsiConsole.WriteLine();

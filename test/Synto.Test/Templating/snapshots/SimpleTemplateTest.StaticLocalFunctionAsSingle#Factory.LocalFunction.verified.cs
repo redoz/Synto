@@ -21,7 +21,7 @@ partial class Factory
                        ArgumentList(
                            Token(OpenParenToken), 
                            SeparatedList<ArgumentSyntax>(
-                               new SyntaxNodeOrToken[]{
+                               new SyntaxNodeOrToken[] { 
                                    Argument(
                                        null, 
                                        Token(None), 
@@ -29,7 +29,7 @@ partial class Factory
                                            StringLiteralExpression, 
                                            Literal(
                                                "\"Hello world\"", 
-                                               "Hello world")))}), 
+                                               "Hello world"))) }), 
                            Token(CloseParenToken))), 
                    Token(SemicolonToken));
     }

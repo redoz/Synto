@@ -16,7 +16,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -30,7 +30,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Right)!)}), 
+                                   Visit(node.Right)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -42,7 +42,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -51,7 +51,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.TypeArgumentList)!)}), 
+                                   Visit(node.TypeArgumentList)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -63,7 +63,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -77,7 +77,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.GreaterThanToken)!)}), 
+                                   Visit(node.GreaterThanToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -89,7 +89,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -103,7 +103,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Name)!)}), 
+                                   Visit(node.Name)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -115,11 +115,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Keyword)!)}), 
+                                   Visit(node.Keyword)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -131,7 +131,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -140,7 +140,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.RankSpecifiers)!)}), 
+                                   Visit(node.RankSpecifiers)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -152,7 +152,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -166,7 +166,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBracketToken)!)}), 
+                                   Visit(node.CloseBracketToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -178,7 +178,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -187,7 +187,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.AsteriskToken)!)}), 
+                                   Visit(node.AsteriskToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -199,7 +199,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -218,7 +218,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ParameterList)!)}), 
+                                   Visit(node.ParameterList)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -230,7 +230,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -244,7 +244,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.GreaterThanToken)!)}), 
+                                   Visit(node.GreaterThanToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -256,7 +256,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -265,7 +265,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.UnmanagedCallingConventionList).OrNullLiteralExpression())}), 
+                                   Visit(node.UnmanagedCallingConventionList).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -277,7 +277,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -291,7 +291,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBracketToken)!)}), 
+                                   Visit(node.CloseBracketToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -303,11 +303,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Name)!)}), 
+                                   Visit(node.Name)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -319,7 +319,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -328,7 +328,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.QuestionToken)!)}), 
+                                   Visit(node.QuestionToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -340,7 +340,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -354,7 +354,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -366,7 +366,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -375,7 +375,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Identifier)!)}), 
+                                   Visit(node.Identifier)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -387,11 +387,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.OmittedTypeArgumentToken)!)}), 
+                                   Visit(node.OmittedTypeArgumentToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -403,7 +403,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -417,7 +417,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Type)!)}), 
+                                   Visit(node.Type)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -429,7 +429,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -438,7 +438,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Type)!)}), 
+                                   Visit(node.Type)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -450,7 +450,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -464,7 +464,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -476,7 +476,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -490,7 +490,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -502,7 +502,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -516,7 +516,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Operand)!)}), 
+                                   Visit(node.Operand)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -528,7 +528,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -537,7 +537,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -549,7 +549,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -563,7 +563,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.OperatorToken)!)}), 
+                                   Visit(node.OperatorToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -575,7 +575,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -594,7 +594,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Name)!)}), 
+                                   Visit(node.Name)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -606,7 +606,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -620,7 +620,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.WhenNotNull)!)}), 
+                                   Visit(node.WhenNotNull)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -632,7 +632,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -641,7 +641,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Name)!)}), 
+                                   Visit(node.Name)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -653,11 +653,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ArgumentList)!)}), 
+                                   Visit(node.ArgumentList)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -669,7 +669,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -683,7 +683,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.RightOperand).OrNullLiteralExpression())}), 
+                                   Visit(node.RightOperand).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -695,11 +695,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ArgumentList)!)}), 
+                                   Visit(node.ArgumentList)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -711,7 +711,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -730,7 +730,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Right)!)}), 
+                                   Visit(node.Right)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -742,7 +742,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -761,7 +761,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Right)!)}), 
+                                   Visit(node.Right)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -773,7 +773,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -797,7 +797,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.WhenFalse)!)}), 
+                                   Visit(node.WhenFalse)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -809,11 +809,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Token)!)}), 
+                                   Visit(node.Token)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -825,11 +825,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Token)!)}), 
+                                   Visit(node.Token)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -841,7 +841,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -850,7 +850,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Token)!)}), 
+                                   Visit(node.Token)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -862,7 +862,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -881,7 +881,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -893,7 +893,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -912,7 +912,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -924,7 +924,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -953,7 +953,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -965,7 +965,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -989,7 +989,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1001,7 +1001,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1020,7 +1020,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1032,7 +1032,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1051,7 +1051,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1063,7 +1063,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1082,7 +1082,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1094,7 +1094,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1103,7 +1103,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ArgumentList)!)}), 
+                                   Visit(node.ArgumentList)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1115,7 +1115,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1124,7 +1124,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ArgumentList)!)}), 
+                                   Visit(node.ArgumentList)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1136,7 +1136,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1150,7 +1150,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1162,7 +1162,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1176,7 +1176,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBracketToken)!)}), 
+                                   Visit(node.CloseBracketToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1188,7 +1188,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1202,7 +1202,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1214,7 +1214,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1223,7 +1223,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ColonToken)!)}), 
+                                   Visit(node.ColonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1235,7 +1235,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1244,7 +1244,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ColonToken)!)}), 
+                                   Visit(node.ColonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1256,7 +1256,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1265,7 +1265,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Designation)!)}), 
+                                   Visit(node.Designation)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1277,7 +1277,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1296,7 +1296,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1308,7 +1308,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1332,7 +1332,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ExpressionBody).OrNullLiteralExpression())}), 
+                                   Visit(node.ExpressionBody).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1344,7 +1344,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1373,7 +1373,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ExpressionBody).OrNullLiteralExpression())}), 
+                                   Visit(node.ExpressionBody).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1385,7 +1385,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1394,7 +1394,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1406,7 +1406,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1440,7 +1440,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ExpressionBody).OrNullLiteralExpression())}), 
+                                   Visit(node.ExpressionBody).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1452,7 +1452,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1471,7 +1471,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBraceToken)!)}), 
+                                   Visit(node.CloseBraceToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1483,7 +1483,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1497,7 +1497,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Initializer).OrNullLiteralExpression())}), 
+                                   Visit(node.Initializer).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1509,7 +1509,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1528,7 +1528,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Initializer).OrNullLiteralExpression())}), 
+                                   Visit(node.Initializer).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1540,7 +1540,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1554,7 +1554,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Initializer)!)}), 
+                                   Visit(node.Initializer)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1566,7 +1566,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1575,7 +1575,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1587,7 +1587,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1606,7 +1606,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBraceToken)!)}), 
+                                   Visit(node.CloseBraceToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1618,7 +1618,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1632,7 +1632,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Initializer).OrNullLiteralExpression())}), 
+                                   Visit(node.Initializer).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1644,7 +1644,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1668,7 +1668,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Initializer)!)}), 
+                                   Visit(node.Initializer)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1680,7 +1680,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1694,7 +1694,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Initializer).OrNullLiteralExpression())}), 
+                                   Visit(node.Initializer).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1706,7 +1706,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1725,7 +1725,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Initializer)!)}), 
+                                   Visit(node.Initializer)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1737,7 +1737,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1746,7 +1746,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Body)!)}), 
+                                   Visit(node.Body)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1758,7 +1758,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1772,7 +1772,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Continuation).OrNullLiteralExpression())}), 
+                                   Visit(node.Continuation).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1784,7 +1784,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1808,7 +1808,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1820,7 +1820,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1839,7 +1839,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1851,7 +1851,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1900,7 +1900,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Into).OrNullLiteralExpression())}), 
+                                   Visit(node.Into).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1912,7 +1912,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1921,7 +1921,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Identifier)!)}), 
+                                   Visit(node.Identifier)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1933,7 +1933,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1942,7 +1942,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Condition)!)}), 
+                                   Visit(node.Condition)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1954,7 +1954,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1963,7 +1963,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Orderings)!)}), 
+                                   Visit(node.Orderings)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -1975,7 +1975,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -1989,7 +1989,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.AscendingOrDescendingKeyword)!)}), 
+                                   Visit(node.AscendingOrDescendingKeyword)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2001,7 +2001,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2010,7 +2010,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2022,7 +2022,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2041,7 +2041,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ByExpression)!)}), 
+                                   Visit(node.ByExpression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2053,7 +2053,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2067,7 +2067,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Body)!)}), 
+                                   Visit(node.Body)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2079,11 +2079,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.OmittedArraySizeExpressionToken)!)}), 
+                                   Visit(node.OmittedArraySizeExpressionToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2095,7 +2095,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2109,7 +2109,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.StringEndToken)!)}), 
+                                   Visit(node.StringEndToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2121,7 +2121,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2135,7 +2135,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Pattern)!)}), 
+                                   Visit(node.Pattern)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2147,7 +2147,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2156,7 +2156,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2168,7 +2168,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2177,7 +2177,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Condition)!)}), 
+                                   Visit(node.Condition)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2189,11 +2189,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.UnderscoreToken)!)}), 
+                                   Visit(node.UnderscoreToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2205,7 +2205,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2214,7 +2214,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Designation)!)}), 
+                                   Visit(node.Designation)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2226,7 +2226,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2235,7 +2235,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Designation)!)}), 
+                                   Visit(node.Designation)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2247,7 +2247,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2266,7 +2266,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Designation).OrNullLiteralExpression())}), 
+                                   Visit(node.Designation).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2278,7 +2278,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2292,7 +2292,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2304,7 +2304,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2318,7 +2318,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBraceToken)!)}), 
+                                   Visit(node.CloseBraceToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2330,7 +2330,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2339,7 +2339,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Pattern)!)}), 
+                                   Visit(node.Pattern)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2351,11 +2351,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2367,7 +2367,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2381,7 +2381,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2393,7 +2393,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2402,7 +2402,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2414,11 +2414,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Type)!)}), 
+                                   Visit(node.Type)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2430,7 +2430,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2449,7 +2449,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Right)!)}), 
+                                   Visit(node.Right)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2461,7 +2461,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2470,7 +2470,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Pattern)!)}), 
+                                   Visit(node.Pattern)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2482,7 +2482,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2501,7 +2501,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Designation).OrNullLiteralExpression())}), 
+                                   Visit(node.Designation).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2513,7 +2513,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2522,7 +2522,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Pattern).OrNullLiteralExpression())}), 
+                                   Visit(node.Pattern).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2534,11 +2534,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.TextToken)!)}), 
+                                   Visit(node.TextToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2550,7 +2550,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2574,7 +2574,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBraceToken)!)}), 
+                                   Visit(node.CloseBraceToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2586,7 +2586,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2595,7 +2595,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Value)!)}), 
+                                   Visit(node.Value)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2607,7 +2607,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2616,7 +2616,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.FormatStringToken)!)}), 
+                                   Visit(node.FormatStringToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2628,7 +2628,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2642,7 +2642,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Statement)!)}), 
+                                   Visit(node.Statement)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2654,7 +2654,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2673,7 +2673,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBraceToken)!)}), 
+                                   Visit(node.CloseBraceToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2685,7 +2685,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2734,7 +2734,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2746,7 +2746,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2775,7 +2775,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2787,7 +2787,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2796,7 +2796,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Variables)!)}), 
+                                   Visit(node.Variables)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2808,7 +2808,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2822,7 +2822,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Initializer).OrNullLiteralExpression())}), 
+                                   Visit(node.Initializer).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2834,7 +2834,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2843,7 +2843,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Value)!)}), 
+                                   Visit(node.Value)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2855,11 +2855,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Identifier)!)}), 
+                                   Visit(node.Identifier)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2871,11 +2871,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.UnderscoreToken)!)}), 
+                                   Visit(node.UnderscoreToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2887,7 +2887,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2901,7 +2901,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2913,7 +2913,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2927,7 +2927,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2939,7 +2939,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2948,7 +2948,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2960,7 +2960,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -2979,7 +2979,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Statement)!)}), 
+                                   Visit(node.Statement)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -2991,7 +2991,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3020,7 +3020,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3032,7 +3032,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3046,7 +3046,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3058,7 +3058,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3072,7 +3072,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3084,7 +3084,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3103,7 +3103,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3115,7 +3115,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3134,7 +3134,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3146,7 +3146,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3175,7 +3175,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3187,7 +3187,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3216,7 +3216,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Statement)!)}), 
+                                   Visit(node.Statement)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3228,7 +3228,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3267,7 +3267,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3279,7 +3279,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3333,7 +3333,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Statement)!)}), 
+                                   Visit(node.Statement)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3345,7 +3345,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3394,7 +3394,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Statement)!)}), 
+                                   Visit(node.Statement)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3406,7 +3406,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3450,7 +3450,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Statement)!)}), 
+                                   Visit(node.Statement)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3462,7 +3462,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3501,7 +3501,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Statement)!)}), 
+                                   Visit(node.Statement)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3513,7 +3513,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3542,7 +3542,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Statement)!)}), 
+                                   Visit(node.Statement)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3554,7 +3554,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3573,7 +3573,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Block)!)}), 
+                                   Visit(node.Block)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3585,7 +3585,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3599,7 +3599,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Block)!)}), 
+                                   Visit(node.Block)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3611,7 +3611,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3640,7 +3640,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Statement)!)}), 
+                                   Visit(node.Statement)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3652,7 +3652,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3686,7 +3686,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Else).OrNullLiteralExpression())}), 
+                                   Visit(node.Else).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3698,7 +3698,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3707,7 +3707,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Statement)!)}), 
+                                   Visit(node.Statement)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3719,7 +3719,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3758,7 +3758,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBraceToken)!)}), 
+                                   Visit(node.CloseBraceToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3770,7 +3770,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3779,7 +3779,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Statements)!)}), 
+                                   Visit(node.Statements)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3791,7 +3791,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3810,7 +3810,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ColonToken)!)}), 
+                                   Visit(node.ColonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3822,7 +3822,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3836,7 +3836,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ColonToken)!)}), 
+                                   Visit(node.ColonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3848,7 +3848,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3857,7 +3857,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ColonToken)!)}), 
+                                   Visit(node.ColonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3869,7 +3869,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3893,7 +3893,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBraceToken)!)}), 
+                                   Visit(node.CloseBraceToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3905,7 +3905,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3924,7 +3924,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3936,7 +3936,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3960,7 +3960,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Finally).OrNullLiteralExpression())}), 
+                                   Visit(node.Finally).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -3972,7 +3972,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -3991,7 +3991,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Block)!)}), 
+                                   Visit(node.Block)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4003,7 +4003,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4022,7 +4022,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4034,7 +4034,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4053,7 +4053,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4065,7 +4065,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4074,7 +4074,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Block)!)}), 
+                                   Visit(node.Block)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4086,7 +4086,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4110,7 +4110,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.EndOfFileToken)!)}), 
+                                   Visit(node.EndOfFileToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4122,7 +4122,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4141,7 +4141,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4153,7 +4153,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4182,7 +4182,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4194,7 +4194,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4243,7 +4243,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4255,7 +4255,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4294,7 +4294,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Members)!)}), 
+                                   Visit(node.Members)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4306,7 +4306,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4325,7 +4325,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBracketToken)!)}), 
+                                   Visit(node.CloseBracketToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4337,7 +4337,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4346,7 +4346,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ColonToken)!)}), 
+                                   Visit(node.ColonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4358,7 +4358,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4367,7 +4367,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ArgumentList).OrNullLiteralExpression())}), 
+                                   Visit(node.ArgumentList).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4379,7 +4379,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4393,7 +4393,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4405,7 +4405,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4419,7 +4419,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4431,7 +4431,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4440,7 +4440,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.EqualsToken)!)}), 
+                                   Visit(node.EqualsToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4452,7 +4452,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4466,7 +4466,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.GreaterThanToken)!)}), 
+                                   Visit(node.GreaterThanToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4478,7 +4478,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4492,7 +4492,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Identifier)!)}), 
+                                   Visit(node.Identifier)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4504,7 +4504,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4558,7 +4558,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken).OrNullLiteralExpression())}), 
+                                   Visit(node.SemicolonToken).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4570,7 +4570,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4624,7 +4624,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken).OrNullLiteralExpression())}), 
+                                   Visit(node.SemicolonToken).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4636,7 +4636,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4690,7 +4690,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken).OrNullLiteralExpression())}), 
+                                   Visit(node.SemicolonToken).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4702,7 +4702,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4771,7 +4771,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken).OrNullLiteralExpression())}), 
+                                   Visit(node.SemicolonToken).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4783,7 +4783,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4827,7 +4827,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4839,7 +4839,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4883,7 +4883,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4895,7 +4895,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4914,7 +4914,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.EqualsValue).OrNullLiteralExpression())}), 
+                                   Visit(node.EqualsValue).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4926,7 +4926,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4935,7 +4935,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Types)!)}), 
+                                   Visit(node.Types)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4947,11 +4947,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Type)!)}), 
+                                   Visit(node.Type)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4963,7 +4963,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -4972,7 +4972,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ArgumentList)!)}), 
+                                   Visit(node.ArgumentList)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -4984,7 +4984,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5003,7 +5003,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Constraints)!)}), 
+                                   Visit(node.Constraints)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5015,7 +5015,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5029,7 +5029,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5041,7 +5041,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5055,7 +5055,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.QuestionToken)!)}), 
+                                   Visit(node.QuestionToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5067,11 +5067,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Type)!)}), 
+                                   Visit(node.Type)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5083,11 +5083,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.DefaultKeyword)!)}), 
+                                   Visit(node.DefaultKeyword)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5099,7 +5099,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5118,7 +5118,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5130,7 +5130,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5154,7 +5154,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5166,7 +5166,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5175,7 +5175,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.DotToken)!)}), 
+                                   Visit(node.DotToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5187,7 +5187,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5241,7 +5241,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken).OrNullLiteralExpression())}), 
+                                   Visit(node.SemicolonToken).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5253,7 +5253,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5307,7 +5307,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5319,7 +5319,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5373,7 +5373,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5385,7 +5385,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5424,7 +5424,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken).OrNullLiteralExpression())}), 
+                                   Visit(node.SemicolonToken).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5436,7 +5436,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5455,7 +5455,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ArgumentList)!)}), 
+                                   Visit(node.ArgumentList)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5467,7 +5467,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5506,7 +5506,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5518,7 +5518,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5562,7 +5562,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken).OrNullLiteralExpression())}), 
+                                   Visit(node.SemicolonToken).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5574,7 +5574,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5583,7 +5583,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Expression)!)}), 
+                                   Visit(node.Expression)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5595,7 +5595,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5634,7 +5634,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5646,7 +5646,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5690,7 +5690,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken)!)}), 
+                                   Visit(node.SemicolonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5702,7 +5702,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5716,7 +5716,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBraceToken)!)}), 
+                                   Visit(node.CloseBraceToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5728,7 +5728,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5762,7 +5762,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SemicolonToken).OrNullLiteralExpression())}), 
+                                   Visit(node.SemicolonToken).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5774,7 +5774,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5788,7 +5788,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5800,7 +5800,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5814,7 +5814,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBracketToken)!)}), 
+                                   Visit(node.CloseBracketToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5826,7 +5826,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5850,7 +5850,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Default).OrNullLiteralExpression())}), 
+                                   Visit(node.Default).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5862,7 +5862,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5876,7 +5876,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Type)!)}), 
+                                   Visit(node.Type)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5888,7 +5888,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5902,7 +5902,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Type).OrNullLiteralExpression())}), 
+                                   Visit(node.Type).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5914,11 +5914,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Tokens)!)}), 
+                                   Visit(node.Tokens)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5930,7 +5930,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5944,7 +5944,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.EndOfComment)!)}), 
+                                   Visit(node.EndOfComment)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5956,11 +5956,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Type)!)}), 
+                                   Visit(node.Type)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5972,7 +5972,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -5986,7 +5986,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Member)!)}), 
+                                   Visit(node.Member)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -5998,7 +5998,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6007,7 +6007,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Parameters).OrNullLiteralExpression())}), 
+                                   Visit(node.Parameters).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6019,7 +6019,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6028,7 +6028,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Parameters).OrNullLiteralExpression())}), 
+                                   Visit(node.Parameters).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6040,7 +6040,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6059,7 +6059,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Parameters).OrNullLiteralExpression())}), 
+                                   Visit(node.Parameters).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6071,7 +6071,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6095,7 +6095,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Parameters).OrNullLiteralExpression())}), 
+                                   Visit(node.Parameters).OrNullLiteralExpression()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6107,7 +6107,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6121,7 +6121,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6133,7 +6133,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6147,7 +6147,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseBracketToken)!)}), 
+                                   Visit(node.CloseBracketToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6159,7 +6159,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6168,7 +6168,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Type)!)}), 
+                                   Visit(node.Type)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6180,7 +6180,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6194,7 +6194,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.EndTag)!)}), 
+                                   Visit(node.EndTag)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6206,7 +6206,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6225,7 +6225,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.GreaterThanToken)!)}), 
+                                   Visit(node.GreaterThanToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6237,7 +6237,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6251,7 +6251,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.GreaterThanToken)!)}), 
+                                   Visit(node.GreaterThanToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6263,7 +6263,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6282,7 +6282,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.SlashGreaterThanToken)!)}), 
+                                   Visit(node.SlashGreaterThanToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6294,7 +6294,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6303,7 +6303,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.LocalName)!)}), 
+                                   Visit(node.LocalName)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6315,7 +6315,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6324,7 +6324,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.ColonToken)!)}), 
+                                   Visit(node.ColonToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6336,7 +6336,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6360,7 +6360,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.EndQuoteToken)!)}), 
+                                   Visit(node.EndQuoteToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6372,7 +6372,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6396,7 +6396,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.EndQuoteToken)!)}), 
+                                   Visit(node.EndQuoteToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6408,7 +6408,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6432,7 +6432,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.EndQuoteToken)!)}), 
+                                   Visit(node.EndQuoteToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6444,11 +6444,11 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.TextTokens)!)}), 
+                                   Visit(node.TextTokens)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6460,7 +6460,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6474,7 +6474,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.EndCDataToken)!)}), 
+                                   Visit(node.EndCDataToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6486,7 +6486,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6505,7 +6505,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.EndProcessingInstructionToken)!)}), 
+                                   Visit(node.EndProcessingInstructionToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6517,7 +6517,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6531,7 +6531,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.MinusMinusGreaterThanToken)!)}), 
+                                   Visit(node.MinusMinusGreaterThanToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6543,7 +6543,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6577,7 +6577,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.ConditionValue.ToSyntax())}), 
+                                   node.ConditionValue.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6589,7 +6589,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6623,7 +6623,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.ConditionValue.ToSyntax())}), 
+                                   node.ConditionValue.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6635,7 +6635,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6659,7 +6659,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.BranchTaken.ToSyntax())}), 
+                                   node.BranchTaken.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6671,7 +6671,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6690,7 +6690,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6702,7 +6702,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6721,7 +6721,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6733,7 +6733,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6752,7 +6752,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6764,7 +6764,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6783,7 +6783,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6795,7 +6795,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6814,7 +6814,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6826,7 +6826,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6845,7 +6845,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6857,7 +6857,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6881,7 +6881,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6893,7 +6893,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6917,7 +6917,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6929,7 +6929,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6958,7 +6958,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -6970,7 +6970,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -6994,7 +6994,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.CloseParenToken)!)}), 
+                                   Visit(node.CloseParenToken)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -7006,7 +7006,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -7050,7 +7050,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -7062,7 +7062,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -7096,7 +7096,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -7108,7 +7108,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -7147,7 +7147,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -7159,7 +7159,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -7183,7 +7183,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -7195,7 +7195,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -7219,7 +7219,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -7231,7 +7231,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -7250,7 +7250,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 
@@ -7262,7 +7262,7 @@ public partial class CSharpSyntaxQuoter
                    ArgumentList(
                        Token(OpenParenToken), 
                        SeparatedList<ArgumentSyntax>(
-                           new SyntaxNodeOrToken[]{
+                           new SyntaxNodeOrToken[] { 
                                Argument(
                                    null, 
                                    Token(None), 
@@ -7291,7 +7291,7 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
-                                   node.IsActive.ToSyntax())}), 
+                                   node.IsActive.ToSyntax()) }), 
                        Token(CloseParenToken)));
     }
 }
