@@ -16,6 +16,7 @@ public class TemplateFactoryGenerator : ISourceGenerator
 {
     public void Execute(GeneratorExecutionContext context)
     {
+        //Debugger.Launch();
         if (context.SyntaxContextReceiver is not CompositeSyntaxContextReceiver syntaxReceivers
             || syntaxReceivers.OfType<AttributeSyntaxLocator<TemplateAttribute, CSharpSyntaxNode>>() is not { } syntaxReceiver
             || syntaxReceivers.OfType<AttributeSyntaxLocator<RuntimeAttribute, MemberDeclarationSyntax>>() is not { } runtimeLocator)

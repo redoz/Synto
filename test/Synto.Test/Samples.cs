@@ -19,7 +19,7 @@ namespace Synto.Test;
 
 public partial class Samples
 {
-    private partial class Factory { };
+    //private partial class Factory { };
 
     //[Fact]
     //public void Test0()

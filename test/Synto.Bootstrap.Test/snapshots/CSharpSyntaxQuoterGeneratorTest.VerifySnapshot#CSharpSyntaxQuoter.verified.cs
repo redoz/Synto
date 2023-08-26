@@ -1729,6 +1729,69 @@ public partial class CSharpSyntaxQuoter
                        Token(CloseParenToken)));
     }
 
+    public override ExpressionSyntax? VisitCollectionExpression(CollectionExpressionSyntax node)
+    {
+        // CollectionExpression(Visit(node.OpenBracketToken)!, Visit(node.Elements)!, Visit(node.CloseBracketToken)!)
+        return InvocationExpression(
+                   IdentifierName(nameof(CollectionExpression)), 
+                   ArgumentList(
+                       Token(OpenParenToken), 
+                       SeparatedList<ArgumentSyntax>(
+                           new SyntaxNodeOrToken[] { 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.OpenBracketToken)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.Elements)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.CloseBracketToken)!) }), 
+                       Token(CloseParenToken)));
+    }
+
+    public override ExpressionSyntax? VisitExpressionElement(ExpressionElementSyntax node)
+    {
+        // ExpressionElement(Visit(node.Expression)!)
+        return InvocationExpression(
+                   IdentifierName(nameof(ExpressionElement)), 
+                   ArgumentList(
+                       Token(OpenParenToken), 
+                       SeparatedList<ArgumentSyntax>(
+                           new SyntaxNodeOrToken[] { 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.Expression)!) }), 
+                       Token(CloseParenToken)));
+    }
+
+    public override ExpressionSyntax? VisitSpreadElement(SpreadElementSyntax node)
+    {
+        // SpreadElement(Visit(node.OperatorToken)!, Visit(node.Expression)!)
+        return InvocationExpression(
+                   IdentifierName(nameof(SpreadElement)), 
+                   ArgumentList(
+                       Token(OpenParenToken), 
+                       SeparatedList<ArgumentSyntax>(
+                           new SyntaxNodeOrToken[] { 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.OperatorToken)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.Expression)!) }), 
+                       Token(CloseParenToken)));
+    }
+
     public override ExpressionSyntax? VisitQueryExpression(QueryExpressionSyntax node)
     {
         // QueryExpression(Visit(node.FromClause)!, Visit(node.Body)!)
@@ -4147,7 +4210,7 @@ public partial class CSharpSyntaxQuoter
 
     public override ExpressionSyntax? VisitUsingDirective(UsingDirectiveSyntax node)
     {
-        // UsingDirective(Visit(node.GlobalKeyword)!, Visit(node.UsingKeyword)!, Visit(node.StaticKeyword)!, Visit(node.Alias).OrNullLiteralExpression(), Visit(node.Name)!, Visit(node.SemicolonToken)!)
+        // UsingDirective(Visit(node.GlobalKeyword)!, Visit(node.UsingKeyword)!, Visit(node.StaticKeyword)!, Visit(node.UnsafeKeyword)!, Visit(node.Alias).OrNullLiteralExpression(), Visit(node.NamespaceOrType)!, Visit(node.SemicolonToken)!)
         return InvocationExpression(
                    IdentifierName(nameof(UsingDirective)), 
                    ArgumentList(
@@ -4172,12 +4235,17 @@ public partial class CSharpSyntaxQuoter
                                Argument(
                                    null, 
                                    Token(None), 
+                                   Visit(node.UnsafeKeyword)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
                                    Visit(node.Alias).OrNullLiteralExpression()), 
                                Token(CommaToken), 
                                Argument(
                                    null, 
                                    Token(None), 
-                                   Visit(node.Name)!), 
+                                   Visit(node.NamespaceOrType)!), 
                                Token(CommaToken), 
                                Argument(
                                    null, 
@@ -4498,7 +4566,7 @@ public partial class CSharpSyntaxQuoter
 
     public override ExpressionSyntax? VisitClassDeclaration(ClassDeclarationSyntax node)
     {
-        // ClassDeclaration(Visit(node.AttributeLists)!, Visit(node.Modifiers).OrNullLiteralExpression(), Visit(node.Keyword).OrNullLiteralExpression(), Visit(node.Identifier).OrNullLiteralExpression(), Visit(node.TypeParameterList).OrNullLiteralExpression(), Visit(node.BaseList).OrNullLiteralExpression(), Visit(node.ConstraintClauses)!, Visit(node.OpenBraceToken).OrNullLiteralExpression(), Visit(node.Members)!, Visit(node.CloseBraceToken).OrNullLiteralExpression(), Visit(node.SemicolonToken).OrNullLiteralExpression())
+        // ClassDeclaration(Visit(node.AttributeLists)!, Visit(node.Modifiers).OrNullLiteralExpression(), Visit(node.Keyword).OrNullLiteralExpression(), Visit(node.Identifier).OrNullLiteralExpression(), Visit(node.TypeParameterList).OrNullLiteralExpression(), Visit(node.ParameterList).OrNullLiteralExpression(), Visit(node.BaseList).OrNullLiteralExpression(), Visit(node.ConstraintClauses)!, Visit(node.OpenBraceToken).OrNullLiteralExpression(), Visit(node.Members)!, Visit(node.CloseBraceToken).OrNullLiteralExpression(), Visit(node.SemicolonToken).OrNullLiteralExpression())
         return InvocationExpression(
                    IdentifierName(nameof(ClassDeclaration)), 
                    ArgumentList(
@@ -4529,6 +4597,11 @@ public partial class CSharpSyntaxQuoter
                                    null, 
                                    Token(None), 
                                    Visit(node.TypeParameterList).OrNullLiteralExpression()), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.ParameterList).OrNullLiteralExpression()), 
                                Token(CommaToken), 
                                Argument(
                                    null, 
@@ -4564,7 +4637,7 @@ public partial class CSharpSyntaxQuoter
 
     public override ExpressionSyntax? VisitStructDeclaration(StructDeclarationSyntax node)
     {
-        // StructDeclaration(Visit(node.AttributeLists)!, Visit(node.Modifiers).OrNullLiteralExpression(), Visit(node.Keyword).OrNullLiteralExpression(), Visit(node.Identifier).OrNullLiteralExpression(), Visit(node.TypeParameterList).OrNullLiteralExpression(), Visit(node.BaseList).OrNullLiteralExpression(), Visit(node.ConstraintClauses)!, Visit(node.OpenBraceToken).OrNullLiteralExpression(), Visit(node.Members)!, Visit(node.CloseBraceToken).OrNullLiteralExpression(), Visit(node.SemicolonToken).OrNullLiteralExpression())
+        // StructDeclaration(Visit(node.AttributeLists)!, Visit(node.Modifiers).OrNullLiteralExpression(), Visit(node.Keyword).OrNullLiteralExpression(), Visit(node.Identifier).OrNullLiteralExpression(), Visit(node.TypeParameterList).OrNullLiteralExpression(), Visit(node.ParameterList).OrNullLiteralExpression(), Visit(node.BaseList).OrNullLiteralExpression(), Visit(node.ConstraintClauses)!, Visit(node.OpenBraceToken).OrNullLiteralExpression(), Visit(node.Members)!, Visit(node.CloseBraceToken).OrNullLiteralExpression(), Visit(node.SemicolonToken).OrNullLiteralExpression())
         return InvocationExpression(
                    IdentifierName(nameof(StructDeclaration)), 
                    ArgumentList(
@@ -4595,6 +4668,11 @@ public partial class CSharpSyntaxQuoter
                                    null, 
                                    Token(None), 
                                    Visit(node.TypeParameterList).OrNullLiteralExpression()), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.ParameterList).OrNullLiteralExpression()), 
                                Token(CommaToken), 
                                Argument(
                                    null, 
@@ -4630,7 +4708,7 @@ public partial class CSharpSyntaxQuoter
 
     public override ExpressionSyntax? VisitInterfaceDeclaration(InterfaceDeclarationSyntax node)
     {
-        // InterfaceDeclaration(Visit(node.AttributeLists)!, Visit(node.Modifiers).OrNullLiteralExpression(), Visit(node.Keyword).OrNullLiteralExpression(), Visit(node.Identifier).OrNullLiteralExpression(), Visit(node.TypeParameterList).OrNullLiteralExpression(), Visit(node.BaseList).OrNullLiteralExpression(), Visit(node.ConstraintClauses)!, Visit(node.OpenBraceToken).OrNullLiteralExpression(), Visit(node.Members)!, Visit(node.CloseBraceToken).OrNullLiteralExpression(), Visit(node.SemicolonToken).OrNullLiteralExpression())
+        // InterfaceDeclaration(Visit(node.AttributeLists)!, Visit(node.Modifiers).OrNullLiteralExpression(), Visit(node.Keyword).OrNullLiteralExpression(), Visit(node.Identifier).OrNullLiteralExpression(), Visit(node.TypeParameterList).OrNullLiteralExpression(), Visit(node.ParameterList).OrNullLiteralExpression(), Visit(node.BaseList).OrNullLiteralExpression(), Visit(node.ConstraintClauses)!, Visit(node.OpenBraceToken).OrNullLiteralExpression(), Visit(node.Members)!, Visit(node.CloseBraceToken).OrNullLiteralExpression(), Visit(node.SemicolonToken).OrNullLiteralExpression())
         return InvocationExpression(
                    IdentifierName(nameof(InterfaceDeclaration)), 
                    ArgumentList(
@@ -4661,6 +4739,11 @@ public partial class CSharpSyntaxQuoter
                                    null, 
                                    Token(None), 
                                    Visit(node.TypeParameterList).OrNullLiteralExpression()), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.ParameterList).OrNullLiteralExpression()), 
                                Token(CommaToken), 
                                Argument(
                                    null, 

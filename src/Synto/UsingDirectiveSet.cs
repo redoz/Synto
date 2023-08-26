@@ -32,12 +32,14 @@ public class UsingDirectiveSet : IEnumerable<UsingDirectiveSyntax>
 
     public void AddNamespace(NameSyntax namespaceName)
     {
-        
+        // since we don't support alias, usingSyntax.Name should never be null
+#pragma warning disable CS8602 // Dereference of a possibly null reference.
         if (!this._usings.Any(usingSyntax => usingSyntax.Name.IsEquivalentTo(namespaceName, topLevel: true))
             && !this._predefined.Any(usingSyntax => usingSyntax.Name.IsEquivalentTo(namespaceName, topLevel: true)))
         {
             this._usings.Add(SyntaxFactory.UsingDirective(namespaceName));
         }
+#pragma warning restore CS8602 // Dereference of a possibly null reference.
     }
 
     public NameSyntax GetTypeName(TypeSyntax fullyQualifiedName)

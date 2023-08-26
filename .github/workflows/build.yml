@@ -67,6 +67,7 @@ jobs:
   
   publish_nuget:
     name: Publish Package to NuGet.org
+    if: ${{ github.ref == 'refs/heads/main'  }}
     needs: build
     environment: NuGet.org
     runs-on: ubuntu-latest
