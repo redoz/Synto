@@ -223,4 +223,24 @@ public class TestClass {
 }
 """);
     }
+
+
+    [Fact]
+    public async Task ClassTemplate()
+    {
+        await VerifyTemplate("""
+ using System;
+ using Synto;
+ using Synto.Templating;
+
+ partial class Factory {}
+
+ [Template(typeof(Factory))]
+ public class TestClass {
+     void LocalFunction() {
+         Console.WriteLine("Hello world");
+     }
+ }
+ """);
+    }
 }

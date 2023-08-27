@@ -21,7 +21,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
     protected static InvocationExpressionSyntax SyntaxFactoryInvocation(string functionName, params ExpressionSyntax[] arguments)
     {
         return InvocationExpression(IdentifierName(functionName))
-            .AddArgumentListArguments(Array.ConvertAll(arguments, Argument)); 
+            .AddArgumentListArguments(Array.ConvertAll(arguments, Argument));
     }
 
     protected static ExpressionSyntax ToArrayLiteral(IEnumerable<ExpressionSyntax> nodeList, TypeSyntax elementType)
@@ -78,7 +78,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
                 quotedExprs.RemoveAt(i); // remove null-node
                 if (i < quotedExprs.Count)
                     quotedExprs.RemoveAt(i); // remove token too
-            } 
+            }
             else
                 i++;
         }
@@ -104,8 +104,11 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
     {
         static bool TokenKindHasText(SyntaxKind kind) => SyntaxFacts.GetText(kind) != string.Empty;
 
+        static ExpressionSyntax EmptySyntaxTriviaList() => SyntaxFactoryInvocation(nameof(TriviaList));
+
         // this is not very nice looking
-        if (this._includeTrivia && (token.HasLeadingTrivia || token.HasTrailingTrivia)) {
+        if (this._includeTrivia && (token.HasLeadingTrivia || token.HasTrailingTrivia))
+        {
             return token.Kind() switch
             {
                 SyntaxKind.BadToken => SyntaxFactoryInvocation(nameof(BadToken), Visit(token.LeadingTrivia), token.Text.ToSyntax(), Visit(token.TrailingTrivia)),
@@ -157,18 +160,20 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
                 },
                 SyntaxKind.CharacterLiteralToken => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), ((char)token.Value!).ToSyntax()),
                 SyntaxKind.StringLiteralToken => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), ((string)token.Value!).ToSyntax()),
-
                 SyntaxKind.None => SyntaxFactoryInvocation(nameof(Token), Visit(SyntaxKind.None)),
 
                 var tokenKind when TokenKindHasText(tokenKind) => SyntaxFactoryInvocation(nameof(Token), Visit(tokenKind)),
-                var tokenKind => SyntaxFactoryInvocation(nameof(Token), Visit(tokenKind), token.Text.ToSyntax(), ((string)token.Value!).ToSyntax()),
+                var tokenKind when token is { Text: "", ValueText: "" } => SyntaxFactoryInvocation(nameof(Token), Visit(tokenKind)),
+                var tokenKind => SyntaxFactoryInvocation(nameof(Token), EmptySyntaxTriviaList(), Visit(tokenKind), token.Text.ToSyntax(), ((string)token.Value!).ToSyntax(), EmptySyntaxTriviaList())
             };
+
 
         }
     }
 
     public virtual ExpressionSyntax Visit(SyntaxTriviaList triviaList)
     {
+        // TODO this isn't really supported, we always generate an empty trivia list
         return SyntaxFactoryInvocation(nameof(TriviaList));
     }
 
@@ -185,7 +190,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
 
 }
 
-public partial class CSharpSyntaxQuoter :  CSharpSyntaxQuoterBase
+public partial class CSharpSyntaxQuoter : CSharpSyntaxQuoterBase
 {
     public CSharpSyntaxQuoter(bool includeTrivia) : base(includeTrivia)
     {

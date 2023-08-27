@@ -1,8 +1,8 @@
 ﻿using System;
 
-namespace Synto.Templating;
+namespace Synto;
 
-[AttributeUsage(AttributeTargets.Method/* | AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum*/)]
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class /* | AttributeTargets.Struct | AttributeTargets.Enum*/)]
 public class TemplateAttribute : Attribute
 {
     public TemplateOption Options { get; set; }
@@ -16,5 +16,6 @@ public class TemplateAttribute : Attribute
         Target = target;
         Options = TemplateOption.Default;
     }
-
 }
+
+

@@ -88,10 +88,10 @@ internal static class Diagnostics
                                                                             DiagnosticSeverity.Error,
                                                                             isEnabledByDefault: true);
 
-    public static Diagnostic BareSourceCannotBeEmpty(SourceFunction source)
+    public static Diagnostic BareSourceCannotBeEmpty(Source source)
     {
         return Diagnostic.Create(_BareSourceCannotBeEmpty,
-                                    source.Body?.GetLocation() ?? source.Identifier.GetLocation(),
+                                    source.Syntax.GetLocation(),
                                     source.Identifier.ValueText);
     }
 
@@ -106,6 +106,21 @@ internal static class Diagnostics
     {
         return Diagnostic.Create(_MultipleStatementsNotAllowed,
             source.Body?.GetLocation() ?? source.Identifier.GetLocation(),
+            source.Identifier.ValueText);
+    }
+
+
+    private static readonly DiagnosticDescriptor _MultipleMembersNotAllowed = new(IdPrefix + "1007",
+        "Invalid Source",
+        "Source type '{0}' can not have multiple members when Single is specified",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static Diagnostic MultipleMembersNotAllowed(SourceType source)
+    {
+        return Diagnostic.Create(_MultipleMembersNotAllowed,
+            source.Syntax.GetLocation() ,
             source.Identifier.ValueText);
     }
 }

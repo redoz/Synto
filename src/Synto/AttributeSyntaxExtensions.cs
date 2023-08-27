@@ -17,11 +17,11 @@ namespace Synto
                 .ToArray();
         }
 
-        public static T1 GetConstructorArguments<T1>(this AttributeSyntax attribute, SemanticModel semanticModel)
+        public static T1? GetConstructorArguments<T1>(this AttributeSyntax attribute, SemanticModel semanticModel)
         {
             object?[] ret = attribute.GetConstructorArguments(semanticModel);
             if (ret.Length < 1)
-                throw new InvalidOperationException("AttributeSyntax only has {ret.Length} arguments specified");
+                return default;
 
             return (T1)ret[0]!;
         }
@@ -30,9 +30,12 @@ namespace Synto
         {
             object?[] ret = attribute.GetConstructorArguments(semanticModel);
             if (ret.Length < 2)
-                throw new InvalidOperationException("AttributeSyntax only has {ret.Length} arguments specified");
+                throw new InvalidOperationException($"AttributeSyntax only has {ret.Length} arguments specified");
 
-            return ((T1) ret[0]!, (T2) ret[0]!);
+            return (
+                ret.Length > 0 ? (T1) ret[0]! : default, 
+                ret.Length > 1 ? (T2) ret[1]! : default
+                );
         }
 
         public static Optional<T> GetNamedArgument<T>(this AttributeSyntax attribute, string name, SemanticModel semanticModel)
