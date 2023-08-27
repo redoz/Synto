@@ -58,7 +58,7 @@ public class TemplateFactoryGenerator : ISourceGenerator
             var cleanTarget = AttributeSyntaxRemover.Remove(runtimeLocation.Target, runtimeLocation.Attribute);
 
             var modifiers = cleanTarget.Modifiers;
-            for (int i = 0; i < cleanTarget.Modifiers.Count;)
+            for (int i = 0; i < modifiers.Count;)
             {
                 if (SyntaxFacts.IsAccessibilityModifier(modifiers[i].Kind()))
                     modifiers = modifiers.RemoveAt(i);
@@ -89,12 +89,14 @@ public class TemplateFactoryGenerator : ISourceGenerator
                 var targetType = context.Compilation.GetSemanticModel(syntaxLocation.Target.SyntaxTree).GetTypeInfo(target);
 
                 // and source info
-                SourceFunction? source;
+                Source? source;
 
                 if (syntaxLocation.Target is LocalFunctionStatementSyntax localFunctionSyntax)
                     source = new SourceFunction(syntaxLocation.Target, localFunctionSyntax.Identifier, localFunctionSyntax.ParameterList, localFunctionSyntax.Body);
                 else if (syntaxLocation.Target is MethodDeclarationSyntax methodSyntax)
                     source = new SourceFunction(syntaxLocation.Target, methodSyntax.Identifier, methodSyntax.ParameterList, methodSyntax.Body!);
+                else if (syntaxLocation.Target is ClassDeclarationSyntax classDeclarationSyntax)
+                    source = new SourceType(syntaxLocation.Target, classDeclarationSyntax.Identifier, classDeclarationSyntax);
                 else
                     source = null;
 
@@ -151,39 +153,23 @@ public class TemplateFactoryGenerator : ISourceGenerator
             return false;
 
 
-        if (template.Source?.Body is null)
+        if (template.Source is null)
             return false;
         return true;
     }
 
-    private static void ProcessTemplate(GeneratorExecutionContext context, TemplateInfo template, List<TypeDeclarationSyntax> runtimeTypeList)
+    private static MethodDeclarationSyntax? ProcessFunctionTemplate(GeneratorExecutionContext context, SemanticModel semanticModel, UsingDirectiveSet additionalUsings, SourceFunction source, TemplateOption options)
     {
-        // first we do some checking to ensure we were given valid inputs
-        if (!ValidateTemplate(context, template)) 
-            return;
-
-        var source = template.Source!;
-
-        var semanticModel = context.Compilation.GetSemanticModel(source.Syntax.SyntaxTree);
-
-        //Debugger.Launch();
-        TemplateOption options = template.Attribute.GetNamedArgument<int>(nameof(TemplateAttribute.Options), semanticModel) is
-            {HasValue: true, Value: int rawOptions}
-            ? (TemplateOption) rawOptions
-            : TemplateOption.Default;
-
         // rewrite Syntax/Syntax<T> parameters
         var targetParams = new ParameterSyntax[source.ParameterListSyntax.Parameters.Count];
         List<ParameterSyntax> literalParameters = new();
         List<ParameterSyntax> syntaxParameters = new();
 
-        var syntaxDelegateSymbol = context.Compilation.GetTypeByMetadataName("Synto.Templating.Syntax");
+        var syntaxDelegateSymbol = context.Compilation.GetTypeByMetadataName("Synto.Syntax");
         Debug.Assert(syntaxDelegateSymbol != null);
-        var syntaxOfTDelegateSymbol = context.Compilation.GetTypeByMetadataName("Synto.Templating.Syntax`1");
+        var syntaxOfTDelegateSymbol = context.Compilation.GetTypeByMetadataName("Synto.Syntax`1");
         Debug.Assert(syntaxOfTDelegateSymbol != null);
 
-        // we use this to collection additional usings that are required through out the source-generation process
-        UsingDirectiveSet additionalUsings = new UsingDirectiveSet(CSharpSyntaxQuoter.RequiredUsings());
 
         //Debugger.Launch();
         for (int i = 0; i < source.ParameterListSyntax.Parameters.Count; i++)
@@ -218,9 +204,9 @@ public class TemplateFactoryGenerator : ISourceGenerator
                 literalParameters.Add(targetParams[i] = sourceParam);
         }
 
+
         TemplateSyntaxQuoter quoter = new(
             semanticModel,
-            source,
             syntaxParameters,
             literalParameters,
             includeTrivia: options.HasFlag(TemplateOption.PreserveTrivia));
@@ -235,7 +221,7 @@ public class TemplateFactoryGenerator : ISourceGenerator
             if (source.Body!.Statements.Count == 0)
             {
                 context.ReportDiagnostic(Diagnostics.BareSourceCannotBeEmpty(source));
-                return;
+                return null;
             }
 
             if ((options & TemplateOption.Single) == TemplateOption.Single)
@@ -243,24 +229,24 @@ public class TemplateFactoryGenerator : ISourceGenerator
                 if (source.Body.Statements.Count == 1)
                 {
                     syntaxTreeExpr = quoter.Visit(source.Body.Statements[0]);
-                    returnType = ParseTypeName(source.Body.Statements[0].GetType().FullName);
+                    returnType = ParseTypeName(source.Body.Statements[0].GetType().FullName!);
                 }
                 else
                 {
                     context.ReportDiagnostic(Diagnostics.MultipleStatementsNotAllowed(source));
-                    return;
+                    return null;
                 }
             }
             else
             {
                 syntaxTreeExpr = quoter.Visit(source.Body);
-                returnType = ParseTypeName(typeof(BlockSyntax).FullName);
+                returnType = ParseTypeName(typeof(BlockSyntax).FullName!);
             }
         }
         else
         {
             syntaxTreeExpr = quoter.Visit(source.Syntax);
-            returnType = ParseTypeName(source.Syntax.GetType().FullName);
+            returnType = ParseTypeName(source.Syntax.GetType().FullName!);
         }
 
 
@@ -269,6 +255,104 @@ public class TemplateFactoryGenerator : ISourceGenerator
             .WithParameterList(ParameterList().AddParameters(targetParams))
             .WithBody(Block().AddStatements(ReturnStatement(syntaxTreeExpr)));
 
+        return syntaxFactoryMethod;
+    }
+
+    private static MethodDeclarationSyntax? ProcessTypeTemplate(
+        GeneratorExecutionContext context, 
+        SemanticModel semanticModel,
+        UsingDirectiveSet additionalUsings, 
+        SourceType source, 
+        TemplateOption options)
+    {
+        // we could possibly replace generic types with explicit once and strip the generic type definition off the syntax tree
+
+        //Debugger.Launch();
+
+        TemplateSyntaxQuoter quoter = new(
+            semanticModel,
+            Array.Empty<ParameterSyntax>(),
+            Array.Empty<ParameterSyntax>(),
+            includeTrivia: options.HasFlag(TemplateOption.PreserveTrivia));
+
+        ExpressionSyntax? syntaxTreeExpr;
+        TypeSyntax? returnType;
+
+        //Debugger.Launch();
+
+        if (options.HasFlag(TemplateOption.Bare))
+        {
+            if (source.Declaration.Members.Count == 0)
+            {
+                context.ReportDiagnostic(Diagnostics.BareSourceCannotBeEmpty(source));
+                return null;
+            }
+
+            if ((options & TemplateOption.Single) == TemplateOption.Single)
+            {
+                if (source.Declaration.Members.Count == 1)
+                {
+                    syntaxTreeExpr = quoter.Visit(source.Declaration.Members[0]);
+                    returnType = ParseTypeName(source.Declaration.Members[0].GetType().FullName!);
+                }
+                else
+                {
+                    context.ReportDiagnostic(Diagnostics.MultipleMembersNotAllowed(source));
+                    return null;
+                }
+            }
+            else
+            {
+                syntaxTreeExpr = quoter.Visit(source.Declaration);
+                returnType = ParseTypeName(typeof(SyntaxList<MemberDeclarationSyntax>).FullName!);
+            }
+        }
+        else
+        {
+            syntaxTreeExpr = quoter.Visit(source.Declaration);
+            returnType = ParseTypeName(source.Declaration.GetType().FullName!);
+        }
+
+
+        var syntaxFactoryMethod = MethodDeclaration(additionalUsings.GetTypeName(returnType), source.Identifier)
+            .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.StaticKeyword))
+            .WithBody(Block().AddStatements(ReturnStatement(syntaxTreeExpr)));
+
+        return syntaxFactoryMethod;
+    }
+
+    private static void ProcessTemplate(GeneratorExecutionContext context, TemplateInfo template, List<TypeDeclarationSyntax> runtimeTypeList)
+    {
+        // first we do some checking to ensure we were given valid inputs
+        if (!ValidateTemplate(context, template)) 
+            return;
+
+        var source = template.Source!;
+
+        var semanticModel = context.Compilation.GetSemanticModel(source.Syntax.SyntaxTree);
+
+        //Debugger.Launch();
+        TemplateOption options = template.Attribute.GetNamedArgument<int>(nameof(TemplateAttribute.Options), semanticModel) is
+            {HasValue: true, Value: int rawOptions}
+            ? (TemplateOption) rawOptions
+            : TemplateOption.Default;
+
+        // we use this to collection additional usings that are required through out the source-generation process
+        UsingDirectiveSet additionalUsings = new UsingDirectiveSet(CSharpSyntaxQuoter.RequiredUsings());
+
+        MethodDeclarationSyntax? syntaxFactoryMethod = null;
+        if (template.Source is SourceFunction functionTemplate)
+        {
+            syntaxFactoryMethod = ProcessFunctionTemplate(context, semanticModel, additionalUsings, functionTemplate, options);
+        }
+        else if (template.Source is SourceType typeTemplate)
+        {
+            syntaxFactoryMethod = ProcessTypeTemplate(context, semanticModel, additionalUsings, typeTemplate, options);
+        }
+
+        // this is null if the template processing failed, but then diagnostics should have been added to the context so we just exit
+        if (syntaxFactoryMethod is null)
+            return;
 
         var targetClassDecl = (ClassDeclarationSyntax)template.Target.Type!.DeclaringSyntaxReferences[0].GetSyntax();
 

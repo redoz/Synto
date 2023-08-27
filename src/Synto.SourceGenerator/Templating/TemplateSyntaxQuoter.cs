@@ -19,7 +19,6 @@ internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
             });
     }
 
-    private readonly SourceFunction? _source;
     private readonly SemanticModel _semanticModel;
     private readonly IParameterSymbol[] _syntaxParameterSymbols;
     private readonly IParameterSymbol[] _literalParameterSymbols;
@@ -27,12 +26,10 @@ internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
 
     public TemplateSyntaxQuoter(
         SemanticModel semanticModel, 
-        SourceFunction source, 
         IEnumerable<ParameterSyntax> syntaxParameterSymbols,
         IEnumerable<ParameterSyntax> literalParameterSymbols, 
         bool includeTrivia) : base(includeTrivia)
     {
-        _source = source;
         _semanticModel = semanticModel;
         _syntaxParameterSymbols = syntaxParameterSymbols.Select(paramSyntax => semanticModel.GetDeclaredSymbol(paramSyntax)!).ToArray();
         _literalParameterSymbols = literalParameterSymbols.Select(paramSyntax => semanticModel.GetDeclaredSymbol(paramSyntax)!).ToArray();

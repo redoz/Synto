@@ -1,4 +1,4 @@
-﻿namespace Synto.Templating;
+﻿namespace Synto;
 
 public delegate void Syntax();
 
