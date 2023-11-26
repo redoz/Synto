@@ -50,5 +50,11 @@ namespace Synto
             
             return new Optional<T>((T)value.Value!);
         }
+
+        public static T GetNamedArgumentOrDefault<T>(this AttributeSyntax attribute, string name, SemanticModel semanticModel, T defaultValue)
+        {
+            var optional = attribute.GetNamedArgument<T>(name, semanticModel);
+            return optional.HasValue ? optional.Value : defaultValue;
+        }
     }
 }

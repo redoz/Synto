@@ -2,22 +2,26 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Spectre.Console" Version="0.47.0" />
+    <PackageReference Include="Spectre.Console" Version="0.48.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Synto" Version="0.2.23-alpha" />
+    <!--<PackageReference Include="Synto" Version="0.2.39-alpha" />-->
   </ItemGroup>
-  <!--<ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Synto.SourceGenerator\Synto.SourceGenerator.csproj" OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="False" />
     <ProjectReference Include="..\..\src\Synto\Synto.csproj" />
-  </ItemGroup>-->
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+  </ItemGroup>
 
 
 </Project>

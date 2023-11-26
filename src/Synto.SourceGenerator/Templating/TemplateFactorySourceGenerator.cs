@@ -12,7 +12,7 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 namespace Synto.Templating;
 
 [Generator]
-public class TemplateFactoryGenerator : ISourceGenerator
+public class TemplateFactorySourceGenerator : ISourceGenerator
 {
     public void Execute(GeneratorExecutionContext context)
     {
@@ -158,173 +158,272 @@ public class TemplateFactoryGenerator : ISourceGenerator
         return true;
     }
 
-    private static MethodDeclarationSyntax? ProcessFunctionTemplate(GeneratorExecutionContext context, SemanticModel semanticModel, UsingDirectiveSet additionalUsings, SourceFunction source, TemplateOption options)
+    private static MethodDeclarationSyntax? ProcessTemplate(
+        GeneratorExecutionContext context,
+        SemanticModel semanticModel,
+        UsingDirectiveSet additionalUsings,
+        TemplateInfo templateInfo,
+        TemplateOption options)
     {
-        // rewrite Syntax/Syntax<T> parameters
-        var targetParams = new ParameterSyntax[source.ParameterListSyntax.Parameters.Count];
-        List<ParameterSyntax> literalParameters = new();
-        List<ParameterSyntax> syntaxParameters = new();
 
-        var syntaxDelegateSymbol = context.Compilation.GetTypeByMetadataName("Synto.Syntax");
-        Debug.Assert(syntaxDelegateSymbol != null);
-        var syntaxOfTDelegateSymbol = context.Compilation.GetTypeByMetadataName("Synto.Syntax`1");
-        Debug.Assert(syntaxOfTDelegateSymbol != null);
+
+        Dictionary<SyntaxNode, ExpressionSyntax> unquotedReplacements = new Dictionary<SyntaxNode, ExpressionSyntax>();
+        HashSet<SyntaxNode> trimNodes = new HashSet<SyntaxNode>();
+
+        // trim the template attribute
+        trimNodes.Add(templateInfo.Attribute);
+
+        List<StatementSyntax> preamble = new List<StatementSyntax>();
+
+        // we use this to ensure we generate a unique type name
+        HashSet<string> inlinedTypeParamNames = new HashSet<string>(StringComparer.Ordinal);
+        List<TypeParameterSyntax> inlinedTypeParams = new List<TypeParameterSyntax>();
+        foreach (var replacements in InlinedTypeParameterFinder.FindInlinedTypeParameters(semanticModel, templateInfo.Source!.Syntax))
+        {
+            string typeParamName = replacements.TypeParameter.Identifier.Text;
+            while (!inlinedTypeParamNames.Add(typeParamName))
+                typeParamName += '_';
+
+            inlinedTypeParams.Add(TypeParameter(typeParamName));
+
+            var syntaxForTypeParamIdentifier = Identifier("syntaxForTypeParam_" + typeParamName);
+            TypeSyntax typeSyntaxForTypeParam = IdentifierName(syntaxForTypeParamIdentifier);
+            preamble.Add(
+                LocalDeclarationStatement(
+                    VariableDeclaration(
+                        additionalUsings.GetTypeName(ParseTypeName(typeof(TypeSyntax).FullName!)),
+                        SingletonSeparatedList(
+                            VariableDeclarator(
+                                syntaxForTypeParamIdentifier,
+                                null,
+                                EqualsValueClause(
+                                    InvocationExpression(
+                                        IdentifierName(nameof(ParseTypeName)),
+                                        ArgumentList(
+                                            SingletonSeparatedList(
+                                                Argument(
+                                                    PostfixUnaryExpression(
+                                                        SyntaxKind.SuppressNullableWarningExpression,
+                                                        MemberAccessExpression(
+                                                            SyntaxKind.SimpleMemberAccessExpression,
+                                                            TypeOfExpression(IdentifierName(typeParamName)),
+                                                            IdentifierName(nameof(Type.FullName))))))))))))));
+
+            foreach (var typeSyntax in replacements.References)
+                unquotedReplacements.Add(typeSyntax, typeSyntaxForTypeParam);
+
+            trimNodes.Add(replacements.TypeParameter);
+        }
+
+        HashSet<string> paramNames = new HashSet<string>(StringComparer.Ordinal);
+
+        List<ParameterSyntax> parameters = new List<ParameterSyntax>();
+
+        foreach (var replacements in InlinedParameterFinder.FindInlinedParameters(semanticModel, templateInfo.Source.Syntax))
+        {
+            //Debugger.Launch();
+            string paramName = replacements.Parameter.Identifier.Text;
+            while (!paramNames.Add(paramName))
+                paramName += '_';
+
+            // TODO check if there is a static <type>.ToSyntax() to call, if so call it, otherwise convert this parameter type to ExpressionSyntax
+            //Debugger.Launch();
+            //var syntax = semanticModel.LookupStaticMembers(replacements.Parameter.SpanStart);
+            //var methods = syntax.Where(symbol => symbol.IsStatic && symbol is IMethodSymbol method).ToList();
+            //context.Compilation.
+
+            TypeSyntax parameterType;
+
+            IdentifierNameSyntax identifierSyntaxForParam;
+
+            if (replacements.AsSyntax)
+            {
+                parameterType = additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!));
+                identifierSyntaxForParam = IdentifierName(paramName);
+            }
+            else
+            {
+                parameterType = replacements.Parameter.Type!;
+
+                var syntaxForTypeParamIdentifier = Identifier("syntaxForParam_" + paramName);
+                identifierSyntaxForParam = IdentifierName(syntaxForTypeParamIdentifier);
+                preamble.Add(
+                    LocalDeclarationStatement(
+                        VariableDeclaration(
+                            additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
+                            SingletonSeparatedList(
+                                VariableDeclarator(
+                                    syntaxForTypeParamIdentifier,
+                                    null,
+                                    EqualsValueClause(
+                                        InvocationExpression(
+                                            MemberAccessExpression(
+                                                SyntaxKind.SimpleMemberAccessExpression,
+                                                IdentifierName(paramName),
+                                                IdentifierName("ToSyntax")))))))));
+            }
+
+
+
+            parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
+
+            foreach (var identifierNameSyntax in replacements.References)
+                unquotedReplacements.Add(identifierNameSyntax, identifierSyntaxForParam);
+
+            trimNodes.Add(replacements.Parameter);
+        }
+
+
+        foreach (var replacements in SyntaxParameterFinder.FindSyntaxParameters(semanticModel, templateInfo.Source.Syntax))
+        {
+            string paramName = replacements.Parameter.Identifier.Text;
+            while (!paramNames.Add(paramName))
+                paramName += '_';
+
+            var parameterType = additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!));
+
+            parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
+
+            foreach (var identifierNameSyntax in replacements.References)
+                unquotedReplacements.Add(identifierNameSyntax, IdentifierName(paramName));
+        }
 
 
         //Debugger.Launch();
-        for (int i = 0; i < source.ParameterListSyntax.Parameters.Count; i++)
-        {
-            var sourceParam = source.ParameterListSyntax.Parameters[i];
-            var paramSymbol = semanticModel.GetDeclaredSymbol(sourceParam); // 🤞
-            if (SymbolEqualityComparer.Default.Equals(paramSymbol?.Type, syntaxDelegateSymbol))
-            {
+        var prunableNodes = BranchPruneIdentifier.FindPrunableNodes(trimNodes, templateInfo.Source.Syntax);
 
-                syntaxParameters.Add(sourceParam);
-                targetParams[i] = sourceParam.WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName)));
-            }
-            else if (paramSymbol?.Type is INamedTypeSymbol { IsGenericType: true } namedTypeSymbol &&
-                     SymbolEqualityComparer.Default.Equals(namedTypeSymbol.OriginalDefinition, syntaxOfTDelegateSymbol))
-            {
-                syntaxParameters.Add(sourceParam);
-                targetParams[i] = sourceParam.WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName)));
-            }
-            else if (paramSymbol?.Type is IArrayTypeSymbol { ElementType: INamedTypeSymbol { IsGenericType: false } nonGenericElementTypeSymbol } &&
-                     SymbolEqualityComparer.Default.Equals(nonGenericElementTypeSymbol.OriginalDefinition, syntaxDelegateSymbol))
-            {
-                syntaxParameters.Add(sourceParam);
-                targetParams[i] = sourceParam.WithType(ArrayType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName))));
-            }
-            else if (paramSymbol?.Type is IArrayTypeSymbol { ElementType: INamedTypeSymbol { IsGenericType: true } elementTypeSymbol } &&
-                     SymbolEqualityComparer.Default.Equals(elementTypeSymbol.OriginalDefinition, syntaxOfTDelegateSymbol))
-            {
-                syntaxParameters.Add(sourceParam);
-                targetParams[i] = sourceParam.WithType(ArrayType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName))));
-            }
-            else
-                literalParameters.Add(targetParams[i] = sourceParam);
-        }
-
+        //Debugger.Launch();
 
         TemplateSyntaxQuoter quoter = new(
             semanticModel,
-            syntaxParameters,
-            literalParameters,
+            unquotedReplacements,
+            prunableNodes,
             includeTrivia: options.HasFlag(TemplateOption.PreserveTrivia));
-
-        ExpressionSyntax? syntaxTreeExpr;
-        TypeSyntax? returnType;
 
         //Debugger.Launch();
 
-        if (options.HasFlag(TemplateOption.Bare))
+        TypeSyntax? returnType;
+        SyntaxNode? syntax;
+        switch (templateInfo.Source)
         {
-            if (source.Body!.Statements.Count == 0)
-            {
-                context.ReportDiagnostic(Diagnostics.BareSourceCannotBeEmpty(source));
-                return null;
-            }
-
-            if ((options & TemplateOption.Single) == TemplateOption.Single)
-            {
-                if (source.Body.Statements.Count == 1)
-                {
-                    syntaxTreeExpr = quoter.Visit(source.Body.Statements[0]);
-                    returnType = ParseTypeName(source.Body.Statements[0].GetType().FullName!);
-                }
-                else
-                {
-                    context.ReportDiagnostic(Diagnostics.MultipleStatementsNotAllowed(source));
+            case SourceFunction sourceFunction:
+                if (!TrySelectSyntax(context, sourceFunction, options, out returnType, out syntax))
                     return null;
-                }
-            }
-            else
-            {
-                syntaxTreeExpr = quoter.Visit(source.Body);
-                returnType = ParseTypeName(typeof(BlockSyntax).FullName!);
-            }
-        }
-        else
-        {
-            syntaxTreeExpr = quoter.Visit(source.Syntax);
-            returnType = ParseTypeName(source.Syntax.GetType().FullName!);
+                break;
+            case SourceType sourceType:
+                if (!TrySelectSyntax(context, sourceType, options, out returnType, out syntax))
+                    return null;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
         }
 
+        var syntaxTreeExpr = quoter.Visit(syntax);
 
-        var syntaxFactoryMethod = MethodDeclaration(additionalUsings.GetTypeName(returnType), source.Identifier)
+        var syntaxFactoryMethod = MethodDeclaration(additionalUsings.GetTypeName(returnType!), templateInfo.Source.Identifier)
             .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.StaticKeyword))
-            .WithParameterList(ParameterList().AddParameters(targetParams))
-            .WithBody(Block().AddStatements(ReturnStatement(syntaxTreeExpr)));
+            .WithBody(Block()
+                .AddStatements(preamble.ToArray())
+                .AddStatements(ReturnStatement(syntaxTreeExpr)));
+
+        if (inlinedTypeParams.Count > 0)
+            syntaxFactoryMethod = syntaxFactoryMethod.WithTypeParameterList(TypeParameterList(SeparatedList(inlinedTypeParams)));
+
+        if (parameters.Count > 0)
+            syntaxFactoryMethod = syntaxFactoryMethod.WithParameterList(ParameterList(SeparatedList(parameters)));
 
         return syntaxFactoryMethod;
     }
 
-    private static MethodDeclarationSyntax? ProcessTypeTemplate(
-        GeneratorExecutionContext context, 
-        SemanticModel semanticModel,
-        UsingDirectiveSet additionalUsings, 
-        SourceType source, 
-        TemplateOption options)
+    private static bool TrySelectSyntax(GeneratorExecutionContext context, SourceType source, TemplateOption options, out TypeSyntax? returnType, out SyntaxNode? syntax)
     {
-        // we could possibly replace generic types with explicit once and strip the generic type definition off the syntax tree
-
-        //Debugger.Launch();
-
-        TemplateSyntaxQuoter quoter = new(
-            semanticModel,
-            Array.Empty<ParameterSyntax>(),
-            Array.Empty<ParameterSyntax>(),
-            includeTrivia: options.HasFlag(TemplateOption.PreserveTrivia));
-
-        ExpressionSyntax? syntaxTreeExpr;
-        TypeSyntax? returnType;
-
-        //Debugger.Launch();
-
         if (options.HasFlag(TemplateOption.Bare))
         {
             if (source.Declaration.Members.Count == 0)
             {
                 context.ReportDiagnostic(Diagnostics.BareSourceCannotBeEmpty(source));
-                return null;
+                returnType = null;
+                syntax = null;
+                return false;
             }
 
             if ((options & TemplateOption.Single) == TemplateOption.Single)
             {
                 if (source.Declaration.Members.Count == 1)
                 {
-                    syntaxTreeExpr = quoter.Visit(source.Declaration.Members[0]);
+                    syntax = source.Declaration.Members[0];
                     returnType = ParseTypeName(source.Declaration.Members[0].GetType().FullName!);
                 }
                 else
                 {
                     context.ReportDiagnostic(Diagnostics.MultipleMembersNotAllowed(source));
-                    return null;
+                    returnType = null;
+                    syntax = null;
+                    return false;
                 }
             }
             else
             {
-                syntaxTreeExpr = quoter.Visit(source.Declaration);
+                syntax = source.Declaration;
                 returnType = ParseTypeName(typeof(SyntaxList<MemberDeclarationSyntax>).FullName!);
             }
         }
         else
         {
-            syntaxTreeExpr = quoter.Visit(source.Declaration);
+            syntax = source.Declaration;
             returnType = ParseTypeName(source.Declaration.GetType().FullName!);
         }
 
+        return true;
+    }
 
-        var syntaxFactoryMethod = MethodDeclaration(additionalUsings.GetTypeName(returnType), source.Identifier)
-            .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.StaticKeyword))
-            .WithBody(Block().AddStatements(ReturnStatement(syntaxTreeExpr)));
 
-        return syntaxFactoryMethod;
+    private static bool TrySelectSyntax(GeneratorExecutionContext context, SourceFunction source, TemplateOption options, out TypeSyntax? returnType, out SyntaxNode? syntax)
+    {
+        if (options.HasFlag(TemplateOption.Bare))
+        {
+            if (source.Body!.Statements.Count == 0)
+            {
+                context.ReportDiagnostic(Diagnostics.BareSourceCannotBeEmpty(source));
+                returnType = null;
+                syntax = null;
+                return false;
+            }
+
+            if ((options & TemplateOption.Single) == TemplateOption.Single)
+            {
+                if (source.Body.Statements.Count == 1)
+                {
+                    syntax = source.Body.Statements[0];
+                    returnType = ParseTypeName(source.Body.Statements[0].GetType().FullName!);
+                }
+                else
+                {
+                    context.ReportDiagnostic(Diagnostics.MultipleStatementsNotAllowed(source));
+                    returnType = null;
+                    syntax = null;
+                    return false;
+                }
+            }
+            else
+            {
+                syntax = source.Body;
+                returnType = ParseTypeName(typeof(BlockSyntax).FullName!);
+            }
+        }
+        else
+        {
+            syntax = source.Syntax;
+            returnType = ParseTypeName(source.Syntax.GetType().FullName!);
+        }
+
+        return true;
     }
 
     private static void ProcessTemplate(GeneratorExecutionContext context, TemplateInfo template, List<TypeDeclarationSyntax> runtimeTypeList)
     {
         // first we do some checking to ensure we were given valid inputs
-        if (!ValidateTemplate(context, template)) 
+        if (!ValidateTemplate(context, template))
             return;
 
         var source = template.Source!;
@@ -333,22 +432,16 @@ public class TemplateFactoryGenerator : ISourceGenerator
 
         //Debugger.Launch();
         TemplateOption options = template.Attribute.GetNamedArgument<int>(nameof(TemplateAttribute.Options), semanticModel) is
-            {HasValue: true, Value: int rawOptions}
-            ? (TemplateOption) rawOptions
+        { HasValue: true, Value: int rawOptions }
+            ? (TemplateOption)rawOptions
             : TemplateOption.Default;
 
         // we use this to collection additional usings that are required through out the source-generation process
         UsingDirectiveSet additionalUsings = new UsingDirectiveSet(CSharpSyntaxQuoter.RequiredUsings());
 
         MethodDeclarationSyntax? syntaxFactoryMethod = null;
-        if (template.Source is SourceFunction functionTemplate)
-        {
-            syntaxFactoryMethod = ProcessFunctionTemplate(context, semanticModel, additionalUsings, functionTemplate, options);
-        }
-        else if (template.Source is SourceType typeTemplate)
-        {
-            syntaxFactoryMethod = ProcessTypeTemplate(context, semanticModel, additionalUsings, typeTemplate, options);
-        }
+
+        syntaxFactoryMethod = ProcessTemplate(context, semanticModel, additionalUsings, template, options);
 
         // this is null if the template processing failed, but then diagnostics should have been added to the context so we just exit
         if (syntaxFactoryMethod is null)
@@ -408,9 +501,9 @@ public class TemplateFactoryGenerator : ISourceGenerator
         }
 #endif
         context.RegisterForSyntaxNotifications(
-            () => 
+            () =>
                 new CompositeSyntaxContextReceiver(
-                    new AttributeSyntaxLocator<TemplateAttribute, CSharpSyntaxNode>(), 
+                    new AttributeSyntaxLocator<TemplateAttribute, CSharpSyntaxNode>(),
                     new AttributeSyntaxLocator<RuntimeAttribute, MemberDeclarationSyntax>()));
     }
 }

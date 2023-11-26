@@ -6236,7 +6236,7 @@ public partial class CSharpSyntaxQuoter
 
     public override ExpressionSyntax? VisitCrefParameter(CrefParameterSyntax node)
     {
-        // CrefParameter(Visit(node.RefKindKeyword)!, Visit(node.Type)!)
+        // CrefParameter(Visit(node.RefKindKeyword)!, Visit(node.ReadOnlyKeyword)!, Visit(node.Type)!)
         return InvocationExpression(
                    IdentifierName(nameof(CrefParameter)), 
                    ArgumentList(
@@ -6247,6 +6247,11 @@ public partial class CSharpSyntaxQuoter
                                    null, 
                                    Token(None), 
                                    Visit(node.RefKindKeyword)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.ReadOnlyKeyword)!), 
                                Token(CommaToken), 
                                Argument(
                                    null, 

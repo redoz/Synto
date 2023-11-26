@@ -4,7 +4,7 @@
   <PropertyGroup>
     <!-- metadata -->
     <Authors>Patrik Husfloen</Authors>
-    <Copyright>$(Authors) 2021-2022</Copyright>  
+    <Copyright>$(Authors) 2021-2023</Copyright>  
   </PropertyGroup>
 
   <PropertyGroup>
@@ -30,6 +30,6 @@
       <Version>3.6.133</Version>
     </PackageReference>
     <!-- we don't want these included as dependencies -->
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="all" />    
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="all" />    
   </ItemGroup>
 </Project>

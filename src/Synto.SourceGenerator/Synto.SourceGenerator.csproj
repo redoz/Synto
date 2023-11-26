@@ -38,7 +38,7 @@
   <ItemGroup>
 	  <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />        
     <!-- we do want a pacakge dependency on this for whoever consumes our package -->
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.7.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
     
   </ItemGroup>
 
@@ -53,6 +53,10 @@
 	  <None Include="$(OutputPath)\Synto.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <!-- but we also throw this in the lib folder so the package consumer gets it as library depdendency -->
 	  <None Include="$(OutputPath)\Synto.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
+  </ItemGroup>
+ 
+  <ItemGroup>
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="8.0.0" />
   </ItemGroup>
 
   <!--we're injecting Synto as a runtime dependency for the analyzer -->

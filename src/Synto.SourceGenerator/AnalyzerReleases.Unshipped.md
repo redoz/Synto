@@ -11,3 +11,4 @@ SY1003 | Synto.Usage | Error | Diagnostics
 SY1004 | Synto.Usage | Error | Diagnostics
 SY1005 | Synto.Usage | Error | Diagnostics
 SY1006 | Synto.Usage | Error | Diagnostics
+SY1007 | Synto.Usage | Error | Diagnostics

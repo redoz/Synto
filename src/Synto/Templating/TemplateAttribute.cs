@@ -17,5 +17,3 @@ public class TemplateAttribute : Attribute
         Options = TemplateOption.Default;
     }
 }
-
-

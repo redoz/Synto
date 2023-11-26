@@ -1,10 +1,10 @@
 ﻿// See https://aka.ms/new-console-template for more information
+
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto;
 using Spectre.Console;
-using Synto.Templating;
 using static Examples;
 
 
@@ -23,6 +23,9 @@ for (;;)
                 new Choice("Expand a syntax placeholder multiple times within a template", Test3),
                 new Choice("Create a syntax tree representing the whole template method", Test4),
                 new Choice("Use a parameter to inject a numeric literal into a for-loop", Test5),
+                new Choice("Inline type parameters", Test6),
+                new Choice("Inline type parameters in class declaration", Test7),
+                
                 new Choice("Exit", () =>
                 {
                     Environment.Exit(0);
@@ -67,7 +70,7 @@ public class Examples
     public static string Test1()
     {
         [Template(typeof(Factory), Options = TemplateOption.Single)]
-        static void Hello(string message)
+        static void Hello([Inline] string message)
         {
             Console.WriteLine("Hello " + message);
         }
@@ -90,9 +93,9 @@ public class Examples
 
 
         [Template(typeof(Factory), Options = TemplateOption.Single)]
-        static void Outer(Syntax<string> message)
+        static void Outer([Inline(AsSyntax = true)] string message)
         {
-            Console.WriteLine("Hello " + message());
+            Console.WriteLine("Hello " + message);
         }
 
 
@@ -103,22 +106,22 @@ public class Examples
         return source;
     }
 
-
     public static string Test3()
     {
 
         [Template(typeof(Factory), Options = TemplateOption.Single)]
-        static void Greeting(string message)
+
+        static void Greeting([Inline] string message)
         {
             Console.WriteLine("Hello " + message);
         }
 
 
         [Template(typeof(Factory), Options = TemplateOption.Bare)]
-        static void Repeater(Syntax item)
+        static void Repeater(Syntax statement)
         {
-            item();
-            item();
+            statement();
+            statement();
         }
 
         BlockSyntax node = Factory.Repeater(Factory.Greeting("World").Expression);
@@ -150,7 +153,7 @@ public class Examples
     {
 
         [Template(typeof(Factory), Options = TemplateOption.Bare)]
-        static void Loop(int count)
+        static void Loop([Inline] int count)
         {
             int ret = 0;
             for (int i = 0; i < count; i++)
@@ -166,6 +169,56 @@ public class Examples
 
         return source;
     }
+
+    public static string Test6()
+    {
+#pragma warning disable CS8321 // Local function is declared but never used
+        [Template(typeof(Factory))]
+        static T InlinedTypeArg<[Inline] T, T2>()
+        {
+            List<T> list = new List<T>();
+            List<T2> lis2t = new List<T2>();
+
+            return list.First();
+        }
+#pragma warning restore CS8321 // Local function is declared but never used
+
+        var node = Factory.InlinedTypeArg<string>();
+
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+
+        return source;
+    }
+
+    [Template(typeof(Factory))]
+    private class Test7Class<[Inline] T1, T2>
+    {
+        static void InlinedTypeArg<[Inline] T3, T4>([Inline] T3 inlinedValue)
+        {
+            List<T1> list = new List<T1>();
+            List<T2> list2 = new List<T2>();
+            List<T3> list3 = new List<T3>();
+            List<T4> list4 = new List<T4>();
+            list3.Add(inlinedValue);
+        }
+
+        static T1 HiddenTypeArg<[Inline] T1>()
+        {
+            List<T1> list = new List<T1>();
+
+            return list.First();
+        }
+    }
+
+    public static string Test7()
+    {
+        var node = Factory.Test7Class<string, int, bool>(4);
+
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+
+        return source;
+    }
+
 #pragma warning restore CS8321 // Local function is declared but never used
 }
 

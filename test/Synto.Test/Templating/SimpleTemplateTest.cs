@@ -23,7 +23,7 @@ public class SimpleTemplateTest
 
     static GeneratorDriver CreateDriver()
     {
-        var generator = new TemplateFactoryGenerator();
+        var generator = new TemplateFactorySourceGenerator();
         return CSharpGeneratorDriver.Create(generator);
     }
 
@@ -243,4 +243,25 @@ public class TestClass {
  }
  """);
     }
+
+
+ //   [Fact]
+ //   public async Task InlineGenericType()
+ //   {
+ //       await VerifyTemplate("""
+ //using System;
+ //using Synto;
+ //using Synto.Templating;
+
+ //partial class Factory {}
+
+ 
+ //public class TestClass {
+ //   [Template(typeof(Factory))]
+ //    void LocalFunction<T>(T value) {
+ //        Console.WriteLine($"Hello world {value}");
+ //    }
+ //}
+ //""");
+ //   }
 }

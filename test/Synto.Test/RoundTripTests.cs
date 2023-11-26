@@ -17,41 +17,41 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 namespace Synto.Test;
 
 
-public partial class Samples
+public partial class RoundTripTests
 {
-    //private partial class Factory { };
+    private partial class Factory { };
 
-    //[Fact]
-    //public void Test0()
-    //{
-    //    [Template(typeof(Factory), Options = TemplateOption.Single)]
-    //    static void Simple()
-    //    {
-    //        Console.WriteLine("Hello World");
-    //    }
+    [Fact]
+    public void Test0()
+    {
+        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        static void Simple()
+        {
+            Console.WriteLine("Hello World");
+        }
 
-    //    StatementSyntax node = Factory.Simple();
+        StatementSyntax node = Factory.Simple();
 
-    //    var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
 
-    //    Assert.Equal("Console.WriteLine(\"Hello World\");", source);
-    //}
+        Assert.Equal("Console.WriteLine(\"Hello World\");", source);
+    }
 
-    //[Fact]
-    //public void Test1()
-    //{
-    //    [Template(typeof(Factory), Options = TemplateOption.Single)]
-    //    static void Hello(string message)
-    //    {
-    //        Console.WriteLine("Hello " + message);
-    //    }
+    [Fact]
+    public void Test1()
+    {
+        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        static void Hello([Inline] string message)
+        {
+            Console.WriteLine("Hello " + message);
+        }
 
-    //    StatementSyntax node = Factory.Hello("World");
+        StatementSyntax node = Factory.Hello("World");
 
-    //    var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
 
-    //    Assert.Equal("Console.WriteLine(\"Hello \" + \"World\");", source);
-    //}
+        Assert.Equal("Console.WriteLine(\"Hello \" + \"World\");", source);
+    }
 
     //[Fact]
     //public void Test2()
@@ -81,7 +81,7 @@ public partial class Samples
     //{
 
     //    [Template(typeof(Factory), Options = TemplateOption.Single)]
-    //    static void Greeting(string message)
+    //    static void Greeting([Inline]string message)
     //    {
     //        Console.WriteLine("Hello " + message);
     //    }
@@ -103,99 +103,99 @@ public partial class Samples
     //        Console.WriteLine("Hello " + "World");
     //        Console.WriteLine("Hello " + "World");
     //    }
-    //    """, 
+    //    """,
     //    source);
     //}
 
-    //[Fact]
-    //public void Test4()
-    //{
-    //    [Template(typeof(Factory), Options = TemplateOption.Default)]
-    //    static void FullMethod()
-    //    {
-    //        Console.WriteLine("Hello World");
-    //    }
+    [Fact]
+    public void Test4()
+    {
+        [Template(typeof(Factory), Options = TemplateOption.Default)]
+        static void FullMethod()
+        {
+            Console.WriteLine("Hello World");
+        }
 
-    //    StatementSyntax node = Factory.FullMethod();
+        StatementSyntax node = Factory.FullMethod();
 
-    //    var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
 
-    //    Assert.Equal("""
-    //        static void FullMethod()
-    //        {
-    //            Console.WriteLine("Hello World");
-    //        }
-    //        """, source);
-    //}
-
-
-    //[Fact]
-    //public void Test5()
-    //{
-
-    //    [Template(typeof(Factory), Options = TemplateOption.Bare)]
-    //    static void Loop(int count)
-    //    {
-    //        int ret = 0;
-    //        for (int i = 0; i < count; i++)
-    //        {
-    //            ret++;
-    //        }
-    //    }
-
-    //    BlockSyntax node = Factory.Loop(4);
+        Assert.Equal("""
+            static void FullMethod()
+            {
+                Console.WriteLine("Hello World");
+            }
+            """, source);
+    }
 
 
-    //    var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
-    //    string expected = """ 
-    //                          {
-    //                              int ret = 0;
-    //                              for (int i = 0; i < 4; i++)
-    //                              {
-    //                                  ret++;
-    //                              }
-    //                          }
-    //                          """;
+    [Fact]
+    public void Test5()
+    {
 
-    //    Assert.Equal(expected, source);
-    //}
+        [Template(typeof(Factory), Options = TemplateOption.Bare)]
+        static void Loop([Inline]int count)
+        {
+            int ret = 0;
+            for (int i = 0; i < count; i++)
+            {
+                ret++;
+            }
+        }
 
-    //[Fact]
-    //public void Test6()
-    //{
-
-    //    //[Template(typeof(Factory), Options = TemplateOption.Single)]
-    //    //static void Item(string message)
-    //    //{
-    //    //    Console.WriteLine("Hello " + message);
-    //    //}
+        BlockSyntax node = Factory.Loop(4);
 
 
-    //    [Template(typeof(Factory), Options = TemplateOption.Bare)]
-    //    static void Sequence(Syntax[] items)
-    //    {
-    //        foreach (var item in items)
-    //            item();
-    //    }
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+        string expected = """ 
+                              {
+                                  int ret = 0;
+                                  for (int i = 0; i < 4; i++)
+                                  {
+                                      ret++;
+                                  }
+                              }
+                              """;
 
-    //    //BlockSyntax node = Factory.Sequence(new[]
-    //    //{
-    //    //    Factory.Item("World").Expression,
-    //    //    Factory.Item("Moon").Expression,
-    //    //    Factory.Item("Mars").Expression
-    //    //});
+        Assert.Equal(expected, source);
+    }
 
-    //    //var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+    [Fact]
+    public void Test6()
+    {
 
-    //    //Assert.Equal("""
-    //    //{
-    //    //    Console.WriteLine("Hello " + "World");
-    //    //    Console.WriteLine("Hello " + "Moon");
-    //    //    Console.WriteLine("Hello " + "Mars");
-    //    //}
-    //    //""",
-    //    //    source);
-    //}
+        //[Template(typeof(Factory), Options = TemplateOption.Single)]
+        //static void Item(string message)
+        //{
+        //    Console.WriteLine("Hello " + message);
+        //}
+
+
+        [Template(typeof(Factory), Options = TemplateOption.Bare)]
+        static void Sequence(Syntax[] items)
+        {
+            foreach (var item in items)
+                item();
+        }
+
+        //BlockSyntax node = Factory.Sequence(new[]
+        //{
+        //    Factory.Item("World").Expression,
+        //    Factory.Item("Moon").Expression,
+        //    Factory.Item("Mars").Expression
+        //});
+
+        //var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+
+        //Assert.Equal("""
+        //{
+        //    Console.WriteLine("Hello " + "World");
+        //    Console.WriteLine("Hello " + "Moon");
+        //    Console.WriteLine("Hello " + "Mars");
+        //}
+        //""",
+        //    source);
+    }
 
 
     //public static BlockSyntax? Sequence(Syntax[] items)

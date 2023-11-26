@@ -80,6 +80,25 @@ public static class LiteralSyntaxExtensions
 
     public static ExpressionSyntax ToSyntax<T>(this T value)
     {
-        throw new NotImplementedException("You can provide you own implementation by applying the RuntimeAttribute to a static class implementing a more explicit version of this signature.");
+        return value switch
+        {
+            null => SF.LiteralExpression(SyntaxKind.NullLiteralExpression),
+            string @string => @string.ToSyntax(),
+
+            bool literal => literal.ToSyntax(),
+            ulong literal => literal.ToSyntax(),
+            long literal => literal.ToSyntax(),
+            uint literal => literal.ToSyntax(),
+            int literal => literal.ToSyntax(),
+            ushort literal => literal.ToSyntax(),
+            short literal => literal.ToSyntax(),
+            byte literal => literal.ToSyntax(),
+            sbyte literal => literal.ToSyntax(),
+            decimal literal => literal.ToSyntax(),
+            float literal => literal.ToSyntax(),
+            double literal => literal.ToSyntax(),
+            char literal => literal.ToSyntax(),
+            _ => throw new NotImplementedException($"You can provide you own implementation by applying the RuntimeAttribute to a static class implementing a more explicit version of this signature for type {value.GetType().FullName}.")
+        };
     }
 }
