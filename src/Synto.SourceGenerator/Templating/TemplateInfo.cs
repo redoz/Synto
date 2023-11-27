@@ -1,39 +1,70 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Synto.Templating;
 
-// these are some remnants from the initial experiments, probably a lot of this can be remove and cleaned up
-internal record TemplateInfo(AttributeSyntax Attribute, TargetType Target, Source? Source)
+internal struct TemplateInfo
 {
-    public AttributeSyntax Attribute { get; } = Attribute;
-    public TargetType Target { get; } = Target;
-    public Source? Source { get; } = Source;
+    private TemplateInfo(GeneratorAttributeSyntaxContext syntaxContext)
+    {
+        TemplateAttribute = syntaxContext.Attributes.First();
+        Attribute = (AttributeSyntax)TemplateAttribute.ApplicationSyntaxReference!.GetSyntax();
+
+        var typeArg = TemplateAttribute.ConstructorArguments.First();
+
+        Target = new TargetType(TemplateAttribute, (INamedTypeSymbol)typeArg.Value!);
+
+        Source = new Source(syntaxContext.TargetNode, syntaxContext.TargetSymbol.Name);
+
+        Options = TemplateOption.Default;
+
+        foreach (var namedArgs in TemplateAttribute.NamedArguments)
+        {
+            if (StringComparer.Ordinal.Equals(namedArgs.Key, nameof(Synto.TemplateAttribute.Options)))
+            {
+                Options = (TemplateOption)namedArgs.Value.Value!;
+            }
+        }
+
+        SemanticModel = syntaxContext.SemanticModel;
+    }
+
+    public AttributeData TemplateAttribute { get; }
+    public AttributeSyntax Attribute { get; }
+    public TargetType Target { get; }
+    public Source Source { get; }
+    public TemplateOption Options { get; }
+    public SemanticModel SemanticModel { get; }
+
+    public static TemplateInfo Create(GeneratorAttributeSyntaxContext syntaxContext)
+    {
+        return new TemplateInfo(syntaxContext);
+    }
 }
 
-internal abstract record Source(SyntaxNode Syntax, SyntaxToken Identifier)
+
+
+
+
+internal record struct Source(SyntaxNode Syntax, string Identifier)
 {
     public SyntaxNode Syntax { get; } = Syntax;
-    public SyntaxToken Identifier { get; } = Identifier;
+    public string Identifier { get; } = Identifier;
 }
 
-internal record SourceFunction(SyntaxNode Syntax, SyntaxToken Identifier, ParameterListSyntax ParameterListSyntax, BlockSyntax? Body) : Source(Syntax, Identifier)
+internal record struct TargetType(AttributeData TemplateAttributeData, ITypeSymbol? Type)
 {
-    public BlockSyntax? Body { get; } = Body;
-    public ParameterListSyntax ParameterListSyntax { get; } = ParameterListSyntax;
-}
+    private static readonly SymbolDisplayFormat SymbolDisplayFormat = new(
+        SymbolDisplayGlobalNamespaceStyle.Omitted,
+        SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
+        SymbolDisplayGenericsOptions.IncludeTypeParameters
+    );
 
-internal record SourceType(SyntaxNode Syntax, SyntaxToken Identifier, ClassDeclarationSyntax Declaration) : Source(Syntax, Identifier)
-{
-    public ClassDeclarationSyntax Declaration { get; } = Declaration;
-}
-
-internal record TargetType(TypeSyntax Reference, ITypeSymbol? Type)
-{
     public ITypeSymbol? Type { get; } = Type;
-
-    public TypeSyntax Reference { get; } = Reference ?? throw new ArgumentNullException(nameof(Reference));
 
     public string FullName
     {
@@ -42,9 +73,20 @@ internal record TargetType(TypeSyntax Reference, ITypeSymbol? Type)
             if (Type is null)
                 return "<unknown>";
 
-            return Type.ToDisplayString(new SymbolDisplayFormat(SymbolDisplayGlobalNamespaceStyle.Omitted,
-                SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces,
-                SymbolDisplayGenericsOptions.IncludeTypeParameters));
+            return Type.ToDisplayString(
+                SymbolDisplayFormat);
         }
+    }
+
+    public Location? GetReferenceLocation()
+    {
+        var syntax = TemplateAttributeData.ApplicationSyntaxReference?.GetSyntax();
+        if (syntax is AttributeSyntax attrSyntax
+            && attrSyntax.ArgumentList?.Arguments.First().Expression is TypeOfExpressionSyntax typeOfExpr)
+        {
+            return typeOfExpr.GetLocation();
+        }
+
+        return null;
     }
 }

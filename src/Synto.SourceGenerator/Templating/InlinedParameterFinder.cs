@@ -13,6 +13,7 @@ internal sealed class InlinedParameter(ParameterSyntax parameter, IReadOnlyList<
     public bool AsSyntax { get; } = asSyntax;
 }
 
+
 internal class InlinedParameterFinder : CSharpSyntaxWalker
 {
     private sealed class InlinedParameterInfo(ParameterSyntax parameter, bool asSyntax)
