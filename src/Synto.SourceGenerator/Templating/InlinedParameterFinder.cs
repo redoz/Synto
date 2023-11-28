@@ -1,5 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -85,7 +88,17 @@ internal class InlinedParameterFinder : CSharpSyntaxWalker
                 if (typeSymbol is null)
                     continue;
 
-                var asSyntax = attributeSyntax.GetNamedArgumentOrDefault<bool>(nameof(InlineAttribute.AsSyntax), _semanticModel, false);
+                var attrData = typeSymbol.GetAttributes().Single(attr => SymbolEqualityComparer.Default.Equals(_inlineAttributeSymbol, attr.AttributeClass));
+
+                bool asSyntax = false;
+
+                foreach (var kvp in attrData.NamedArguments)
+                {
+                    if (StringComparer.Ordinal.Equals(nameof(InlineAttribute.AsSyntax), kvp.Key))
+                    {
+                        asSyntax = (bool)kvp.Value.Value!;
+                    }
+                }
 
                 _parameterBySymbol.Add(typeSymbol, new InlinedParameterInfo(node, asSyntax));
                 _replacementsBySymbol.Add(typeSymbol, new List<IdentifierNameSyntax>());
