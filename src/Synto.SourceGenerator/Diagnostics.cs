@@ -35,7 +35,7 @@ internal static class Diagnostics
     public static Diagnostic TargetNotPartial(TargetType target)
     {
         return Diagnostic.Create(_TargetNotPartial,
-                                    target.Reference.GetLocation(),
+                                    target.GetReferenceLocation(),
                                     target.FullName);
     }
 
@@ -49,7 +49,7 @@ internal static class Diagnostics
     public static Diagnostic TargetNotClass(TargetType target)
     {
         return Diagnostic.Create(_TargetNotClass,
-                                    target.Reference.GetLocation(),
+                                    target.GetReferenceLocation(),
                                     target.FullName);
     }
 
@@ -63,7 +63,7 @@ internal static class Diagnostics
     public static Diagnostic TargetNotDeclaredInSource(TargetType target, string? projectName)
     {
         return Diagnostic.Create(_TargetNotDeclaredInSource,
-                                    target.Reference.GetLocation(),
+                                    target.GetReferenceLocation(),
                                     target.FullName, projectName ?? "<unknown>");
     }
 
@@ -77,13 +77,13 @@ internal static class Diagnostics
     public static Diagnostic TargetAncestorNotPartial(TargetType target, string ancestorName)
     {
         return Diagnostic.Create(_TargetAncestorNotPartial,
-                                    target.Reference.GetLocation(),
+                                    target.GetReferenceLocation(),
                                     target.FullName, ancestorName);
     }
 
     private static readonly DiagnosticDescriptor _BareSourceCannotBeEmpty = new(IdPrefix + "1005",
                                                                             "Invalid Source",
-                                                                            "Source function '{0}' can not be empty when Bare is specified",
+                                                                            "Source '{0}' can not be empty when Bare is specified",
                                                                             "Synto.Usage",
                                                                             DiagnosticSeverity.Error,
                                                                             isEnabledByDefault: true);
@@ -92,7 +92,7 @@ internal static class Diagnostics
     {
         return Diagnostic.Create(_BareSourceCannotBeEmpty,
                                     source.Syntax.GetLocation(),
-                                    source.Identifier.ValueText);
+                                    source.Identifier);
     }
 
     private static readonly DiagnosticDescriptor _MultipleStatementsNotAllowed = new(IdPrefix + "1006",
@@ -102,11 +102,11 @@ internal static class Diagnostics
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static Diagnostic MultipleStatementsNotAllowed(SourceFunction source)
+    public static Diagnostic MultipleStatementsNotAllowed(Source source)
     {
         return Diagnostic.Create(_MultipleStatementsNotAllowed,
-            source.Body?.GetLocation() ?? source.Identifier.GetLocation(),
-            source.Identifier.ValueText);
+            source.Syntax.GetLocation(),
+            source.Identifier);
     }
 
 
@@ -117,11 +117,11 @@ internal static class Diagnostics
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static Diagnostic MultipleMembersNotAllowed(SourceType source)
+    public static Diagnostic MultipleMembersNotAllowed(Source source)
     {
         return Diagnostic.Create(_MultipleMembersNotAllowed,
             source.Syntax.GetLocation() ,
-            source.Identifier.ValueText);
+            source.Identifier);
     }
 }
 

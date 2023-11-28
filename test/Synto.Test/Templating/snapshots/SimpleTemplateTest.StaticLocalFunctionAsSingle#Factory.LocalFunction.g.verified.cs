@@ -1,4 +1,4 @@
-﻿//HintName: Factory.LocalFunction.cs
+﻿//HintName: Factory.LocalFunction.g.cs
 using System;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
