@@ -1,4 +1,4 @@
-﻿//HintName: Factory.TestClass.cs
+﻿//HintName: Factory.TestClass.g.cs
 using System;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;

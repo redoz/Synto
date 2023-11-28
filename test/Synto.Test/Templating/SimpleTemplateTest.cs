@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.Serialization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Synto.Templating;
@@ -8,16 +9,24 @@ namespace Synto.Test.Templating;
 [UsesVerify]
 public class SimpleTemplateTest
 {
+    private static readonly MetadataReference CorlibReference = MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
+    private static readonly MetadataReference NetStandardReference = MetadataReference.CreateFromFile(Assembly.Load("netstandard, Version=2.0.0.0").Location);
+    private static readonly MetadataReference SystemRuntimeReference = MetadataReference.CreateFromFile(Assembly.Load("System.Runtime, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location);
+    
+
     static Compilation CreateCompilation()
     {
+        
+
         return CSharpCompilation.Create("Test",
             Array.Empty<SyntaxTree>(),
-            references: new[]
-            {
-                //MetadataReference.CreateFromFile(typeof(CSharpSyntaxNode).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(TemplateAttribute).Assembly.Location),
-            }
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(TemplateAttribute).Assembly.Location)
+            ]
         );
     }
 
@@ -43,6 +52,7 @@ public class SimpleTemplateTest
         Assert.Empty(syntaxTree.GetDiagnostics());
 
         var compilation = _baseCompilation.AddSyntaxTrees(syntaxTree);
+        //var compilation = _baseCompilation.Add
         return compilation;
     }
 
@@ -252,7 +262,7 @@ public class SimpleTemplateTest
 
             partial class Factory {}
 
-            [Template(typeof(Factory))]
+            [TemplateAttribute(typeof(Factory))]
             public class TestClass {
                 void LocalFunction() {
                     Console.WriteLine("Hello world");

@@ -2,8 +2,8 @@
 
 namespace Synto;
 
-[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class /* | AttributeTargets.Struct | AttributeTargets.Enum*/)]
-public class TemplateAttribute : Attribute
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class | AttributeTargets.Struct /* | AttributeTargets.Enum*/)]
+public sealed class TemplateAttribute : Attribute
 {
     public TemplateOption Options { get; set; }
 

@@ -1,4 +1,4 @@
-﻿//HintName: Factory.LocalFunction.cs
+﻿//HintName: Factory.LocalFunction.g.cs
 using System;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -12,7 +12,7 @@ partial class Factory
     {
         return LocalFunctionStatement(
                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
-                   TokenList(), 
+                   TokenList(Token(StaticKeyword)), 
                    PredefinedType(Token(VoidKeyword)), 
                    Identifier("LocalFunction"), 
                    null, 

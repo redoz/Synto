@@ -17,51 +17,43 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var provider = context.SyntaxProvider.ForAttributeWithMetadataName(
-            typeof(TemplateAttribute).FullName!,
-            static (node, cancellationToken) => true,
-            static (syntaxContext, cancellationToken) => TemplateInfo.Create(syntaxContext));
+        var syntaxProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
+                typeof(TemplateAttribute).FullName!,
+                static (node, cancellationToken) => true,
+                static (syntaxContext, cancellationToken) => TemplateInfo.Create(syntaxContext))
+            .Where(templateInfo => templateInfo is not null);
 
-        var compilation = context.CompilationProvider.Combine(provider.Collect());
+        var assemblyName = context.CompilationProvider.Select(static (c, _) => c.AssemblyName);
 
-        context.RegisterSourceOutput(compilation, Execute);
+        var providerWithCompilation = syntaxProvider.Combine(assemblyName);
+
+        context.RegisterSourceOutput(providerWithCompilation, Execute);
     }
 
-    private static void Execute(SourceProductionContext context, (Compilation Left, ImmutableArray<TemplateInfo> Right) tuple)
+    private void Execute(SourceProductionContext context, (TemplateInfo TemplateInfo, string AssemblyName) value)
     {
-        var (compilation, templates) = tuple;
-
-        foreach (var template in templates)
+        
+        try
         {
-            try
-            {
-                // var semanticModel = context.Compilation.GetSemanticModel(template.Attribute.SyntaxTree);
-                //var runtimeKey = template.Attribute.GetNamedArgument<string>(nameof(TemplateAttribute.Runtime), semanticModel) is { HasValue: true } optional ? optional.Value : RuntimeAttribute.Default;
-                //if (!runtimeTypes.TryGetValue(runtimeKey, out var runtimeTypeList))
-                //    runtimeTypeList = new List<TypeDeclarationSyntax>();
-                if (!ValidateTemplate(context, compilation, template))
-                    continue;
-
-                ProcessTemplate(context, compilation, template);
-            }
-            catch (Exception ex)
-            {
-                context.ReportDiagnostic(Diagnostics.InternalError(ex));
-            }
+            // var semanticModel = context.Compilation.GetSemanticModel(template.AttributeSyntax.SyntaxTree);
+            //var runtimeKey = template.AttributeSyntax.GetNamedArgument<string>(nameof(TemplateAttribute.Runtime), semanticModel) is { HasValue: true } optional ? optional.Value : RuntimeAttribute.Default;
+            //if (!runtimeTypes.TryGetValue(runtimeKey, out var runtimeTypeList))
+            //    runtimeTypeList = new List<TypeDeclarationSyntax>();
+            if (ValidateTemplate(context, value.AssemblyName, value.TemplateInfo))
+                ProcessTemplate(context, value.TemplateInfo);
+        }
+        catch (Exception ex)
+        {
+            context.ReportDiagnostic(Diagnostics.InternalError(ex));
         }
     }
 
-    private static bool ValidateTemplate(SourceProductionContext context, Compilation compilation, TemplateInfo template)
-    {
-        if (template.Target.Type is null)
-        {
-            context.ReportDiagnostic(Diagnostics.TargetNotDeclaredInSource(template.Target, compilation.AssemblyName));
-            return false;
-        }
 
-        if (template.Target.Type?.DeclaringSyntaxReferences.FirstOrDefault() is not { } syntaxRef)
+    private static bool ValidateTemplate(SourceProductionContext context, string assemblyName, TemplateInfo template)
+    {
+        if (template.Target.Type.DeclaringSyntaxReferences.FirstOrDefault() is not { } syntaxRef)
         {
-            context.ReportDiagnostic(Diagnostics.TargetNotDeclaredInSource(template.Target, compilation.AssemblyName));
+            context.ReportDiagnostic(Diagnostics.TargetNotDeclaredInSource(template.Target, assemblyName));
             return false;
         }
 
@@ -101,17 +93,12 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         return true;
     }
 
-    private static void ProcessTemplate(SourceProductionContext context, Compilation compilation, TemplateInfo template)
+    private static void ProcessTemplate(SourceProductionContext context, TemplateInfo template)
     {
-
-        var semanticModel = template.SemanticModel;
-
-        TemplateOption options = template.Options;
-
         // we use this to collect additional usings that are required throughout the source-generation process
         UsingDirectiveSet additionalUsings = new UsingDirectiveSet(CSharpSyntaxQuoter.RequiredUsings());
 
-        MethodDeclarationSyntax? syntaxFactoryMethod = ProcessTemplate(context, semanticModel, additionalUsings, template, options);
+        MethodDeclarationSyntax? syntaxFactoryMethod = CreateSyntaxFactoryMethod(context, template.SemanticModel, additionalUsings, template, template.Options);
 
         // this is null if the template processing failed, but then diagnostics should have been added to the context, so we just exit
         if (syntaxFactoryMethod is null)
@@ -159,7 +146,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         context.AddSource($"{template.Target.FullName}.{template.Source!.Identifier}.g.cs", sourceText);
     }
 
-    private static MethodDeclarationSyntax? ProcessTemplate(
+    private static MethodDeclarationSyntax? CreateSyntaxFactoryMethod(
         SourceProductionContext context,
         SemanticModel semanticModel,
         UsingDirectiveSet additionalUsings,
@@ -172,7 +159,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         var trimNodes = new HashSet<SyntaxNode>();
 
         // trim the template attribute
-        trimNodes.Add(templateInfo.Attribute);
+        trimNodes.Add(templateInfo.AttributeSyntax);
 
         var preamble = new List<StatementSyntax>();
 
@@ -304,9 +291,16 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             includeTrivia: options.HasFlag(TemplateOption.PreserveTrivia));
 
 
-        if (!TemplateSyntaxQuoterInvoker.TryQuote(quoter, templateInfo, out ExpressionSyntax? syntaxTreeExpr, out TypeSyntax? returnType,
+        if (!TemplateSyntaxQuoterInvoker.TryQuote(
+                quoter, 
+                templateInfo, 
+                out ExpressionSyntax? syntaxTreeExpr, 
+                out TypeSyntax? returnType,
                 out Diagnostic? error))
+        {
             context.ReportDiagnostic(error!);
+            return null;
+        }
 
 
         var syntaxFactoryMethod = MethodDeclaration(additionalUsings.GetTypeName(returnType!), templateInfo.Source.Identifier)

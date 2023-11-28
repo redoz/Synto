@@ -1,54 +1,68 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Synto.Templating;
 
-internal struct TemplateInfo
+internal class TemplateInfo
 {
-    private TemplateInfo(GeneratorAttributeSyntaxContext syntaxContext)
+    private TemplateInfo(SemanticModel semanticModel, AttributeSyntax attributeSyntax, Source templateSource, TargetType factoryTarget, TemplateOption options)
     {
-        TemplateAttribute = syntaxContext.Attributes.First();
-        Attribute = (AttributeSyntax)TemplateAttribute.ApplicationSyntaxReference!.GetSyntax();
+        SemanticModel = semanticModel;
+        AttributeSyntax = attributeSyntax;
+        Source = templateSource;
+        Target = factoryTarget;
+        Options = options;
+    }
 
-        var typeArg = TemplateAttribute.ConstructorArguments.First();
+    public AttributeSyntax AttributeSyntax { get; private set; }
+    public TargetType Target { get; private set; }
+    public Source Source { get; private set; }
+    public TemplateOption Options { get; private set; }
+    public SemanticModel SemanticModel { get; private set; }
 
-        Target = new TargetType(TemplateAttribute, (INamedTypeSymbol)typeArg.Value!);
+    public static TemplateInfo? Create(GeneratorAttributeSyntaxContext syntaxContext)
+    {
+        // this just sanity checks against accepting things that the compiler should've rejected in the first place
 
-        Source = new Source(syntaxContext.TargetNode, syntaxContext.TargetSymbol.Name);
+        var attr = syntaxContext.Attributes.FirstOrDefault();
+        if (attr is null)
+            return null;
 
-        Options = TemplateOption.Default;
 
-        foreach (var namedArgs in TemplateAttribute.NamedArguments)
+        if (attr.ApplicationSyntaxReference!.GetSyntax() is not AttributeSyntax attrSyntax)
+            return null;
+
+        if (attr.ConstructorArguments.Length != 1)
+            return null;
+
+        var typeArg = attr.ConstructorArguments[0];
+
+        if (typeArg.Kind != TypedConstantKind.Type)
+            return null;
+
+        if (typeArg.Value is not INamedTypeSymbol factoryType)
+            return null;
+
+
+        var target = new TargetType(attr, factoryType);
+
+        var source = new Source(syntaxContext.TargetNode, syntaxContext.TargetSymbol.Name);
+
+        var options = TemplateOption.Default;
+
+        foreach (var namedArgs in attr.NamedArguments)
         {
-            if (StringComparer.Ordinal.Equals(namedArgs.Key, nameof(Synto.TemplateAttribute.Options)))
+            if (StringComparer.Ordinal.Equals(namedArgs.Key, nameof(TemplateAttribute.Options)))
             {
-                Options = (TemplateOption)namedArgs.Value.Value!;
+                options = (TemplateOption)namedArgs.Value.Value!;
             }
         }
 
-        SemanticModel = syntaxContext.SemanticModel;
-    }
-
-    public AttributeData TemplateAttribute { get; }
-    public AttributeSyntax Attribute { get; }
-    public TargetType Target { get; }
-    public Source Source { get; }
-    public TemplateOption Options { get; }
-    public SemanticModel SemanticModel { get; }
-
-    public static TemplateInfo Create(GeneratorAttributeSyntaxContext syntaxContext)
-    {
-        return new TemplateInfo(syntaxContext);
+        return new TemplateInfo(syntaxContext.SemanticModel, attrSyntax, source, target, options);
     }
 }
-
-
-
-
 
 internal record struct Source(SyntaxNode Syntax, string Identifier)
 {
@@ -56,7 +70,7 @@ internal record struct Source(SyntaxNode Syntax, string Identifier)
     public string Identifier { get; } = Identifier;
 }
 
-internal record struct TargetType(AttributeData TemplateAttributeData, ITypeSymbol? Type)
+internal record struct TargetType(AttributeData TemplateAttributeData, ITypeSymbol Type)
 {
     private static readonly SymbolDisplayFormat SymbolDisplayFormat = new(
         SymbolDisplayGlobalNamespaceStyle.Omitted,
@@ -64,21 +78,11 @@ internal record struct TargetType(AttributeData TemplateAttributeData, ITypeSymb
         SymbolDisplayGenericsOptions.IncludeTypeParameters
     );
 
-    public ITypeSymbol? Type { get; } = Type;
+    public ITypeSymbol Type { get; } = Type;
 
-    public string FullName
-    {
-        get
-        {
-            if (Type is null)
-                return "<unknown>";
+    public readonly string FullName => Type.ToDisplayString(SymbolDisplayFormat);
 
-            return Type.ToDisplayString(
-                SymbolDisplayFormat);
-        }
-    }
-
-    public Location? GetReferenceLocation()
+    public readonly Location? GetReferenceLocation()
     {
         var syntax = TemplateAttributeData.ApplicationSyntaxReference?.GetSyntax();
         if (syntax is AttributeSyntax attrSyntax
