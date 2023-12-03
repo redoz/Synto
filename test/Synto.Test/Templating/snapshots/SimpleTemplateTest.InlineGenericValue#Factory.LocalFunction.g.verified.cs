@@ -8,25 +8,27 @@ using Synto;
 
 partial class Factory
 {
-    public static MethodDeclarationSyntax LocalFunction(ExpressionSyntax T)
+    public static MethodDeclarationSyntax LocalFunction<T>(T value)
     {
+        ExpressionSyntax syntaxForParam_value = value.ToSyntax();
         return MethodDeclaration(
                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
                    TokenList(), 
                    PredefinedType(Token(VoidKeyword)), 
                    null, 
                    Identifier("LocalFunction"), 
-                   null, 
+                   TypeParameterList(
+                       Token(LessThanToken), 
+                       SeparatedList<TypeParameterSyntax>(
+                           new SyntaxNodeOrToken[] { 
+                               TypeParameter(
+                                   List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
+                                   Token(None), 
+                                   Identifier("T")) }), 
+                       Token(GreaterThanToken)), 
                    ParameterList(
                        Token(OpenParenToken), 
-                       SeparatedList<ParameterSyntax>(
-                           new SyntaxNodeOrToken[] { 
-                               Parameter(
-                                   List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
-                                   TokenList(), 
-                                   T, 
-                                   Identifier("value"), 
-                                   null) }), 
+                       SeparatedList<ParameterSyntax>(Array.Empty<SyntaxNodeOrToken>()), 
                        Token(CloseParenToken)), 
                    List<TypeParameterConstraintClauseSyntax>(Array.Empty<TypeParameterConstraintClauseSyntax>()), 
                    Block(
@@ -62,7 +64,7 @@ partial class Factory
                                                                            TriviaList())), 
                                                                    Interpolation(
                                                                        Token(OpenBraceToken), 
-                                                                       IdentifierName("value"), 
+                                                                       syntaxForParam_value, 
                                                                        null, 
                                                                        null, 
                                                                        Token(CloseBraceToken)) }), 

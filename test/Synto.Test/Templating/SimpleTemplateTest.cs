@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Synto.Templating;
 
+
 namespace Synto.Test.Templating;
 
 [UsesVerify]
@@ -267,7 +268,7 @@ public class SimpleTemplateTest
 
 
     [Fact]
-    public async Task InlineGenericType()
+    public async Task InlineGenericValue()
     {
         await VerifyTemplate(
             """
@@ -288,7 +289,7 @@ public class SimpleTemplateTest
     }
 
     [Fact]
-    public async Task InlineGenericTypeAsSyntax()
+    public async Task InlineGenericValueAsSyntax()
     {
         await VerifyTemplate(
             """
@@ -301,6 +302,49 @@ public class SimpleTemplateTest
             public class TestClass {
                [Template(typeof(Factory))]
                 void LocalFunction<T>([Inline(AsSyntax = true)]T value) {
+                    Console.WriteLine($"Hello world {value}");
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task InlineGenericType()
+    {
+        await VerifyTemplate(
+            """
+            using System;
+            using Synto;
+            using System.Collections.Generic;
+
+            partial class Factory {}
+
+
+            public class TestClass {
+               [Template(typeof(Factory))]
+                void LocalFunction<[Inline]T>() {
+                    List<T> list = new();
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task InlineGenericTypeAsSyntax()
+    {
+        await VerifyTemplate(
+            """
+            using System;
+            using Synto;
+
+            partial class Factory {}
+
+
+            public class TestClass {
+               [Template(typeof(Factory))]
+                void LocalFunction<[Inline(AsSyntax = true)]T>(T value) {
                     Console.WriteLine($"Hello world {value}");
                 }
             }

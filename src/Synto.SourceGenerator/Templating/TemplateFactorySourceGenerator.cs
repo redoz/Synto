@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -165,53 +166,79 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
         var preamble = new List<StatementSyntax>();
 
-        // we use this to ensure we generate a unique type name
+        // we use these to ensure we generate a unique type name
+        var paramNames = new HashSet<string>(StringComparer.Ordinal);
         var inlinedTypeParamNames = new HashSet<string>(StringComparer.Ordinal);
-        List<TypeParameterSyntax> inlinedTypeParams = new List<TypeParameterSyntax>();
+
+        List<ParameterSyntax> parameters = new List<ParameterSyntax>();
+        List<TypeParameterSyntax> typeParams = new List<TypeParameterSyntax>();
+
+        HashSet<ITypeParameterSymbol> inlinedTypeParams = new HashSet<ITypeParameterSymbol>(SymbolEqualityComparer.Default);
         foreach (var replacements in InlinedTypeParameterFinder.FindInlinedTypeParameters(semanticModel, templateInfo.Source!.Syntax))
         {
-            string typeParamName = replacements.TypeParameter.Identifier.Text;
-            while (!inlinedTypeParamNames.Add(typeParamName))
-                typeParamName += '_';
+            string typeParamName = replacements.TypeParameterSyntax.Identifier.Text;
 
-            inlinedTypeParams.Add(TypeParameter(typeParamName));
+            ExpressionSyntax typeSyntaxForTypeParam;
+            if (replacements.AsSyntax)
+            {
+                // TODO make a little utility for this
+                while (!paramNames.Add(typeParamName))
+                    typeParamName += '_';
 
-            var syntaxForTypeParamIdentifier = Identifier("syntaxForTypeParam_" + typeParamName);
-            TypeSyntax typeSyntaxForTypeParam = IdentifierName(syntaxForTypeParamIdentifier);
-            preamble.Add(
-                LocalDeclarationStatement(
-                    VariableDeclaration(
-                        additionalUsings.GetTypeName(ParseTypeName(typeof(TypeSyntax).FullName!)),
-                        SingletonSeparatedList(
-                            VariableDeclarator(
-                                syntaxForTypeParamIdentifier,
-                                null,
-                                EqualsValueClause(
-                                    InvocationExpression(
-                                        IdentifierName(nameof(ParseTypeName)),
-                                        ArgumentList(
-                                            SingletonSeparatedList(
-                                                Argument(
-                                                    PostfixUnaryExpression(
-                                                        SyntaxKind.SuppressNullableWarningExpression,
-                                                        MemberAccessExpression(
-                                                            SyntaxKind.SimpleMemberAccessExpression,
-                                                            TypeOfExpression(IdentifierName(typeParamName)),
-                                                            IdentifierName(nameof(Type.FullName))))))))))))));
+                typeSyntaxForTypeParam = IdentifierName(typeParamName);
+
+                parameters.Add(Parameter(Identifier(typeParamName)).WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!))));
+            }
+            else
+            {
+                inlinedTypeParams.Add(replacements.TypeParameterSymbol);
+
+                // TODO make a little utility for this
+                while (!inlinedTypeParamNames.Add(typeParamName))
+                    typeParamName += '_';
+
+                typeParams.Add(TypeParameter(typeParamName));
+
+                var syntaxForTypeParamIdentifier = Identifier("syntaxForTypeParam_" + typeParamName);
+
+                typeSyntaxForTypeParam = IdentifierName(syntaxForTypeParamIdentifier);
+                preamble.Add(
+                    LocalDeclarationStatement(
+                        VariableDeclaration(
+                            additionalUsings.GetTypeName(ParseTypeName(typeof(TypeSyntax).FullName!)),
+                            SingletonSeparatedList(
+                                VariableDeclarator(
+                                    syntaxForTypeParamIdentifier,
+                                    null,
+                                    EqualsValueClause(
+                                        InvocationExpression(
+                                            IdentifierName(nameof(ParseTypeName)),
+                                            ArgumentList(
+                                                SingletonSeparatedList(
+                                                    Argument(
+                                                        PostfixUnaryExpression(
+                                                            SyntaxKind.SuppressNullableWarningExpression,
+                                                            MemberAccessExpression(
+                                                                SyntaxKind.SimpleMemberAccessExpression,
+                                                                TypeOfExpression(IdentifierName(typeParamName)),
+                                                                IdentifierName(
+                                                                    nameof(
+                                                                        Type
+                                                                            .FullName)))))))))))))); // BUG calling ParseTypeName on typeof(T).FullName is not going to work for generic types\
+            }
 
             foreach (var typeSyntax in replacements.References)
                 unquotedReplacements.Add(typeSyntax, typeSyntaxForTypeParam);
 
-            trimNodes.Add(replacements.TypeParameter);
+            trimNodes.Add(replacements.TypeParameterSyntax);
         }
 
-        HashSet<string> paramNames = new HashSet<string>(StringComparer.Ordinal);
-
-        List<ParameterSyntax> parameters = new List<ParameterSyntax>();
 
         foreach (var replacements in InlinedParameterFinder.FindInlinedParameters(semanticModel, templateInfo.Source.Syntax))
         {
             //Debugger.Launch();
+
+
             string paramName = replacements.Parameter.Identifier.Text;
             while (!paramNames.Add(paramName))
                 paramName += '_';
@@ -236,6 +263,21 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             else
             {
                 parameterType = replacements.Parameter.Type!;
+
+                var paramTypeSymbolInfo = semanticModel.GetTypeInfo(parameterType);
+                
+                // if this is a generic type reference we need to include it in our factory method declaration if it's not already been inlined
+                if (paramTypeSymbolInfo.Type is ITypeParameterSymbol typeParam && !inlinedTypeParams.Contains(typeParam))
+                {
+                    string typeParamName = typeParam.Name;
+
+                    while (!inlinedTypeParamNames.Add(typeParamName))
+                        typeParamName += '_';
+
+                    parameterType = IdentifierName(typeParamName);
+
+                    typeParams.Add(TypeParameter(typeParamName));
+                }
 
                 var syntaxForTypeParamIdentifier = Identifier("syntaxForParam_" + paramName);
                 identifierSyntaxForParam = IdentifierName(syntaxForTypeParamIdentifier);
@@ -313,8 +355,8 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 .AddStatements(preamble.ToArray())
                 .AddStatements(ReturnStatement(syntaxTreeExpr)));
 
-        if (inlinedTypeParams.Count > 0)
-            syntaxFactoryMethod = syntaxFactoryMethod.WithTypeParameterList(TypeParameterList(SeparatedList(inlinedTypeParams)));
+        if (typeParams.Count > 0)
+            syntaxFactoryMethod = syntaxFactoryMethod.WithTypeParameterList(TypeParameterList(SeparatedList(typeParams)));
 
         if (parameters.Count > 0)
             syntaxFactoryMethod = syntaxFactoryMethod.WithParameterList(ParameterList(SeparatedList(parameters)));

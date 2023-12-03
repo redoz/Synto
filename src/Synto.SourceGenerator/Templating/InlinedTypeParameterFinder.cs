@@ -8,9 +8,10 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Synto.Templating;
 
-internal sealed class InlinedTypeParameter(TypeParameterSyntax typeParameter, IReadOnlyList<TypeSyntax> references, bool asSyntax)
+internal sealed class InlinedTypeParameter(ITypeParameterSymbol typeParameterSymbol, TypeParameterSyntax typeParameterSyntax, IReadOnlyList<TypeSyntax> references, bool asSyntax)
 {
-    public TypeParameterSyntax TypeParameter { get; } = typeParameter;
+    public ITypeParameterSymbol TypeParameterSymbol { get; } = typeParameterSymbol;
+    public TypeParameterSyntax TypeParameterSyntax { get; } = typeParameterSyntax;
     public IReadOnlyList<TypeSyntax> References { get; } = references;
     public bool AsSyntax { get; } = asSyntax;
 }
@@ -41,7 +42,7 @@ internal class InlinedTypeParameterFinder : CSharpSyntaxWalker
             //typeParameterBySymbol.Value.AttributeLists.SelectMany(al => al.Attributes).Single(attr => )
             if (finder._replacementsBySymbol.TryGetValue(typeParameterBySymbol.Key, out var replacements))
             {
-                yield return new (typeParameterBySymbol.Value.TypeParameter, replacements, typeParameterBySymbol.Value.AsSyntax);
+                yield return new (typeParameterBySymbol.Key, typeParameterBySymbol.Value.TypeParameter, replacements, typeParameterBySymbol.Value.AsSyntax);
             }
         }
     }
@@ -61,8 +62,8 @@ internal class InlinedTypeParameterFinder : CSharpSyntaxWalker
     private readonly SemanticModel _semanticModel;
     private readonly INamedTypeSymbol _inlineAttributeSymbol;
 
-    private readonly Dictionary<ISymbol, InlinedTypeParameterInfo> _typeParameterBySymbol;
-    private readonly Dictionary<ISymbol, List<TypeSyntax>> _replacementsBySymbol;
+    private readonly Dictionary<ITypeParameterSymbol, InlinedTypeParameterInfo> _typeParameterBySymbol;
+    private readonly Dictionary<ITypeParameterSymbol, List<TypeSyntax>> _replacementsBySymbol;
 
     private Phase _phase;
 
@@ -74,8 +75,8 @@ internal class InlinedTypeParameterFinder : CSharpSyntaxWalker
         Debug.Assert(attributeSymbol is not null);
 
         _inlineAttributeSymbol = attributeSymbol!;
-        _replacementsBySymbol = new Dictionary<ISymbol, List<TypeSyntax>>(SymbolEqualityComparer.Default);
-        _typeParameterBySymbol = new Dictionary<ISymbol, InlinedTypeParameterInfo>(SymbolEqualityComparer.Default);
+        _replacementsBySymbol = new Dictionary<ITypeParameterSymbol, List<TypeSyntax>>(SymbolEqualityComparer.Default);
+        _typeParameterBySymbol = new Dictionary<ITypeParameterSymbol, InlinedTypeParameterInfo>(SymbolEqualityComparer.Default);
     }
 
     public override void DefaultVisit(SyntaxNode node)
@@ -84,7 +85,7 @@ internal class InlinedTypeParameterFinder : CSharpSyntaxWalker
         {
             //Debugger.Launch();
             var symbolInfo = _semanticModel.GetSymbolInfo(typeSyntax);
-            if (symbolInfo.Symbol is { } symbol && _replacementsBySymbol.TryGetValue(symbol, out var replacementList))
+            if (symbolInfo.Symbol is ITypeParameterSymbol symbol && _replacementsBySymbol.TryGetValue(symbol, out var replacementList))
             {
                 replacementList.Add(typeSyntax);
                 return;

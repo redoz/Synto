@@ -8,24 +8,16 @@ using Synto;
 
 partial class Factory
 {
-    public static MethodDeclarationSyntax LocalFunction(T value)
+    public static MethodDeclarationSyntax LocalFunction<T>()
     {
-        ExpressionSyntax syntaxForParam_value = value.ToSyntax();
+        TypeSyntax syntaxForTypeParam_T = ParseTypeName(typeof(T).FullName!);
         return MethodDeclaration(
                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
                    TokenList(), 
                    PredefinedType(Token(VoidKeyword)), 
                    null, 
                    Identifier("LocalFunction"), 
-                   TypeParameterList(
-                       Token(LessThanToken), 
-                       SeparatedList<TypeParameterSyntax>(
-                           new SyntaxNodeOrToken[] { 
-                               TypeParameter(
-                                   List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
-                                   Token(None), 
-                                   Identifier("T")) }), 
-                       Token(GreaterThanToken)), 
+                   null, 
                    ParameterList(
                        Token(OpenParenToken), 
                        SeparatedList<ParameterSyntax>(Array.Empty<SyntaxNodeOrToken>()), 
@@ -36,40 +28,32 @@ partial class Factory
                        Token(OpenBraceToken), 
                        List<StatementSyntax>(
                            new StatementSyntax[] { 
-                               ExpressionStatement(
+                               LocalDeclarationStatement(
                                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
-                                   InvocationExpression(
-                                       MemberAccessExpression(
-                                           SimpleMemberAccessExpression, 
-                                           IdentifierName("Console"), 
-                                           Token(DotToken), 
-                                           IdentifierName("WriteLine")), 
-                                       ArgumentList(
-                                           Token(OpenParenToken), 
-                                           SeparatedList<ArgumentSyntax>(
-                                               new SyntaxNodeOrToken[] { 
-                                                   Argument(
-                                                       null, 
-                                                       Token(None), 
-                                                       InterpolatedStringExpression(
-                                                           Token(InterpolatedStringStartToken), 
-                                                           List<InterpolatedStringContentSyntax>(
-                                                               new InterpolatedStringContentSyntax[] { 
-                                                                   InterpolatedStringText(
-                                                                       Token(
-                                                                           TriviaList(), 
-                                                                           InterpolatedStringTextToken, 
-                                                                           "Hello world ", 
-                                                                           "Hello world ", 
-                                                                           TriviaList())), 
-                                                                   Interpolation(
-                                                                       Token(OpenBraceToken), 
-                                                                       syntaxForParam_value, 
-                                                                       null, 
-                                                                       null, 
-                                                                       Token(CloseBraceToken)) }), 
-                                                           Token(InterpolatedStringEndToken))) }), 
-                                           Token(CloseParenToken))), 
+                                   Token(None), 
+                                   Token(None), 
+                                   TokenList(), 
+                                   VariableDeclaration(
+                                       GenericName(
+                                           Identifier("List"), 
+                                           TypeArgumentList(
+                                               Token(LessThanToken), 
+                                               SeparatedList<TypeSyntax>(new SyntaxNodeOrToken[] { syntaxForTypeParam_T }), 
+                                               Token(GreaterThanToken))), 
+                                       SeparatedList<VariableDeclaratorSyntax>(
+                                           new SyntaxNodeOrToken[] { 
+                                               VariableDeclarator(
+                                                   Identifier("list"), 
+                                                   null, 
+                                                   EqualsValueClause(
+                                                       Token(EqualsToken), 
+                                                       ImplicitObjectCreationExpression(
+                                                           Token(NewKeyword), 
+                                                           ArgumentList(
+                                                               Token(OpenParenToken), 
+                                                               SeparatedList<ArgumentSyntax>(Array.Empty<SyntaxNodeOrToken>()), 
+                                                               Token(CloseParenToken)), 
+                                                           null))) })), 
                                    Token(SemicolonToken)) }), 
                        Token(CloseBraceToken)), 
                    null, 
