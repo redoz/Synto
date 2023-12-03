@@ -46,7 +46,7 @@ internal class SyntaxParameterFinder : CSharpSyntaxWalker
         Debug.Assert(syntaxOfTDelegateSymbol is not null);
 
         _syntaxDelegateSymbol = syntaxDelegateSymbol!;
-        _syntaxOfTDelegateSymbol = syntaxOfTDelegateSymbol!;
+        _syntaxOfTDelegateSymbol = syntaxOfTDelegateSymbol!.ConstructUnboundGenericType();
 
         _replacementsBySymbol = new Dictionary<ISymbol, List<InvocationExpressionSyntax>>(SymbolEqualityComparer.Default);
         _parameterBySymbol = new Dictionary<ISymbol, ParameterSyntax>(SymbolEqualityComparer.Default);
@@ -73,7 +73,7 @@ internal class SyntaxParameterFinder : CSharpSyntaxWalker
         if (typeSymbol is null)
             return;
 
-        if (SymbolEqualityComparer.Default.Equals(typeSymbol.Type, _syntaxOfTDelegateSymbol))
+        if (typeSymbol.Type is INamedTypeSymbol {IsGenericType: true} namedTypeSymbol && SymbolEqualityComparer.Default.Equals(namedTypeSymbol.ConstructUnboundGenericType(), _syntaxOfTDelegateSymbol))
         {
             _parameterBySymbol.Add(typeSymbol, node);
             _replacementsBySymbol.Add(typeSymbol, []);

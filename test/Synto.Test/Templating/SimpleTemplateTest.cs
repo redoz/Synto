@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.Serialization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Synto.Templating;
@@ -25,8 +24,10 @@ public class SimpleTemplateTest
                 CorlibReference,
                 NetStandardReference,
                 SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(TemplateAttribute).Assembly.Location)
-            ]
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
         );
     }
 
@@ -59,6 +60,7 @@ public class SimpleTemplateTest
     private async Task VerifyTemplate(string source)
     {
         var compilation = CompilationWithSource(source);
+        Assert.Empty(compilation.GetDiagnostics().Where(diag => diag.Severity == DiagnosticSeverity.Error));
         var result = _driver.RunGenerators(compilation);
         //var diagnostics = result.GetRunResult();
         //Assert.Empty(diagnostics.Diagnostics);
@@ -73,7 +75,6 @@ public class SimpleTemplateTest
             """
             using System;
             using Synto;
-            using Synto.Templating;
 
             partial class Factory {}
 
@@ -96,7 +97,6 @@ public class SimpleTemplateTest
             """
             using System;
             using Synto;
-            using Synto.Templating;
 
             partial class Factory {}
 
@@ -119,7 +119,6 @@ public class SimpleTemplateTest
             """
             using System;
             using Synto;
-            using Synto.Templating;
 
             partial class Factory {}
 
@@ -142,7 +141,6 @@ public class SimpleTemplateTest
             """
             using System;
             using Synto;
-            using Synto.Templating;
 
             partial class Factory {}
 
@@ -165,7 +163,6 @@ public class SimpleTemplateTest
             """
             using System;
             using Synto;
-            using Synto.Templating;
 
             partial class Factory {}
 
@@ -188,7 +185,6 @@ public class SimpleTemplateTest
             """
             using System;
             using Synto;
-            using Synto.Templating;
 
             partial class Factory {}
 
@@ -212,7 +208,6 @@ public class SimpleTemplateTest
             """
             using System;
             using Synto;
-            using Synto.Templating;
 
             partial class Factory {}
 
@@ -236,7 +231,6 @@ public class SimpleTemplateTest
             """
             using System;
             using Synto;
-            using Synto.Templating;
 
             partial class Factory {}
 
@@ -258,7 +252,6 @@ public class SimpleTemplateTest
             """
             using System;
             using Synto;
-            using Synto.Templating;
 
             partial class Factory {}
 
@@ -280,7 +273,6 @@ public class SimpleTemplateTest
             """
             using System;
             using Synto;
-            using Synto.Templating;
 
             partial class Factory {}
 
@@ -295,30 +287,48 @@ public class SimpleTemplateTest
         );
     }
 
-
-
     [Fact]
-    public async Task EvaluateNumericParameter()
+    public async Task InlineGenericTypeAsSyntax()
     {
         await VerifyTemplate(
             """
             using System;
             using Synto;
-            using Synto.Templating;
 
             partial class Factory {}
 
 
             public class TestClass {
                [Template(typeof(Factory))]
-                void LocalFunction([Unquote]int n) {
-                    for(int i = 0; i < n; i++) {
-                        Console.WriteLine($"Hello world {value}");
-                    }
+                void LocalFunction<T>([Inline(AsSyntax = true)]T value) {
+                    Console.WriteLine($"Hello world {value}");
                 }
             }
             """
         );
     }
+
+
+    [Fact]
+    public async Task WithSyntaxOfString()
+    {
+        await VerifyTemplate(
+            """
+            using System;
+            using Synto;
+
+            partial class Factory {}
+
+
+            public class TestClass {
+               [Template(typeof(Factory))]
+                void LocalFunction(Syntax<string> value) {
+                    Console.WriteLine($"Hello world" + value());
+                }
+            }
+            """
+        );
+    }
+
 
 }

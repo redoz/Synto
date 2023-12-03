@@ -202,7 +202,9 @@ public class Examples
             list3.Add(inlinedValue);
         }
 
+#pragma warning disable CS0693 // Type parameter has the same name as the type parameter from outer type
         static T1 HiddenTypeArg<[Inline] T1>()
+#pragma warning restore CS0693 // Type parameter has the same name as the type parameter from outer type
         {
             List<T1> list = new List<T1>();
 

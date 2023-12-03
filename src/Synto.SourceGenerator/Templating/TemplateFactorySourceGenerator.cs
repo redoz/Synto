@@ -30,9 +30,11 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(providerWithCompilation, Execute);
     }
 
-    private void Execute(SourceProductionContext context, (TemplateInfo TemplateInfo, string AssemblyName) value)
+    private void Execute(SourceProductionContext context, (TemplateInfo? TemplateInfo, string? AssemblyName) value)
     {
-        
+        if (value.TemplateInfo is null || value.AssemblyName is null)
+            return;
+
         try
         {
             // var semanticModel = context.Compilation.GetSemanticModel(template.AttributeSyntax.SyntaxTree);
@@ -276,6 +278,8 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
             foreach (var identifierNameSyntax in replacements.References)
                 unquotedReplacements.Add(identifierNameSyntax, IdentifierName(paramName));
+
+            trimNodes.Add(replacements.Parameter);
         }
 
 

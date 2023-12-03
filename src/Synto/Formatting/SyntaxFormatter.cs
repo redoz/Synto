@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-// ReSharper disable once CheckNamespace
 namespace Synto.Formatting;
 
 public class SyntaxFormatter : CSharpSyntaxRewriter
@@ -14,7 +12,7 @@ public class SyntaxFormatter : CSharpSyntaxRewriter
     private int _depth;
     private int _indentation;
     private bool _indentOn;
-    private readonly Stack<int> _listCount = new Stack<int>();
+    private readonly Stack<int> _listCount = new();
 
     public static TSyntax Format<TSyntax>(TSyntax node) where TSyntax : SyntaxNode
     {
