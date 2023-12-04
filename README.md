@@ -10,4 +10,5 @@ See [examples/Synto.Examples/Program.cs](examples/Synto.Examples/Program.cs) for
 
 ## Useful Links
 [Incremental Source Generators](https://github.com/dotnet/roslyn/blob/main/docs/features/incremental-generators.md)
+
 [Source Generators Cookbook](https://github.com/dotnet/roslyn/blob/main/docs/features/source-generators.cookbook.md)
