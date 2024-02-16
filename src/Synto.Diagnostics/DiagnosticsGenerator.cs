@@ -12,98 +12,15 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Synto.Diagnostics;
 
-internal static class Diagnostics
-{
-    private const string IdPrefix = "SDG";
-
-    private static readonly DiagnosticDescriptor _InternalError = new(
-        IdPrefix + "0000",
-        "Internal Error",
-        "Unhandled exception {0} was thrown: {1}",
-        "Synto.Diagnostics.Internal",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-
-    public static Diagnostic InternalError(Exception exception)
-    {
-        return Diagnostic.Create(_InternalError,
-            location: null,
-            exception.GetType().FullName,
-            exception.ToString().Replace("\r", "").Replace("\n", " "));
-    }
-
-    private static readonly DiagnosticDescriptor _TargetAncestorNotPartial = new(
-        IdPrefix + "1002",
-        "Invalid Target",
-        "Target method '{0}' ancestor '{1}' must be declared partial",
-        "Synto.Diagnostics.Usage",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    public static Diagnostic TargetAncestorNotPartial(Location location, string methodName, string ancestorName)
-    {
-        return Diagnostic.Create(_TargetAncestorNotPartial,
-            location,
-            methodName,
-            ancestorName);
-    }
-
-    private static readonly DiagnosticDescriptor _TargetNotPartial = new(
-        IdPrefix + "1001",
-        "Invalid Target",
-        "Target method '{0}' must be declared as partial",
-        "Synto.Diagnostics.Usage",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    public static Diagnostic TargetNotPartial(Location location, string methodName)
-    {
-        return Diagnostic.Create(_TargetNotPartial,
-            location,
-            methodName);
-    }
-
-}
-internal sealed class TargetInfo
-{
-    private TargetInfo(SemanticModel semanticModel, AttributeSyntax attributeSyntax, MethodDeclarationSyntax target)
-    {
-        SemanticModel = semanticModel;
-        AttributeSyntax = attributeSyntax;
-        Target = target;
-    }
-
-    public AttributeSyntax AttributeSyntax { get; }
-    public MethodDeclarationSyntax Target { get; }
-    public SemanticModel SemanticModel { get; }
-
-    public static TargetInfo? Create(GeneratorAttributeSyntaxContext syntaxContext, CancellationToken cancellationToken)
-    {
-        // this just sanity checks against accepting things that the compiler should've rejected in the first place
-
-        var attr = syntaxContext.Attributes.FirstOrDefault();
-        if (attr is null)
-            return null;
-
-        if (attr.ApplicationSyntaxReference!.GetSyntax(cancellationToken) is not AttributeSyntax attrSyntax)
-            return null;
-
-        if (syntaxContext.TargetNode is not MethodDeclarationSyntax methodDeclaration)
-            return null;
-
-
-        return new TargetInfo(syntaxContext.SemanticModel, attrSyntax, methodDeclaration);
-    }
-}
-
 [Generator(LanguageNames.CSharp)]
 public sealed class DiagnosticsGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        context.RegisterPostInitializationOutput(InjectAttribute);
+
         var syntaxProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
-                typeof(DiagnosticAttribute).FullName!,
+                "Synto.Diagnostics.DiagnosticAttribute",
                 static (node, _) => true,
                 static (syntaxContext, cancellationToken) => TargetInfo.Create(syntaxContext, cancellationToken))
             .Where(templateInfo => templateInfo is not null);
@@ -112,7 +29,46 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
 
         var providerWithCompilation = syntaxProvider.Combine(assemblyName);
 
-        context.RegisterSourceOutput(providerWithCompilation, Execute);
+        context.RegisterImplementationSourceOutput(providerWithCompilation, Execute);
+    }
+
+    private void InjectAttribute(IncrementalGeneratorPostInitializationContext context)
+    {
+        context.AddSource(
+            "Synto.Diagnostics.DiagnosticsAttribute.g.cs",
+            """
+            #nullable enable
+            using System;
+            using System.Collections.Generic;
+            using Microsoft.CodeAnalysis;
+            
+            namespace Synto.Diagnostics;
+            
+            [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+            public sealed class DiagnosticAttribute(
+                string id,
+                string title,
+                string messageFormat,
+                string category,
+                DiagnosticSeverity defaultSeverity,
+                bool isEnabledByDefault,
+                string? description = null,
+                string? helpLinkUri = null,
+                params string[] customTags)
+                : Attribute
+            {
+                public string Id { get; } = id;
+                public string Title { get; } = title;
+                public string MessageFormat { get; } = messageFormat;
+                public string Category { get; } = category;
+                public DiagnosticSeverity DefaultSeverity { get; } = defaultSeverity;
+                public bool IsEnabledByDefault { get; } = isEnabledByDefault;
+                public string? Description { get; } = description;
+                public string? HelpLinkUri { get; } = helpLinkUri;
+                public IReadOnlyList<string> CustomTags { get; } = customTags;
+            }
+            """
+            );
     }
 
     private void Execute(SourceProductionContext context, (TargetInfo? TemplateInfo, string? AssemblyName) value)
@@ -251,6 +207,8 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
 
         ExpressionSyntax? locationExpr = null;
         ExpressionSyntax? severityExpr = null;
+        ExpressionSyntax additionalLocationsExpr = LiteralExpression(SyntaxKind.NullLiteralExpression);
+        ExpressionSyntax propertiesExpr = LiteralExpression(SyntaxKind.NullLiteralExpression);
 
         List<ExpressionSyntax> messageArgExprs = [];
 
@@ -280,6 +238,7 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
         severityExpr ??= LiteralExpression(SyntaxKind.NullLiteralExpression);
 
         members.Add(targetMethod
+            .WithSemicolonToken(Token(SyntaxKind.None))
             .WithAttributeLists([]) // clear the attribute
             .WithBody(
                 Block(
@@ -296,6 +255,8 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
                                     Argument(IdentifierName(descriptorName)),
                                     Argument(locationExpr),
                                     Argument(severityExpr),
+                                    Argument(additionalLocationsExpr),
+                                    Argument(propertiesExpr),
                                     .. messageArgExprs.Select(Argument)
                                 ]))))
                 )));
@@ -312,7 +273,13 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
                 [
                     //UsingDirective(ParseName(typeof(Diagnostic).Namespace!))
                 ]
-            )));
+            )))
+            .WithLeadingTrivia(
+                TriviaList(
+                    Trivia(
+                        NullableDirectiveTrivia(
+                            Token(SyntaxKind.EnableKeyword),
+                            true))));
 
         var sourceText = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace()).GetText(Encoding.UTF8);
 

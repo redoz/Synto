@@ -1,4 +1,5 @@
 ﻿//HintName: X.Y.Z.Diagnostics.InternalError.g.cs
+#nullable enable
 using Microsoft.CodeAnalysis;
 
 namespace X.Y.Z;
@@ -11,7 +12,9 @@ internal static partial class Diagnostics
                    _InternalError, 
                    location, 
                    null, 
+                   null, 
+                   null, 
                    exceptionType, 
                    exceptionMessage);
-    };
+    }
 }

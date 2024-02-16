@@ -32,12 +32,12 @@ internal readonly struct SourceGeneratorTarget
         // TODO this probably won't work if this was pulled in with a `using static`
         MemberAccessExpressionSyntax memberAccess = (MemberAccessExpressionSyntax)invocation.Expression;
 
-        var expressionSymbol = context.SemanticModel.GetSymbolInfo(memberAccess.Expression);
+        var expressionSymbol = context.SemanticModel.GetSymbolInfo(memberAccess.Expression, cancellationToken);
 
         if (expressionSymbol.Symbol is not INamedTypeSymbol typeSymbol || !SymbolEqualityComparer.Default.Equals(objectReaderTypeSymbol, typeSymbol))
             return null;
 
-        var createSymbolInfo = context.SemanticModel.GetSymbolInfo(memberAccess.Name);
+        var createSymbolInfo = context.SemanticModel.GetSymbolInfo(memberAccess.Name, cancellationToken);
 
         if (createSymbolInfo.Symbol is not IMethodSymbol { TypeArguments: { Length: 1 } typeArgs } || typeArgs[0] is not INamedTypeSymbol targetType)
             return null;
@@ -78,7 +78,7 @@ public class ObjectReaderSourceGenerator : IIncrementalGenerator
             .Select((target, _) => target!.Value);
 
 
-        context.RegisterSourceOutput(syntaxProvider.Collect(), Execute);
+        context.RegisterImplementationSourceOutput(syntaxProvider.Collect(), Execute);
     }
 
 
@@ -190,7 +190,10 @@ public class ObjectReaderSourceGenerator : IIncrementalGenerator
 
 
         var type = Factory.ObjectReaderTemplate(target.TargetType.GetQualifiedNameSyntax())
+            .WithIdentifier(readerTypeName)
             .AddModifiers(SyntaxFactory.Token(SyntaxKind.FileKeyword));
+
+        
          
         //int i;
         //return i switch
@@ -227,6 +230,14 @@ public class ObjectReaderSourceGenerator : IIncrementalGenerator
     }
 
     [Template(typeof(Factory))]
+    private static void IndexGuard(int i, [Inline] int fieldCount)
+    {
+#pragma warning disable CA2201 // docs say to throw IndexOutOfRangeException
+        if (i < 0 || i >= fieldCount) throw new IndexOutOfRangeException($"Index ({i}) is out of range, only {fieldCount} fields exist.");
+#pragma warning restore CA2201
+    }
+
+    [Template(typeof(Factory))]
     public static IDataReader Create<[Inline(AsSyntax = true)]T>(
         Syntax<IDataReader> factoryExpr, 
         IEnumerable<T> data,
@@ -240,6 +251,9 @@ public class ObjectReaderSourceGenerator : IIncrementalGenerator
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
     private sealed class InterceptsLocationAttribute(string filePath, int line, int character) : Attribute
     {
+        public string FilePath { get; } = filePath;
+        public int Line { get; } = line;
+        public int Character { get; } = character;
     }
 }
 
@@ -285,7 +299,7 @@ internal abstract partial class ObjectReaderTemplate<[Inline(AsSyntax = true)] T
 
     public IDataReader GetData(int i)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
     public string GetDataTypeName(int i)
@@ -390,7 +404,7 @@ internal abstract partial class ObjectReaderTemplate<[Inline(AsSyntax = true)] T
 
     public DataTable? GetSchemaTable()
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
     public bool NextResult()
@@ -415,7 +429,7 @@ internal abstract partial class ObjectReaderTemplate<[Inline(AsSyntax = true)] T
     public int RecordsAffected => -1;
 }
 
-internal partial class Factory
+internal static partial class Factory
 {
 
 }

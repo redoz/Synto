@@ -1,4 +1,6 @@
-﻿using System;
+﻿//HintName: Synto.Diagnostics.DiagnosticsAttribute.g.cs
+#nullable enable
+using System;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 

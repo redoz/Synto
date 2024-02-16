@@ -3,17 +3,19 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>Synto</RootNamespace>
-	<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
   </PropertyGroup>
 
   <PropertyGroup>
     <!-- nuget package properties -->
+    <!--<PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
     <RepositoryUrl>https://github.com/redoz/Synto.git</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
+    <RepositoryType>git</RepositoryType>-->
+    
     <PackageTags>Roslyn;Syntax</PackageTags>
     <PackageOutputPath>$(SolutionDir)\artifacts\</PackageOutputPath>
-    <PackageReadmeFile>NuGet.md</PackageReadmeFile>
+    <PackageReadmeFile>Synto.NuGet.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <Description>Create Roslyn Syntax Trees from your C# code.</Description>
 
@@ -27,7 +29,7 @@
 
   <ItemGroup>
     <None Include="..\..\LICENSE" Pack="true" Visible="false" PackagePath="\" />
-    <None Include="..\..\NuGet.md" Pack="true" Visible="false" PackagePath="\" />
+    <None Include="..\..\Synto.NuGet.md" Pack="true" Visible="false" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,27 +38,23 @@
   </ItemGroup>
 
   <ItemGroup>
-	  <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />        
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
     <!-- we do want a pacakge dependency on this for whoever consumes our package -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
-    
+
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Synto\Synto.csproj" PrivateAssets="all" />
   </ItemGroup>
- 
+
   <ItemGroup>
     <!--include output as analyzer -->
-	  <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <!-- also include this as this is a directy dependency -->
-	  <None Include="$(OutputPath)\Synto.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(OutputPath)\Synto.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <!-- but we also throw this in the lib folder so the package consumer gets it as library depdendency -->
-	  <None Include="$(OutputPath)\Synto.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
-  </ItemGroup>
- 
-  <ItemGroup>
-    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+    <None Include="$(OutputPath)\Synto.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
   </ItemGroup>
 
   <!--we're injecting Synto as a runtime dependency for the analyzer -->

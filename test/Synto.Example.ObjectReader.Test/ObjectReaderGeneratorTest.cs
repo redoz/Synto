@@ -12,10 +12,8 @@ public class ObjectReaderGeneratorTest
     private static readonly MetadataReference SystemRuntimeReference = MetadataReference.CreateFromFile(Assembly.Load("System.Runtime, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location);
 
 
-    static Compilation CreateCompilation()
+    static CSharpCompilation CreateCompilation()
     {
-
-
         return CSharpCompilation.Create("Test",
             Array.Empty<SyntaxTree>(),
             references:
@@ -30,7 +28,7 @@ public class ObjectReaderGeneratorTest
         );
     }
 
-    static GeneratorDriver CreateDriver()
+    static CSharpGeneratorDriver CreateDriver()
     {
         var generator = new ObjectReaderSourceGenerator();
         return CSharpGeneratorDriver.Create(generator);

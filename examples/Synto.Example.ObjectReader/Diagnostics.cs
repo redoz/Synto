@@ -7,22 +7,11 @@ internal static partial class Diagnostics
 {
     private const string IdPrefix = "SOR";
 
-    private static readonly DiagnosticDescriptor _InternalError = new(IdPrefix + "0000",
-        "Internal Error",
-        "Unhandled exception {0} was thrown: {1}",
-        "Synto.Internal",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-
     public static Diagnostic InternalError(Exception exception)
     {
-        return Diagnostic.Create(_InternalError,
-            location: null,
-            exception.GetType().FullName,
-            exception.ToString().Replace("\r", "").Replace("\n", " "));
+        return InternalError(null, exception.GetType().FullName!, exception.ToString());
     }
 
     [Diagnostic(IdPrefix + "0000", "Internal Error", "Unhandled exception {0} was thrown: {1}", "Synto.Internal", DiagnosticSeverity.Error, true)]
-    public static partial Diagnostic UnsuppoertedWhatever(Location location, string exceptionType, string exceptionMessage);
+    public static partial Diagnostic InternalError(Location? location, string exceptionType, string exceptionMessage);
 }

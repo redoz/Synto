@@ -30,9 +30,18 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Synto.Example.ObjectReader"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Synto.Example.ObjectReader.Test", "test\Synto.Example.ObjectReader.Test\Synto.Example.ObjectReader.Test.csproj", "{D4B1B3CC-0C4C-4425-ABC5-038BDC67C471}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Synto.Diagnostics", "src\Synto.Diagnostics\Synto.Diagnostics.csproj", "{1265109C-440C-413E-AC75-BA7167D55656}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Synto.Diagnostics", "src\Synto.Diagnostics\Synto.Diagnostics.csproj", "{1265109C-440C-413E-AC75-BA7167D55656}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Synto.Diagnostics.Test", "test\Synto.Diagnostics.Test\Synto.Diagnostics.Test.csproj", "{DED2D3A9-B582-45C0-8CED-05ABD9C90063}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Synto.Diagnostics.Test", "test\Synto.Diagnostics.Test\Synto.Diagnostics.Test.csproj", "{DED2D3A9-B582-45C0-8CED-05ABD9C90063}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "content", "content", "{3D48E4C8-BF39-4BD6-BADA-2864642C843F}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+		LICENSE = LICENSE
+		README.md = README.md
+		Synto.Diagnostics.NuGet.md = Synto.Diagnostics.NuGet.md
+		Synto.NuGet.md = Synto.NuGet.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

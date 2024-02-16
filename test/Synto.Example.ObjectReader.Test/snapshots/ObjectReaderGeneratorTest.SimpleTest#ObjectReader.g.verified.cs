@@ -4,12 +4,15 @@ namespace System.Runtime.CompilerServices
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
     file class InterceptsLocationAttribute(string filePath, int line, int character) : Attribute
     {
+        public string FilePath { get; } = filePath;
+        public int Line { get; } = line;
+        public int Character { get; } = character;
     }
 }
 
 namespace Synto.Example.ObjectReader.Generated
 {
-    internal abstract partial file class ObjectReaderTemplate : IDataReader
+    internal abstract partial file class ObjectReader0 : IDataReader
     {
         private readonly IEnumerable<TestClass> _data;
         private readonly IEnumerator<TestClass> _enumerator;
@@ -49,7 +52,7 @@ namespace Synto.Example.ObjectReader.Generated
 
         public IDataReader GetData(int i)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public string GetDataTypeName(int i)
@@ -151,7 +154,7 @@ namespace Synto.Example.ObjectReader.Generated
 
         public DataTable? GetSchemaTable()
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public bool NextResult()
