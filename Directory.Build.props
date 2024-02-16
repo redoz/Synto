@@ -4,7 +4,7 @@
   <PropertyGroup>
     <!-- metadata -->
     <Authors>Patrik Husfloen</Authors>
-    <Copyright>$(Authors) 2021-2023</Copyright>  
+    <Copyright>$(Authors) 2021-2024</Copyright>  
   </PropertyGroup>
 
   <PropertyGroup>
