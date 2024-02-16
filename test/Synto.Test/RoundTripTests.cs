@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
-using Synto.Templating;
+using Synto;
 using Xunit;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
@@ -19,7 +19,7 @@ namespace Synto.Test;
 
 public partial class RoundTripTests
 {
-    private partial class Factory { };
+    private static partial class Factory { };
 
     [Fact]
     public void Test0()
@@ -110,7 +110,7 @@ public partial class RoundTripTests
     [Fact]
     public void Test4()
     {
-        [Template(typeof(Factory), Options = TemplateOption.Default)]
+        [Template(typeof(Factory), Options = TemplateOption.None)]
         static void FullMethod()
         {
             Console.WriteLine("Hello World");

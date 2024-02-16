@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Synto.Templating;
+namespace Synto;
 
 internal sealed class InlinedParameter(ParameterSyntax parameter, IReadOnlyList<TypeSyntax> references, bool asSyntax)
 {
@@ -17,7 +17,7 @@ internal sealed class InlinedParameter(ParameterSyntax parameter, IReadOnlyList<
 }
 
 
-internal class InlinedParameterFinder : CSharpSyntaxWalker
+internal sealed class InlinedParameterFinder : CSharpSyntaxWalker
 {
     private sealed class InlinedParameterInfo(ParameterSyntax parameter, bool asSyntax)
     {
@@ -46,7 +46,7 @@ internal class InlinedParameterFinder : CSharpSyntaxWalker
     private readonly Dictionary<ISymbol, InlinedParameterInfo> _parameterBySymbol;
     private readonly Dictionary<ISymbol, List<IdentifierNameSyntax>> _replacementsBySymbol;
 
-    protected InlinedParameterFinder(SemanticModel semanticModel)
+    private InlinedParameterFinder(SemanticModel semanticModel)
     {
         _semanticModel = semanticModel;
         var attributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(InlineAttribute).FullName!)!;

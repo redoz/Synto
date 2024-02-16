@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -22,6 +23,8 @@ public class SyntaxFormatter : CSharpSyntaxRewriter
 
     public override SyntaxNode? VisitReturnStatement(ReturnStatementSyntax node)
     {
+        if (node is null) throw new ArgumentNullException(nameof(node));
+
         // omegahack
         if (_indentation == 0)
             _indentation = node.SyntaxTree.GetLineSpan(node.Span).StartLinePosition.Character / 2;
@@ -31,6 +34,8 @@ public class SyntaxFormatter : CSharpSyntaxRewriter
 
     public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
     {
+        if (node is null) throw new ArgumentNullException(nameof(node));
+
         bool disableIndent = false;
         if (_indentOn == false)
         {

@@ -14,6 +14,6 @@ public sealed class TemplateAttribute : Attribute
     public TemplateAttribute(Type target)
     {
         Target = target;
-        Options = TemplateOption.Default;
+        Options = TemplateOption.None;
     }
 }

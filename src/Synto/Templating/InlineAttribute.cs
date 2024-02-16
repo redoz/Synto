@@ -3,7 +3,10 @@
 namespace Synto;
 
 [AttributeUsage(AttributeTargets.GenericParameter | AttributeTargets.Parameter, AllowMultiple = false)]
-public class InlineAttribute : Attribute
+public sealed class InlineAttribute : Attribute
 {
-    public bool AsSyntax { get; set; } = false;
+    /// <summary>
+    /// False by default
+    /// </summary>
+    public bool AsSyntax { get; set; }
 }

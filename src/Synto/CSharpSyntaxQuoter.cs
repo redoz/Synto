@@ -102,7 +102,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
 
     public virtual ExpressionSyntax Visit(SyntaxToken token)
     {
-        static bool TokenKindHasText(SyntaxKind kind) => SyntaxFacts.GetText(kind) != string.Empty;
+        static bool TokenKindHasText(SyntaxKind kind) => SyntaxFacts.GetText(kind).Length != 0;
 
         static ExpressionSyntax EmptySyntaxTriviaList() => SyntaxFactoryInvocation(nameof(TriviaList));
 
@@ -184,6 +184,8 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
 
     public override ExpressionSyntax? DefaultVisit(SyntaxNode node)
     {
+        if (node is null) throw new ArgumentNullException(nameof(node));
+
         throw new NotImplementedException($"Unable to visit node (Kind: {node.Kind()}, Type: {node.GetType().FullName}: '{node}'");
     }
 
@@ -215,6 +217,8 @@ public partial class CSharpSyntaxQuoter : CSharpSyntaxQuoterBase
     // there's a reason for it, and if we remove this we could probably rediscover what it is
     public override ExpressionSyntax? VisitIdentifierName(IdentifierNameSyntax node)
     {
+        if (node is null) throw new ArgumentNullException(nameof(node));
+
         // IdentifierName(node.Identifier.Text)
         return InvocationExpression(IdentifierName(nameof(IdentifierName)),
             ArgumentList(

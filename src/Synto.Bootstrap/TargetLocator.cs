@@ -4,7 +4,7 @@ using System;
 
 namespace Synto.Bootstrap;
 
-internal class TargetLocator : ISyntaxContextReceiver
+internal sealed class TargetLocator : ISyntaxContextReceiver
 {
     public ClassDeclarationSyntax? TargetNode { get; private set; }
 

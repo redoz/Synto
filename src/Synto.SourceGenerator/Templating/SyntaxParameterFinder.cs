@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Synto.Templating;
+namespace Synto;
 
 internal sealed class SyntaxParameter(ParameterSyntax parameter, IReadOnlyList<InvocationExpressionSyntax> references)
 {
@@ -12,7 +12,7 @@ internal sealed class SyntaxParameter(ParameterSyntax parameter, IReadOnlyList<I
     public IReadOnlyList<InvocationExpressionSyntax> References { get; } = references;
 }
 
-internal class SyntaxParameterFinder : CSharpSyntaxWalker
+internal sealed class SyntaxParameterFinder : CSharpSyntaxWalker
 {
     public static IEnumerable<SyntaxParameter> FindSyntaxParameters(SemanticModel semanticModel, SyntaxNode node)
     {
@@ -36,7 +36,7 @@ internal class SyntaxParameterFinder : CSharpSyntaxWalker
     private readonly Dictionary<ISymbol, ParameterSyntax> _parameterBySymbol;
     private readonly Dictionary<ISymbol, List<InvocationExpressionSyntax>> _replacementsBySymbol;
 
-    protected SyntaxParameterFinder(SemanticModel semanticModel)
+    private SyntaxParameterFinder(SemanticModel semanticModel)
     {
         _semanticModel = semanticModel;
         var syntaxDelegateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(Syntax).FullName!)!;

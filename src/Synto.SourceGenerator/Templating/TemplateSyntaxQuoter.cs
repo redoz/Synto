@@ -6,9 +6,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 
-namespace Synto.Templating;
+namespace Synto;
 
-internal class TemplateSyntaxQuoter : CSharpSyntaxQuoter
+internal sealed class TemplateSyntaxQuoter : CSharpSyntaxQuoter
 {
     public new static IEnumerable<UsingDirectiveSyntax> RequiredUsings()
     {

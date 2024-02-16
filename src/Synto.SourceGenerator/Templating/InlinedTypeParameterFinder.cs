@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Synto.Templating;
+namespace Synto;
 
 internal sealed class InlinedTypeParameter(ITypeParameterSymbol typeParameterSymbol, TypeParameterSyntax typeParameterSyntax, IReadOnlyList<TypeSyntax> references, bool asSyntax)
 {
@@ -16,7 +16,7 @@ internal sealed class InlinedTypeParameter(ITypeParameterSymbol typeParameterSym
     public bool AsSyntax { get; } = asSyntax;
 }
 
-internal class InlinedTypeParameterFinder : CSharpSyntaxWalker
+internal sealed class InlinedTypeParameterFinder : CSharpSyntaxWalker
 {
     private sealed class InlinedTypeParameterInfo(TypeParameterSyntax typeParameter, bool asSyntax)
     {
@@ -68,7 +68,7 @@ internal class InlinedTypeParameterFinder : CSharpSyntaxWalker
     private Phase _phase;
 
 
-    protected InlinedTypeParameterFinder(SemanticModel semanticModel)
+    private InlinedTypeParameterFinder(SemanticModel semanticModel)
     {
         _semanticModel = semanticModel;
         var attributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(InlineAttribute).FullName!)!;

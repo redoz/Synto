@@ -10,7 +10,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Formatting;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
-namespace Synto.Templating;
+namespace Synto;
 
 
 [Generator(LanguageNames.CSharp)]
@@ -45,7 +45,9 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             if (ValidateTemplate(context, value.AssemblyName, value.TemplateInfo))
                 ProcessTemplate(context, value.TemplateInfo);
         }
+#pragma warning disable CA1031 // we're explicitly catching _any_ exception and converting it to a diagnostic message
         catch (Exception ex)
+#pragma warning restore CA1031
         {
             context.ReportDiagnostic(Diagnostics.InternalError(ex));
         }
@@ -113,25 +115,27 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             .WithModifiers(targetClassDecl.Modifiers)
             .AddMembers(syntaxFactoryMethod);
 
-        ISymbol current = template.Target.Type.ContainingSymbol;
-        while (current is ITypeSymbol)
-        {
-            var classDecls = (ClassDeclarationSyntax)current.DeclaringSyntaxReferences[0].GetSyntax();
+        //ISymbol current = template.Target.Type.ContainingSymbol;
+        //while (current is ITypeSymbol)
+        //{
+        //    var classDecls = (ClassDeclarationSyntax)current.DeclaringSyntaxReferences[0].GetSyntax();
 
-            targetSyntax = ClassDeclaration(current.Name)
-                .WithModifiers(classDecls.Modifiers)
-                .AddMembers(targetSyntax);
+        //    targetSyntax = ClassDeclaration(current.Name)
+        //        .WithModifiers(classDecls.Modifiers)
+        //        .AddMembers(targetSyntax);
 
-            current = current.ContainingSymbol;
-        }
+        //    current = current.ContainingSymbol;
+        //}
 
-        // if the template is defined in the global namespace this will return null
-        var namespaceName = current.GetNamespaceName();
-        if (namespaceName is not null)
-        {
-            targetSyntax = FileScopedNamespaceDeclaration(namespaceName)
-                .AddMembers(targetSyntax);
-        }
+        //// if the template is defined in the global namespace this will return null
+        //var namespaceName = current.GetNamespaceNameSyntax();
+        //if (namespaceName is not null)
+        //{
+        //    targetSyntax = FileScopedNamespaceDeclaration(namespaceName)
+        //        .AddMembers(targetSyntax);
+        //}
+
+        targetSyntax = targetSyntax.WithAncestryFrom(template.Target.Type);
 
         var compilationUnit = CompilationUnit()
             //.AddMembers(runtimeTypeList.ToArray())

@@ -23,7 +23,9 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
         {
             ExecuteInternal(context, locator.TargetNode);
         }
+#pragma warning disable CA1031 // we're explicitly catching _any_ exception and converting it to a diagnostic message
         catch (Exception ex)
+#pragma warning restore CA1031
         {
             context.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor("SY0000", "Failed to create CSharpSyntaxQuoter", "Exception: {0}", "Synto.Dev", DiagnosticSeverity.Error, true), null, ex.ToString()));
         }
@@ -47,7 +49,7 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
 
         UsingDirectiveSet additionalUsings = new UsingDirectiveSet(CSharpSyntaxQuoter.RequiredUsings());
 
-        var filteredMembers = allMembers.OfType<IMethodSymbol>().Where(member => member.Name.StartsWith("Visit") && member.Name.Length > "Visit".Length);
+        var filteredMembers = allMembers.OfType<IMethodSymbol>().Where(member => member.Name.StartsWith("Visit", StringComparison.InvariantCultureIgnoreCase) && member.Name.Length > "Visit".Length);
 
 
         //Debugger.Launch();
@@ -135,7 +137,9 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
 
                 if (sourceMemberSymbol is null)
                 {
+#pragma warning disable CA2201 // we don't really care in the bootstrap project
                     throw new Exception($"Unable to find SyntaxNode member {sourceMemberName} on type {paramSymbol.Type.ToDisplayString()}");
+#pragma warning restore CA2201
                 }
 
 
@@ -151,7 +155,9 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
                 }
                 else if (sourceMemberSymbol is not IPropertySymbol)
                 {
+#pragma warning disable CA2201 // we don't really care in the bootstrap project
                     throw new Exception($"Was not expecting SyntaxNode member {sourceMemberName} to be of type {sourceMemberSymbol.GetType().FullName}");
+#pragma warning restore CA2201
                 }
 
                 if (!argType.IsPrimitive())
@@ -193,7 +199,39 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
 
             var quotedExpr = CSharpSyntaxQuoter.Quote(expr, exclude: unquoted);
 
-            body = Block().AddStatements(ReturnStatement(quotedExpr).WithLeadingTrivia(Comment("// " + commentText)));
+            var nullGuard = IfStatement(
+                IsPatternExpression(
+                    IdentifierName(parameterSyntax.Identifier),
+                    ConstantPattern(
+                        LiteralExpression(
+                            SyntaxKind.NullLiteralExpression))),
+                ThrowStatement(
+                    ObjectCreationExpression(
+                        additionalUsings.GetTypeName(ParseName(typeof(ArgumentNullException).FullName!)),
+                        ArgumentList(
+                            SingletonSeparatedList(
+                                Argument(
+                                    InvocationExpression(
+                                        IdentifierName(
+                                            Identifier(
+                                                TriviaList(),
+                                                SyntaxKind.NameOfKeyword,
+                                                SyntaxFacts.GetText(SyntaxKind.NameOfKeyword),
+                                                SyntaxFacts.GetText(SyntaxKind.NameOfKeyword),
+                                                TriviaList())),
+                                        ArgumentList(
+                                            SingletonSeparatedList(
+                                                Argument(
+                                                    IdentifierName(
+                                                        parameterSyntax.Identifier)))))))),
+                        initializer: null)));
+
+
+
+            body = Block().AddStatements(
+                nullGuard,
+                ReturnStatement(quotedExpr)
+                    .WithLeadingTrivia(Comment("// " + commentText)));
 
             var returnTypeSyntax = NullableType(additionalUsings.GetTypeName(ParseName(typeof(ExpressionSyntax).FullName)));
 

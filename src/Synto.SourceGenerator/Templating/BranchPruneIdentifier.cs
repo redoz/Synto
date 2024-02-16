@@ -3,9 +3,9 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Synto.Templating;
+namespace Synto;
 
-internal class BranchPruneIdentifier : CSharpSyntaxWalker
+internal sealed class BranchPruneIdentifier : CSharpSyntaxWalker
 {
     public static HashSet<SyntaxNode> FindPrunableNodes(IEnumerable<SyntaxNode> prunableNodes, SyntaxNode node)
     {
@@ -16,7 +16,7 @@ internal class BranchPruneIdentifier : CSharpSyntaxWalker
     
     private readonly HashSet<SyntaxNode> _prunableNodes;
 
-    protected BranchPruneIdentifier(IEnumerable<SyntaxNode> prunableNodes)
+    private BranchPruneIdentifier(IEnumerable<SyntaxNode> prunableNodes)
     {
         _prunableNodes = new HashSet<SyntaxNode>(prunableNodes);
     }

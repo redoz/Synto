@@ -1,12 +1,11 @@
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Synto.Templating;
+using Synto;
 
 
 namespace Synto.Test.Templating;
 
-[UsesVerify]
 public class SimpleTemplateTest
 {
     private static readonly MetadataReference CorlibReference = MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
@@ -14,7 +13,7 @@ public class SimpleTemplateTest
     private static readonly MetadataReference SystemRuntimeReference = MetadataReference.CreateFromFile(Assembly.Load("System.Runtime, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location);
     
 
-    static Compilation CreateCompilation()
+    static CSharpCompilation CreateCompilation()
     {
         
 
@@ -32,7 +31,7 @@ public class SimpleTemplateTest
         );
     }
 
-    static GeneratorDriver CreateDriver()
+    static CSharpGeneratorDriver CreateDriver()
     {
         var generator = new TemplateFactorySourceGenerator();
         return CSharpGeneratorDriver.Create(generator);
@@ -125,7 +124,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Default)]
+                    [Template(typeof(Factory), Options = TemplateOption.None)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -191,7 +190,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Default)]
+                    [Template(typeof(Factory), Options = TemplateOption.None)]
                     static void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }

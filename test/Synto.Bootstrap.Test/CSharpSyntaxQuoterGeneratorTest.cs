@@ -4,7 +4,6 @@ using System.Reflection;
 
 namespace Synto.Bootstrap.Test;
 
-[UsesVerify]
 public class CSharpSyntaxQuoterGeneratorTest
 {
     [Fact]

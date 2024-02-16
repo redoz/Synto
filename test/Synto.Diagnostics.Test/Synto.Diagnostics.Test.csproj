@@ -6,16 +6,13 @@
     <Nullable>enable</Nullable>
 
     <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.8.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
-    <PackageReference Include="Verify.DiffPlex" Version="2.3.0" />
-    <PackageReference Include="Verify.SourceGenerators" Version="2.2.0" />
-    <PackageReference Include="Verify.Xunit" Version="23.2.0" />
     <PackageReference Include="xunit" Version="2.7.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.7">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -25,16 +22,17 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Verify.DiffPlex" Version="2.3.0" />
+    <PackageReference Include="Verify.SourceGenerators" Version="2.2.0" />
+    <PackageReference Include="Verify.Xunit" Version="23.2.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <!--<ProjectReference Include="..\..\src\Synto\Synto.csproj" />-->
-    <ProjectReference Include="..\..\src\Synto.SourceGenerator\Synto.SourceGenerator.csproj" OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="True" />
-    <ProjectReference Include="..\..\src\Synto\Synto.csproj" />
+    <ProjectReference Include="..\..\src\Synto.Diagnostics\Synto.Diagnostics.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Match\" />
+    <Folder Include="snapshots\" />
   </ItemGroup>
 
 </Project>

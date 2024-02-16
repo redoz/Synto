@@ -11,7 +11,7 @@ using static Synto.Bootstrap.Helpers;
 
 namespace Synto.Bootstrap;
 
-internal partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
+internal sealed partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
 {
     private readonly List<ExpressionSyntax> _exclude;
 
@@ -37,7 +37,7 @@ internal partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax
         };
     }
 
-    public virtual ExpressionSyntax Visit<TNode>(SyntaxList<TNode> nodeList) where TNode : SyntaxNode
+    public ExpressionSyntax Visit<TNode>(SyntaxList<TNode> nodeList) where TNode : SyntaxNode
     {
         // when attributes are filtered from the syntax tree we will end up in situations where we have nulls in this nodeList
         // originally we rewrote the syntax tree to exclude the Attribute before passing down the mutated syntax tree, but that 
@@ -53,7 +53,7 @@ internal partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax
             ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs, elementType)))));
     }
 
-    public virtual ExpressionSyntax Visit<TNode>(SeparatedSyntaxList<TNode> nodeList) where TNode : SyntaxNode
+    public ExpressionSyntax Visit<TNode>(SeparatedSyntaxList<TNode> nodeList) where TNode : SyntaxNode
     {
         // when attributes are filtered from the syntax tree we will end up in situations where we have nulls in this nodeList
         // originally we rewrote the syntax tree to exclude the Attribute before passing down the mutated syntax tree, but that 
@@ -83,7 +83,7 @@ internal partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax
                 ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(quotedExprs!, IdentifierName(nameof(SyntaxNodeOrToken)))))));
     }
 
-    protected static ExpressionSyntax ToArrayLiteral(IEnumerable<ExpressionSyntax> nodeList, TypeSyntax elementType)
+    private static ExpressionSyntax ToArrayLiteral(IEnumerable<ExpressionSyntax> nodeList, TypeSyntax elementType)
     {
         var list = nodeList.ToList();
         if (list.Count == 0)
@@ -105,14 +105,16 @@ internal partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax
                 SeparatedList(list)));
     }
 
-    public virtual ExpressionSyntax Visit(SyntaxKind kind)
+#pragma warning disable CA1822 // technically correct, but we're following the pattern of all the other Visit methods
+    public ExpressionSyntax Visit(SyntaxKind kind)
+#pragma warning restore CA1822
     {
         return IdentifierName(kind.ToString());
     }
 
-    public virtual ExpressionSyntax Visit(SyntaxToken token)
+    public ExpressionSyntax Visit(SyntaxToken token)
     {
-        static bool TokenKindHasText(SyntaxKind kind) => SyntaxFacts.GetText(kind) != string.Empty;
+        static bool TokenKindHasText(SyntaxKind kind) => SyntaxFacts.GetText(kind).Length != 0;
 
         return token.Kind() switch
         {
@@ -144,12 +146,12 @@ internal partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax
 
     }
 
-    public virtual ExpressionSyntax Visit(SyntaxTriviaList triviaList)
+    public ExpressionSyntax Visit(SyntaxTriviaList triviaList)
     {
         return SyntaxFactoryInvocation(nameof(TriviaList));
     }
 
-    public virtual ExpressionSyntax Visit(SyntaxTokenList tokenList)
+    public ExpressionSyntax Visit(SyntaxTokenList tokenList)
     {
         return SyntaxFactoryInvocation(nameof(TokenList), tokenList.Select(Visit).ToArray());
     }

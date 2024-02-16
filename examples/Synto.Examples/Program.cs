@@ -43,11 +43,13 @@ for (;;)
 
 }
 
-record Choice(string Name, Func<string> Example)
+sealed record Choice(string Name, Func<string> Example)
 {
     public override string ToString() => Name;
 }
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1052:Static holder types should be Static or NotInheritable", Justification = "This is just an example")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1050:Declare types in namespaces", Justification = "This is just an example")]
 public class Examples
 {
 #pragma warning disable CS8321 // Local function is declared but never used
@@ -134,7 +136,7 @@ public class Examples
 
     public static string Test4()
     {
-        [Template(typeof(Factory), Options = TemplateOption.Default)]
+        [Template(typeof(Factory), Options = TemplateOption.None)]
         static void FullMethod()
         {
             Console.WriteLine("Hello World");
@@ -225,7 +227,7 @@ public class Examples
 }
 
 
-partial class Factory { };
+static partial class Factory { };
 
 
 

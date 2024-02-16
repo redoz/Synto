@@ -3,9 +3,9 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Synto.Templating;
+namespace Synto;
 
-internal class TemplateInfo
+internal sealed class TemplateInfo
 {
     private TemplateInfo(SemanticModel semanticModel, AttributeSyntax attributeSyntax, Source templateSource, TargetType factoryTarget, TemplateOption options)
     {
@@ -50,7 +50,7 @@ internal class TemplateInfo
 
         var source = new Source(syntaxContext.TargetNode, syntaxContext.TargetSymbol.Name);
 
-        var options = TemplateOption.Default;
+        var options = TemplateOption.None;
 
         foreach (var namedArgs in attr.NamedArguments)
         {

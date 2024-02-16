@@ -3,9 +3,9 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Diagnostics;
 
-namespace Synto.Templating;
+namespace Synto;
 
-internal class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
+internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
 {
     private readonly TemplateSyntaxQuoter _quoter;
     private readonly TemplateInfo _template;
