@@ -927,6 +927,24 @@ public partial class CSharpSyntaxQuoter
                        Token(CloseParenToken)));
     }
 
+    public override ExpressionSyntax? VisitFieldExpression(FieldExpressionSyntax node)
+    {
+        if (node is null)
+            throw new ArgumentNullException(nameof(node));
+        // FieldExpression(Visit(node.Token)!)
+        return InvocationExpression(
+                   IdentifierName(nameof(FieldExpression)), 
+                   ArgumentList(
+                       Token(OpenParenToken), 
+                       SeparatedList<ArgumentSyntax>(
+                           new SyntaxNodeOrToken[] { 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.Token)!) }), 
+                       Token(CloseParenToken)));
+    }
+
     public override ExpressionSyntax? VisitMakeRefExpression(MakeRefExpressionSyntax node)
     {
         if (node is null)
@@ -5524,6 +5542,52 @@ public partial class CSharpSyntaxQuoter
                                    null, 
                                    Token(None), 
                                    Visit(node.DefaultKeyword)!) }), 
+                       Token(CloseParenToken)));
+    }
+
+    public override ExpressionSyntax? VisitAllowsConstraintClause(AllowsConstraintClauseSyntax node)
+    {
+        if (node is null)
+            throw new ArgumentNullException(nameof(node));
+        // AllowsConstraintClause(Visit(node.AllowsKeyword)!, Visit(node.Constraints)!)
+        return InvocationExpression(
+                   IdentifierName(nameof(AllowsConstraintClause)), 
+                   ArgumentList(
+                       Token(OpenParenToken), 
+                       SeparatedList<ArgumentSyntax>(
+                           new SyntaxNodeOrToken[] { 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.AllowsKeyword)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.Constraints)!) }), 
+                       Token(CloseParenToken)));
+    }
+
+    public override ExpressionSyntax? VisitRefStructConstraint(RefStructConstraintSyntax node)
+    {
+        if (node is null)
+            throw new ArgumentNullException(nameof(node));
+        // RefStructConstraint(Visit(node.RefKeyword)!, Visit(node.StructKeyword)!)
+        return InvocationExpression(
+                   IdentifierName(nameof(RefStructConstraint)), 
+                   ArgumentList(
+                       Token(OpenParenToken), 
+                       SeparatedList<ArgumentSyntax>(
+                           new SyntaxNodeOrToken[] { 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.RefKeyword)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.StructKeyword)!) }), 
                        Token(CloseParenToken)));
     }
 

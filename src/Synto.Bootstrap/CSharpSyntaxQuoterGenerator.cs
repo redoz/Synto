@@ -7,21 +7,32 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Synto.Formatting;
-using Synto;
 
 namespace Synto.Bootstrap;
 
-[Generator]
-public class CSharpSyntaxQuoterGenerator : ISourceGenerator
+[Generator(LanguageNames.CSharp)]
+public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
 {
-    public void Execute(GeneratorExecutionContext context)
+    public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        if (context.SyntaxContextReceiver is not TargetLocator locator || locator.TargetNode is null)
-            return;
+        var syntaxProvider = context.SyntaxProvider.CreateSyntaxProvider((node, _) =>
+                node is ClassDeclarationSyntax cdl &&
+                StringComparer.Ordinal.Equals("CSharpSyntaxQuoter", cdl.Identifier.Text),
+            (syntaxContext, _) =>
+                ((ClassDeclarationSyntax)syntaxContext.Node, syntaxContext.SemanticModel));
+        //var assemblyName = context.CompilationProvider.Select(static (c, _) => c.AssemblyName);
+
+        //var providerWithCompilation = syntaxProvider.Combine(assemblyName);
+
+        context.RegisterSourceOutput(syntaxProvider, Execute);
+    }
+
+    private void Execute(SourceProductionContext context, (ClassDeclarationSyntax TargetNode, SemanticModel SemanticModel) target)
+    {
 
         try
         {
-            ExecuteInternal(context, locator.TargetNode);
+            ExecuteInternal(context, target.TargetNode, target.SemanticModel);
         }
 #pragma warning disable CA1031 // we're explicitly catching _any_ exception and converting it to a diagnostic message
         catch (Exception ex)
@@ -31,11 +42,11 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
         }
     }
 
-    private void ExecuteInternal(GeneratorExecutionContext context, ClassDeclarationSyntax targetClass)
+    private void ExecuteInternal(SourceProductionContext context, ClassDeclarationSyntax targetClass,
+        SemanticModel semanticModel)
     {
         //System.Diagnostics.Debugger.Launch();
 
-        var semanticModel = context.Compilation.GetSemanticModel(targetClass.SyntaxTree);
         var typeSymbol = semanticModel.GetDeclaredSymbol(targetClass)!;
 
         // this is a bit weird, but it finds the type we need
@@ -68,9 +79,9 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
             var parameterSyntax = Parameter(Identifier(paramSymbol.Name))
                 .WithType(additionalUsings.GetTypeName(paramSymbol.Type.GetQualifiedNameSyntax()));
 
-
+            
             // identify SyntaxFactory method we should call (this isn't very nice, or robust)
-            var syntaxFactorySymbol = context.Compilation.GetTypeByMetadataName(typeof(SyntaxFactory).FullName /* this is technically not correct, but will work for this type */)!;
+            var syntaxFactorySymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(SyntaxFactory).FullName /* this is technically not correct, but will work for this type */)!;
             var candidateMethods = syntaxFactorySymbol.GetMembers()
                 .OfType<IMethodSymbol>()
                 .Where(method => StringComparer.OrdinalIgnoreCase.Equals(method.Name, item.Name.Substring("Visit".Length)) && method.Parameters.Length > 0);
@@ -263,10 +274,5 @@ public class CSharpSyntaxQuoterGenerator : ISourceGenerator
     }
 
 
-    public void Initialize(GeneratorInitializationContext context)
-    {
-        //Debugger.Launch();
-        context.RegisterForSyntaxNotifications(() => new TargetLocator());
-    }
 
 }

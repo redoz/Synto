@@ -1,14 +1,31 @@
 ﻿{
   Diagnostics: [
     {
-      Id: SY1006,
-      Title: Invalid Source,
-      Severity: Error,
-      WarningLevel: 0,
-      Location: : (7,8)-(11,9),
-      MessageFormat: Source function '{0}' can not have multiple statement when Single is specified,
+      Location: /*
+    public void TestMethod() {
+        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        void LocalFunction() {
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            Console.WriteLine("Hello world");
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            Console.WriteLine("Hello world");
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        }
+^^^^^^^^^
+    }
+*/
+ : (7,8)-(11,9),
       Message: Source function 'LocalFunction' can not have multiple statement when Single is specified,
-      Category: Synto.Usage
+      Severity: Error,
+      Descriptor: {
+        Id: SY1006,
+        Title: Invalid Source,
+        MessageFormat: Source function '{0}' can not have multiple statement when Single is specified,
+        Category: Synto.Usage,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
     }
   ]
 }

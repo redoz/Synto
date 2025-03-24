@@ -28,7 +28,7 @@
   <ItemGroup>
     <PackageReference Include="Nerdbank.GitVersioning" Condition="!Exists('packages.config')">
       <PrivateAssets>all</PrivateAssets>
-      <Version>3.6.133</Version>
+      <Version>3.7.115</Version>
     </PackageReference>
     <!-- we don't want these included as dependencies -->
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="all" />    

@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 
 namespace Synto.Test;
-public static class ModuleInitializer
+internal static class ModuleInitializer
 {
 
     [ModuleInitializer]
