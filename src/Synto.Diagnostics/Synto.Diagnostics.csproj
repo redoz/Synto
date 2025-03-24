@@ -5,11 +5,7 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 
     <!-- nuget package properties -->
-<!--
     <PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/redoz/Synto.git</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
--->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageTags>Roslyn;Syntax</PackageTags>
     <PackageOutputPath>$(SolutionDir)\artifacts\</PackageOutputPath>
