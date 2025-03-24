@@ -10,6 +10,7 @@
     <RepositoryUrl>https://github.com/redoz/Synto.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
 -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageTags>Roslyn;Syntax</PackageTags>
     <PackageOutputPath>$(SolutionDir)\artifacts\</PackageOutputPath>
     <PackageReadmeFile>Synto.Diagnostics.NuGet.md</PackageReadmeFile>
