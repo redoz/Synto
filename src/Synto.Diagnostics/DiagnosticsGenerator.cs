@@ -166,7 +166,7 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
         return true;
     }
 
-    private void ProcessTarget(SourceProductionContext context, TargetInfo targetInfo)
+    private static void ProcessTarget(SourceProductionContext context, TargetInfo targetInfo)
     {
         CancellationToken cancellationToken = context.CancellationToken;
 

@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 
 namespace Synto.Bootstrap.Test;
 
-public static class ModuleInitializer
+internal static class ModuleInitializer
 {
 
     [ModuleInitializer]

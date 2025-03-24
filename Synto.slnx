@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/build/">
+    <File Path="Directory.Build.props" />
+  </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/Synto.Examples/Synto.Examples.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Synto.Bootstrap/Synto.Bootstrap.csproj" />
+    <Project Path="src/Synto.Diagnostics/Synto.Diagnostics.csproj" />
+    <Project Path="src/Synto.SourceGenerator/Synto.SourceGenerator.csproj" />
+    <Project Path="src/Synto/Synto.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/Synto.Bootstrap.Test/Synto.Bootstrap.Test.csproj" />
+    <Project Path="test/Synto.Diagnostics.Test/Synto.Diagnostics.Test.csproj" />
+    <Project Path="test/Synto.Test/Synto.Test.csproj" />
+  </Folder>
+</Solution>

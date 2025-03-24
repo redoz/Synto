@@ -50,7 +50,7 @@ sealed record Choice(string Name, Func<string> Example)
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1052:Static holder types should be Static or NotInheritable", Justification = "This is just an example")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1050:Declare types in namespaces", Justification = "This is just an example")]
-public class Examples
+internal class Examples
 {
 #pragma warning disable CS8321 // Local function is declared but never used
     public static string Test0()
