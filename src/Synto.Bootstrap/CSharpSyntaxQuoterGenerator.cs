@@ -20,9 +20,6 @@ public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
                 StringComparer.Ordinal.Equals("CSharpSyntaxQuoter", cdl.Identifier.Text),
             (syntaxContext, _) =>
                 ((ClassDeclarationSyntax)syntaxContext.Node, syntaxContext.SemanticModel));
-        //var assemblyName = context.CompilationProvider.Select(static (c, _) => c.AssemblyName);
-
-        //var providerWithCompilation = syntaxProvider.Combine(assemblyName);
 
         context.RegisterSourceOutput(syntaxProvider, Execute);
     }
