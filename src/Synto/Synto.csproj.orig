@@ -16,5 +16,14 @@
   <ItemGroup>
     <ProjectReference Include="..\Synto.Bootstrap\Synto.Bootstrap.csproj" OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="False" />
   </ItemGroup>
-
+  
+  <ItemGroup>
+<<<<<<< HEAD
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+  </ItemGroup>
+=======
+    <Folder Include="Match\" />
+  </ItemGroup>
+ 
+>>>>>>> b41a266 (Work on ObjectReader example)
 </Project>
