@@ -2,15 +2,59 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-	<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+
+    <!-- nuget package properties -->
+<!--
+    <PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/redoz/Synto.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+-->
+    <PackageTags>Roslyn;Syntax</PackageTags>
+    <PackageOutputPath>$(SolutionDir)\artifacts\</PackageOutputPath>
+    <PackageReadmeFile>Synto.Diagnostics.NuGet.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <Description>Creates Diagnostics for Roslyn source generators</Description>
+
+    <!-- source generator stuff -->
+    <developmentDependency>true</developmentDependency>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <!-- don't include the build output in this package as libraries -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <!-- don't complain about the crimes we're committing -->
+	  <NoPackageAnalysis>true</NoPackageAnalysis>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Package the generator in the analyzer directory of the nuget package -->
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <!-- also include this as this is a directy dependency -->
+    <None Include="$(OutputPath)\Synto.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <None Include="..\..\LICENSE" Pack="true" Visible="false" PackagePath="\" />
+    <None Include="..\..\Synto.Diagnostics.NuGet.md" Pack="true" Visible="false" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Synto\Synto.csproj" />
+    <ProjectReference Include="..\Synto\Synto.csproj" PrivateAssets="all"/>
   </ItemGroup>
 
+  
+  <!--we're injecting Synto as a runtime dependency for the analyzer -->
+  <PropertyGroup>
+    <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
+  </PropertyGroup>
+
+  <Target Name="GetDependencyTargetPaths">
+    <ItemGroup>
+      <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)\Synto.dll" IncludeRuntimeDependency="false" MSBuildSourceProjectFile="Synto.csproj" />
+    </ItemGroup>
+  </Target>
 </Project>
