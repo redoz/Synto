@@ -1,0 +1,40 @@
+<Project>
+
+  <PropertyGroup>
+	<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <!--
+	Roslyn / Microsoft.CodeAnalysis floor.
+	5.0.0 is the lowest public package matching the .NET 10 SDK baseline. A generator compiled
+	against this version loads on any host Roslyn >= 5.0 (forward compatible), so a single analyzer
+	DLL is sufficient. Bumping this floor raises the minimum SDK consumers need.
+  -->
+  <ItemGroup>
+	<PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+	<PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="5.0.0" />
+	<PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
+  </ItemGroup>
+
+  <!-- Build / versioning -->
+  <ItemGroup>
+	<PackageVersion Include="Nerdbank.GitVersioning" Version="3.7.115" />
+  </ItemGroup>
+
+  <!-- Test -->
+  <ItemGroup>
+	<PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+	<PackageVersion Include="xunit.v3" Version="2.0.0" />
+	<PackageVersion Include="xunit.runner.visualstudio" Version="3.0.2" />
+	<PackageVersion Include="coverlet.collector" Version="6.0.4" />
+	<PackageVersion Include="Verify.XunitV3" Version="28.16.0" />
+	<PackageVersion Include="Verify.DiffPlex" Version="3.1.2" />
+	<PackageVersion Include="Verify.SourceGenerators" Version="2.5.0" />
+  </ItemGroup>
+
+  <!-- Samples -->
+  <ItemGroup>
+	<PackageVersion Include="Spectre.Console" Version="0.49.1" />
+  </ItemGroup>
+
+</Project>

@@ -1,67 +1,41 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <RootNamespace>Synto</RootNamespace>
+	<TargetFramework>netstandard2.0</TargetFramework>
+	<RootNamespace>Synto</RootNamespace>
 	<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- nuget package properties -->
-    <PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <PackageTags>Roslyn;Syntax</PackageTags>
-    <PackageOutputPath>$(SolutionDir)\artifacts\</PackageOutputPath>
-    <PackageReadmeFile>Synto.NuGet.md</PackageReadmeFile>
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <Description>Create Roslyn Syntax Trees from your C# code.</Description>
+	<!-- Opt in to the shared Synto analyzer-packaging logic in Directory.Build.targets.
+		 The consumer's generated code references Synto types at runtime, so Synto.dll is also
+		 shipped as a library dependency. -->
+	<IsSyntoGeneratorPackage>true</IsSyntoGeneratorPackage>
+	<SyntoRuntimeIsConsumerDependency>true</SyntoRuntimeIsConsumerDependency>
 
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <!-- don't include the build output in this package as libraries -->
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <!-- don't complain about the crimes we're committing -->
-    <NoPackageAnalysis>true</NoPackageAnalysis>
-    <PackageId>Synto</PackageId>
+	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
+	<PackageId>Synto</PackageId>
+	<PackageReadmeFile>Synto.NuGet.md</PackageReadmeFile>
+	<Description>Create Roslyn Syntax Trees from your C# code.</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\..\LICENSE" Pack="true" Visible="false" PackagePath="\" />
-    <None Include="..\..\Synto.NuGet.md" Pack="true" Visible="false" PackagePath="\" />
+	<None Include="..\..\Synto.NuGet.md" Pack="true" Visible="false" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
-    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+	<AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+	<AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" />        
-    <!-- we do want a pacakge dependency on this for whoever consumes our package -->
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" />
+	<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+	<!-- we do want a pacakge dependency on this for whoever consumes our package -->
+	<PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Synto\Synto.csproj" PrivateAssets="all" />
+	<ProjectReference Include="..\Synto\Synto.csproj" PrivateAssets="all" />
   </ItemGroup>
- 
-  <ItemGroup>
-    <!--include output as analyzer -->
-    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <!-- also include this as this is a directy dependency -->
-    <None Include="$(OutputPath)\Synto.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <!-- but we also throw this in the lib folder so the package consumer gets it as library depdendency -->
-    <None Include="$(OutputPath)\Synto.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
-  </ItemGroup>
-
-  <!--we're injecting Synto as a runtime dependency for the analyzer -->
-  <PropertyGroup>
-    <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
-  </PropertyGroup>
-
-  <Target Name="GetDependencyTargetPaths">
-    <ItemGroup>
-      <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)\Synto.dll" IncludeRuntimeDependency="true" MSBuildSourceProjectFile="Synto.csproj" />
-    </ItemGroup>
-  </Target>
 
 </Project>

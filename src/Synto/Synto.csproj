@@ -3,12 +3,14 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <IsPackable>false</IsPackable>
+    <!-- Not packed (IsPackable=false), but a distinct PackageId is required so this project's
+         restore-graph identity doesn't collide with Synto.SourceGenerator's PackageId=Synto. -->
     <PackageId>Synto.Core</PackageId>
   </PropertyGroup>
 
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
   
   <ItemGroup>

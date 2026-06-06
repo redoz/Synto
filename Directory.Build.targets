@@ -1,0 +1,74 @@
+<Project>
+
+  <!-- =============================================================================================
+	   Shared packaging logic for Synto's Roslyn analyzer / source-generator NuGet packages.
+
+	   A project opts in by setting <IsSyntoGeneratorPackage>true</IsSyntoGeneratorPackage>.
+
+	   These packages ship their generator assembly (plus the small Synto runtime-helper assembly)
+	   under analyzers/dotnet/cs so the C# compiler loads them at build time. Because the build
+	   output is intentionally not a normal library (IncludeBuildOutput=false), NuGet's default pack
+	   validation flags this layout; it is disabled for these analyzer packages only.
+
+	   Per-package knob:
+		 SyntoRuntimeIsConsumerDependency = true  -> Synto.dll is ALSO shipped in lib/netstandard2.0
+													 and declared a runtime dependency, because the
+													 consumer's GENERATED code references Synto types
+													 at runtime (the Synto package).
+										  = false -> Synto.dll is only needed by the generator at
+													 analysis time (the Synto.Diagnostics package).
+
+	   This file is imported by every project in the repo, so all logic is gated on
+	   IsSyntoGeneratorPackage to leave the runtime lib, tests, and examples untouched.
+	   ============================================================================================= -->
+
+  <PropertyGroup Condition="'$(IsSyntoGeneratorPackage)' == 'true'">
+	<!-- The compiler-loaded assemblies are packed by hand below, not as ordinary build output. -->
+	<IncludeBuildOutput>false</IncludeBuildOutput>
+
+	<!-- Default: Synto.dll is only an analysis-time dependency unless a package opts in. -->
+	<SyntoRuntimeIsConsumerDependency Condition="'$(SyntoRuntimeIsConsumerDependency)' == ''">false</SyntoRuntimeIsConsumerDependency>
+
+	<!-- Only produce the .nupkg on Release builds to keep the Debug inner loop fast.
+		 `dotnet pack` still works on demand in any configuration. -->
+	<GeneratePackageOnBuild Condition="'$(Configuration)' == 'Release'">true</GeneratePackageOnBuild>
+
+	<!-- Analyzer packages legitimately place assemblies under analyzers/ (and, for Synto, lib/)
+		 while disabling normal build output, which NuGet's pack analysis (NU5128 etc.) flags.
+		 The layout is deliberate, so analysis is disabled for these packages only. -->
+	<NoPackageAnalysis>true</NoPackageAnalysis>
+
+	<!-- Shared package metadata -->
+	<PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
+	<PublishRepositoryUrl>true</PublishRepositoryUrl>
+	<PackageTags>Roslyn;Syntax</PackageTags>
+	<PackageOutputPath>$(MSBuildThisFileDirectory)artifacts\</PackageOutputPath>
+	<PackageLicenseFile>LICENSE</PackageLicenseFile>
+  </PropertyGroup>
+
+  <!-- LICENSE + generator assembly + Synto helper assembly into analyzers/dotnet/cs -->
+  <ItemGroup Condition="'$(IsSyntoGeneratorPackage)' == 'true'">
+	<None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" Visible="false" PackagePath="\" />
+	<None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	<None Include="$(OutputPath)Synto.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+
+  <!-- When the consumer's generated code needs Synto at runtime, also ship it as a library -->
+  <ItemGroup Condition="'$(IsSyntoGeneratorPackage)' == 'true' and '$(SyntoRuntimeIsConsumerDependency)' == 'true'">
+	<None Include="$(OutputPath)Synto.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
+  </ItemGroup>
+
+  <!-- Inject Synto.dll alongside the analyzer so Roslyn resolves it when loading the generator. -->
+  <PropertyGroup Condition="'$(IsSyntoGeneratorPackage)' == 'true'">
+	<GetTargetPathDependsOn>$(GetTargetPathDependsOn);SyntoGetDependencyTargetPaths</GetTargetPathDependsOn>
+  </PropertyGroup>
+
+  <Target Name="SyntoGetDependencyTargetPaths" Condition="'$(IsSyntoGeneratorPackage)' == 'true'">
+	<ItemGroup>
+	  <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)Synto.dll"
+										   IncludeRuntimeDependency="$(SyntoRuntimeIsConsumerDependency)"
+										   MSBuildSourceProjectFile="Synto.csproj" />
+	</ItemGroup>
+  </Target>
+
+</Project>
