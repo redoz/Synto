@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 
 namespace Synto;
 
@@ -11,13 +12,13 @@ namespace Synto;
 internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IReadOnlyList<T>
     where T : IEquatable<T>
 {
-    public static readonly EquatableArray<T> Empty = new(Array.Empty<T>());
+    public static readonly EquatableArray<T> Empty = new(ImmutableArray<T>.Empty);
 
-    private readonly T[]? _array;
+    private readonly ImmutableArray<T> _array;
 
-    public EquatableArray(T[] array) => _array = array;
+    public EquatableArray(ImmutableArray<T> array) => _array = array;
 
-    private T[] Items => _array ?? Array.Empty<T>();
+    private ImmutableArray<T> Items => _array.IsDefault ? ImmutableArray<T>.Empty : _array;
 
     public int Count => Items.Length;
 

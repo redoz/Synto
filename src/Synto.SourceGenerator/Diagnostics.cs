@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
 namespace Synto;
@@ -20,11 +21,9 @@ internal static class Diagnostics
     {
         return new DiagnosticInfo(_internalError,
                                     Location: null,
-                                    new EquatableArray<string>(new[]
-                                    {
+                                    new EquatableArray<string>(ImmutableArray.Create(
                                         exception.GetType().FullName!,
-                                        exception.ToString().Replace("\r", "").Replace("\n", " ")
-                                    }));
+                                        exception.ToString().Replace("\r", "").Replace("\n", " "))));
     }
 
     private static readonly DiagnosticDescriptor _targetNotPartial = new(IdPrefix + "1001",
@@ -38,7 +37,7 @@ internal static class Diagnostics
     {
         return new DiagnosticInfo(_targetNotPartial,
                                     LocationInfo.CreateFrom(target.GetReferenceLocation()),
-                                    new EquatableArray<string>(new[] { target.FullName }));
+                                    new EquatableArray<string>(ImmutableArray.Create(target.FullName)));
     }
 
     private static readonly DiagnosticDescriptor _targetNotClass = new(IdPrefix + "1002",
@@ -52,7 +51,7 @@ internal static class Diagnostics
     {
         return new DiagnosticInfo(_targetNotClass,
                                     LocationInfo.CreateFrom(target.GetReferenceLocation()),
-                                    new EquatableArray<string>(new[] { target.FullName }));
+                                    new EquatableArray<string>(ImmutableArray.Create(target.FullName)));
     }
 
     private static readonly DiagnosticDescriptor _targetNotDeclaredInSource = new(IdPrefix + "1003",
@@ -66,7 +65,7 @@ internal static class Diagnostics
     {
         return new DiagnosticInfo(_targetNotDeclaredInSource,
                                     LocationInfo.CreateFrom(target.GetReferenceLocation()),
-                                    new EquatableArray<string>(new[] { target.FullName, projectName ?? "<unknown>" }));
+                                    new EquatableArray<string>(ImmutableArray.Create(target.FullName, projectName ?? "<unknown>")));
     }
 
     private static readonly DiagnosticDescriptor _targetAncestorNotPartial = new(IdPrefix + "1004",
@@ -80,7 +79,7 @@ internal static class Diagnostics
     {
         return new DiagnosticInfo(_targetAncestorNotPartial,
                                     LocationInfo.CreateFrom(target.GetReferenceLocation()),
-                                    new EquatableArray<string>(new[] { target.FullName, ancestorName }));
+                                    new EquatableArray<string>(ImmutableArray.Create(target.FullName, ancestorName)));
     }
 
     private static readonly DiagnosticDescriptor _bareSourceCannotBeEmpty = new(IdPrefix + "1005",
@@ -94,7 +93,7 @@ internal static class Diagnostics
     {
         return new DiagnosticInfo(_bareSourceCannotBeEmpty,
                                     LocationInfo.CreateFrom(source.Syntax.GetLocation()),
-                                    new EquatableArray<string>(new[] { source.Identifier }));
+                                    new EquatableArray<string>(ImmutableArray.Create(source.Identifier)));
     }
 
     private static readonly DiagnosticDescriptor _multipleStatementsNotAllowed = new(IdPrefix + "1006",
@@ -108,7 +107,7 @@ internal static class Diagnostics
     {
         return new DiagnosticInfo(_multipleStatementsNotAllowed,
             LocationInfo.CreateFrom(source.Syntax.GetLocation()),
-            new EquatableArray<string>(new[] { source.Identifier }));
+            new EquatableArray<string>(ImmutableArray.Create(source.Identifier)));
     }
 
 
@@ -123,6 +122,6 @@ internal static class Diagnostics
     {
         return new DiagnosticInfo(_multipleMembersNotAllowed,
             LocationInfo.CreateFrom(source.Syntax.GetLocation()),
-            new EquatableArray<string>(new[] { source.Identifier }));
+            new EquatableArray<string>(ImmutableArray.Create(source.Identifier)));
     }
 }

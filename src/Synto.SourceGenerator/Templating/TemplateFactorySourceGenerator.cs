@@ -63,7 +63,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             diagnostics.Add(Diagnostics.InternalError(ex));
         }
 
-        return new TemplateGenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()));
+        return new TemplateGenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
     private static void Emit(SourceProductionContext context, TemplateGenerationResult result)

@@ -5356,6 +5356,69 @@ public partial class CSharpSyntaxQuoter
                        Token(CloseParenToken)));
     }
 
+    public override ExpressionSyntax? VisitExtensionBlockDeclaration(ExtensionBlockDeclarationSyntax node)
+    {
+        if (node is null)
+            throw new ArgumentNullException(nameof(node));
+        // ExtensionBlockDeclaration(Visit(node.AttributeLists)!, Visit(node.Modifiers).OrNullLiteralExpression(), Visit(node.Keyword).OrNullLiteralExpression(), Visit(node.TypeParameterList).OrNullLiteralExpression(), Visit(node.ParameterList).OrNullLiteralExpression(), Visit(node.ConstraintClauses)!, Visit(node.OpenBraceToken).OrNullLiteralExpression(), Visit(node.Members)!, Visit(node.CloseBraceToken).OrNullLiteralExpression(), Visit(node.SemicolonToken).OrNullLiteralExpression())
+        return InvocationExpression(
+                   IdentifierName(nameof(ExtensionBlockDeclaration)), 
+                   ArgumentList(
+                       Token(OpenParenToken), 
+                       SeparatedList<ArgumentSyntax>(
+                           new SyntaxNodeOrToken[] { 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.AttributeLists)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.Modifiers).OrNullLiteralExpression()), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.Keyword).OrNullLiteralExpression()), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.TypeParameterList).OrNullLiteralExpression()), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.ParameterList).OrNullLiteralExpression()), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.ConstraintClauses)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.OpenBraceToken).OrNullLiteralExpression()), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.Members)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.CloseBraceToken).OrNullLiteralExpression()), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.SemicolonToken).OrNullLiteralExpression()) }), 
+                       Token(CloseParenToken)));
+    }
+
     public override ExpressionSyntax? VisitBaseList(BaseListSyntax node)
     {
         if (node is null)
@@ -6558,6 +6621,44 @@ public partial class CSharpSyntaxQuoter
                                    null, 
                                    Token(None), 
                                    Visit(node.Parameters).OrNullLiteralExpression()) }), 
+                       Token(CloseParenToken)));
+    }
+
+    public override ExpressionSyntax? VisitExtensionMemberCref(ExtensionMemberCrefSyntax node)
+    {
+        if (node is null)
+            throw new ArgumentNullException(nameof(node));
+        // ExtensionMemberCref(Visit(node.ExtensionKeyword)!, Visit(node.TypeArgumentList).OrNullLiteralExpression(), Visit(node.Parameters)!, Visit(node.DotToken)!, Visit(node.Member)!)
+        return InvocationExpression(
+                   IdentifierName(nameof(ExtensionMemberCref)), 
+                   ArgumentList(
+                       Token(OpenParenToken), 
+                       SeparatedList<ArgumentSyntax>(
+                           new SyntaxNodeOrToken[] { 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.ExtensionKeyword)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.TypeArgumentList).OrNullLiteralExpression()), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.Parameters)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.DotToken)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.Member)!) }), 
                        Token(CloseParenToken)));
     }
 
@@ -7872,6 +7973,44 @@ public partial class CSharpSyntaxQuoter
                                    null, 
                                    Token(None), 
                                    Visit(node.ExclamationToken)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.EndOfDirectiveToken)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   node.IsActive.ToSyntax()) }), 
+                       Token(CloseParenToken)));
+    }
+
+    public override ExpressionSyntax? VisitIgnoredDirectiveTrivia(IgnoredDirectiveTriviaSyntax node)
+    {
+        if (node is null)
+            throw new ArgumentNullException(nameof(node));
+        // IgnoredDirectiveTrivia(Visit(node.HashToken)!, Visit(node.ColonToken)!, Visit(node.Content)!, Visit(node.EndOfDirectiveToken)!, node.IsActive.ToSyntax())
+        return InvocationExpression(
+                   IdentifierName(nameof(IgnoredDirectiveTrivia)), 
+                   ArgumentList(
+                       Token(OpenParenToken), 
+                       SeparatedList<ArgumentSyntax>(
+                           new SyntaxNodeOrToken[] { 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.HashToken)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.ColonToken)!), 
+                               Token(CommaToken), 
+                               Argument(
+                                   null, 
+                                   Token(None), 
+                                   Visit(node.Content)!), 
                                Token(CommaToken), 
                                Argument(
                                    null, 

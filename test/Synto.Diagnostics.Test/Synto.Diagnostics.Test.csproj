@@ -1,35 +1,32 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Common" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Verify.XunitV3" />
-    <PackageReference Include="xunit.v3" />
-    <PackageReference Include="coverlet.collector">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    <PackageReference Include="xunit.v3.mtp-v2" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
     <PackageReference Include="Verify.DiffPlex" />
     <PackageReference Include="Verify.SourceGenerators" />
-
-    <PackageReference Include="xunit.runner.visualstudio">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Synto.Diagnostics\Synto.Diagnostics.csproj" />
+    <!-- DiagnosticsGeneratorTest loads the Synto runtime at test time (typeof(TemplateAttribute).Assembly).
+         Synto.Diagnostics references Synto with PrivateAssets=all, so Synto.dll is copy-local but absent
+         from deps.json; the MTP runner resolves via deps.json and fails without this direct reference.
+         Mirrors what Synto.Test already does. -->
+    <ProjectReference Include="..\..\src\Synto\Synto.csproj" />
   </ItemGroup>
 
   <ItemGroup>
