@@ -10,7 +10,7 @@ partial class Factory
 {
     public static MethodDeclarationSyntax LocalFunction<T>()
     {
-        TypeSyntax syntaxForTypeParam_T = ParseTypeName(typeof(T).FullName!);
+        TypeSyntax syntaxForTypeParam_T = typeof(T).ToTypeSyntax();
         return MethodDeclaration(
                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
                    TokenList(), 

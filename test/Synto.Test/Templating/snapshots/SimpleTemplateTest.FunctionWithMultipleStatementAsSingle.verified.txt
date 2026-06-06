@@ -1,21 +1,7 @@
 ﻿{
   Diagnostics: [
     {
-      Location: /*
-    public void TestMethod() {
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        void LocalFunction() {
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            Console.WriteLine("Hello world");
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            Console.WriteLine("Hello world");
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        }
-^^^^^^^^^
-    }
-*/
- : (7,8)-(11,9),
+      Location: : (7,8)-(11,9),
       Message: Source function 'LocalFunction' can not have multiple statement when Single is specified,
       Severity: Error,
       Descriptor: {

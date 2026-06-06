@@ -16,7 +16,7 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
         _template = template;
     }
 
-    public static bool TryQuote(TemplateSyntaxQuoter quoter, TemplateInfo template, out ExpressionSyntax? expressionSyntax, out TypeSyntax? returnType, out Diagnostic? error)
+    public static bool TryQuote(TemplateSyntaxQuoter quoter, TemplateInfo template, out ExpressionSyntax? expressionSyntax, out TypeSyntax? returnType, out DiagnosticInfo? error)
     {
         var selector = new TemplateSyntaxQuoterInvoker(quoter, template);
         selector.Visit(template.Source!.Syntax);
@@ -30,7 +30,7 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
 
     public ExpressionSyntax? Expression { get; private set; }
     public TypeSyntax? ReturnType { get; private set; }
-    public Diagnostic? Error { get; private set; }
+    public DiagnosticInfo? Error { get; private set; }
 
     public override void VisitMethodDeclaration(MethodDeclarationSyntax node)
     {

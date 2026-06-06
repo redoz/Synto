@@ -7,6 +7,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 using Synto.Formatting;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
@@ -18,59 +19,80 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var syntaxProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
+        // The whole template is processed inside the transform so the value flowing through the pipeline is
+        // an equatable TemplateGenerationResult (just generated text + diagnostic data). This keeps the
+        // SemanticModel / symbols / syntax nodes out of the cached pipeline state, which restores
+        // incrementality and avoids rooting the compilation in memory across edits.
+        var results = context.SyntaxProvider.ForAttributeWithMetadataName(
                 typeof(TemplateAttribute).FullName!,
                 static (node, cancellationToken) => true,
-                static (syntaxContext, cancellationToken) => TemplateInfo.Create(syntaxContext))
-            .Where(templateInfo => templateInfo is not null);
+                static (syntaxContext, cancellationToken) => GenerateTemplate(syntaxContext))
+            .Where(static result => result is not null);
 
-        var assemblyName = context.CompilationProvider.Select(static (c, _) => c.AssemblyName);
-
-        var providerWithCompilation = syntaxProvider.Combine(assemblyName);
-
-        context.RegisterSourceOutput(providerWithCompilation, Execute);
+        context.RegisterSourceOutput(results, static (context, result) => Emit(context, result!.Value));
     }
 
-    private void Execute(SourceProductionContext context, (TemplateInfo? TemplateInfo, string? AssemblyName) value)
+    private static TemplateGenerationResult? GenerateTemplate(GeneratorAttributeSyntaxContext syntaxContext)
     {
-        if (value.TemplateInfo is null || value.AssemblyName is null)
-            return;
+        var templateInfo = TemplateInfo.Create(syntaxContext);
+        if (templateInfo is null)
+            return null;
+
+        var assemblyName = syntaxContext.SemanticModel.Compilation.AssemblyName;
+        if (assemblyName is null)
+            return null;
+
+        var diagnostics = new List<DiagnosticInfo>();
+
+        string? fileName = null;
+        string? source = null;
 
         try
         {
-            // var semanticModel = context.Compilation.GetSemanticModel(template.AttributeSyntax.SyntaxTree);
-            //var runtimeKey = template.AttributeSyntax.GetNamedArgument<string>(nameof(TemplateAttribute.Runtime), semanticModel) is { HasValue: true } optional ? optional.Value : RuntimeAttribute.Default;
-            //if (!runtimeTypes.TryGetValue(runtimeKey, out var runtimeTypeList))
-            //    runtimeTypeList = new List<TypeDeclarationSyntax>();
-            if (ValidateTemplate(context, value.AssemblyName, value.TemplateInfo))
-                ProcessTemplate(context, value.TemplateInfo);
+            if (ValidateTemplate(diagnostics, assemblyName, templateInfo)
+                && ProcessTemplate(diagnostics, templateInfo) is { } generated)
+            {
+                fileName = generated.FileName;
+                source = generated.Source;
+            }
         }
 #pragma warning disable CA1031 // we're explicitly catching _any_ exception and converting it to a diagnostic message
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            context.ReportDiagnostic(Diagnostics.InternalError(ex));
+            diagnostics.Add(Diagnostics.InternalError(ex));
         }
+
+        return new TemplateGenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()));
+    }
+
+    private static void Emit(SourceProductionContext context, TemplateGenerationResult result)
+    {
+        foreach (var diagnostic in result.Diagnostics)
+            context.ReportDiagnostic(diagnostic.ToDiagnostic());
+
+        if (result.FileName is not null && result.Source is not null)
+            context.AddSource(result.FileName, SourceText.From(result.Source, Encoding.UTF8));
     }
 
 
-    private static bool ValidateTemplate(SourceProductionContext context, string assemblyName, TemplateInfo template)
+    private static bool ValidateTemplate(List<DiagnosticInfo> diagnostics, string assemblyName, TemplateInfo template)
     {
         if (template.Target.Type.DeclaringSyntaxReferences.FirstOrDefault() is not { } syntaxRef)
         {
-            context.ReportDiagnostic(Diagnostics.TargetNotDeclaredInSource(template.Target, assemblyName));
+            diagnostics.Add(Diagnostics.TargetNotDeclaredInSource(template.Target, assemblyName));
             return false;
         }
 
         if (syntaxRef.GetSyntax() is not ClassDeclarationSyntax classSyntax)
         {
-            context.ReportDiagnostic(Diagnostics.TargetNotClass(template.Target));
+            diagnostics.Add(Diagnostics.TargetNotClass(template.Target));
             return false;
         }
 
         if (!classSyntax.Modifiers.Any(SyntaxKind.PartialKeyword))
         {
-            context.ReportDiagnostic(Diagnostics.TargetNotPartial(template.Target));
+            diagnostics.Add(Diagnostics.TargetNotPartial(template.Target));
             return false;
         }
 
@@ -82,7 +104,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             {
                 if (!parentClass.Modifiers.Any(SyntaxKind.PartialKeyword))
                 {
-                    context.ReportDiagnostic(Diagnostics.TargetAncestorNotPartial(template.Target, parentClass.Identifier.Text));
+                    diagnostics.Add(Diagnostics.TargetAncestorNotPartial(template.Target, parentClass.Identifier.Text));
                     ret = false;
                 }
 
@@ -98,16 +120,16 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         return true;
     }
 
-    private static void ProcessTemplate(SourceProductionContext context, TemplateInfo template)
+    private static (string FileName, string Source)? ProcessTemplate(List<DiagnosticInfo> diagnostics, TemplateInfo template)
     {
         // we use this to collect additional usings that are required throughout the source-generation process
         UsingDirectiveSet additionalUsings = new UsingDirectiveSet(CSharpSyntaxQuoter.RequiredUsings());
 
-        MethodDeclarationSyntax? syntaxFactoryMethod = CreateSyntaxFactoryMethod(context, template.SemanticModel, additionalUsings, template, template.Options);
+        MethodDeclarationSyntax? syntaxFactoryMethod = CreateSyntaxFactoryMethod(diagnostics, template.SemanticModel, additionalUsings, template, template.Options);
 
-        // this is null if the template processing failed, but then diagnostics should have been added to the context, so we just exit
+        // this is null if the template processing failed, but then diagnostics should have been added, so we just exit
         if (syntaxFactoryMethod is null)
-            return;
+            return null;
 
         var targetClassDecl = (ClassDeclarationSyntax)template.Target.Type!.DeclaringSyntaxReferences[0].GetSyntax();
 
@@ -148,13 +170,13 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                     .ToArray());
 
 
-        var sourceText = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace()).GetText(Encoding.UTF8);
+        var sourceText = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace()).GetText(Encoding.UTF8).ToString();
 
-        context.AddSource($"{template.Target.FullName}.{template.Source!.Identifier}.g.cs", sourceText);
+        return ($"{template.Target.FullName}.{template.Source!.Identifier}.g.cs", sourceText);
     }
 
     private static MethodDeclarationSyntax? CreateSyntaxFactoryMethod(
-        SourceProductionContext context,
+        List<DiagnosticInfo> diagnostics,
         SemanticModel semanticModel,
         UsingDirectiveSet additionalUsings,
         TemplateInfo templateInfo,
@@ -206,6 +228,16 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 var syntaxForTypeParamIdentifier = Identifier("syntaxForTypeParam_" + typeParamName);
 
                 typeSyntaxForTypeParam = IdentifierName(syntaxForTypeParamIdentifier);
+
+                // typeof(T).ToTypeSyntax() — converts the inlined type argument into a TypeSyntax at
+                // runtime using the Synto helper, which (unlike ParseTypeName(typeof(T).FullName))
+                // correctly handles closed generic types, arrays and nested types.
+                var typeSyntaxInitializer = InvocationExpression(
+                    MemberAccessExpression(
+                        SyntaxKind.SimpleMemberAccessExpression,
+                        TypeOfExpression(IdentifierName(typeParamName)),
+                        IdentifierName(nameof(RuntimeTypeExtensions.ToTypeSyntax))));
+
                 preamble.Add(
                     LocalDeclarationStatement(
                         VariableDeclaration(
@@ -214,21 +246,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                                 VariableDeclarator(
                                     syntaxForTypeParamIdentifier,
                                     null,
-                                    EqualsValueClause(
-                                        InvocationExpression(
-                                            IdentifierName(nameof(ParseTypeName)),
-                                            ArgumentList(
-                                                SingletonSeparatedList(
-                                                    Argument(
-                                                        PostfixUnaryExpression(
-                                                            SyntaxKind.SuppressNullableWarningExpression,
-                                                            MemberAccessExpression(
-                                                                SyntaxKind.SimpleMemberAccessExpression,
-                                                                TypeOfExpression(IdentifierName(typeParamName)),
-                                                                IdentifierName(
-                                                                    nameof(
-                                                                        Type
-                                                                            .FullName)))))))))))))); // BUG calling ParseTypeName on typeof(T).FullName is not going to work for generic types\
+                                    EqualsValueClause(typeSyntaxInitializer))))));
             }
 
             foreach (var typeSyntax in replacements.References)
@@ -342,13 +360,14 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
 
         if (!TemplateSyntaxQuoterInvoker.TryQuote(
-                quoter, 
-                templateInfo, 
-                out ExpressionSyntax? syntaxTreeExpr, 
+                quoter,
+                templateInfo,
+                out ExpressionSyntax? syntaxTreeExpr,
                 out TypeSyntax? returnType,
-                out Diagnostic? error))
+                out DiagnosticInfo? error))
         {
-            context.ReportDiagnostic(error!);
+            if (error is { } errorInfo)
+                diagnostics.Add(errorInfo);
             return null;
         }
 

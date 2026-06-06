@@ -21,6 +21,14 @@ public partial class RoundTripTests
 {
     private static partial class Factory { };
 
+    // Normalize line endings so the assertions are stable regardless of how the
+    // source file was checked out (LF vs CRLF) or which platform the test runs on.
+    private static void AssertGenerated(string expected, SyntaxNode node)
+    {
+        var actual = node.NormalizeWhitespace(eol: "\n").GetText(Encoding.UTF8).ToString().Trim();
+        Assert.Equal(expected.Replace("\r\n", "\n", StringComparison.Ordinal), actual);
+    }
+
     [Fact]
     public void Test0()
     {
@@ -32,9 +40,7 @@ public partial class RoundTripTests
 
         StatementSyntax node = Factory.Simple();
 
-        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
-
-        Assert.Equal("Console.WriteLine(\"Hello World\");", source);
+        AssertGenerated("Console.WriteLine(\"Hello World\");", node);
     }
 
     [Fact]
@@ -48,9 +54,7 @@ public partial class RoundTripTests
 
         StatementSyntax node = Factory.Hello("World");
 
-        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
-
-        Assert.Equal("Console.WriteLine(\"Hello \" + \"World\");", source);
+        AssertGenerated("Console.WriteLine(\"Hello \" + \"World\");", node);
     }
 
     //[Fact]
@@ -118,14 +122,12 @@ public partial class RoundTripTests
 
         StatementSyntax node = Factory.FullMethod();
 
-        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
-
-        Assert.Equal("""
+        AssertGenerated("""
             static void FullMethod()
             {
                 Console.WriteLine("Hello World");
             }
-            """, source);
+            """, node);
     }
 
 
@@ -145,9 +147,7 @@ public partial class RoundTripTests
 
         BlockSyntax node = Factory.Loop(4);
 
-
-        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
-        string expected = """ 
+        string expected = """
                               {
                                   int ret = 0;
                                   for (int i = 0; i < 4; i++)
@@ -157,7 +157,25 @@ public partial class RoundTripTests
                               }
                               """;
 
-        Assert.Equal(expected, source);
+        AssertGenerated(expected, node);
+    }
+
+    [Fact]
+    public void InlinedGenericTypeArgument()
+    {
+        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        static void Make<[Inline] T>()
+        {
+            List<T> list = new List<T>();
+        }
+
+        StatementSyntax node = Factory.Make<List<int>>();
+
+        // the inlined type argument is rendered fully-qualified (no using context exists at runtime);
+        // before the fix this produced the unparseable CLR name "List`1[[System.Int32, ...]]".
+        AssertGenerated(
+            "List<System.Collections.Generic.List<System.Int32>> list = new List<System.Collections.Generic.List<System.Int32>>();",
+            node);
     }
 
     [Fact]
