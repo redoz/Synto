@@ -1,8 +1,6 @@
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Synto;
-
 
 namespace Synto.Test.Templating;
 
@@ -25,7 +23,10 @@ public class SimpleTemplateTest
                 NetStandardReference,
                 SystemRuntimeReference,
                 MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
-                MetadataReference.CreateFromFile(typeof(TemplateAttribute).Assembly.Location)
+                // Reference the PUBLIC Synto.Core surface (via the SyntoCore extern alias). The
+                // in-memory consumer source uses [Template] etc. against these public types; the
+                // internal copy injected into THIS test assembly is not referenceable cross-assembly.
+                MetadataReference.CreateFromFile(SyntoCoreAssembly.Location)
             ],
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
         );

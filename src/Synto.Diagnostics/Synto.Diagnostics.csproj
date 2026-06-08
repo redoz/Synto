@@ -6,7 +6,7 @@
 
 	<!-- Opt in to the shared Synto analyzer-packaging logic in Directory.Build.targets.
 		 Synto.dll is only needed by the generator at analysis time here, so it is NOT shipped
-		 as a library dependency (SyntoRuntimeIsConsumerDependency defaults to false). -->
+		 as a consumer runtime dependency. -->
 	<IsSyntoGeneratorPackage>true</IsSyntoGeneratorPackage>
 	<developmentDependency>true</developmentDependency>
 

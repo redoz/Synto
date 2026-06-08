@@ -9,6 +9,10 @@
 
   <ItemGroup>
     <PackageReference Include="Spectre.Console" />
+    <!-- Program.cs uses Microsoft.CodeAnalysis.CSharp.Syntax types (StatementSyntax,
+         NormalizeWhitespace, ...). These used to flow in transitively via the Synto project
+         reference; as a pure consumer of the generator we reference the package directly. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
 
   <ItemGroup>
@@ -16,7 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Consume ONLY the generator. The consumer-facing surface (markers + helpers) is injected
+         as internal source by SurfaceInjectionGenerator, so no reference to Synto.Core is needed. -->
     <ProjectReference Include="..\..\src\Synto.SourceGenerator\Synto.SourceGenerator.csproj" OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="False" />
-    <ProjectReference Include="..\..\src\Synto\Synto.csproj" />
   </ItemGroup>
 </Project>

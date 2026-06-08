@@ -1,24 +1,12 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 
 namespace Synto;
 
 internal sealed class TemplateSyntaxQuoter : CSharpSyntaxQuoter
 {
-    public new static IEnumerable<UsingDirectiveSyntax> RequiredUsings()
-    {
-        return CSharpSyntaxQuoter.RequiredUsings()
-            .Union(new[]
-            {
-                UsingDirective(IdentifierName("Synto"))
-            });
-    }
-
     private readonly SemanticModel _semanticModel;
     private readonly IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> _unquotedReplacements;
     private readonly HashSet<SyntaxNode> _trimNodes;

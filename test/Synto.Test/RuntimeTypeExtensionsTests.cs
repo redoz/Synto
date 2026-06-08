@@ -1,6 +1,11 @@
+extern alias SyntoCore;
+
 using System;
 using System.Collections.Generic;
-using Synto;
+// ToTypeSyntax is no longer injected into this assembly as an internal helper (the generator now emits
+// it as a file-local copy into each generated file that uses it). This is a direct unit test of the
+// runtime helper, so reach the PUBLIC copy in the referenced Synto.Core assembly via the extern alias.
+using SyntoCore::Synto;
 using Xunit;
 
 namespace Synto.Test;

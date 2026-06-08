@@ -8,10 +8,10 @@
 
   <PropertyGroup>
 	<!-- Opt in to the shared Synto analyzer-packaging logic in Directory.Build.targets.
-		 The consumer's generated code references Synto types at runtime, so Synto.dll is also
-		 shipped as a library dependency. -->
+		 The consumer-facing surface (markers + the emitted helpers) is injected as internal
+		 source by SurfaceInjectionGenerator, so the runtime is NOT shipped as a consumer dependency;
+		 Synto.dll is only needed by the generator at analysis time. -->
 	<IsSyntoGeneratorPackage>true</IsSyntoGeneratorPackage>
-	<SyntoRuntimeIsConsumerDependency>true</SyntoRuntimeIsConsumerDependency>
 
 	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
 	<PackageId>Synto</PackageId>
@@ -26,6 +26,32 @@
   <ItemGroup>
 	<AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
 	<AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <!-- The consumer-facing MARKER surface is authored once in src\Synto and embedded here so
+	   SurfaceInjectionGenerator can rewrite it to internal source and inject it into consumers.
+	   LogicalName (the "Synto.Runtime." prefix) gives each marker resource a stable name the
+	   generator looks up at runtime. -->
+  <ItemGroup>
+	<EmbeddedResource Include="..\Synto\Templating\TemplateAttribute.cs" LogicalName="Synto.Runtime.TemplateAttribute.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\InlineAttribute.cs" LogicalName="Synto.Runtime.InlineAttribute.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\RuntimeAttribute.cs" LogicalName="Synto.Runtime.RuntimeAttribute.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\TemplateOption.cs" LogicalName="Synto.Runtime.TemplateOption.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\Syntax.cs" LogicalName="Synto.Runtime.Syntax.cs" />
+  </ItemGroup>
+
+  <!-- The runtime HELPERS that CAN be emitted into consumer code (ToSyntax / ToTypeSyntax /
+	   OrNullLiteralExpression). TemplateFactorySourceGenerator embeds them under the "Synto.Helper."
+	   prefix and, for each generated factory, SCANS the emitted syntax for real calls to a helper's
+	   public method, appending only the referenced helper(s) as a `file static class` into that file
+	   (single source of truth, never injected globally), so they can never collide with Synto.Core's
+	   public copies. QuoteSyntaxExtensions (OrNullLiteralExpression) is embedded so the injected surface
+	   is COMPLETE by construction: with the scan-based approach it is only ever emitted into a file that
+	   actually calls .OrNullLiteralExpression(), so today it costs nothing but the surface is future-proof. -->
+  <ItemGroup>
+	<EmbeddedResource Include="..\Synto\RuntimeTypeExtensions.cs" LogicalName="Synto.Helper.RuntimeTypeExtensions.cs" />
+	<EmbeddedResource Include="..\Synto\LiteralSyntaxExtensions.cs" LogicalName="Synto.Helper.LiteralSyntaxExtensions.cs" />
+	<EmbeddedResource Include="..\Synto\QuoteSyntaxExtensions.cs" LogicalName="Synto.Helper.QuoteSyntaxExtensions.cs" />
   </ItemGroup>
 
   <ItemGroup>

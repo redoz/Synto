@@ -22,9 +22,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!--<ProjectReference Include="..\..\src\Synto\Synto.csproj" />-->
     <ProjectReference Include="..\..\src\Synto.SourceGenerator\Synto.SourceGenerator.csproj" OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="True" />
-    <ProjectReference Include="..\..\src\Synto\Synto.csproj" />
+    <!-- SurfaceInjectionGenerator injects an INTERNAL copy of the Synto surface into this compilation,
+         and the injected helpers are extension methods. SimpleTemplateTest/DiagnosticsGeneratorTest
+         also need the PUBLIC Synto.Core assembly as a referenceable marker for their in-memory
+         compilations. Reference it through an extern alias so its public types stay out of the default
+         scope; otherwise every emitted helper call would be an unsuppressable CS0121 ambiguity between
+         the imported public copy and the injected internal copy. Reach the public assembly via
+         `extern alias SyntoCore;` (see SyntoCoreAssembly.cs). -->
+    <ProjectReference Include="..\..\src\Synto\Synto.csproj" Aliases="SyntoCore" />
   </ItemGroup>
 
   <ItemGroup>

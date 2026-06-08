@@ -2,15 +2,36 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <IsPackable>false</IsPackable>
-    <!-- Not packed (IsPackable=false), but a distinct PackageId is required so this project's
-         restore-graph identity doesn't collide with Synto.SourceGenerator's PackageId=Synto. -->
+    <IsPackable>true</IsPackable>
     <PackageId>Synto.Core</PackageId>
+
+    <!-- The Synto runtime/toolkit library: the syntax helpers + template markers used at runtime
+         or referenced directly. Published standalone as a first-class package. -->
+    <Description>Synto runtime/toolkit library: the syntax helpers and template markers used at runtime or referenced directly.</Description>
+
+    <!-- Shared package metadata. src/Synto does NOT set IsSyntoGeneratorPackage, so it does not
+         inherit the shared metadata block in Directory.Build.targets (that block is analyzer-specific).
+         Mirror the truly-shared bits here so Synto.Core gets consistent metadata. -->
+    <PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageTags>Roslyn;Syntax</PackageTags>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\</PackageOutputPath>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+
+    <!-- Pack on Release build (mirrors the generator packages in Directory.Build.targets) so the
+         CI publish workflow's `dotnet build -c Release` step produces Synto.Core.nupkg alongside
+         the generator packages. `dotnet pack` still works on demand in any configuration. -->
+    <GeneratePackageOnBuild Condition="'$(Configuration)' == 'Release'">true</GeneratePackageOnBuild>
   </PropertyGroup>
 
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+
+  <!-- Pack the repo LICENSE into the nupkg root (mirrors the generator packages). -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\..\LICENSE" Pack="true" Visible="false" PackagePath="\" />
   </ItemGroup>
   
   <ItemGroup>

@@ -350,3 +350,6 @@ MigrationBackup/
 .ionide/
 *.DotSettings
 nuget.config
+
+# AI code-understanding tool cache
+.understand-anything/
