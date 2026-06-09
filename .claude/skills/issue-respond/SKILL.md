@@ -1,0 +1,26 @@
+---
+name: issue-respond
+description: Interpret the latest human comment on a blocked review (spec or plan) and act — approve (promote the artifact + advance) or feedback (answer + route back for re-work). The human-gate interpreter for a review parked blocked — a manual issue, a round-limit stuck, or a mid-review comment (in the non-manual auto-flow the review skills promote on LGTM themselves). Part of the issue-planning flow.
+user_invocable: true
+---
+
+# issue-respond
+
+Interprets the human's verdict at a review gate parked **`blocked`** and steps the flow. Reached when a human must weigh in: a **`manual`** issue (every review parks regardless of verdict), a **round-limit stuck** review, or a **mid-review comment** the driver parked. In the non-`manual` auto-flow there is *no* approval gate — `issue-spec-review`/`issue-plan-review` promote on LGTM themselves — so this skill is the manual/parked path, not the common one. It still promotes an artifact and sets `status:ready` on approval (the auto-flow does the same).
+
+**Read first:** `.claude/rules/github.md` (approval-detection conventions + the conservatism rule, promotion via `git mv`, the `set_status` procedure).
+
+**On tooling failure** (a `gh`/git/tool error, exception, or broken reference — *not* the work itself failing): follow github.md § Reporting a broken skill (search-first; file/recur a de-duped `issue-flow-bug`).
+
+## Steps
+
+1. **Read.** `gh issue view <n> --json labels,comments`. Determine the gate from the current status: `spec-reviewing` → **spec gate**; `plan-reviewing` → **plan gate**; anything else → refuse ("Issue #<n> is not at a review gate."). Read the human comment(s) since the last skill action, the latest review comment, and the current draft (slug from the Spec/Plan comment).
+2. **Classify** (github.md conservatism rule): **approval** only if the comment is unambiguous ("looks good, go ahead", "ship it", "lgtm, proceed") with **no** question or caveat ("looks good *but*…" is feedback, not approval); otherwise **feedback**.
+3. **On approval — promote + advance** (commit **only the renamed paths** — never `git add -A`/`.`/`-u`/`commit -a`; github.md § Working-tree hygiene):
+   - **spec gate:** `git mv docs/superpowers/specs/drafts/{slug}.md docs/superpowers/specs/{slug}.md`; edit the `## 📐 Spec` comment's link to the promoted path; `git commit -m "docs(spec): promote {slug} (approved on #<n>)" -- docs/superpowers/specs/{slug}.md docs/superpowers/specs/drafts/{slug}.md; git push`. Then `set_status <n> plan-queued unblock`.
+   - **plan gate:** `git mv docs/superpowers/plans/drafts/{slug}.md docs/superpowers/plans/{slug}.md`; edit the `## 📋 Plan` comment's link; `git commit -m "docs(plan): promote {slug} (approved on #<n>)" -- docs/superpowers/plans/{slug}.md docs/superpowers/plans/drafts/{slug}.md; git push`. Then `set_status <n> ready unblock`.
+4. **On feedback — answer + route back (clear `blocked`):**
+   - Post a comment answering each open question / acknowledging each change request.
+   - **spec gate** → `set_status <n> brainstorm-queued unblock` (refine the spec).
+   - **plan gate** → `set_status <n> plan-queued unblock` (re-plan), or `set_status <n> brainstorm-queued unblock` if the human explicitly asked for a spec-level rethink.
+5. **Report** the classification (approval/feedback), the gate, and the transition taken.
