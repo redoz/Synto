@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Synto;
 
-public static class SyntaxListExtensions
+internal static class SyntaxListExtensions
 {
     public static SyntaxList<TSyntax> Capture<TSyntax>(this SyntaxList<TSyntax> list, Action<Action<TSyntax>> block) where TSyntax : SyntaxNode
     {

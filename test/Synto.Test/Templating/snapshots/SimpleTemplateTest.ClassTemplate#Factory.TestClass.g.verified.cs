@@ -1,4 +1,5 @@
 ﻿//HintName: Factory.TestClass.g.cs
+#nullable enable
 using System;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;

@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Diagnostics;
+using Synto.Templating;
 
 namespace Synto;
 
@@ -135,9 +136,8 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
             }
             else
             {
-                Debugger.Launch();
                 Expression = _quoter.Visit(node.Members);
-                
+
                 ReturnType = SyntaxFactory.ParseTypeName("Microsoft.CodeAnalysis.SyntaxList<Microsoft.CodeAnalysis.CSharp.Syntax.MemberDeclarationSyntax>");
             }
         }

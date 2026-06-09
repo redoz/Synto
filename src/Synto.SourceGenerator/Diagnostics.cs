@@ -124,4 +124,34 @@ internal static class Diagnostics
             LocationInfo.CreateFrom(source.Syntax.GetLocation()),
             new EquatableArray<string>(ImmutableArray.Create(source.Identifier)));
     }
+
+    private static readonly DiagnosticDescriptor _noRuntimeConverter = new(IdPrefix + "1008",
+        "Missing Converter",
+        "No value-to-syntax converter found for inlined type '{0}'; mark a static class with [Runtime] and give it an extension method 'ExpressionSyntax ToSyntax(this {0} value)'",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo NoRuntimeConverter(Location? location, string typeName)
+    {
+        return new DiagnosticInfo(_noRuntimeConverter,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(typeName)));
+    }
+
+    private static readonly DiagnosticDescriptor _ambiguousRuntimeConverter = new(IdPrefix + "1009",
+        "Ambiguous Converter",
+        "Multiple [Runtime] converters define 'ToSyntax(this {0})' ({1} found); keep exactly one",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo AmbiguousRuntimeConverter(Location? location, string typeName, int count)
+    {
+        return new DiagnosticInfo(_ambiguousRuntimeConverter,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(
+                typeName,
+                count.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+    }
 }

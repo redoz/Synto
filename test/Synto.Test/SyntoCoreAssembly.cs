@@ -15,7 +15,7 @@ namespace Synto.Test;
 internal static class SyntoCoreAssembly
 {
     /// <summary>The public Synto.Core assembly (the one that declares the public marker types).</summary>
-    public static Assembly Assembly { get; } = typeof(SyntoCore::Synto.TemplateAttribute).Assembly;
+    public static Assembly Assembly { get; } = typeof(SyntoCore::Synto.Templating.TemplateAttribute).Assembly;
 
     /// <summary>On-disk location of <see cref="Assembly"/>.</summary>
     public static string Location { get; } = Assembly.Location;

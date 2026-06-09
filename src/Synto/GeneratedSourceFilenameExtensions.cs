@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Synto;
 
-public static class GeneratedSourceFilenameExtensions
+internal static class GeneratedSourceFilenameExtensions
 {
     private static readonly SymbolDisplayFormat SymbolDisplayFormat = new(
         globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.OmittedAsContaining,

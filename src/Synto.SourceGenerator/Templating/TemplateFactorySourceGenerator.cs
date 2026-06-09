@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -9,6 +8,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using Synto.Formatting;
+using Synto.Templating;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Synto;
@@ -27,7 +27,9 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 typeof(TemplateAttribute).FullName!,
                 static (node, cancellationToken) => true,
                 static (syntaxContext, cancellationToken) => GenerateTemplate(syntaxContext))
-            .Where(static result => result is not null);
+            .WithTrackingName(TemplateTrackingNames.Transform)
+            .Where(static result => result is not null)
+            .WithTrackingName(TemplateTrackingNames.Result);
 
         context.RegisterSourceOutput(results, static (context, result) => Emit(context, result!.Value));
     }
@@ -135,26 +137,6 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             .WithModifiers(targetClassDecl.Modifiers)
             .AddMembers(syntaxFactoryMethod);
 
-        //ISymbol current = template.Target.Type.ContainingSymbol;
-        //while (current is ITypeSymbol)
-        //{
-        //    var classDecls = (ClassDeclarationSyntax)current.DeclaringSyntaxReferences[0].GetSyntax();
-
-        //    targetSyntax = ClassDeclaration(current.Name)
-        //        .WithModifiers(classDecls.Modifiers)
-        //        .AddMembers(targetSyntax);
-
-        //    current = current.ContainingSymbol;
-        //}
-
-        //// if the template is defined in the global namespace this will return null
-        //var namespaceName = current.GetNamespaceNameSyntax();
-        //if (namespaceName is not null)
-        //{
-        //    targetSyntax = FileScopedNamespaceDeclaration(namespaceName)
-        //        .AddMembers(targetSyntax);
-        //}
-
         targetSyntax = targetSyntax.WithAncestryFrom(template.Target.Type);
 
         // The factory body calls the emitted helpers (value.ToSyntax() / typeof(T).ToTypeSyntax() /
@@ -205,6 +187,16 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
         compilationUnit = compilationUnit.AddUsings(usings.ToArray());
 
+        // Emit inside an explicit `#nullable enable` context. The generated factory carries nullable
+        // annotations (`ExpressionSyntax?` parameters, `node.X!` suppressions), so without this directive
+        // a consumer compiling the auto-generated file gets CS8669 ("annotation should only be used in a
+        // '#nullable' context"). Prepending the directive matches how SurfaceInjectionGenerator and
+        // DiagnosticsGenerator emit their output.
+        compilationUnit = compilationUnit.WithLeadingTrivia(
+            Trivia(
+                NullableDirectiveTrivia(
+                    Token(SyntaxKind.EnableKeyword),
+                    isActive: true)));
 
         var sourceText = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace()).GetText(Encoding.UTF8).ToString();
 
@@ -249,6 +241,31 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
         return helpers;
     }
+
+    /// <summary>
+    /// The built-in literal types <see cref="LiteralSyntaxExtensions"/> handles directly. An inlined parameter
+    /// of one of these binds to a specific <c>ToSyntax(this T)</c> overload (injected via the method-name
+    /// scan); any other concrete type needs a user-provided <c>[Runtime]</c> converter.
+    /// </summary>
+    private static bool IsBuiltInLiteralType(ITypeSymbol type) =>
+        type.SpecialType switch
+        {
+            SpecialType.System_String
+                or SpecialType.System_Boolean
+                or SpecialType.System_Char
+                or SpecialType.System_SByte
+                or SpecialType.System_Byte
+                or SpecialType.System_Int16
+                or SpecialType.System_UInt16
+                or SpecialType.System_Int32
+                or SpecialType.System_UInt32
+                or SpecialType.System_Int64
+                or SpecialType.System_UInt64
+                or SpecialType.System_Decimal
+                or SpecialType.System_Single
+                or SpecialType.System_Double => true,
+            _ => false,
+        };
 
     private static MethodDeclarationSyntax? CreateSyntaxFactoryMethod(
         List<DiagnosticInfo> diagnostics,
@@ -330,24 +347,21 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             trimNodes.Add(replacements.TypeParameterSyntax);
         }
 
+        // Lazily-resolved state for [Runtime] converter discovery — only walked when an inlined parameter of
+        // a concrete, non-built-in type is actually encountered. All of this is semantic work done INSIDE the
+        // transform; nothing here is captured into pipeline state (only the resulting source text flows out).
+        var runtimeAttribute = semanticModel.Compilation.GetTypeByMetadataName(typeof(RuntimeAttribute).FullName!);
+        var expressionSyntaxSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(ExpressionSyntax).FullName!);
+        ImmutableArray<INamedTypeSymbol>? runtimeClasses = null;
+        bool converterError = false;
 
         foreach (var replacements in InlinedParameterFinder.FindInlinedParameters(semanticModel, templateInfo.Source.Syntax))
         {
-            //Debugger.Launch();
-
-
             string paramName = replacements.Parameter.Identifier.Text;
             while (!paramNames.Add(paramName))
                 paramName += '_';
 
             // TODO check if there is a static <type>.ToSyntax() to call, if so call it, otherwise convert this parameter type to ExpressionSyntax
-            //Debugger.Launch();
-            //var syntax = semanticModel.LookupStaticMembers(replacements.Parameter.SpanStart);
-            //var methods = syntax.Where(symbol => symbol.IsStatic && symbol is IMethodSymbol method).ToList();
-            //context.Compilation.
-
-            //semanticModel.TryGetSpeculativeSemanticModel(0, InvocationExpression())
-
             TypeSyntax parameterType;
 
             IdentifierNameSyntax identifierSyntaxForParam;
@@ -362,7 +376,17 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 parameterType = replacements.Parameter.Type!;
 
                 var paramTypeSymbolInfo = semanticModel.GetTypeInfo(parameterType);
-                
+
+                // How `value` is converted to an ExpressionSyntax. By default `value.ToSyntax()`, which binds
+                // to the file-local LiteralSyntaxExtensions (for built-in types) or to the generic ToSyntax<T>
+                // fallback (for inlined generic type parameters, resolved at the author's runtime). A custom
+                // type instead binds to a discovered [Runtime] converter, called directly below.
+                ExpressionSyntax conversion = InvocationExpression(
+                    MemberAccessExpression(
+                        SyntaxKind.SimpleMemberAccessExpression,
+                        IdentifierName(paramName),
+                        IdentifierName("ToSyntax")));
+
                 // if this is a generic type reference we need to include it in our factory method declaration if it's not already been inlined
                 if (paramTypeSymbolInfo.Type is ITypeParameterSymbol typeParam && !inlinedTypeParams.Contains(typeParam))
                 {
@@ -375,9 +399,51 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
                     typeParams.Add(TypeParameter(typeParamName));
                 }
+                else if (paramTypeSymbolInfo.Type is { } paramType
+                         && paramType is not ITypeParameterSymbol
+                         && !IsBuiltInLiteralType(paramType))
+                {
+                    // A concrete, non-built-in inlined type needs a user-provided [Runtime] converter exposing
+                    // ToSyntax(this ThatType). It is discovered from the TYPE (not by scanning emitted call
+                    // names); with no converter (or more than one) a diagnostic is emitted at generation time,
+                    // rather than letting the generic ToSyntax<T> fallback throw NotImplementedException at the
+                    // author's runtime.
+                    runtimeClasses ??= RuntimeConverterFinder.FindRuntimeClasses(semanticModel.Compilation, runtimeAttribute);
+                    var converters = RuntimeConverterFinder.FindConvertersFor(runtimeClasses.Value, paramType, expressionSyntaxSymbol);
 
-                // value.ToSyntax() — converts the inlined parameter value into an ExpressionSyntax at
-                // runtime using the Synto helper.
+                    if (converters.Length == 0)
+                    {
+                        diagnostics.Add(Diagnostics.NoRuntimeConverter(replacements.Parameter.Type!.GetLocation(), paramType.ToDisplayString()));
+                        converterError = true;
+                    }
+                    else if (converters.Length > 1)
+                    {
+                        diagnostics.Add(Diagnostics.AmbiguousRuntimeConverter(replacements.Parameter.Type!.GetLocation(), paramType.ToDisplayString(), converters.Length));
+                        converterError = true;
+                    }
+                    else
+                    {
+                        // Call the user's converter DIRECTLY by its fully-qualified name as a static method —
+                        // `global::Ns.Converter.ToSyntax(value)`. We deliberately do NOT inject a file-local
+                        // COPY of the converter (as is done for Synto's own embedded helpers): the user's
+                        // converter already lives in this compilation, so a copy would be a second
+                        // `ToSyntax(this ThatType)` in scope and collide with the original (CS0121). A
+                        // fully-qualified static call binds to exactly the discovered converter, needs no
+                        // `using`, and keeps the generated output free of any Synto runtime dependency.
+                        var converter = converters[0];
+                        conversion = InvocationExpression(
+                                MemberAccessExpression(
+                                    SyntaxKind.SimpleMemberAccessExpression,
+                                    ParseName(converter.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
+                                    IdentifierName("ToSyntax")))
+                            .AddArgumentListArguments(Argument(IdentifierName(paramName)));
+
+                        // Emit the parameter with its fully-qualified declared type so it resolves in the
+                        // generated file regardless of which usings the template's file happened to carry.
+                        parameterType = ParseTypeName(paramType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                    }
+                }
+
                 var syntaxForTypeParamIdentifier = Identifier("syntaxForParam_" + paramName);
                 identifierSyntaxForParam = IdentifierName(syntaxForTypeParamIdentifier);
                 preamble.Add(
@@ -388,12 +454,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                                 VariableDeclarator(
                                     syntaxForTypeParamIdentifier,
                                     null,
-                                    EqualsValueClause(
-                                        InvocationExpression(
-                                            MemberAccessExpression(
-                                                SyntaxKind.SimpleMemberAccessExpression,
-                                                IdentifierName(paramName),
-                                                IdentifierName("ToSyntax")))))))));
+                                    EqualsValueClause(conversion))))));
             }
 
 
@@ -405,6 +466,11 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
             trimNodes.Add(replacements.Parameter);
         }
+
+        // A missing/ambiguous converter is a usage error: bail with the diagnostic(s) already reported rather
+        // than emit a factory that would fail to compile or throw at the author's runtime.
+        if (converterError)
+            return null;
 
 
         foreach (var replacements in SyntaxParameterFinder.FindSyntaxParameters(semanticModel, templateInfo.Source.Syntax))
@@ -424,10 +490,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         }
 
 
-        //Debugger.Launch();
         var prunableNodes = BranchPruneIdentifier.FindPrunableNodes(trimNodes, templateInfo.Source.Syntax);
-
-        //Debugger.Launch();
 
         TemplateSyntaxQuoter quoter = new(
             semanticModel,

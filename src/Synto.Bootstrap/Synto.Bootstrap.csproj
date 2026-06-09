@@ -18,4 +18,9 @@
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
 	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The test project asserts incremental-cache step reasons and uses the internal TrackingNames. -->
+		<InternalsVisibleTo Include="Synto.Bootstrap.Test" />
+	</ItemGroup>
 </Project>

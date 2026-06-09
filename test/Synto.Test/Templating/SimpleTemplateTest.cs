@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -75,7 +76,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -97,7 +98,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -119,7 +120,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -141,7 +142,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -163,7 +164,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -185,7 +186,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -208,7 +209,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -231,7 +232,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -252,7 +253,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -273,7 +274,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -294,7 +295,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -315,7 +316,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
             using System.Collections.Generic;
 
             partial class Factory {}
@@ -337,7 +338,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -359,7 +360,7 @@ public class SimpleTemplateTest
         await VerifyTemplate(
             """
             using System;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 
@@ -374,5 +375,249 @@ public class SimpleTemplateTest
         );
     }
 
+    [Fact]
+    public async Task ClassAsBareMultiMember()
+    {
+        // C1 coverage: [Template(Options = Bare)] on a class with MULTIPLE members exercises the
+        // VisitTypeDeclaration else-arm (Bare set, Single not set) that emits a
+        // SyntaxList<MemberDeclarationSyntax> — the branch whose uncovered status let a stray
+        // Debugger.Launch() survive. The emitted factory must round-trip the member list.
+        await VerifyTemplate(
+            """
+            using System;
+            using Synto.Templating;
 
+            partial class Factory {}
+
+            [Template(typeof(Factory), Options = TemplateOption.Bare)]
+            public class TestClass {
+                void First() {
+                    Console.WriteLine("first");
+                }
+
+                void Second() {
+                    Console.WriteLine("second");
+                }
+            }
+            """
+        );
+    }
+
+    // ----- diagnostics / error paths (T2) -----------------------------------------------------------
+    // Each feeds deliberately-malformed Synto usage and asserts the diagnostic Id directly off the
+    // driver's diagnostics collection, plus (for usage errors) a real, non-empty source span.
+
+    [Fact]
+    public void TargetNotPartialReportsSY1001()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using System;
+            using Synto.Templating;
+
+            class Factory {}
+
+            public class TestClass {
+                public void TestMethod() {
+                    [Template(typeof(Factory))]
+                    void LocalFunction() {
+                        Console.WriteLine("hi");
+                    }
+                }
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1001");
+        AssertHasRealSpan(diag);
+    }
+
+    [Fact]
+    public void TargetNotClassReportsSY1002()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using System;
+            using Synto.Templating;
+
+            partial struct Factory {}
+
+            public class TestClass {
+                public void TestMethod() {
+                    [Template(typeof(Factory))]
+                    void LocalFunction() {
+                        Console.WriteLine("hi");
+                    }
+                }
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1002");
+        AssertHasRealSpan(diag);
+    }
+
+    [Fact]
+    public void TargetAncestorNotPartialReportsSY1004()
+    {
+        // Outer is NOT partial but the nested Factory is; Factory must be accessible (public) so the
+        // typeof binds — otherwise the attribute argument fails to resolve and a different path is taken.
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using System;
+            using Synto.Templating;
+
+            class Outer {
+                public partial class Factory {}
+            }
+
+            public class TestClass {
+                public void TestMethod() {
+                    [Template(typeof(Outer.Factory))]
+                    void LocalFunction() {
+                        Console.WriteLine("hi");
+                    }
+                }
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1004");
+        AssertHasRealSpan(diag);
+    }
+
+    [Fact]
+    public void EmptyBareBodyReportsSY1005()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using System;
+            using Synto.Templating;
+
+            partial class Factory {}
+
+            public class TestClass {
+                public void TestMethod() {
+                    [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                    void LocalFunction() {
+                    }
+                }
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1005");
+        AssertHasRealSpan(diag);
+    }
+
+    [Fact]
+    public void MultipleMembersAsSingleReportsSY1007()
+    {
+        // TemplateOption.Single (== Single|Bare) on a class with >1 member hits MultipleMembersNotAllowed.
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using System;
+            using Synto.Templating;
+
+            partial class Factory {}
+
+            [Template(typeof(Factory), Options = TemplateOption.Single)]
+            public class TestClass {
+                void First() {
+                    Console.WriteLine("first");
+                }
+
+                void Second() {
+                    Console.WriteLine("second");
+                }
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1007");
+        AssertHasRealSpan(diag);
+    }
+
+    [Fact]
+    public void InternalErrorMapsToSY0000()
+    {
+        // Generation is wrapped in a try/catch that converts ANY escaping exception into the SY0000
+        // internal-error diagnostic, so a generation bug surfaces as a build diagnostic instead of
+        // crashing the consumer's compiler/IDE. The templating quoter is robust enough that no malformed
+        // template *body* reliably throws (it handles every node kind), so this verifies the catch-path's
+        // mapping directly: an exception becomes a located-nowhere SY0000 carrying the exception type and
+        // message.
+        var ex = new InvalidOperationException("boom");
+
+        var diag = Diagnostics.InternalError(ex).ToDiagnostic();
+
+        Assert.Equal("SY0000", diag.Id);
+        Assert.Equal(Location.None, diag.Location); // internal errors are not tied to a source location
+        Assert.Contains("boom", diag.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains(nameof(InvalidOperationException), diag.GetMessage(), StringComparison.Ordinal);
+    }
+
+    // ----- incremental caching (T1) ----------------------------------------------------------------
+
+    [Fact]
+    public void GeneratorIsIncrementalOnUnrelatedEdit()
+    {
+        // Cacheability guard: the pipeline carries only equatable value types (TemplateGenerationResult /
+        // DiagnosticInfo / EquatableArray) and captures no Compilation/SemanticModel/SyntaxNode, so an edit
+        // in an unrelated tree must leave every tracked step Cached/Unchanged (not re-running the generator
+        // on every keystroke).
+        const string source =
+            """
+            using System;
+            using Synto.Templating;
+
+            partial class Factory {}
+
+            public class TestClass {
+                public void TestMethod() {
+                    [Template(typeof(Factory), Options = TemplateOption.Single)]
+                    void LocalFunction() {
+                        Console.WriteLine("Hello world");
+                    }
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation);
+
+        // An unrelated edit in a separate tree: the [Template] tree is byte-identical, so its pipeline
+        // results must come from cache.
+        var modified = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
+        driver = driver.RunGenerators(modified);
+
+        var result = driver.GetRunResult().Results.Single();
+
+        foreach (var trackingName in new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result })
+        {
+            Assert.True(result.TrackedSteps.ContainsKey(trackingName), $"no tracked step '{trackingName}'");
+
+            var outputs = result.TrackedSteps[trackingName].SelectMany(step => step.Outputs);
+            Assert.All(outputs, output =>
+                Assert.True(
+                    output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                    $"step '{trackingName}' had reason {output.Reason}, expected Cached/Unchanged"));
+        }
+    }
+
+    private static void AssertHasRealSpan(Diagnostic diag)
+    {
+        // The location is carried cacheably as a serializable LocationInfo and reconstructed at emit time;
+        // assert the squiggle still points at a real, non-empty source span (not Location.None).
+        Assert.NotEqual(Location.None, diag.Location);
+        Assert.False(diag.Location.SourceSpan.IsEmpty);
+    }
+
+    private ImmutableArray<Diagnostic> RunAndGetDiagnostics(string source)
+    {
+        var compilation = CompilationWithSource(source);
+        var result = _driver.RunGenerators(compilation);
+        return result.GetRunResult().Diagnostics;
+    }
 }

@@ -2,7 +2,7 @@
 #nullable enable
 using System;
 
-namespace Synto;
+namespace Synto.Templating;
 
 [Flags]
 #pragma warning disable CA2217 // This doesn't seem applicable, Single implies Bare

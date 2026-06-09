@@ -19,6 +19,13 @@
 	<Description>Create Roslyn Syntax Trees from your C# code.</Description>
   </PropertyGroup>
 
+  <!-- Expose generator-internal pipeline value types (DiagnosticInfo, EquatableArray<T>, LocationInfo,
+	   TemplateGenerationResult) and the test-only TemplateTrackingNames to the test project so it can
+	   unit-test equatability/cacheability, mirroring Synto.Diagnostics' InternalsVisibleTo to its test. -->
+  <ItemGroup>
+	<InternalsVisibleTo Include="Synto.Test" />
+  </ItemGroup>
+
   <ItemGroup>
 	<None Include="..\..\Synto.NuGet.md" Pack="true" Visible="false" PackagePath="\" />
   </ItemGroup>

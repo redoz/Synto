@@ -2,7 +2,7 @@
 #nullable enable
 using System;
 
-namespace Synto;
+namespace Synto.Templating;
 
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class | AttributeTargets.Struct /* | AttributeTargets.Enum*/)]
 internal sealed class TemplateAttribute : Attribute
@@ -10,8 +10,6 @@ internal sealed class TemplateAttribute : Attribute
     public TemplateOption Options { get; set; }
 
     public Type Target { get; }
-
-    public string Runtime { get; set; } = RuntimeAttribute.Default;
 
     public TemplateAttribute(Type target)
     {

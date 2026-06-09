@@ -1,9 +1,11 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Synto.Formatting;
@@ -15,31 +17,55 @@ public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var syntaxProvider = context.SyntaxProvider.CreateSyntaxProvider((node, _) =>
-                node is ClassDeclarationSyntax cdl &&
-                StringComparer.Ordinal.Equals("CSharpSyntaxQuoter", cdl.Identifier.Text),
-            (syntaxContext, _) =>
-                ((ClassDeclarationSyntax)syntaxContext.Node, syntaxContext.SemanticModel));
+        // All semantic work (symbol resolution + quoting) happens inside the transform, which flows out an
+        // equatable QuoterGenerationResult (generated text + serializable diagnostic data). The SemanticModel
+        // / symbols / syntax nodes never enter cached pipeline state, so the self-host generator stays
+        // incremental and does not root the compilation in memory across edits.
+        var results = context.SyntaxProvider.CreateSyntaxProvider(
+                static (node, _) =>
+                    node is ClassDeclarationSyntax cdl &&
+                    StringComparer.Ordinal.Equals("CSharpSyntaxQuoter", cdl.Identifier.Text),
+                static (syntaxContext, cancellationToken) => GenerateQuoter(syntaxContext))
+            .WithTrackingName(TrackingNames.Transform)
+            .Where(static result => result is not null)
+            .WithTrackingName(TrackingNames.Result);
 
-        context.RegisterSourceOutput(syntaxProvider, Execute);
+        context.RegisterSourceOutput(results, static (context, result) => Emit(context, result!.Value));
     }
 
-    private void Execute(SourceProductionContext context, (ClassDeclarationSyntax TargetNode, SemanticModel SemanticModel) target)
+    private static QuoterGenerationResult? GenerateQuoter(GeneratorSyntaxContext syntaxContext)
     {
+        var diagnostics = new List<DiagnosticInfo>();
+
+        string? fileName = null;
+        string? source = null;
 
         try
         {
-            ExecuteInternal(context, target.TargetNode, target.SemanticModel);
+            var generated = ProcessQuoter((ClassDeclarationSyntax)syntaxContext.Node, syntaxContext.SemanticModel);
+            fileName = generated.FileName;
+            source = generated.Source;
         }
 #pragma warning disable CA1031 // we're explicitly catching _any_ exception and converting it to a diagnostic message
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            context.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor("SY0000", "Failed to create CSharpSyntaxQuoter", "Exception: {0}", "Synto.Dev", DiagnosticSeverity.Error, true), null, ex.ToString()));
+            diagnostics.Add(DiagnosticInfo.InternalError(ex));
         }
+
+        return new QuoterGenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
-    private void ExecuteInternal(SourceProductionContext context, ClassDeclarationSyntax targetClass,
+    private static void Emit(SourceProductionContext context, QuoterGenerationResult result)
+    {
+        foreach (var diagnostic in result.Diagnostics)
+            context.ReportDiagnostic(diagnostic.ToDiagnostic());
+
+        if (result.FileName is not null && result.Source is not null)
+            context.AddSource(result.FileName, SourceText.From(result.Source, Encoding.UTF8));
+    }
+
+    private static (string FileName, string Source) ProcessQuoter(ClassDeclarationSyntax targetClass,
         SemanticModel semanticModel)
     {
         //System.Diagnostics.Debugger.Launch();
@@ -267,9 +293,6 @@ public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
         
         var sourceText = compilationUnit.GetText(Encoding.UTF8);
 
-        context.AddSource($"{targetClass.Identifier.Text}.cs", sourceText);
+        return ($"{targetClass.Identifier.Text}.cs", sourceText.ToString());
     }
-
-
-
 }

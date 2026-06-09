@@ -3,7 +3,7 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Synto;
+using Synto.Templating;
 using Spectre.Console;
 using static Examples;
 

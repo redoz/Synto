@@ -39,8 +39,11 @@ internal sealed class SyntaxParameterFinder : CSharpSyntaxWalker
     private SyntaxParameterFinder(SemanticModel semanticModel)
     {
         _semanticModel = semanticModel;
-        var syntaxDelegateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(Syntax).FullName!)!;
-        var syntaxOfTDelegateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(Syntax<>).FullName!)!;
+        // Fully-qualified: this file imports both Microsoft.CodeAnalysis.CSharp and
+        // Microsoft.CodeAnalysis.CSharp.Syntax, so a bare `Syntax` would be ambiguous with that
+        // namespace once the marker delegate moved to Synto.Templating.
+        var syntaxDelegateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Syntax).FullName!)!;
+        var syntaxOfTDelegateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Syntax<>).FullName!)!;
 
         Debug.Assert(syntaxDelegateSymbol is not null);
         Debug.Assert(syntaxOfTDelegateSymbol is not null);

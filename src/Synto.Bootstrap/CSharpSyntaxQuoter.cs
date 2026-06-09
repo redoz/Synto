@@ -11,6 +11,14 @@ using static Synto.Bootstrap.Helpers;
 
 namespace Synto.Bootstrap;
 
+// SYNC NOTE (see .claude/rules/maintainability.md M4): this is the BOOTSTRAP quoter
+// — the quoter the self-host generator (CSharpSyntaxQuoterGenerator) uses to quote
+// the runtime quoter and emit src/Synto/CSharpSyntaxQuoter.Generated.cs. Its
+// per-node-kind quoting logic must stay in sync with the runtime quoter at
+// src/Synto/CSharpSyntaxQuoter.cs: a SyntaxKind the runtime quoter handles but this
+// copy cannot quote means the self-host can't reproduce it. Intentionally a separate
+// copy (this lives in namespace Synto.Bootstrap and is the generator's own tool),
+// not a linked file; only the Synto.Bootstrap.Test snapshot guards the divergence.
 internal sealed partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax>
 {
     private readonly List<ExpressionSyntax> _exclude;

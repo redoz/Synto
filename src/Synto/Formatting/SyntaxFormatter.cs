@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Synto.Formatting;
 
-public class SyntaxFormatter : CSharpSyntaxRewriter
+internal class SyntaxFormatter : CSharpSyntaxRewriter
 {
     private int _offset;
     private int _depth;

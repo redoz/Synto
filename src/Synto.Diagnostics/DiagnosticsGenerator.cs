@@ -1,8 +1,10 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -19,17 +21,23 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
     {
         context.RegisterPostInitializationOutput(InjectAttribute);
 
-        var syntaxProvider = context.SyntaxProvider.ForAttributeWithMetadataName(
+        // All semantic work happens inside the transform, which flows out an equatable
+        // DiagnosticGenerationResult (generated text + serializable diagnostic data). The SemanticModel /
+        // symbols / syntax nodes never enter cached pipeline state, so the generator stays incremental and
+        // does not root the compilation in memory across edits. (Note: there is no .Combine(Compilation)
+        // here — combining the CompilationProvider would re-root the compilation and defeat caching.)
+        var results = context.SyntaxProvider.ForAttributeWithMetadataName(
                 "Synto.Diagnostics.DiagnosticAttribute",
                 static (node, _) => true,
-                static (syntaxContext, cancellationToken) => TargetInfo.Create(syntaxContext, cancellationToken))
-            .Where(templateInfo => templateInfo is not null);
+                static (syntaxContext, cancellationToken) => GenerateDiagnostic(syntaxContext, cancellationToken))
+            .WithTrackingName(TrackingNames.Transform)
+            .Where(static result => result is not null)
+            .WithTrackingName(TrackingNames.Result);
 
-        var assemblyName = context.CompilationProvider.Select(static (c, _) => c.AssemblyName);
-
-        var providerWithCompilation = syntaxProvider.Combine(assemblyName);
-
-        context.RegisterImplementationSourceOutput(providerWithCompilation, Execute);
+        // RegisterSourceOutput (not RegisterImplementationSourceOutput): the implementation-only variant is
+        // excluded from design-time / IntelliSense builds, so a consumer's partial declaration would get no
+        // implementing half in the editor (a live CS8795). The normal variant participates in design-time.
+        context.RegisterSourceOutput(results, static (context, result) => Emit(context, result!.Value));
     }
 
     private void InjectAttribute(IncrementalGeneratorPostInitializationContext context)
@@ -41,9 +49,9 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
             using System;
             using System.Collections.Generic;
             using Microsoft.CodeAnalysis;
-            
+
             namespace Synto.Diagnostics;
-            
+
             [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
             public sealed class DiagnosticAttribute(
                 string id,
@@ -71,30 +79,70 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
             );
     }
 
-    private void Execute(SourceProductionContext context, (TargetInfo? TemplateInfo, string? AssemblyName) value)
+    private static DiagnosticGenerationResult? GenerateDiagnostic(GeneratorAttributeSyntaxContext syntaxContext, CancellationToken cancellationToken)
     {
-        if (value.TemplateInfo is null || value.AssemblyName is null)
-            return;
+        var targetInfo = TargetInfo.Create(syntaxContext, cancellationToken);
+        if (targetInfo is null)
+            return null;
+
+        var diagnostics = new List<DiagnosticInfo>();
+
+        string? fileName = null;
+        string? source = null;
 
         try
         {
-            if (ValidateTarget(context, value.AssemblyName, value.TemplateInfo))
-                ProcessTarget(context, value.TemplateInfo);
+            if (ValidateTarget(diagnostics, targetInfo)
+                && ProcessTarget(diagnostics, targetInfo, cancellationToken) is { } generated)
+            {
+                fileName = generated.FileName;
+                source = generated.Source;
+            }
         }
 #pragma warning disable CA1031 // we're explicitly catching _any_ exception and converting it to a diagnostic message
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            context.ReportDiagnostic(Diagnostics.InternalError(ex));
+            diagnostics.Add(Diagnostics.InternalError(ex));
         }
+
+        return new DiagnosticGenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
-    private static bool ValidateTarget(SourceProductionContext context, string assemblyName, TargetInfo targetInfo)
+    private static void Emit(SourceProductionContext context, DiagnosticGenerationResult result)
     {
+        foreach (var diagnostic in result.Diagnostics)
+            context.ReportDiagnostic(diagnostic.ToDiagnostic());
 
-        if (!targetInfo.Target.Modifiers.Any(SyntaxKind.PartialKeyword))
+        if (result.FileName is not null && result.Source is not null)
+            context.AddSource(result.FileName, SourceText.From(result.Source, Encoding.UTF8));
+    }
+
+    private static bool ValidateTarget(List<DiagnosticInfo> diagnostics, TargetInfo targetInfo)
+    {
+        var targetMethod = targetInfo.Target;
+
+        if (!targetMethod.Modifiers.Any(SyntaxKind.PartialKeyword))
         {
-            context.ReportDiagnostic(Diagnostics.TargetNotPartial(targetInfo.Target.GetLocation(), targetInfo.Target.Identifier.Text));
+            diagnostics.Add(Diagnostics.TargetNotPartial(
+                LocationInfo.CreateFrom(targetMethod.GetLocation()),
+                targetMethod.Identifier.Text));
+            return false;
+        }
+
+        // The container must be a (partial) class. struct/record/interface are all legal partial-method
+        // containers, but the rest of the generator (and Synto's WithAncestryFrom) assumes ClassDeclaration.
+        // Report a precise, located usage diagnostic rather than letting an unconditional cast throw and
+        // surface as an opaque SDG0000 internal error.
+        if (targetMethod.Parent is not ClassDeclarationSyntax)
+        {
+            var location = targetMethod.Parent is TypeDeclarationSyntax containerDecl
+                ? containerDecl.Identifier.GetLocation()
+                : targetMethod.GetLocation();
+
+            diagnostics.Add(Diagnostics.TargetNotClass(
+                LocationInfo.CreateFrom(location),
+                targetMethod.Identifier.Text));
             return false;
         }
 
@@ -106,7 +154,10 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
             {
                 if (!parentClass.Modifiers.Any(SyntaxKind.PartialKeyword))
                 {
-                    context.ReportDiagnostic(Diagnostics.TargetAncestorNotPartial(parentClass.GetLocation(), targetInfo.Target.Identifier.Text, parentClass.Identifier.Text));
+                    diagnostics.Add(Diagnostics.TargetAncestorNotPartial(
+                        LocationInfo.CreateFrom(parentClass.Identifier.GetLocation()),
+                        targetMethod.Identifier.Text,
+                        parentClass.Identifier.Text));
                     ret = false;
                 }
 
@@ -116,26 +167,25 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
             return ret;
         }
 
-        if (!EnsureAncestryIsPartial(targetInfo.Target))
+        if (!EnsureAncestryIsPartial(targetMethod))
             return false;
 
         return true;
     }
 
-    private static void ProcessTarget(SourceProductionContext context, TargetInfo targetInfo)
+    private static (string FileName, string Source)? ProcessTarget(List<DiagnosticInfo> diagnostics, TargetInfo targetInfo, CancellationToken cancellationToken)
     {
-        CancellationToken cancellationToken = context.CancellationToken;
-
         var targetMethod = targetInfo.Target;
         var semanticModel = targetInfo.SemanticModel;
 
+        // ValidateTarget has already guaranteed the container is a ClassDeclarationSyntax, so this cast is safe.
         var parent = (ClassDeclarationSyntax)targetMethod.Parent!;
 
-        var methodSymbol = semanticModel.GetDeclaredSymbol(targetMethod);
+        var methodSymbol = semanticModel.GetDeclaredSymbol(targetMethod, cancellationToken);
 
         Debug.Assert(methodSymbol is not null);
 
-        var parentSymbol = semanticModel.GetDeclaredSymbol(parent);
+        var parentSymbol = semanticModel.GetDeclaredSymbol(parent, cancellationToken);
 
         Debug.Assert(parentSymbol is not null);
 
@@ -281,9 +331,8 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
                             Token(SyntaxKind.EnableKeyword),
                             true))));
 
-        var sourceText = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace()).GetText(Encoding.UTF8);
+        var sourceText = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace()).GetText(Encoding.UTF8).ToString();
 
-        context.AddSource(methodSymbol!.ToGeneratedFilename(), sourceText);
+        return (methodSymbol!.ToGeneratedFilename(), sourceText);
     }
-
 }

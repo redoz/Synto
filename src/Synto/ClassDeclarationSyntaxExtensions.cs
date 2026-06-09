@@ -5,7 +5,7 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Synto;
 
-public static class ClassDeclarationSyntaxExtensions
+internal static class ClassDeclarationSyntaxExtensions
 {
     public static MemberDeclarationSyntax WithAncestryFrom(this MemberDeclarationSyntax target, ISymbol source)
     {

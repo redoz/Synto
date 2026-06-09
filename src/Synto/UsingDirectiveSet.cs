@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Synto;
 
-public class UsingDirectiveSet : IEnumerable<UsingDirectiveSyntax>
+internal class UsingDirectiveSet : IEnumerable<UsingDirectiveSyntax>
 {
     private readonly UsingDirectiveSyntax[] _predefined;
     private readonly List<UsingDirectiveSyntax> _usings;

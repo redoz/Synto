@@ -24,6 +24,11 @@
   </ItemGroup>
 
   <ItemGroup>
+	<!-- The test project asserts incremental-cache step reasons and uses the internal TrackingNames. -->
+	<InternalsVisibleTo Include="Synto.Diagnostics.Test" />
+  </ItemGroup>
+
+  <ItemGroup>
 	<ProjectReference Include="..\Synto\Synto.csproj" PrivateAssets="all"/>
   </ItemGroup>
 

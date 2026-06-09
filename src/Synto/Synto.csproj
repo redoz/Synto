@@ -29,6 +29,16 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
 
+  <!-- Both shipped generators consume Synto.Core's generator-internal machinery (CSharpSyntaxQuoter,
+       SyntaxFormatter, UsingDirectiveSet, the *Extensions helpers) as compiled API at analysis time.
+       Those types are internal (only the 5 markers + 3 emitted helpers are public surface), so expose
+       them to the two generator assemblies. Synto.Bootstrap does NOT need this: it <Compile Link>s the
+       source files it uses into its own assembly rather than referencing Synto.dll. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Synto.SourceGenerator" />
+    <InternalsVisibleTo Include="Synto.Diagnostics" />
+  </ItemGroup>
+
   <!-- Pack the repo LICENSE into the nupkg root (mirrors the generator packages). -->
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)..\..\LICENSE" Pack="true" Visible="false" PackagePath="\" />

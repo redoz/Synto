@@ -2,7 +2,7 @@
 #nullable enable
 using System;
 
-namespace Synto;
+namespace Synto.Templating;
 
 [AttributeUsage(AttributeTargets.GenericParameter | AttributeTargets.Parameter, AllowMultiple = false)]
 internal sealed class InlineAttribute : Attribute

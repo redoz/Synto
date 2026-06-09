@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
 namespace Synto.Diagnostics;
@@ -15,29 +16,13 @@ internal static class Diagnostics
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-
-    public static Diagnostic InternalError(Exception exception)
+    public static DiagnosticInfo InternalError(Exception exception)
     {
-        return Diagnostic.Create(_InternalError,
-            location: null,
-            exception.GetType().FullName,
-            exception.ToString().Replace("\r", "").Replace("\n", " "));
-    }
-
-    private static readonly DiagnosticDescriptor _TargetAncestorNotPartial = new(
-        IdPrefix + "1002",
-        "Invalid Target",
-        "Target method '{0}' ancestor '{1}' must be declared partial",
-        "Synto.Diagnostics.Usage",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    public static Diagnostic TargetAncestorNotPartial(Location location, string methodName, string ancestorName)
-    {
-        return Diagnostic.Create(_TargetAncestorNotPartial,
-            location,
-            methodName,
-            ancestorName);
+        return new DiagnosticInfo(_InternalError,
+            Location: null,
+            new EquatableArray<string>(ImmutableArray.Create(
+                exception.GetType().FullName!,
+                exception.ToString().Replace("\r", "").Replace("\n", " "))));
     }
 
     private static readonly DiagnosticDescriptor _TargetNotPartial = new(
@@ -48,12 +33,40 @@ internal static class Diagnostics
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static Diagnostic TargetNotPartial(Location location, string methodName)
+    public static DiagnosticInfo TargetNotPartial(LocationInfo? location, string methodName)
     {
-        return Diagnostic.Create(_TargetNotPartial,
-            null,
+        return new DiagnosticInfo(_TargetNotPartial,
             location,
-            methodName);
+            new EquatableArray<string>(ImmutableArray.Create(methodName)));
     }
 
+    private static readonly DiagnosticDescriptor _TargetAncestorNotPartial = new(
+        IdPrefix + "1002",
+        "Invalid Target",
+        "Target method '{0}' ancestor '{1}' must be declared partial",
+        "Synto.Diagnostics.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo TargetAncestorNotPartial(LocationInfo? location, string methodName, string ancestorName)
+    {
+        return new DiagnosticInfo(_TargetAncestorNotPartial,
+            location,
+            new EquatableArray<string>(ImmutableArray.Create(methodName, ancestorName)));
+    }
+
+    private static readonly DiagnosticDescriptor _TargetNotClass = new(
+        IdPrefix + "1003",
+        "Invalid Target",
+        "Target method '{0}' must be declared in a partial class",
+        "Synto.Diagnostics.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo TargetNotClass(LocationInfo? location, string methodName)
+    {
+        return new DiagnosticInfo(_TargetNotClass,
+            location,
+            new EquatableArray<string>(ImmutableArray.Create(methodName)));
+    }
 }

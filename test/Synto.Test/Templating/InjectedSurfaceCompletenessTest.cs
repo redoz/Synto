@@ -57,7 +57,7 @@ public class InjectedSurfaceCompletenessTest
         """
         using System;
         using System.Collections.Generic;
-        using Synto;
+        using Synto.Templating;
 
         partial class Factory {}
 
@@ -91,7 +91,7 @@ public class InjectedSurfaceCompletenessTest
         """
         using System;
         using System.Collections.Generic;
-        using Synto;
+        using Synto.Templating;
 
         namespace My.Nested.Space
         {

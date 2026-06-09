@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Synto;
 
-public static class SymbolExtensions
+internal static class SymbolExtensions
 {
     // TODO this probably doesn't handle generic types?
     public static NameSyntax GetQualifiedNameSyntax(this ISymbol symbol)

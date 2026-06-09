@@ -2,7 +2,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Synto;
+namespace Synto.Templating;
 
 public delegate void Syntax();
 

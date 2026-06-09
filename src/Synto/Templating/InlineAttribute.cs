@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Synto;
+namespace Synto.Templating;
 
 [AttributeUsage(AttributeTargets.GenericParameter | AttributeTargets.Parameter, AllowMultiple = false)]
 public sealed class InlineAttribute : Attribute

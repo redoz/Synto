@@ -33,7 +33,7 @@ public class ZeroCollisionTest
             """
             using System;
             using System.Collections.Generic;
-            using Synto;
+            using Synto.Templating;
 
             partial class Factory {}
 

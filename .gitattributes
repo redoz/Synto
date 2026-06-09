@@ -1,0 +1,11 @@
+# Verify golden snapshots are the executable spec of generated output. Pin them to
+# LF on disk so a Windows checkout doesn't introduce CRLF churn that masks a real
+# generated-code change inside line-ending noise — snapshot byte-stability also
+# underpins sound incremental caching (see .claude/rules/testability.md, performance.md).
+#
+# Scoped deliberately to snapshots only, to avoid a repo-wide line-ending
+# renormalization of source files.
+*.verified.cs   text eol=lf
+*.verified.txt  text eol=lf
+*.received.cs   text eol=lf
+*.received.txt  text eol=lf

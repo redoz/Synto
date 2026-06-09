@@ -8,8 +8,17 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Synto;
 
+// SYNC NOTE (see .claude/rules/maintainability.md M4): this is the RUNTIME quoter.
+// Its node-kind quoting logic must stay in sync with the bootstrap quoter at
+// src/Synto.Bootstrap/CSharpSyntaxQuoter.cs, which is the INPUT that generates
+// CSharpSyntaxQuoter.Generated.cs (the partial half of this type) during the
+// self-host build. A SyntaxKind handled here but not in the bootstrap copy (or
+// vice versa) breaks the self-host chain; only the Synto.Bootstrap.Test snapshot
+// guards the divergence. The two are intentionally separate copies (different
+// namespaces/roles), not a linked file — keep their per-node-kind handling aligned.
+
 // this needs to be a base-class because for some reason the generated source cannot see the contents of its partial class
-public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
+internal abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>
 {
     private readonly bool _includeTrivia;
 
@@ -192,7 +201,7 @@ public abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyn
 
 }
 
-public partial class CSharpSyntaxQuoter : CSharpSyntaxQuoterBase
+internal partial class CSharpSyntaxQuoter : CSharpSyntaxQuoterBase
 {
     public CSharpSyntaxQuoter(bool includeTrivia) : base(includeTrivia)
     {
