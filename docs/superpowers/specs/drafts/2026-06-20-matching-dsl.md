@@ -89,7 +89,7 @@ shape*, hence *what the matcher's root accepts* and *how it relates to its scope
 |---|---|---|
 | `None` (default) | a method / local-function **declaration** | the whole declaration, fully bounded by its own `{ }` — nothing hidden |
 | `Bare` | a run of statements **contained in a block** | **"contains": matches the run wherever it sits in the block** unless anchored |
-| `Single` | a single `StatementSyntax` / expression | one node *somewhere* in its block |
+| `Single` | a single `StatementSyntax` / expression | a statement in its block, or the handed expression node itself (§4) |
 
 The pattern method's **own name** names the generated matcher; it is never matched
 literally. In `None`, the method body's braces fully bound the match; in `Bare`/`Single`
@@ -188,11 +188,14 @@ The **static** form of the same quantifier vocabulary matches but doesn't surfac
 ```csharp
 Statement.All();      // a run of statements I don't care about
 Statement.One();      // exactly one, ignored
-Expr.Any<bool>();     // a wildcard expression (or `default` in expression position)
+Expr.Any<bool>();     // the wildcard expression — a marker call (recognized by binding, §3.1)
 ```
 
 So the verb reads the same everywhere; *static = wildcard, instance-on-a-`[Capture]` =
-capture*. This replaces any discard-named-capture hack. (Mechanical note for
+capture*. This replaces any discard-named-capture hack. `Expr.Any<T>()` is the **sole**
+expression-wildcard spelling — there is **no** bare-`default`-means-wildcard rule, so a literal
+`default` (e.g. `return default;`, `x = default`) always stays literal, preserving the §3.1
+invariant with no exception. (Mechanical note for
 implementation: C# forbids a static and an instance method of the same name on one type, so
 capture and wildcard live on two parallel marker surfaces sharing the verbs — names
 bikesheddable.) Wildcard quantifiers obey the same v1 straight-line line as captures (§3.4):
@@ -205,8 +208,13 @@ generator emits one `IsEquivalentTo` check. No special notation — C#'s variabl
 expresses it:
 
 ```csharp
-static void SelfCompare([Capture] object x) { _ = x == x; }   // matches <e> == <e>, both sides equal
+[Match<M>]   // None (default): matches a method declaration whose body is `_ = <e> == <e>;`
+static void SelfCompare([Capture] object x) { _ = x == x; }   // the two <e> are one reused hole → equal
 ```
+
+This is a `None` pattern (§3.2), so the matcher roots on the whole `SelfCompare` declaration;
+the `_ = …;` is a **literal** discard-statement hosting the two equality holes, and the reuse
+of `x` is what collapses both sides to a single `IsEquivalentTo`.
 
 ### 3.7 Repetition / nested ellipsis (`foreach`)
 
@@ -314,14 +322,18 @@ Value guards/predicates are deliberately **out of the DSL** — you get a typed 
     `SY1204`) is what keeps "leftmost" itself well-defined — two variable-length holes would
     make the split point undefined, so that shape is rejected, not matched.
     `Block.Start()`/`Block.End()` pin the run to the block's first/last edge.
-  - **`Single`** — likewise rooted on the candidate block. A **statement** `Single` matches
-    one of the block's **direct** statements at the **leftmost** satisfying position (unless
-    anchored). An **expression** `Single` (e.g. matching `a + b`) matches the expression of a
-    **top-level `ExpressionStatementSyntax`** of that block **only** — it does **not** descend
-    into the expression trees of the block's other statements (`if`-conditions, initializers,
-    nested calls). That bounded scope keeps `Single` a single local test and keeps "leftmost"
-    well-defined; searching expressions arbitrarily deep is the consumer's `DescendantNodes()`
-    loop (§3.11) or a future `Deep` (§9), handing each candidate node to the matcher.
+  - **`Single` (statement)** — rooted on the candidate **block**; matches one of the block's
+    **direct** statements at the **leftmost** satisfying position (unless anchored). Block-
+    rooting is what gives the `Block.Start()`/`Block.End()` anchors (§3.9) a scope to pin to.
+  - **`Single` (expression)** — rooted on the **handed node itself**: `M.Foo(node)` tests
+    whether `node` *is* the expression shape (e.g. `node is BinaryExpressionSyntax { Left: <a>,
+    Right: <b> }` for `a + b`), returning the captures or null. It is **not** block-scoped — an
+    expression sits arbitrarily deep inside a statement, so the consumer drives it with a
+    `DescendantNodes()` loop (§3.11), handing each candidate node to the matcher (the
+    expressions analyzer authors recognize — binary/conditional/member-access — are reached
+    exactly this way). Anchors are statement-scope (§3.9), so they do not apply to an
+    expression `Single`. The matcher's input contract — *hand it the expression node* — is part
+    of the frozen surface (§13).
 
 **Authoring an expression-`Single`.** Use an **expression-bodied** pattern method — the arrow
 body *is* the matched expression:
@@ -336,10 +348,15 @@ statement-`Single` (a block body with one statement, §3.9) and from a literal e
 statement: the body is an *expression*, not a statement, so there is no `_ = expr;` discard
 collision (§10 rejected `_ =` only as a *statement-hole* spelling). Each `[Capture] object`
 here sits in an operand slot (slot-typing rule, §3.3) and is captured as `ExpressionSyntax`.
+The generated `Sum(SyntaxNode node)` then roots on the handed node (the bullet above) —
+returning non-null exactly when `node` is the `<a> + <b>` shape — so the consumer feeds it from
+a `DescendantNodes()` loop, never from a block.
 
 This reconciles the §5 expansion (which roots on `node is BlockSyntax` and indexes its
-statements) with "rooted at the node you hand it": the matcher roots on, and scans within,
-*that one* block — it does not search the subtree below it.
+statements) with "rooted at the node you hand it": for `Bare` and statement-`Single` the
+matcher roots on, and scans within, *that one* block — it does not search the subtree below it.
+An expression-`Single` instead roots on the handed expression node directly (the bullet above),
+still a single local test, never a subtree walk.
 
 ## 5. Generation model — bespoke expansion
 
@@ -545,10 +562,13 @@ catch-all), never thrown.
   straight-line v1 first and by the established snapshot/round-trip test model; Shinn proves
   bespoke ellipsis-from-a-macro is tractable.
 - **Surface is a one-way door once consumers compile against it.** The marker shape,
-  generated record shape, and `Synto.Matching` namespace are compatibility boundaries — pinned
-  by snapshots, changed freely only pre-consumer. This spec fixes them deliberately. (The
-  generic-vs-`typeof` attribute form, §3.2/§10, and the captured-run collection type, §10, are
-  part of that surface and must be settled before they freeze.)
+  generated record shape, `Synto.Matching` namespace, and the **per-option matcher input
+  contract** (what node you hand each matcher — the declaration for `None`, the block for
+  `Bare`/statement-`Single`, the expression node itself for expression-`Single`; §4) are
+  compatibility boundaries — pinned by snapshots, changed freely only pre-consumer. This spec
+  fixes them deliberately. (The generic-vs-`typeof` attribute form, §3.2/§10, and the
+  captured-run collection type, §10, are part of that surface and must be settled before they
+  freeze.)
 - **`Bare` = contains** is a deliberate, regex-like default; anchors are the pins, and the
   **leftmost-single-result** position rule (§4) — kept unambiguous by the
   single-variable-length-quantifier line (§3.4) — keeps it deterministic. Chosen so "a block
