@@ -75,8 +75,12 @@ shape-to-match and `[Capture]` params are the blanks.
 static void PatternName(/* [Capture] holes */) { /* literal shape with holes */ }
 ```
 
-`MatchOption` mirrors `TemplateOption` — it selects *which slice of the pattern method is
-the shape*, hence *what the matcher's root accepts* and *how it relates to its scope*:
+`MatchOption` is a **plain (non-`[Flags]`) enum** that mirrors the *concept* of
+`TemplateOption`, not its bit layout. Templating's `TemplateOption` is `[Flags]` with
+`Single = 2 | Bare` (Single *implies* Bare); Matching's `None`/`Bare`/`Single` are
+**mutually-exclusive cardinalities** (one node vs a run vs a whole declaration), so a flags
+shape would be semantically wrong here. It selects *which slice of the pattern method is the
+shape*, hence *what the matcher's root accepts* and *how it relates to its scope*:
 
 | Option | Matches | Scope relationship |
 |---|---|---|
@@ -88,6 +92,16 @@ The pattern method's **own name** names the generated matcher; it is never match
 literally. In `None`, the method body's braces fully bound the match; in `Bare`/`Single`
 the surrounding scope is *not* part of the pattern, which is what makes anchors (§3.9)
 meaningful there.
+
+> **Open question — generic-attribute discovery on the Roslyn 5.0 floor (unverified).**
+> `[Match<TMatcher>]` is the generic attribute `MatchAttribute<T>` (metadata name
+> `` MatchAttribute`1 ``), and the pipeline reads `TMatcher` from its type argument. Whether
+> `ForAttributeWithMetadataName` reliably matches a *generic* attribute and surfaces the type
+> argument **on the 5.0 floor** is not yet confirmed (§10). If it doesn't, the fallback is the
+> **non-generic** `[Match(typeof(TMatcher))]` form — exactly how Templating's
+> `[Template(typeof(Factory))]` already passes its target through a ctor `typeof` arg —
+> costing only a slightly less elegant surface, no model change. The same applies to
+> `[Capture<TNode>]` (§3.3).
 
 ### 3.3 Expression captures
 
@@ -182,7 +196,9 @@ static void Concat([Capture] StringBuilder sb, [Capture] Many<object> parts)
 
 This is leak-free by §3.1: a `foreach` is "repetition" *only* when it iterates a `[Capture]`
 param; a literal `foreach` over a normal collection is matched literally. (The backtracking
-lowering this requires is **deferred** — see §8.)
+lowering this requires is **deferred to v2** — see §8/§9. `Many<T>` is not injected in v1, and
+a phantom `foreach` over a `[Capture]` is the one deferred construct reachable on a native-C#
+path, so v1 rejects it with `SY1203` (§11) until the lowering ships.)
 
 ### 3.8 Optional
 
@@ -208,7 +224,7 @@ static object TrailingReturn([Capture] object result)
 start/end.
 
 - In **`None`** the body's braces already bound the match completely, so anchors are a
-  usage error → **diagnostic `SY1008`** (§9). "No hidden before/after" is precisely the
+  usage error → **diagnostic `SY1201`** (§11). "No hidden before/after" is precisely the
   `None` invariant.
 - One accepted wrinkle: `Block.End()` after a `return`/`throw` is unreachable code
   (CS0162). The pattern body is phantom (never runs), so it is a suppressed warning, the
@@ -221,7 +237,8 @@ start/end.
 
 `Deep(() => …)` — sub-pattern at any depth (Shinn's `***`). `Either(() => A(), () => B())`
 — alternation. These look like calls *on purpose*: they are directives *about* the pattern,
-not part of the matched C#.
+not part of the matched C#. Both are **deferred markers** — not injected in v1; each is
+authored *with* its lowering (§7, §9).
 
 ### 3.11 The generated result and consumer usage
 
@@ -250,10 +267,25 @@ Value guards/predicates are deliberately **out of the DSL** — you get a typed 
 - **Purely syntactic, structural** — kind-by-kind, child-by-child. No semantic equivalence
   (`i++` does not match `i = i + 1`). Mirrors the quoter.
 - **Trivia-insensitive** — whitespace/comments ignored.
-- **Rooted at the node you hand it** — `M.Foo(node)` asks "does *this* node match?"; it does
-  not search the subtree (that's the consumer's `DescendantNodes()` loop, or `Deep`).
-- **`None`** is exact and fully bounded; **`Bare`** is *contains* (a run anywhere in a
-  block) unless anchored; **`Single`** is one node anywhere in its block unless anchored.
+- **A single local test on the handed node — never a subtree walk.** `M.Foo(node)` is one
+  deterministic test on the node you pass; it never recurses into descendants hunting for a
+  match. Searching a whole tree stays the consumer's `DescendantNodes()` loop (or, later,
+  `Deep`). What counts as "the handed node" differs by option:
+  - **`None`** — the node *is* the candidate declaration (method / local function); the
+    matcher tests it **exactly and fully bounded**. One node in, match-or-null out.
+  - **`Bare`** — the node *is* the candidate `BlockSyntax`; the matcher looks for the
+    pattern's statement run **contained** in that block, scanning **offsets within that one
+    block only** (it does not descend into nested blocks). Unanchored (§3.9), several offsets
+    may satisfy — the matcher commits to the **leftmost** and returns **exactly one** result.
+    This single deterministic position is load-bearing: an undefined choice would flap
+    snapshots and break caching. `Block.Start()`/`Block.End()` pin the run to the block's
+    first/last edge.
+  - **`Single`** — likewise rooted on the candidate block, matching **one**
+    statement/expression in it, at the **leftmost** satisfying position unless anchored.
+
+This reconciles the §5 expansion (which roots on `node is BlockSyntax` and indexes its
+statements) with "rooted at the node you hand it": the matcher roots on, and scans within,
+*that one* block — it does not search the subtree below it.
 
 ## 5. Generation model — bespoke expansion
 
@@ -286,20 +318,25 @@ Consequences:
 ## 6. Incremental-pipeline discipline
 
 Matching obeys the same cacheability contract as Templating: all semantic work happens
-inside the `ForAttributeWithMetadataName(typeof(MatchAttribute).FullName, …)` transform,
-which flows out an **equatable** result (generated text + `EquatableArray<DiagnosticInfo>`).
-No `Compilation` / `ISymbol` / `SemanticModel` / `SyntaxNode` is captured into pipeline
-state.
+inside the `ForAttributeWithMetadataName` transform (keyed on the `[Match]` attribute's
+metadata name — generic-attribute discovery on the 5.0 floor is the open question in
+§3.2/§10), which flows out an **equatable** result (generated text +
+`EquatableArray<DiagnosticInfo>`). No `Compilation` / `ISymbol` / `SemanticModel` /
+`SyntaxNode` is captured into pipeline state.
 
 ## 7. Layering & packaging
 
 - Lands as `src/Synto.SourceGenerator/Matching/` (namespace `Synto.Matching.*`), a sibling
   of `Templating/` inside the one umbrella generator. **No new package.**
-- The consumer markers (`MatchAttribute`/`Match<T>`, `CaptureAttribute`/`Capture<T>`,
-  `Stmt`/`Many`, the `Statement`/`Expr`/`Block` static marker holders, `MatchOption`,
-  `Deep`/`Either`) are authored once in `src/Synto` under `namespace Synto.Matching`,
-  embedded as resources, and injected `internal`/file-scoped — mirroring the Templating
-  surface single-source-of-truth.
+- **v1's injected consumer surface** — authored once in `src/Synto` under
+  `namespace Synto.Matching`, embedded as resources, and injected `internal`/file-scoped
+  (mirroring the Templating surface single-source-of-truth) — is exactly the markers v1
+  lowers: `MatchAttribute`/`Match<T>`, `CaptureAttribute`/`Capture<T>`, the `Stmt` statement
+  quantifier holder, the `Statement`/`Expr`/`Block` static marker holders, and `MatchOption`.
+- The **deferred** markers (`Deep`, `Either`, the `Many<T>` sequence-capture type) are
+  **not** injected in v1 — each is authored and injected *with* its lowering (§8, §9), so the
+  v1 surface never carries an inert marker on a reachable misuse path. The notation is
+  designed now; only the *source* is withheld until the lowering ships.
 - No forced runtime dependency; generated output stays dependency-free.
 
 ## 8. v1 scope (the line)
@@ -312,17 +349,35 @@ The lowering splits cleanly by difficulty. **v1 = the straight-line half (no bac
 - Statement captures via the flat quantifiers `One/Opt/Some/All/Exactly`, and their static
   wildcard forms.
 - **Non-linear** equality (one `IsEquivalentTo`).
-- **Anchors** `Block.Start()`/`Block.End()` + the `SY1008` validation.
-- **Diagnostics**: `SY1008` (anchor misuse) and the *provable-contradiction* subset of
-  `SY1009` (unsatisfiable pattern) the straight-line lowering can detect for free.
+- **Anchors** `Block.Start()`/`Block.End()` + the `SY1201` validation.
+- **Diagnostics**: `SY1201` (anchor misuse), the *provable-contradiction* subset of `SY1202`
+  (unsatisfiable pattern) the straight-line lowering can detect for free, and `SY1203` (the
+  one deferred construct still reachable in v1 — a phantom `foreach` over a `[Capture]`; see
+  below and §11).
 - The generated nullable result record and the bespoke straight-line matcher.
+
+**v1's injected surface is exactly what v1 supports.** The deferred markers (`Deep`,
+`Either`, the `Many<T>` sequence-capture type) are **not** authored into the injected surface
+until their lowering lands (§7, §9) — so a v1 consumer simply cannot name them (they don't
+compile), and there is no inert-marker-on-a-reachable-path to guard. The lone exception is
+**`foreach`-repetition** (§3.7): `foreach` is native C#, always available, so a consumer
+*can* write a phantom `foreach` over a `[Capture]` param before its backtracking lowering
+exists. That single reachable deferred path degrades to a clean diagnostic — `SY1203`
+(§11) — never a literal mis-match or an unimplemented-arm throw.
 
 ## 9. Designed-for growth (deferred, but the surface must not preclude)
 
+The notation for each deferred capability is **designed** now — so v2 only adds the lowering,
+not a surface redesign — but its markers are **injected only when that lowering lands** (§7).
+"Designed-for" means the *shape is reserved and proven to fit the model*, not *shipped inert*;
+v1 does not author `Deep`/`Either`/`Many<T>` into the consumer surface.
+
 - **`foreach` repetition / nested ellipsis** (§3.7) — needs emitted backtracking; the
-  notation is fixed now so v2 only adds the lowering.
-- **Deep / descendant** `Deep(…)` — subtree search.
-- **`Either` / structural optional** — alternation and optional clauses.
+  notation is fixed now so v2 only adds the lowering. The one deferred construct reachable in
+  v1 (native `foreach`), so v1 rejects it with `SY1203` (§11) until the lowering ships.
+- **Deep / descendant** `Deep(…)` — subtree search. Marker injected with its lowering.
+- **`Either` / structural optional** — alternation and optional clauses. Markers injected with
+  their lowering.
 - **Token / identifier capture** — capturing a *name* (a reused `var x` for non-linear
   declared locals, or a matched method's name). The one genuinely-separate capability; the
   rest of the model already accommodates it.
@@ -335,6 +390,12 @@ The lowering splits cleanly by difficulty. **v1 = the straight-line half (no bac
 
 ## 10. Open questions (bikeshed, not blockers)
 
+- **Generic-attribute discovery on Roslyn 5.0 — must verify before planning commits to the
+  generic form.** Does `ForAttributeWithMetadataName("Synto.Matching.MatchAttribute`1", …)`
+  match `[Match<M>]` and expose `M` as the attribute's type argument on the 5.0 floor? If not,
+  fall back to the non-generic `[Match(typeof(M))]` (§3.2), as Templating already does for its
+  target. Same question for `[Capture<TNode>]`. The model is unchanged either way; only the
+  surface spelling differs.
 - Final names: `Stmt`/`Many` vs `Statement`/`Statements`; the capture-vs-wildcard parallel
   marker surfaces; `Block.Start/End`.
 - Result type: `record class` vs `readonly record struct`.
@@ -343,12 +404,18 @@ The lowering splits cleanly by difficulty. **v1 = the straight-line half (no bac
 
 ## 11. Diagnostics
 
-New `SY1xxx` usage diagnostics, in the hand-written `Diagnostics` family (or via dogfooded
-`Synto.Diagnostics` later). At least:
+New usage diagnostics in a **per-feature `SY12xx` range reserved for Matching**, kept clear of
+Templating's `SY0000`/`SY1001`–`SY1009` (the `[Template]`/`[Runtime]` family). Note
+`SY1008`/`SY1009` are **already taken** by the `[Runtime]` converter checks
+(`Diagnostics.cs`, registered in `AnalyzerReleases.Unshipped.md`), so Matching must **not**
+reuse them; carving its own `SY12xx` range keeps the two features' IDs from ever colliding as
+both grow. They live in the hand-written `Diagnostics` family (or via dogfooded
+`Synto.Diagnostics` later) and are likewise registered in `AnalyzerReleases.Unshipped.md`. At
+least:
 
-- **`SY1008` — anchor not allowed.** `Block.Start()`/`Block.End()` used in a `None` pattern
+- **`SY1201` — anchor not allowed.** `Block.Start()`/`Block.End()` used in a `None` pattern
   (already fully bounded). Located on the marker call.
-- **`SY1009` — pattern can never match (unsatisfiable).** Emitted *only* when the generator
+- **`SY1202` — pattern can never match (unsatisfiable).** Emitted *only* when the generator
   can **prove** no syntax tree satisfies the pattern's combined constraints. The
   conservatism rule is load-bearing: a false positive would reject a valid matcher, so we
   stay silent on anything merely suspicious and flag only the provably-dead. Cheap, provable
@@ -365,6 +432,13 @@ New `SY1xxx` usage diagnostics, in the hand-written `Diagnostics` family (or via
   Full unsatisfiability is not decidable in general, so this is deliberately a *partial,
   provable-only* check — it never claims a pattern is dead unless it is. (Analogous to the C#
   compiler's "this pattern can never match" / unreachable-case diagnostics.)
+- **`SY1203` — construct not yet supported in v1.** The one deferred construct reachable on a
+  native-C# path: a phantom `foreach` iterating a `[Capture]` param (the §3.7 repetition
+  notation, whose backtracking lowering is deferred to v2 — §8/§9). Fires on the `foreach` so
+  the misuse degrades to a clean diagnostic rather than a literal mis-match or an
+  unimplemented-arm throw. (The other deferred markers — `Deep`/`Either`/`Many<T>` — need no
+  diagnostic: they are not injected in v1, so a consumer can't name them.) Located on the
+  `foreach`.
 - Further arms as the implementation surfaces them (e.g. capture referenced but never placed;
   `Bare` body empty).
 
@@ -379,7 +453,8 @@ catch-all), never thrown.
   and returns the expected captures; assert near-miss trees *don't* match.
 - **Cacheability**: a driver re-run on an unrelated edit yields cached steps
   (equatability of the pipeline model).
-- **Diagnostics**: a driver test per `SY1xxx` arm (esp. `SY1008`).
+- **Diagnostics**: a driver test per `SY12xx` arm (esp. `SY1201` anchor misuse and `SY1203`
+  deferred-`foreach`).
 
 ## 13. Risks & consequences
 
@@ -388,6 +463,9 @@ catch-all), never thrown.
   bespoke ellipsis-from-a-macro is tractable.
 - **Surface is a one-way door once consumers compile against it.** The marker shape,
   generated record shape, and `Synto.Matching` namespace are compatibility boundaries — pinned
-  by snapshots, changed freely only pre-consumer. This spec fixes them deliberately.
-- **`Bare` = contains** is a deliberate, regex-like default; anchors are the pins. Chosen so
-  "a block containing this" needs no boilerplate.
+  by snapshots, changed freely only pre-consumer. This spec fixes them deliberately. (The
+  generic-vs-`typeof` attribute form, §3.2/§10, is part of that surface and must be verified
+  before it freezes.)
+- **`Bare` = contains** is a deliberate, regex-like default; anchors are the pins, and the
+  **leftmost-single-result** position rule (§4) keeps it deterministic. Chosen so "a block
+  containing this" needs no boilerplate.
