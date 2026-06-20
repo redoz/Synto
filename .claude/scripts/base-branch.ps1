@@ -14,7 +14,8 @@
 #      Under jj HEAD is usually detached, so this tier is normally empty.
 #   4. Refuse: prints guidance to stderr and exits non-zero.
 #
-# See .claude/rules/github.md for context on how B is consumed by the issue-flow.
+# B is consumed by the implement-plan harness (.claude/workflows/implement-plan.js) as the
+# integration bookmark the per-task green stack is rebased onto and advanced.
 $ErrorActionPreference = 'Continue'
 
 function LogB($m) { [Console]::Error.WriteLine("base-branch: $m") }

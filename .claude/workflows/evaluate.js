@@ -57,18 +57,18 @@ const R2 = {
 
 // 4 dimensions + the principal-engineer lens.
 const REVIEWERS = [
-  { key: 'correctness', role: 'correctness-reviewer', rules: '.claude/rules/correctness.md' },
-  { key: 'maintainability', role: 'architect', rules: '.claude/rules/maintainability.md' },
-  { key: 'performance', role: 'performance-reviewer', rules: '.claude/rules/performance.md' },
-  { key: 'testability', role: 'quality-engineer', rules: '.claude/rules/testability.md' },
-  { key: 'consequences', role: 'principal-engineer', rules: '.claude/rules/consequences.md', expert: true },
+  { key: 'correctness', role: 'correctness-reviewer', rules: '.claude/playbook/correctness.md' },
+  { key: 'maintainability', role: 'architect', rules: '.claude/playbook/maintainability.md' },
+  { key: 'performance', role: 'performance-reviewer', rules: '.claude/playbook/performance.md' },
+  { key: 'testability', role: 'quality-engineer', rules: '.claude/playbook/testability.md' },
+  { key: 'consequences', role: 'principal-engineer', rules: '.claude/playbook/consequences.md', expert: true },
 ]
 
 const base = `You have Read/Bash/Grep/Glob over the whole repo. Before reading source, read:
-- .claude/rules/architecture.md (domain context, project layering, navigation, evidence requirement)
-- .claude/rules/principles.md and .claude/rules/standards.md
-- .claude/rules/project-phase.md (POC->MVP severity calibration)
-- README.md and handoff.md, the per-project *.csproj under src/*, plus docs/superpowers/specs/ (the authoritative design docs) to orient
+- .claude/playbook/architecture.md (domain context, project layering, navigation, evidence requirement)
+- .claude/playbook/principles.md and .claude/playbook/standards.md
+- .claude/playbook/project-phase.md (POC->MVP severity calibration)
+- README.md, the per-project *.csproj under src/*, plus docs/superpowers/specs/ (the authoritative design docs) to orient
 For every critical/high finding include a 3-10 line code snippet, or it is rejected.`
 
 // Cap the reviewer fan-out (default 3, override via args.concurrency) so the 5-agent panel can't trip
@@ -151,7 +151,7 @@ const triage = await withRetry('triage', AGENT_ATTEMPTS, () => agent(
 Produce a file triage map: for each project under src/ (src/Synto, src/Synto.SourceGenerator,
 src/Synto.Bootstrap, src/Synto.Diagnostics), list which quality dimensions are most relevant
 (use each project's *.csproj for what it owns and its dependency/package direction, plus the repo
-README.md and handoff.md for intent/functionality). This guides reviewers on what to read in depth.`,
+README.md for intent/functionality). This guides reviewers on what to read in depth.`,
   { label: 'triage', phase: 'Triage', schema: { type: 'object', properties: { map: { type: 'string' } }, required: ['map'], additionalProperties: false } },
 ))
 if (!triage) throw new Error(`evaluate: triage failed after ${AGENT_ATTEMPTS} attempts`)
@@ -232,7 +232,7 @@ Verified findings:
 ${JSON.stringify(finalFindings, null, 2)}
 Rejected (for the audit trail):
 ${JSON.stringify(rejected, null, 2)}
-Produce the full report markdown per .claude/rules/standards.md scoring model:
+Produce the full report markdown per .claude/playbook/standards.md scoring model:
 Quality Scorecard table (per-dimension score + counts), quality gate PASS/FAIL,
 Findings by dimension, Domain Expert Assessment (Consequences), Root Causes
 (findings sharing a cause, grouped), Prioritized Action Plan (Immediate / Next

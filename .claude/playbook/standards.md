@@ -36,7 +36,7 @@ dimension tags, providing a coherent domain-lens view.
 
 | Domain Expert        | Domain | Rules file |
 |----------------------|--------|------------|
-| principal-engineer   | Architectural consequences | `.claude/rules/consequences.md` |
+| principal-engineer   | Architectural consequences | `.claude/playbook/consequences.md` |
 
 ## Dimension Scores (for full evaluations)
 

@@ -16,7 +16,8 @@
 #      environments where the repo is used without jj.
 #   4. Refuse: prints guidance to stderr and exits non-zero.
 #
-# See .claude/rules/github.md for context on how B is consumed by the issue-flow.
+# B is consumed by the implement-plan harness (.claude/workflows/implement-plan.js) as the
+# integration bookmark the per-task green stack is rebased onto and advanced.
 set -euo pipefail
 
 # ── Step 1: env-var override ──────────────────────────────────────────────────

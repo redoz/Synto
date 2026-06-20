@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # probe.sh [--implement | --no-implement]
 #
-# THE precondition probe for the issue-flow runners (walk-issue / burn-the-board).
+# THE precondition probe for the implement-plan harness (.claude/workflows/implement-plan.js).
 # Verifies the machine is in a state where a run can safely proceed, then prints EXACTLY ONE
 # compact JSON line to STDOUT:
 #   {"ok":true,"reason":"..."}   (ok=false carries the blocker + remediation in reason)
@@ -13,7 +13,7 @@
 #
 # Synto has NO database, NO containers, NO network runtime — it is a build-time library + source
 # generators — so there is no infra to bring up. The jj guardrails below verify the working copy
-# is in a safe, consistent state for an issue-flow run.
+# is in a safe, consistent state before an implement-plan run.
 #
 # Checks (jj-native — run in order; first fatal failure exits 1):
 #   1. B resolves: bash .claude/scripts/base-branch.sh succeeds with non-empty output.

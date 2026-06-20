@@ -41,7 +41,7 @@ label and the issues).
    `README.md` and `.csproj`) so reviewers read high-relevance projects in depth and
    skim the rest.
 3. **Round 1 (discovery)** — 5 reviewers in parallel (4 dimensions + the
-   principal-engineer lens), each reading `.claude/rules/architecture.md`,
+   principal-engineer lens), each reading `.claude/playbook/architecture.md`,
    `principles.md`, `standards.md`, and their own checklist/focus areas. Evidence (a
    3–10 line snippet) is required for every critical/high.
 4. **Round 2 (verification + cross-pollination)** — 5 fresh reviewers verify their own
@@ -56,7 +56,7 @@ label and the issues).
 
 ## Scoring model
 
-The reviewers and synthesis follow `.claude/rules/standards.md` — severity definitions,
+The reviewers and synthesis follow `.claude/playbook/standards.md` — severity definitions,
 per-dimension scores (Excellent / Good enough / Needs improvement / Broken), and the
 quality-gate tiers (Correctness is the hard gate; Maintainability/Performance must be
 Good enough+; Testability must not be Broken), plus the principal-engineer (consequences)

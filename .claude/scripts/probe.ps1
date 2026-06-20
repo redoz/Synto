@@ -1,12 +1,12 @@
 #!/usr/bin/env pwsh
 # probe.ps1 — PowerShell (Windows-native) twin of probe.sh. Identical contract:
-# verify the machine can safely start an issue-flow run, then write EXACTLY ONE compact JSON line to
+# verify the machine can safely start an implement-plan run, then write EXACTLY ONE compact JSON line to
 # STDOUT ({"ok":true,"reason":"..."}); ALL progress goes to STDERR; the exit code mirrors ok (0/1).
 # Use this from PowerShell; use probe.sh from a bash shell — they are equivalent.
 #
 # Synto has NO database, NO containers, NO network runtime (build-time library + source generators),
 # so there is no infra to bring up. The jj guardrails below verify the working copy is in a safe,
-# consistent state for an issue-flow run.
+# consistent state before an implement-plan run.
 #
 # Checks (jj-native — run in order; first fatal failure exits 1):
 #   1. B resolves: pwsh .claude/scripts/base-branch.ps1 succeeds with non-empty output.

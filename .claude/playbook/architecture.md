@@ -122,20 +122,18 @@ but **do** flag misuse of the platform or violations of the layering above:
 Read the relevant context before reading source:
 
 1. **`README.md`** (repo root) — what Synto is and the quickest example.
-2. **`handoff.md`** (repo root) — the packaging-redesign rationale and decisions
-   (umbrella-generator model, source-injection, why `Synto.Diagnostics` stays split).
-3. **The doc-comments are the design.** `SurfaceInjectionGenerator`, `FileLocalHelpers`,
+2. **The doc-comments are the design.** `SurfaceInjectionGenerator`, `FileLocalHelpers`,
    and `TemplateFactorySourceGenerator` carry long `<remarks>` explaining the injection
    model, the `internal`-vs-`file` choice, and the cacheability discipline. Read them first.
-4. **The snapshot tests** under `test/Synto.Test/Templating/snapshots/` (and the
+3. **The snapshot tests** under `test/Synto.Test/Templating/snapshots/` (and the
    `SurfaceInjectionTest` / `InjectedSurfaceCompletenessTest` / `ZeroCollisionTest`
    snapshots) are the authoritative spec of the generated output shape.
-5. **Build wiring** — `Directory.Build.targets` (analyzer packaging, gated on
+4. **Build wiring** — `Directory.Build.targets` (analyzer packaging, gated on
    `IsSyntoGeneratorPackage`), `Directory.Build.props`, `Directory.Packages.props`,
    `global.json`, and each `*.csproj`'s `<EmbeddedResource>` items.
 
-Design decisions live in the handoff and the doc-comments, and the implementation —
-together with the verified snapshots — is expected to match them.
+Design decisions live in the doc-comments, and the implementation — together with the
+verified snapshots — is expected to match them.
 
 ## Evidence requirement
 

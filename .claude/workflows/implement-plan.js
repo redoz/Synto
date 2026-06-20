@@ -3,7 +3,7 @@ export const meta = {
   description:
     'Implement ONE approved implementation plan (a single top-level docs/superpowers/plans/*.md, handed by exact path) in its own isolated jj workspace the subagent-driven-development way: a fresh subagent per TASK doing strict red-green TDD, each followed by a spec-compliance review and a code-quality review (with bounded fix loops). Continuous integration: after every GREEN COMMIT the task stack is rebased onto the latest tip of the integration bookmark B, the full green-gate re-runs, and bookmark B is advanced to the new tip. In the default LOCAL mode nothing is pushed; under SYNTO_FLOW_INTEGRATE=push the advanced bookmark is also pushed. A final whole-plan review runs at the end, then the plan file is archived to completed/. The operator working copy follows the advanced bookmark via jj auto-rebase.',
   whenToUse:
-    'Run when ONE written implementation plan is ready to implement. Pass {plan:"docs/superpowers/plans/<file>.md"} — the exact top-level plan path (NOT drafts/, NOT completed/, NOT a subdirectory). Pass {mode:"dry-run"} to implement+gate per task without advancing the bookmark or pushing. /issue-implement and the issue-flow driver resolve the ready issue\'s promoted top-level plan and pass its path here, so no other plan is ever touched.',
+    'Run when ONE written implementation plan is ready to implement. Pass {plan:"docs/superpowers/plans/<file>.md"} — the exact top-level plan path (NOT drafts/, NOT completed/, NOT a subdirectory). Pass {mode:"dry-run"} to implement+gate per task without advancing the bookmark or pushing.',
   phases: [
     { title: 'Preflight', detail: 'resolve integration bookmark B (base-branch.sh) + run the jj-native probe (probe.sh); validate the plan path' },
     {
@@ -54,7 +54,7 @@ function planPathError(p) {
 
 const MAX_ATTEMPTS = 3 // local green-gate fix-and-retry attempts (NOT the shared bookmark-advance race)
 // Bookmark-advance retry budget — deliberately higher than MAX_ATTEMPTS because the advance lands on the SHARED
-// integration bookmark B: a concurrently-running plan (the issue-flow loops) keeps advancing B, so a small budget
+// integration bookmark B: another concurrently-running implement-plan can keep advancing B, so a small budget
 // gets STARVED before it can win the race (exactly the kind of starvation that parks a plan mid-integrate). Each
 // attempt re-rebases onto the latest B tip, re-gates, and re-advances behind an incremental backoff so the
 // competing advance can settle. Name kept (FF_PUSH_*) for continuity. Tunable — raise if contention grows.
@@ -425,7 +425,7 @@ function qualityReviewPrompt(plan, task, worktreePath) {
     'Workspace: plan-' + plan.slug + '. Review the diff THIS task introduced — inspect its commit(s) ("jj show @-",',
     'or "jj diff -r @-") and read the actual code.',
     '',
-    'BEFORE you judge anything: read .claude/rules/project-phase.md and let it set your severity bar — Synto is a',
+    'BEFORE you judge anything: read .claude/playbook/project-phase.md and let it set your severity bar — Synto is a',
     'POC, so calibrate what counts as CRITICAL per that file (critical is the gate that blocks this task).',
     '',
     'Task under review: ' + task.id + ' — ' + task.title,
@@ -502,7 +502,7 @@ function finalReviewPrompt(plan, worktreePath, baseSha) {
     'Also skim the commit messages:  jj log -r ' + baseSha + '..@  — then OPEN and read the changed code.',
     'Plan file (the requirements): ' + plan.path + '. What it delivers: ' + plan.summary,
     '',
-    'BEFORE you judge anything: read .claude/rules/project-phase.md and let it set your severity bar — Synto is a',
+    'BEFORE you judge anything: read .claude/playbook/project-phase.md and let it set your severity bar — Synto is a',
     'POC, so calibrate what counts as CRITICAL per that file (critical here triggers a fix pass).',
     '',
     'Confirm the plan as a whole is delivered, the per-task pieces fit together coherently, and no',
@@ -717,9 +717,8 @@ function planResult(plan, branch, worktreePath, fields) {
     green: !!fields.green,
     merged: !!fields.merged,
     pushedTasks: fields.pushedTasks || 0,
-    // Completeness attestation (close-gate; see reconcileDispositions). null = not computed
-    // (every NOT-merged early-return); a merged+archived result MUST set both, equal, or the
-    // walk close-gate refuses to close (defense-in-depth in walk-issue.js).
+    // Completeness attestation. null = not computed (every NOT-merged early-return); a
+    // merged+archived result MUST set both, equal — they attest every plan task was accounted for.
     tasksTotal: fields.tasksTotal === undefined ? null : fields.tasksTotal,
     tasksAccounted: fields.tasksAccounted === undefined ? null : fields.tasksAccounted,
     commits: fields.commits || [],
