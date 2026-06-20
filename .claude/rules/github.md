@@ -322,15 +322,25 @@ approval.
 
 - **Spec.** While brainstorming / spec-reviewing / discussing:
   `docs/superpowers/specs/drafts/{YYYY-MM-DD-slug}.md`. On **spec approval**
-  (`/issue-respond` on a reviewed spec): `git mv` to top-level
-  `docs/superpowers/specs/{YYYY-MM-DD-slug}.md`, and update the spec comment's link to the
-  promoted path. Top-level `specs/` is, by construction, the home of *approved* designs.
+  (`/issue-respond` on a reviewed spec): move the file on disk to the top-level path
+  `docs/superpowers/specs/{YYYY-MM-DD-slug}.md`, then record the rename with a
+  fileset-scoped commit:
+  ```
+  jj commit docs/superpowers/specs/drafts/{slug}.md docs/superpowers/specs/{slug}.md \
+      -m "docs(spec): promote {slug}"
+  ```
+  jj may detect the rename automatically from content similarity; listing both paths
+  ensures the full rename (deletion + creation) is in the commit's fileset. Update the spec
+  comment's link to the promoted path. Top-level `specs/` is, by construction, the home
+  of *approved* designs. **No push** — commits stay local; a publish step is a
+  separate, later-task concern.
 - **Plan.** While planning / plan-reviewing / discussing:
   `docs/superpowers/plans/drafts/{YYYY-MM-DD-slug}.md` — a draft is never handed to
   `implement-plan` (which is given the exact top-level plan path, not a directory it
-  scans), so no change to that tool is required. On **plan approval**: `git mv` to top-level
-  `docs/superpowers/plans/{YYYY-MM-DD-slug}.md`, making it eligible — promotion *is*
-  the ready signal. Update the plan comment's link.
+  scans), so no change to that tool is required. On **plan approval**: move the file on
+  disk to `docs/superpowers/plans/{YYYY-MM-DD-slug}.md`, then commit fileset-scoped
+  (both paths — `jj commit <new-path> <old-path> -m "…"`), making it eligible —
+  promotion *is* the ready signal. Update the plan comment's link.
 - **On implementation:** `implement-plan` archives the plan to
   `docs/superpowers/plans/completed/` as it already does.
 
@@ -347,38 +357,49 @@ so later steps can find and close the issue:
 > **Spec:** docs/superpowers/specs/{YYYY-MM-DD-slug}.md
 ```
 
-## § Working-tree hygiene (no stray edits on `main`)
+## § Working-tree hygiene (no stray edits in the stack)
 
-The authoring skills and the autonomous loops commit **directly to the primary checkout
-on `main`** (a loop runs there unattended). One broad `git add`, or one "let me just
-edit a source file to try it," sweeps stray/trial changes onto `main`. Two **hard rules**
-keep `main` clean — they bind **every** skill and the loops:
+The authoring skills and the autonomous loops commit **directly into the primary jj
+workspace** (a loop runs there unattended). Under jj, the working copy is
+**auto-snapshotted** — there is no staging area. Scoping happens at *commit* time via a
+fileset, not before. A bare `jj commit` with no fileset captures the entire working copy,
+including any pre-existing edits (the operator's `README.md` change is the standing
+example). Two **hard rules** keep the stack clean — they bind **every** skill and the loops:
 
-- **Commit only the one intended artifact, path-scoped.** The *only* thing a skill may
-  write-and-commit in the primary checkout is the **single intended draft/promoted
-  artifact** — the one spec or plan `.md` (a promote is its `git mv` rename; a comment-link
-  edit is a GitHub comment, not a file). The commit step MUST stage **that exact path and
-  nothing else**:
-  - draft: `git add docs/superpowers/<specs|plans>/drafts/<the-file>.md` — the explicit
-    path only.
-  - promote / demote: stage via `git mv <old> <new>` and commit **only those two paths**
-    (`git commit -- <new> <old> …`, i.e. the `git mv`-staged rename).
-  - **Never** `git add -A`, `git add .`, `git add -u`, or `git commit -a` — these sweep
-    untracked notes, editor files, and build artifacts onto `main` (exactly how
-    `HANDOFF.md`/`ISSUES.md` once landed on `main` and had to be reverted, `197d23e`→`56662b5`).
-- **Trials go in a throwaway worktree, never the primary checkout.** **Any**
+- **Commit only the one intended artifact, fileset-scoped.** The *only* thing a skill may
+  write-and-commit in the primary workspace is the **single intended draft/promoted
+  artifact** — the one spec or plan `.md` (a promote moves it on disk; a comment-link edit
+  is a GitHub comment, not a file). The commit step MUST be scoped to **that exact path
+  and nothing else**:
+  - draft: `jj commit docs/superpowers/<specs|plans>/drafts/<the-file>.md -m "…"` — the
+    explicit path only.
+  - promote: move the file on disk, then `jj commit <new-path> <old-path> -m "…"` — jj
+    may detect the rename automatically from content similarity; listing both paths ensures
+    the full rename (deletion + creation) is in the commit's fileset.
+  - **Never** finalize the working copy without a fileset — a bare `jj commit` or `jj
+    squash` (no paths) bundles every working-copy change, including the operator's
+    pre-existing `README.md` edit, into one commit. Always scope with a fileset
+    (`jj commit <path…>`). If unrelated edits have already accumulated in `@`, use
+    `jj split` to pull the artifact's paths into their own commit and leave the rest in
+    the working copy. (`jj describe @` only labels the working-copy commit; it does not
+    finalize or move any changes.)
+- **Trials go in a throwaway workspace, never the primary working copy.** **Any**
   verification / POC / trial that mutates *tracked* files — a compile-check, a "does this
-  build", a scratch edit — MUST happen in an **isolated, disposable git worktree**
-  (`superpowers:using-git-worktrees`, or `git worktree add` under a temp dir), then be
-  discarded. **Never** edit a tracked file in the primary checkout "just to try it," even
-  intending to revert — a failed revert strands a trial edit on `main`. Spec/plan authoring
-  is **read the code + write the one `.md`**, not editing source to test an idea.
+  build", a scratch edit — MUST happen in an **isolated, disposable jj workspace**
+  (`jj workspace add <temp-dir>`, then `jj workspace forget <name>` when done). **Never**
+  edit a tracked file in the primary working copy "just to try it," even intending to
+  undo — an aborted trial leaves the change in the auto-snapshot, and a bare commit would
+  sweep it. Spec/plan authoring is **read the code + write the one `.md`**, not editing
+  source to test an idea.
 
-**Assert clean.** Before committing, a skill MUST verify `git status --porcelain` shows
-**nothing but** the one intended artifact path — if anything else appears, **stop and fail
-loud** (report it) rather than sweep it. After the commit + push the working tree must be
-**empty** (`git status --porcelain` prints nothing). The assertion is the guard; the
-path-scoped `git add` is the mechanism.
+**Assert clean.** Before committing, a skill MUST verify that `jj status` shows **nothing
+but** the intended artifact path(s) that belong in the fileset — if anything else would be
+swept in, **stop and fail loud** (report it) rather than sweep it. The operator's
+pre-existing `README.md` change is the standing exception: it appears in `jj status` and
+must **never** be included in the commit's fileset. After the fileset-scoped commit, `jj
+status` must show only that standing pre-existing change (`M README.md`) and nothing more
+from this skill's run. The fileset-scoped `jj commit` is the mechanism; checking `jj
+status` before and after is the guard.
 
 ## § Human-signal labels
 
