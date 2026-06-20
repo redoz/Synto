@@ -26,7 +26,7 @@ This plan deliberately pins **the durable design** — the consumer surface, the
 - **`netstandard2.0`** for the generator and the runtime markers; **Roslyn 5.0 floor**; **no file/network/process/environment work at generation time** — inputs come only from the compilation.
 - **Pipeline values are equatable value types.** Never capture `Compilation`, `ISymbol`, `SemanticModel`, or `SyntaxNode` into pipeline state. Do all semantic work inside the FAWMN transform and flow out only an equatable `MatchGenerationResult` (§ C4).
 - **Failures become a `DiagnosticInfo` (SY-series), never a thrown exception.** Wrap generation in a `try/catch` that converts any escaping exception to `Diagnostics.InternalError` (**SY0000**).
-- **Matching is a sibling folder/namespace** under the one umbrella generator (`src/Synto.SourceGenerator/Matching/`, namespace `Synto.Matching`). **No new package.** Consumer markers are injected `internal`; any emitted helper is `file`-scoped. Generated output is **self-contained** (references only Roslyn — no Synto runtime dependency).
+- **Matching is a sibling folder** under the one umbrella generator (`src/Synto.SourceGenerator/Matching/`); **consumer markers** in namespace `Synto.Matching` (in `Synto.Core`), **generator-internal** types in `namespace Synto` (mirroring `TemplateInfo`; see File structure). **No new package.** Consumer markers are injected `internal`; any emitted helper is `file`-scoped (the `IsExternalInit` polyfill is the one exception — a single per-assembly `internal` type, § C3). Generated output is **self-contained** (references only Roslyn — no Synto runtime dependency).
 - **Generic-attribute discovery (spike-verified on the Roslyn 5.0 floor — evidence below):** key FAWMN on the arity-suffixed metadata name `` Synto.Matching.MatchAttribute`1 `` and read the matcher target type off `ctx.Attributes[0].AttributeClass!.TypeArguments[0]`. Do **not** add a `[Match(typeof(M))]` fallback — it is unnecessary (see evidence).
 
   > **Spike evidence (the spec's one must-verify-before-freeze item, §10) — already done, recorded here.** A throwaway spike against **`Microsoft.CodeAnalysis.CSharp` 5.0.0** confirmed end-to-end:
@@ -59,14 +59,14 @@ This plan deliberately pins **the durable design** — the consumer surface, the
 **New runtime markers (authored once, `public`, in `src/Synto/Matching/`; embedded as `Synto.Runtime.*` resources):**
 `MatchOption.cs`, `MatchAttribute.cs`, `CaptureAttribute.cs` (both `CaptureAttribute` + `CaptureAttribute<TNode>`), `Markers.cs` (`Stmt`/`Statement`/`Expr`/`Block`).
 
-**New generator (`src/Synto.SourceGenerator/Matching/`, namespace `Synto.Matching`):**
+**New generator (`src/Synto.SourceGenerator/Matching/`, namespace `Synto` — generator-internal, mirroring Templating's `Synto.TemplateInfo`):**
 `MatchTrackingNames.cs`, `MatchGenerationResult.cs`, `MatchInfo.cs` (transform-local), `MatchFactorySourceGenerator.cs`, `MatchMarkers.cs`, `MatchEmitter.cs`, `MatchDiagnostics.cs`.
 
 **Modified:** `Synto.SourceGenerator.csproj` (add `Synto.Runtime.*` `<EmbeddedResource>` items); `Diagnostics.cs` (add `LocationInfo`-based overloads of the four target-validation factories — same descriptors, no new IDs); `AnalyzerReleases.Unshipped.md` (register each SY12xx in the task that adds it).
 
 **New tests (`test/Synto.Test/Match/`):** `MatchTestHarness.cs`, `MatchSnapshotTests.cs`, `MatchRoundTripTests.cs`, `MatchDiagnosticsTests.cs`, `MatchSurfaceTests.cs`; plus a `MatchGenerationResult` case added to the existing `PipelineEquatabilityTests.cs`.
 
-> Generator-internal Matching types live in `namespace Synto.Matching` (feature-scoped, matching architecture.md's `Synto.Matching.*` naming). They never reach consumer output and live in the *generator* assembly, so they cannot collide with the *consumer* markers of the same namespace (which live in the referenced `Synto.Core` assembly). `Diagnostics.cs` stays in `namespace Synto` (shared with Templating).
+> Generator-internal Matching types live in **`namespace Synto`** — mirroring Templating, whose generator-internal pipeline types (`TemplateInfo`, etc.) are in `namespace Synto` while only its *consumer surface* is feature-namespaced (`Synto.Templating`). Reserving **`Synto.Matching`** for the injected consumer markers (in `Synto.Core`) keeps the generator-internal / consumer-surface divide crisp (plan-review round-4 maintainability). No collision: the generator-internal `Synto.*` types live in the *generator* assembly; the `Synto.Matching.*` markers live in the referenced `Synto.Core` assembly, and the names differ regardless (`Synto.MatchEmitter` vs `Synto.Matching.MatchAttribute`). `Diagnostics.cs` stays in `namespace Synto` (shared with Templating).
 
 ---
 
@@ -134,14 +134,29 @@ What consumer code binds to; snapshot-pinned.
   | `[Capture] Stmt` `.Opt()` | `StatementSyntax?` |
   | `[Capture] Stmt` `.Some()` / `.All()` / `.Exactly(n)` | `SyntaxList<StatementSyntax>` (**not** `IReadOnlyList<T>` — anchored across the quantifiers and the deferred `foreach`, spec §10) |
 - **Usings:** `Microsoft.CodeAnalysis`, `…CSharp`, `…CSharp.Syntax`; **`System.Linq` only when the body uses `Skip`/`Take`** (set a `NeedsLinq` flag in the slice-emitting helpers — do **not** add it unconditionally, which would churn the capture-less expression-Single goldens; plan-review round-3 medium). Output normalized with `NormalizeWhitespace()` then `SyntaxFormatter.Format(...)`.
+- **Namespace & polyfill (resolves the round-4 C2/C3 conflict):** the matcher file keeps `WithAncestryFrom`'s **file-scoped** namespace as-is — **no block-namespace conversion**. The `init`-modreq `IsExternalInit` polyfill is **not** in the matcher file; it is a single per-assembly post-init output (§ C3, `Synto.Matching.IsExternalInit.g.cs`). A matcher snapshot therefore shows a plain file-scoped namespace with **no** embedded polyfill block. (Global-namespace targets emit no namespace wrapper, exactly as Templating's `WithAncestryFrom` already does.)
 
 ### C3. Self-containment on `netstandard2.0`
 
-A Synto consumer is a Roslyn generator author, compiling against **`netstandard2.0`**. The positional record lowers its members to `{ get; init; }`, and `init` requires `System.Runtime.CompilerServices.IsExternalInit`, **absent on `netstandard2.0`** → a real consumer build fails **CS0656** without a polyfill — contradicting "self-contained, no runtime dependency."
+A Synto consumer is a Roslyn generator author, compiling against **`netstandard2.0`**. The positional result record lowers its members to `{ get; init; }`, and `init` requires `System.Runtime.CompilerServices.IsExternalInit`, **absent on `netstandard2.0`** → a real consumer build fails **CS0518** (the `init` modreq is unresolved) without a polyfill — contradicting "self-contained, no runtime dependency."
 
-- **Requirement:** every matcher file emits its own **`file`-local** polyfill — a `file static class IsExternalInit` in `namespace System.Runtime.CompilerServices`. `file`-scoped ⇒ per-file and collision-free across matcher files and a consumer's own polyfill (the FileLocalHelpers ethos). Because a C# file cannot combine a file-scoped namespace with a second (block) namespace, the matcher's own namespace is emitted as a **block** namespace so the polyfill coexists in one compilation unit.
-- This is chosen over (a) a plain `sealed class` with get-only members (loses the positional record's free `Deconstruct` the signature-order round-trips rely on) and (b) a documented net5.0+ consumer requirement (breaks self-containment).
-- **Proof (required test, not prescribed code):** a `netstandard2.0`-only harness helper compiles a *generated* matcher with **≥1 capture** (so it has `init` members) against a `netstandard2.0` reference closure that **excludes `IsExternalInit`** (the net‑standard ref set + Roslyn, **not** the running net10 corlib/`System.Runtime`), and asserts **zero error diagnostics** — RED (CS0656) without the polyfill, GREEN with it.
+> **Mechanism re-derived from a spike (plan-review round-4 critical — the round-3 per-file `file`-local polyfill was *unbuildable*; now verified).** This is the second load-bearing compiler assumption, spiked exactly as generic-attribute discovery was before freezing. On a real `netstandard2.0` build:
+> - `file static class IsExternalInit` → **CS0518**, *stays red, never green*. A `file` type carries a **mangled** metadata name, so the compiler's well-known-type lookup for the `init` modreq (which resolves the **canonical** `System.Runtime.CompilerServices.IsExternalInit`) never finds it. This differs from `ToSyntax`/`ToTypeSyntax`, which `file`-scope resolves by member-access *name* (not by canonical metadata lookup) — the round-3 design wrongly conflated the two paths under "the FileLocalHelpers ethos."
+> - Two matcher files each emitting an `internal static class IsExternalInit` → **CS0101** (duplicate definition in one assembly).
+> - **One** `internal static class IsExternalInit` (canonical, non-mangled name) → **build succeeds**; the `init` modreq resolves.
+>
+> Conclusion: the polyfill must be emitted **once per consumer assembly**, by canonical (non-`file`) name.
+
+- **Mechanism (pinned):** emit the polyfill **exactly once per consumer assembly** as a single, non-`file` **`internal static class IsExternalInit`** in `namespace System.Runtime.CompilerServices`, via **`RegisterPostInitializationOutput`** under a **fixed hint name** (`Synto.Matching.IsExternalInit.g.cs`). Post-init output is a deterministic constant emitted once regardless of how many `[Match]` methods exist — the canonical metadata name satisfies the `init` modreq, and the single copy means **no CS0101** across matcher files. Registered by **exactly one** generator (`MatchFactorySourceGenerator`) so two post-init generators can't re-introduce the duplicate; `SurfaceInjectionGenerator` does **not** also emit it. **NOT `file`-scoped.**
+- **No block-namespace.** Because the polyfill is no longer per-file, each matcher keeps its `WithAncestryFrom` **file-scoped** namespace unchanged — the round-3 **block-namespace conversion is deleted** (it existed only to host the per-file polyfill; this dissolves the round-4 C2/C3 conflict).
+- **BCL-present (net5.0+) consumer:** a consumer whose target framework's corlib already defines `IsExternalInit` gets our injected source copy *plus* the BCL copy → at most **CS0436** (a *warning*; the source copy wins, the `init` modreq still resolves). Acceptable — "self-contained, compiles everywhere" holds for both the ns2.0 (polyfill load-bearing) and net5.0+ (polyfill redundant-but-harmless) consumer.
+- **Record vs. hand-written class — decision: keep the positional record + single polyfill.** The alternative — emit the result as a `sealed class` with ctor + get-only `{ get; }` props (set in the ctor, so **no `init`, no polyfill at all**) + a hand-written `Deconstruct(out …)` — was weighed and **rejected**: it eliminates the polyfill but (a) loses the record's free structural `Equals`/`GetHashCode`/`ToString`/`Deconstruct` and deviates from spec §3.11's drawn `record` shape, (b) requires emitting and snapshot-pinning a hand-written `Deconstruct` per arity, and (c) the single-`internal` polyfill is now spike-proven to build and is one deduped constant file — the cost it avoids is small. The record preserves the spec's positional-deconstruction consumer usage (`var (cond, guard, rest) = m;`) directly.
+- **Unconditional emission accepted.** Post-init can't see compilation content, so the polyfill is emitted even when no capturing matcher (or a zero-capture record with no `init` members) exists — an unused `internal` class, harmless. The `CompilationProvider`-gated alternative (emit only when `GetTypeByMetadataName("…IsExternalInit") is null`, which would also skip the BCL/consumer-own-copy cases) flows an equatable `bool` and is cache-safe, but is a **deferred refinement**; v1 takes the simpler deterministic constant path. (The one residual CS0101 case — a consumer that hand-ships its *own* `IsExternalInit` in the same assembly — is rare and self-resolves by deleting the redundant copy; the gated variant would remove it.)
+- **Proof (required test; the SOLE executable guard of this one-way door — closure pinned, RED witnessed):** authored at **Task 6** (the first **capturing** matcher — a zero-capture record has no `init` member and needs no polyfill, so the proof can only go red once captures exist; sequencing the proof at Task 5 would be ineffective). A `netstandard2.0`-only harness helper compiles a *generated capturing* matcher against a pinned reference closure and asserts **zero error diagnostics** — **RED (CS0518)** with the polyfill suppressed, **GREEN** with it.
+  - **Closure (pinned, load-bearing):** the **`NETStandard.Library.Ref`** ref-pack / netstandard2.0 *reference* assemblies **+ Roslyn only**. Explicitly **NOT** `typeof(object).Assembly.Location` (the running net10 corlib) and **NOT** `Assembly.Load("netstandard")` (the runtime `netstandard.dll` facade, which forwards to a corlib that *defines* `IsExternalInit`) — either would make the proof pass green even with a broken/absent polyfill.
+  - **Closure self-check `[Fact]`:** assert `compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.IsExternalInit") is null` over that closure, so a future ref-set change can't silently restore the type and pass the proof with a broken polyfill.
+  - **BCL-present coexistence `[Fact]`:** compile the same capturing matcher against a net5.0+/net10 closure (corlib *defines* `IsExternalInit`) and assert **zero error diagnostics** (at most CS0436 warning) — the other direction of "compiles everywhere."
+  - **Acceptance criterion:** **RED must be witnessed** (suppress the polyfill emission, observe CS0518) before wiring the polyfill green — a green-on-arrival proof is rejected.
 
 ### C4. Equatable pipeline & cacheability invariant
 
@@ -166,9 +181,9 @@ A Synto consumer is a Roslyn generator author, compiling against **`netstandard2
   | **SY1201** | `AnchorNotAllowed` | `Block.Start()`/`Block.End()` in a `None` pattern (braces already bound it) — the anchor call. |
   | **SY1202** | `PatternUnsatisfiable` | **provable** contradiction only: a core statement **before** `Block.Start()` or **after** `Block.End()` — the offending statement/anchor. Conservative: silent on merely-suspicious patterns. |
   | **SY1203** | `ForeachRepetitionNotSupported` | a phantom `foreach` over a `[Capture]` param (deferred repetition) — the `foreach`. |
-  | **SY1204** | `QuantifierNeedsBacktracking` | a run (post-anchor) with **>1 variable-length** element (`Some`/`All`/`Opt`) — the second variable-length hole. |
-  | **SY1205** | `MalformedPatternBody` | a reachable option×body-shape mismatch: `Single` on a multi-statement (post-anchor) core; `None`/`Bare` on an expression body; a variable-length quantifier in an embedded single-statement slot — the attribute (or the embedded statement). |
-  > **SY1205 is a deliberate addition** beyond the spec's enumerated SY1201–SY1204. It is justified by correctness.md's "every reachable misuse maps to a located diagnostic, never a silent default arm." Without it, an option×body-shape misuse emits nothing and the consumer sees only an "M.P does not exist" error at their call site. Keep it as the fifth SY12xx ID; reconcile any inventory line to enumerate **SY1201–SY1205**.
+  | **SY1204** | `QuantifierPlacementUnsupported` | the **quantifier-placement** family (message `{0}`-reason-parameterized): a run (post-anchor) with **>1 variable-length** element (`Some`/`All`/`Opt`) — *located on the second variable-length hole*; **or** a **variable-length** quantifier in an **embedded single-statement slot** (`if (cond) rest.All();`, which can't expand to one slot) — *located on the embedded hole*. Both are placements the straight-line matcher can't satisfy. |
+  | **SY1205** | `MalformedPatternBody` | the **option×body-shape** family (message `{0}`-reason-parameterized): `Single` on a multi-statement (post-anchor) core; **or** `None`/`Bare` on an expression body — *located on the attribute*. (The embedded variable-length case moved to SY1204's quantifier family — round-4 medium.) |
+  > **SY1205 is a deliberate addition** beyond the spec's enumerated SY1201–SY1204 (justified by correctness.md's "every reachable misuse maps to a located diagnostic, never a silent default arm" — without it an option×body-shape misuse emits nothing and the consumer sees only an "M.P does not exist" error at their call site). **Round-4 split (maintainability — the three-misuse grab-bag):** resolved by (i) `{0}`-reason-parameterizing **both** SY1204 and SY1205 so each arm carries a precise message, and (ii) **reclassifying the embedded variable-length case into SY1204's quantifier-placement family** (it is a cardinality/placement error, not an option×body-shape error). Net IDs remain **five — SY1201–SY1205** — with SY1204 carrying two quantifier-placement arms and SY1205 the two option×body-shape arms.
 - **SY0000** `Diagnostics.InternalError` is the catch-all: any exception escaping generation is converted, never thrown.
 - **No partial matcher beside a diagnostic.** Every SY12xx diagnostic test asserts **both** the diagnostic *and* `Assert.Empty(result.GeneratedTrees)` — a diagnostic-only emit (the abort/`body.Count == 0` bail, § Emitter design), so a forgotten abort-check can never ship a malformed tree.
 
@@ -186,7 +201,7 @@ A Synto consumer is a Roslyn generator author, compiling against **`netstandard2
 
 **Deferred (designed-for, not built) — each reachable path degrades to a clean located diagnostic, never a literal mis-match or a throw:**
 - phantom `foreach` over a `[Capture]` (repetition) → **SY1203**.
-- a run with **>1** variable-length element, or a variable element abutting content it could also consume → **SY1204**.
+- a run with **>1** variable-length element, a variable element abutting content it could also consume, **or a variable-length quantifier in an embedded single-statement slot** → **SY1204**.
 - `Deep`/`Either`/`Many<T>`, semantic constraints, token/identifier capture, negation, `AtLeast`/`Between` — markers **not injected**, so unnameable; no diagnostic needed.
 
 ---
@@ -203,6 +218,7 @@ The emitter unrolls this over the *known* pattern tree at generation time, emitt
 
 - **Helper:** `EmitNodeMatch(List<StatementSyntax> body, string accessor, SyntaxNode pattern, MatchContext ctx)` — emit the guards for one node position and recurse. It first checks whether `pattern` is a hole (expression capture, expression wildcard, embedded statement hole) and dispatches; otherwise it emits the literal-node guards and walks children.
 - **Kind guard is load-bearing (plan-review round-1 medium):** at each node position guard **both** the .NET type (binds a temp for child navigation) **and** the `RawKind` (`IsKind(SyntaxKind.{pattern.Kind()})`). The .NET type alone over-accepts kinds sharing a type — `ArrayInitializerExpression` vs `CollectionInitializerExpression` (both `InitializerExpressionSyntax`), the several `BinaryExpressionSyntax` kinds, etc. Token children compare **kind + text** (escape-safe via `SymbolDisplay.FormatLiteral`).
+- **Child-count guard is load-bearing (plan-review round-4 medium — superset false-positive):** at each literal node position **also** emit `{accessor}.ChildNodesAndTokens().Count == {pattern.ChildNodesAndTokens().Count}` — the "same child count" clause of the structural-equality definition, which also bounds the child indices. Without it, a pattern with an **optional** child omitted (an `if` with **no** `else` → 5 children) false-positive-matches a **superset** candidate (an `if` **with** an `else` → 6 children), because the walk only compares the pattern's children and silently ignores the extra. The if-with/without-`else` near-miss round-trip (Task 10) pins this.
 
 ### Accessor type contract (the walk's one invariant — plan-review round-1 high)
 
@@ -220,7 +236,7 @@ Every `accessor` string threaded through the walk has a static type of **exactly
 - **expression captures:** a bare identifier binding to a `[Capture]` param → capture (`ExpressionSyntax`, or the narrowed `TNode`). A **reused** capture → one member (first site) + an `IsEquivalentTo` guard on each later site, with a **unique temp per reuse site** (a fixed name re-declares on 3+ reuse → CS0128).
 - **expression wildcard:** `Expr.Any<T>()` → assert `is ExpressionSyntax`, capture nothing.
 - **statement holes:** an `ExpressionStatementSyntax` wrapping a quantifier invocation on a `[Capture] Stmt` param (capture) or the static `Statement` holder (wildcard). The verb (`One`/`Opt`/`Some`/`All`/`Exactly(n)`) selects the member type and the run cardinality.
-- **embedded statement hole:** a `[Capture] Stmt .One()` or `Statement.One()` sitting as a single embedded statement (e.g. the body of `if (cond) guard.One();`) captures / matches that one statement. A **variable-length** quantifier embedded in a single-statement slot is meaningless → **SY1205**.
+- **embedded statement hole:** a `[Capture] Stmt .One()` or `Statement.One()` sitting as a single embedded statement (e.g. the body of `if (cond) guard.One();`) captures / matches that one statement. A **variable-length** quantifier embedded in a single-statement slot is meaningless → **SY1204** (the quantifier-placement family — round-4 reclassification).
 - **anchors:** an `ExpressionStatementSyntax` wrapping `Block.Start()`/`Block.End()`.
 
 > **Hole detection is by *binding*, never by type/shape (spec §3.1 — the leak-free invariant).** A node is a hole only when its symbol binds to a `[Capture]` parameter or a `Synto.Matching` marker. Literal `foreach`/`default`/`StatementSyntax` locals in matched code never collide. The discard glue `_ = <expr>;` binds to **no** marker, so it is matched **literally** (intended v1 semantics) — it merely hosts an expression hole in statement position.
@@ -249,7 +265,7 @@ MatchContext(MatchInfo info, MatchMarkers markers)   // Info / Markers get-only
 
 - **Signature is FINAL at its introduction (Task 9).** Later tasks fill in *behavior* (the variable-length split, the anchored drivers, the SY1204 check) using the parameters already present — they add **no** field or parameter. `coreStatements` is the raw post-anchor statement list (kept for diagnostic `Location`s, e.g. SY1204).
 - **Precondition:** the **caller** establishes the candidate block local `_blk` (a `BlockSyntax`) and its null guard before calling — so `None` can root `_blk` on a declaration body while `Bare`/`Single` root it on `node`. `EmitAnchoredRun` never re-derives `_blk`.
-- **`run`** is an ordered list of `RunElement` — a `LiteralElement` (a literal statement to match structurally) or a `HoleElement` (a classified statement hole). `RunElement`/`HoleElement` carry their data via ctors (no `required`).
+- **`run`** is an ordered list of `RunElement` — a `LiteralElement` (a literal statement to match structurally) or a `HoleElement` (a classified statement hole). `RunElement`/`HoleElement` carry their data via ctors (no `required`); **`HoleElement` carries its source statement `Location`** so the SY1204 check (§ C5) reports on the offending hole without re-querying `TryGetStatementHole` (plan-review round-4 perf-low).
 - **Structure:** emit a per-offset attempt as a local function `_TryAt(int _o)` (matches the run's elements at that offset, captures, returns the record or null), then a **driver** selected by the anchor flags.
 - **The bound invariant (load-bearing — resolves round-3 high #2):** a run has **at most one** variable-length element (else SY1204). Compute `before` = fixed widths before it, `after` = fixed widths after it; the variable element absorbs `Count − _o − before − after`. **Drivers bound on `before + after`, never a single fixed total `width`** (a fixed-only run is the special case where there is no variable element and `before + after` is the exact width):
   - **no anchors** (Bare contains): `for` scan over offsets `0 .. Count − (before+after)`, commit to the leftmost match.
@@ -271,6 +287,10 @@ Anchor extraction runs **before** any count-based shape check, so statement-`Sin
 
 > Each task: **Delivers** (the contract/behavior), **Files**, **Behavior & contract** (what to build), **Test** (intent + the key/executable assertions), **Red → Green** (why the test is red until this task's code lands), and lean `- [ ]` steps. Author round-trip patterns as **per-`[Fact]` local functions** (Templating's `RoundTripTests` model — keeps each pattern's name/scope local to its `[Fact]`; the shared `private static partial class M { }` stays at class scope). This aids *readability*, **not** compile isolation — `Synto.Test` compiles all-or-nothing, so a non-compiling emitted matcher fails the whole build (true per-matcher isolation would need a separate target class per pattern, which v1 does not do). Diagnostic/snapshot fixtures go through `MatchTestHarness.Run`, which **asserts the consumer source compiles before generation** (mirrors `SimpleTemplateTest.VerifyTemplate`).
 
+> **Two cross-task harness conventions, pinned once here (plan-review round-4):**
+> - **Capture-text normalization.** Every `m.A == "foo()"`-style round-trip assertion routes through a single `MatchTestHarness` helper — `AssertCapture(expected, captured)` ≡ `Assert.Equal(expected, captured.NormalizeWhitespace().ToString().Trim())`, CRLF/LF normalized — mirroring Templating's `AssertGenerated`, because a captured node carries the parsed input's trivia and a raw `.ToString()` `==` is trivia-fragile. Used from Task 5 on; do **not** hand-roll a raw `==` on node text.
+> - **RED often manifests as a build failure, not a failing assertion.** For round-trip tasks the RED state is frequently a `Synto.Test` **compile error** (CS0128 re-declared local, CS0246/CS1061 on a mis-typed/mis-ordered member) from the emitted matcher — the subagent driver must read a build failure at the listed RED point as the **intended RED**, not a harness defect.
+
 ### Task 1: Marker surface — `MatchAttribute<TMatcher>` + `MatchOption`
 
 **Delivers:** the `MatchAttribute<TMatcher>` / `MatchOption` consumer surface (C1), injected `internal`.
@@ -284,7 +304,7 @@ Anchor extraction runs **before** any count-based shape check, so statement-`Sin
 
 - [ ] Write `MatchSurfaceTests.InjectedMatchAttributeAndOptionBind` (public-shape bind) → run → RED (CS0246).
 - [ ] Author `MatchOption.cs` + `MatchAttribute.cs` per C1; add the two `<EmbeddedResource>` items → run → GREEN.
-- [ ] Run `SurfaceInjectionTest`; review the two new `*.received.cs` (confirm `internal enum MatchOption`, `internal sealed class MatchAttribute<TMatcher>`); accept as goldens.
+- [ ] Run `SurfaceInjectionTest` (review the two new `*.received.cs` — confirm `internal enum MatchOption`, `internal sealed class MatchAttribute<TMatcher>`; accept as goldens) **and `InjectedSurfaceCompletenessTest`** (the injected generic-attribute markers must compile in the Roslyn-only closure — this also covers Tasks 2–3; an unexpected red there is intended signal, not noise).
 - [ ] Commit (local on `experimental/matching`): `feat(matching): inject Match<TMatcher> attribute + MatchOption marker surface`.
 
 ### Task 2: Marker surface — `CaptureAttribute` + `CaptureAttribute<TNode>`
@@ -331,6 +351,7 @@ Anchor extraction runs **before** any count-based shape check, so statement-`Sin
 - `MatchTestHarness` mirrors `SimpleTemplateTest`: in-memory compilation against the public Core markers + Roslyn, runs only `MatchFactorySourceGenerator`, and **asserts the consumer source compiles before generation**. (Negative target-validation fixtures deliberately feed source that compiles as plain C# — the misuse is semantic, caught by `ValidateTarget`.)
 
 **Test (intent + key assertions):**
+- `TargetNotDeclaredInSource_ReportsSY1003` (arm 1 — the **gating** arm, previously untested): a **metadata** `TMatcher` — `[Match<int>](Single)` (`int` lives in corlib, not source) → exactly one `SY1003` with a real (non-empty) `Location` (the attribute's). Guards the freshly-authored `LocationInfo` overload + the four-arm order, so a metadata target can't mis-route to a later arm or to `WithAncestryFrom`'s throwing cast → SY0000 (plan-review round-4 medium).
 - `TargetNotPartial_ReportsSY1001`: a non-`partial` class target → exactly one `SY1001` with a real (non-empty) `Location`.
 - `TargetNotClass_ReportsSY1002` (`[Theory]` over `struct` / `record struct` / `interface`): exactly one `SY1002`, and **no** `SY1003` (the target IS in source).
 - `TargetAncestorNotPartial_ReportsSY1004`: a matcher nested under a non-`partial` outer class → exactly one `SY1004`.
@@ -340,39 +361,38 @@ Anchor extraction runs **before** any count-based shape check, so statement-`Sin
 
 **Red → Green:** RED — `MatchFactorySourceGenerator`/`MatchTrackingNames` don't exist (compile error). GREEN once the scaffold + validation + stub emitter land. (The cross-pattern editing-one cacheability test is **deferred to Task 6**, the first body-dependent emission — it cannot go green on a stub that emits no body-dependent output.)
 
-- [ ] Write the validation + positive + unrelated-edit cacheability + equatability tests → RED.
+- [ ] Write the four-arm validation (incl. the **SY1003** metadata-target arm) + positive + unrelated-edit cacheability + equatability tests → RED.
 - [ ] Author the tracking names, result struct, `MatchInfo`, the generator, the stub `MatchEmitter.Emit`, and the four `Diagnostics` `LocationInfo` overloads → GREEN.
 - [ ] Commit: `feat(matching): pipeline scaffold + four-arm matcher-target validation (SY1001-SY1004)`.
 
 ### Task 5: Emitter core — expression-`Single` literal + generic structural walk + `Compose`
 
 **Delivers:** the generic structural walk and the full output composition (C2/C3) for a zero-capture expression-`Single`.
-**Files:** create `MatchMarkers.cs` (capture-parameter resolution + `IsExpressionBodied`); replace the stub `MatchEmitter.Emit`; create `MatchRoundTripTests.cs`, `MatchSnapshotTests.cs`; extend `MatchTestHarness` with the netstandard2.0 helper (C3).
+**Files:** create `MatchMarkers.cs` (capture-parameter resolution + `IsExpressionBodied`); replace the stub `MatchEmitter.Emit`; register the once-per-assembly `IsExternalInit` post-init output (C3) in `MatchFactorySourceGenerator`; create `MatchRoundTripTests.cs`, `MatchSnapshotTests.cs` + the capture-normalization helper in `MatchTestHarness` (§ Tasks intro).
 
 **Behavior & contract:**
-- For `MatchOption.Single` + an **expression body** with zero captures, emit the matcher rooted on `node` via `EmitNodeMatch` and the (empty-member) record, composed per C2 (nested record, block-namespace conversion, `IsExternalInit` polyfill, three usings, `#nullable enable`, formatted).
-- Introduce `EmitNodeMatch` (the generic walk: kind+type guard, child-by-child, token kind+text) and `MatchContext` (final shape, § Emitter design) with the abort/merge wired in `Emit`.
-- `Compose` nests the record in the partial target and emits the polyfill (C2/C3).
+- For `MatchOption.Single` + an **expression body** with zero captures, emit the matcher rooted on `node` via `EmitNodeMatch` and the (empty-member) record, composed per C2 (nested record, **file-scoped** namespace via `WithAncestryFrom`, three usings, `#nullable enable`, formatted). The `IsExternalInit` polyfill is **not** in this file — register it once per assembly as a post-init output (C3, fixed hint `Synto.Matching.IsExternalInit.g.cs`).
+- Introduce `EmitNodeMatch` (the generic walk: kind+type guard, **child-count guard**, child-by-child, token kind+text) and `MatchContext` (final shape, § Emitter design) with the abort/merge wired in `Emit`.
+- `Compose` nests the record in the partial target under the file-scoped ancestry namespace (**no block conversion**); the `IsExternalInit` polyfill is a separate per-assembly post-init output, **not** part of `Compose` (C2/C3).
 
 **Test (intent + key assertions):**
 - Round-trip `LiteralOne_MatchesOne_RejectsTwo`: `[Match<M>(Single)] static object LiteralOne() => 1;` → `M.LiteralOne(ParseExpression("1"))` non-null; `"2"` and `"1 + 1"` null.
 - `WellFormedMatch_EmitsNamedMatcher` (the emission assertion moved off Task 4): the well-formed `One() => 1` now yields exactly one generated tree containing `partial class M` and `One(SyntaxNode node)`, with no diagnostics.
-- `GeneratedMatcher_CompilesOn_NetStandard20` (C3 proof): a generated matcher with **≥1 capture** (e.g. `Sum([Capture] int a, [Capture] int b) => a + b`) compiles against a netstandard2.0 closure with **no `IsExternalInit`** → zero errors (RED without the polyfill: CS0656).
-- Snapshot `ExpressionSingle_Literal`: golden pins `#nullable enable`, the three usings, the **nested** `public sealed record LiteralOneMatch();`, the matcher with structural guards for literal `1`, the **block** namespace, and the trailing `IsExternalInit` polyfill block.
+- Snapshot `ExpressionSingle_Literal`: golden pins `#nullable enable`, the three usings, the **nested** `public sealed record LiteralOneMatch();`, the matcher with structural guards for literal `1`, and the **file-scoped** namespace — with **no** embedded `IsExternalInit` block (the polyfill is a separate per-assembly post-init file; pin it as its own one-line golden `Matcher_IsExternalInit_Polyfill` if a snapshot of the post-init output is wanted).
 
-> **netstandard2.0 reference set:** if a netstandard2.0 ref closure isn't already available, add it under **central package management** — a `PackageVersion` in `Directory.Packages.props` plus a version-less `PackageReference` in `test/Synto.Test/Synto.Test.csproj` (a bare versioned `PackageReference` fails NU1008). Confirm one isn't already on hand first.
+> **netstandard2.0 self-containment proof is deferred to Task 6** (the first **capturing** matcher) — a zero-capture record here has no `init` member, so the polyfill is dead weight and the proof can't reach RED at Task 5 (plan-review round-4 high). Task 5 only **emits** the polyfill (the post-init registration above); Task 6 proves it load-bearing.
 
 **Red → Green:** RED — `M.LiteralOne` doesn't exist (stub emits nothing). GREEN once the walk + `Compose` land.
 
-- [ ] Write the round-trip + emission + netstandard2.0 tests → RED.
-- [ ] Author `MatchMarkers` (capture resolution), `EmitNodeMatch`, `MatchContext`, `Compose` (nested record + polyfill + block-namespace), replacing the stub → GREEN.
-- [ ] Add + review + accept `ExpressionSingle_Literal` snapshot.
+- [ ] Write the round-trip + emission tests → RED (the netstandard2.0 self-containment proof lands at Task 6).
+- [ ] Author `MatchMarkers` (capture resolution), `EmitNodeMatch`, `MatchContext`, `Compose` (nested record under the file-scoped ancestry namespace), and register the once-per-assembly `IsExternalInit` post-init output, replacing the stub → GREEN.
+- [ ] Add + review + accept `ExpressionSingle_Literal` snapshot (file-scoped namespace, no embedded polyfill).
 - [ ] Commit: `feat(matching): generic structural walk + expression-Single literal matcher emission`.
 
 ### Task 6: Emitter — expression captures + `[Capture<TNode>]` narrowing + cross-pattern cacheability
 
 **Delivers:** plain-`[Capture]` (→ `ExpressionSyntax`) and `[Capture<TNode>]` (→ narrowed type + narrowed guard) capture extraction; the cross-pattern cacheability behavior.
-**Files:** modify `MatchEmitter.cs` (`EmitCapture` + the hole check atop `EmitNodeMatch`); modify `MatchMarkers.cs` if needed for narrow types; tests in `MatchRoundTripTests`/`MatchSnapshotTests`/`MatchDiagnosticsTests`.
+**Files:** modify `MatchEmitter.cs` (`EmitCapture` + the hole check atop `EmitNodeMatch`); modify `MatchMarkers.cs` if needed for narrow types; extend `MatchTestHarness` with the pinned **netstandard2.0 reference closure** + the BCL-present closure + the `GetTypeByMetadataName` closure self-check (C3); tests in `MatchRoundTripTests`/`MatchSnapshotTests`/`MatchDiagnosticsTests`.
 
 **Behavior & contract:**
 - A bare identifier binding to a `[Capture]` param emits `if ({accessor} is not {MemberType} {local}) return null;`, records a `Capture` with `Ordinal = param.Ordinal`, and adds the local to `BoundCaptureLocals`. Member type is `ExpressionSyntax` (plain) or the fully-qualified narrow `TNode` (`[Capture<TNode>]`).
@@ -383,14 +403,19 @@ Anchor extraction runs **before** any count-based shape check, so statement-`Sin
 - `Sum_CapturesBothOperands`: `Sum([Capture] int a, [Capture] int b) => a + b` over `"foo() + 42"` → `m.A == "foo()"`, `m.B == "42"`; `"foo() - 42"` (wrong op) and `"foo()"` (not binary) null.
 - `Narrowed_OnlyMatchesInvocation_AndTypesTheMember` (narrowing as a real red→green here, **not** a separate green-on-arrival task): `[Capture<InvocationExpressionSyntax>] object call` → `m.Call` **must compile as** `InvocationExpressionSyntax`; matches `"foo(1)"`, rejects `"1 + 1"`.
 - `Generator_IsIncremental_AcrossPatterns_OnEditingOne` (moved here, C4): two `[Match]` patterns on one target; editing **one** body → ">=1 `Modified` for the edited pattern AND >=1 `Cached`/`Unchanged`" on `Transform`/`Result`.
+- `GeneratedMatcher_CompilesOn_NetStandard20` (the C3 self-containment proof — first lands here, the first **capturing** matcher; a zero-capture record needs no `init`/polyfill so it could not go red at Task 5): the generated `Sum` matcher compiles against the **pinned** netstandard2.0 reference closure (`NETStandard.Library.Ref` ref set + Roslyn **only** — explicitly NOT `typeof(object).Assembly.Location`, NOT `Assembly.Load("netstandard")`) with **zero error diagnostics**. **Acceptance: RED must be witnessed** — suppress the Task-5 post-init polyfill, observe **CS0518** (the `init` modreq unresolved; *not* CS0656), restore it → GREEN.
+- `NetStandard20Closure_LacksIsExternalInit` (closure self-check): `compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.IsExternalInit") is null` over that closure — so a future ref-set change can't silently restore the type and pass the proof with a broken polyfill.
+- `GeneratedMatcher_CompilesOn_NetWithBcl` (BCL-present coexistence, C3): the same capturing matcher compiles against a net5.0+/net10 closure whose corlib **already defines** `IsExternalInit` → **zero error diagnostics** (the injected `internal` copy yields at most **CS0436**, a *warning*; source wins, the modreq still resolves) — so "self-contained, compiles everywhere" holds on both sides.
 - Snapshots `ExpressionSingle_Captures` (record `SumMatch(ExpressionSyntax A, ExpressionSyntax B)`) and `ExpressionSingle_Narrowed` (member typed the fully-qualified narrow; narrowed `is`-guard).
 
-**Red → Green:** RED — `M.Sum`/`M.Narrowed` exist but don't capture/narrow (CS-error on `m.A`/`m.Call` typed, or over-constrained match). GREEN once `EmitCapture` reads `ctx.Markers.Narrows`.
+> **netstandard2.0 reference closure (pinned, CPM-correct):** the C3 proof needs a netstandard2.0 *reference* set that **lacks** `IsExternalInit`. Use **`NETStandard.Library.Ref`** (the ref-pack) added under **central package management** — a `PackageVersion` in `Directory.Packages.props` plus a version-less `PackageReference` in `test/Synto.Test/Synto.Test.csproj` (a bare versioned `PackageReference` fails NU1008). Confirm a netstandard2.0 ref set isn't already on hand first. Do **not** use the running net10 corlib (`typeof(object).Assembly.Location`) or the runtime `netstandard.dll` facade (`Assembly.Load("netstandard")`) — both forward to a corlib that *defines* `IsExternalInit` and would make the proof pass green with a broken polyfill.
 
-- [ ] Write the capture + narrowing + cross-pattern cacheability tests → RED.
-- [ ] Add `EmitCapture` + the capture-hole dispatch + the `Ordinal` sort → GREEN.
+**Red → Green:** RED — `M.Sum`/`M.Narrowed` exist but don't capture/narrow (CS-error on `m.A`/`m.Call` typed, or over-constrained match); the C3 proof is red (CS0518) until the polyfill is wired. GREEN once `EmitCapture` reads `ctx.Markers.Narrows` and the polyfill emits.
+
+- [ ] Write the capture + narrowing + cross-pattern cacheability tests, and the C3 proof trio (`GeneratedMatcher_CompilesOn_NetStandard20`, `NetStandard20Closure_LacksIsExternalInit`, `GeneratedMatcher_CompilesOn_NetWithBcl`) → RED.
+- [ ] Add `EmitCapture` + the capture-hole dispatch + the `Ordinal` sort; extend `MatchTestHarness` with the pinned ns2.0 + BCL closures → GREEN. **Witness the C3 RED** (suppress the polyfill → CS0518) before accepting the proof as green.
 - [ ] Add + accept `ExpressionSingle_Captures` and `ExpressionSingle_Narrowed` snapshots.
-- [ ] Commit: `feat(matching): expression captures + [Capture<TNode>] narrowing`.
+- [ ] Commit: `feat(matching): expression captures + [Capture<TNode>] narrowing + netstandard2.0 self-containment proof`.
 
 ### Task 7: Emitter — expression wildcard `Expr.Any<T>()`
 
@@ -452,11 +477,12 @@ Anchor extraction runs **before** any count-based shape check, so statement-`Sin
 **Behavior & contract:**
 - `TryGetStatementHole` classifies an `ExpressionStatementSyntax` invocation as a `{ Kind: Capture|Wildcard, Quantifier: One|Opt|Some|All|Exactly, Count?, Capture? }` (by resolved symbol), exposing `IsVariableLength` for `Some`/`All`/`Opt`.
 - The `Bare` dispatch builds the run from the block statements and aligns via `EmitAnchoredRun(..., false, false)`. For this task the attempt body handles **fixed-arity** elements only (literal → `EmitNodeMatch`; capture `One()` → `EmitStatementCapture`; wildcard `One()` → match, no capture; `Exactly(n)` capture → a `SyntaxList` slice). The driver bounds on the fixed width (the `before+after` formula with no variable element).
-- **Embedded statement hole** (e.g. the body of `if (cond) guard.One();`): when `EmitNodeMatch` reaches a statement child that classifies as a hole, a `Capture`/`One` captures the one embedded statement (accessor passed **unchanged**, narrowed at the hole), a `Wildcard`/`One` matches any one statement (no capture); a variable-length embedded quantifier is left for Task 13's SY1205 (until then it falls through to a dead literal guard — never a crash).
+- **Embedded statement hole** (e.g. the body of `if (cond) guard.One();`): when `EmitNodeMatch` reaches a statement child that classifies as a hole, a `Capture`/`One` captures the one embedded statement (accessor passed **unchanged**, narrowed at the hole), a `Wildcard`/`One` matches any one statement (no capture); a **variable-length** embedded quantifier is left for **Task 15's SY1204** (until then it falls through to a dead literal guard — never a crash).
 
 **Test:**
 - `Bare_FixedArity_MatchesContainedIfWithOneStatement`: `OneGuard([Capture] bool cond, [Capture] Stmt only) { if (cond) only.One(); }` over `"{ Pre(); if (ready) Go(); Post(); }"` → `m.Cond == "ready"`, `m.Only == "Go();"`; a block with no `if` → null.
 - `Bare_EmbeddedWildcardOne_MatchesIfWithAnyBody`: `IfAny([Capture] bool cond) { if (cond) Statement.One(); }` matches an `if` with any single-statement body, capturing only `cond`.
+- `Bare_IfWithoutElse_RejectsIfWithElse` (the **child-count guard** near-miss — § Emitter design / plan-review round-4 medium): the same `OneGuard` pattern (`if (cond) only.One();`, an `if` with **no** `else`) over a candidate containing `if (ready) Go(); else Stop();` (an `if` **with** an `else`) → **null** — the candidate `if` has 6 children vs the pattern's 5, so the child-count guard rejects it. Without the guard the extra `else` is silently ignored and it false-positive-matches.
 - Snapshot `Bare_OneGuard` (block-root, `_TryAt(int _o)`, leftmost scan over the fixed width).
 
 **Red → Green:** RED — `Bare` hits the `default` arm → `M.OneGuard` not emitted. GREEN once the `Bare` dispatch + fixed-arity attempt body + embedded-hole branch land.
@@ -477,9 +503,9 @@ Anchor extraction runs **before** any count-based shape check, so statement-`Sin
 
 **Test (intent + key assertions):**
 - `Bare_OneVariableLength_SplitsDeterministically`: `GuardThenRest([Capture] bool cond, [Capture] Stmt guard, [Capture] Stmt rest) { if (cond) guard.One(); rest.All(); }` over `"{ if (ok) Go(); A(); B(); C(); }"` → `m.Cond == "ok"`, `m.Guard == "Go();"`, `m.Rest.Count == 3`; a block with no rest → `m.Rest.Count == 0` (`All` = 0+).
-- **Signature-order positional lock** (the test that actually fails red without `Ordinal`): a pattern whose **signature order ≠ walk order** with a **type-discriminating** member — e.g. mix an earlier non-statement capture with a trailing variable-length `SyntaxList` capture (`GuardThenRest`) — asserted via **deconstruction** `var (cond, guard, rest) = m;` with `rest.Count`. With the `Ordinal` bug the record would be `(Cond, Rest, Guard)` and `drest.Count` would not compile (CS1061); it compiles + passes only with `Ordinal = param.Ordinal`. (Author at least one pattern where walk order genuinely differs from signature order so the lock is real, not illusory — plan-review round-3 medium.)
+- **Signature-order positional lock** (the test that *actually* fails red without `Ordinal` — round-3's `GuardThenRest` fixture was **illusory**: its walk order `(cond, guard, rest)` *equalled* its signature order, so the sort was a no-op and the test passed with **or** without the bug; plan-review round-4 medium, recurring). Use a fixture whose **walk order genuinely differs from signature order** with a **type-discriminating** member: signature **`P([Capture] Stmt rest, [Capture] bool cond) { if (cond) X(); rest.All(); }`** — the walk hits `cond` first (inside the `if`), then `rest` (the `All()` run), so **walk order `(cond, rest)` ≠ signature order `(rest, cond)`**. Assert via **deconstruction**: `var (a, b) = m; _ = a.Count;`. Correct (`Ordinal = param.Ordinal`): member 0 = `rest` (`SyntaxList<StatementSyntax>`, has `.Count`) → **compiles + passes**. Buggy (members in walk order): member 0 = `cond` (`ExpressionSyntax`, **no** `.Count`) → **CS1061**, build fails. **The implementer MUST verify it fails RED (CS1061) without the `Ordinal` sort** — a green-with-or-without-the-sort fixture is rejected. (`X();` binds to no marker, so it is matched literally.)
 - `Bare_FixedElementAfterVariable_IndexesTail`: a **literal** statement after the variable element (`RunThenReturn([Capture] Stmt body) { body.All(); return; }`) over `"{ A(); B(); return; }"` → `m.Body.Count == 2`; `"{ A(); B(); C(); }"` (no trailing `return`) → null (proves the `_var`-relative tail is checked).
-- Snapshots `Bare_GuardThenRest`, a wildcard variant (`Statement.All()`), and `Bare_FixedAfterVariable`.
+- Snapshots `Bare_GuardThenRest`, a wildcard variant (`Statement.All()`), `Bare_FixedAfterVariable`, and `Bare_ReversedSignatureOrder` (pins the signature-order record members `(SyntaxList<StatementSyntax> Rest, ExpressionSyntax Cond)` against the reversed walk order).
 
 **Red → Green:** RED — the variable element has no fixed width; Task 10's width sum mis-counts it → no/ wrong match, and the positional lock fails to compile without `Ordinal`. GREEN once the split + `Ordinal`-setting helpers land.
 
@@ -513,29 +539,28 @@ Anchor extraction runs **before** any count-based shape check, so statement-`Sin
 
 ### Task 13: Anchors `Block.Start()`/`Block.End()` + SY1201 + SY1205 + anchor-before-count dispatch
 
-**Delivers:** explicit anchors (`Block.Start()`/`Block.End()`) wired into `Bare`/statement-`Single`; SY1201 (anchor in `None`); SY1205 (option×body-shape misuse + variable-length embedded hole); and the **anchor-extraction-before-count** dispatch.
+**Delivers:** explicit anchors (`Block.Start()`/`Block.End()`) wired into `Bare`/statement-`Single`; SY1201 (anchor in `None`); SY1205 (the **option×body-shape** misuse family, `{0}`-reason-parameterized); and the **anchor-extraction-before-count** dispatch.
 **Files:** create `MatchDiagnostics.cs` (SY1201, SY1205); modify `MatchMarkers.cs` (`TryGetAnchor`) + `MatchEmitter.cs` (restructure the block-bodied dispatch around `ExtractAnchors`; thread `anchorStart`/`anchorEnd` into `Bare`/statement-`Single`; the SY1205 arms); register SY1201/SY1205; tests in `MatchRoundTripTests`/`MatchDiagnosticsTests`/`MatchSnapshotTests`.
 
 **Behavior & contract:**
 - `TryGetAnchor` recognizes `Block.Start()`/`Block.End()` (by resolved symbol).
 - **Restructure the dispatch** (§ ExtractAnchors ordering): one block-bodied branch extracts anchors **first**, then dispatches on the **core** (post-anchor) count — `None` (anchors → SY1201 each, no output; else `EmitDeclarationFullBody`), `Single when core.Count == 1` (→ statement-`Single` with the anchor flags), `Bare` (→ `EmitBareRun` with the flags), `default` (multi-statement `Single` → SY1205). An expression body with a non-`Single` option → SY1205. `Bare`/statement-`Single` now pass the anchor flags into `EmitAnchoredRun`, which selects the anchorStart-only / anchorEnd-only / no-anchor driver.
-- A variable-length embedded quantifier (`if (cond) rest.All();`) → SY1205 (`ctx.Diagnostics.Add(...); ctx.Aborted = true;`). Extends Task 10's embedded-hole branch.
+- (The variable-length **embedded** quantifier case — `if (cond) rest.All();` — is **not** handled here; it is a quantifier-placement error reclassified to **SY1204** and lands at Task 15, extending Task 10's embedded-hole branch — plan-review round-4 medium.)
 - The abort/`body.Count==0` bail (wired in Task 5's `Emit`) yields **diagnostics-only, no tree** for every SY1201/SY1205 path.
 - Register `SY1201`/`SY1205` in `AnalyzerReleases.Unshipped.md` **now** (RS2008-clean green-gate).
 
 **Test (intent + key assertions):**
 - `Anchor_End_PinsToLastStatement`: `TrailingReturn([Capture] object result) { return result; Block.End(); }` over `"{ Foo(); return v; }"` → non-null; `"{ return v; Foo(); }"` (return not last) → null. (Suppress CS0162/CS0127 file-wide; the body is phantom.)
 - `AnchorInNonePattern_ReportsSY1201_AndEmitsNoTree`: a `None` pattern with `Block.End()` → one `SY1201` with a real `Location` **and** `Assert.Empty(GeneratedTrees)`.
-- `OptionBodyShapeMisuse_ReportsSY1205_AndEmitsNoTree` (`[Theory]`): `None`/`Bare` on an expression body; `Single` on a 2-statement core → one `SY1205` + empty trees.
-- `VariableLengthEmbeddedHole_ReportsSY1205`: `if (cond) rest.All();` → one `SY1205` + empty trees.
+- `OptionBodyShapeMisuse_ReportsSY1205_AndEmitsNoTree` (`[Theory]`): `None`/`Bare` on an expression body; `Single` on a 2-statement core → one `SY1205` (the matching `{0}` reason) + empty trees.
 - Snapshot `Single_TrailingReturnAnchored`.
 
-**Red → Green:** RED — anchors are walked literally (`Block.End()` over-constrains; the anchored-`Single` body falls to `default` → no SY1201); the misuse/embedded cases fall through silently → no SY1205. GREEN once `TryGetAnchor`, the anchor-first dispatch, the anchor-flag threading, and the SY1205 arms land.
+**Red → Green:** RED — anchors are walked literally (`Block.End()` over-constrains; the anchored-`Single` body falls to `default` → no SY1201); the option×body-shape misuse cases fall through silently → no SY1205. GREEN once `TryGetAnchor`, the anchor-first dispatch, the anchor-flag threading, and the SY1205 arms land.
 
 - [ ] Write the anchor round-trip + the SY1201/SY1205 diagnostic tests → RED.
 - [ ] Add `MatchDiagnostics` (SY1201/SY1205), `TryGetAnchor`, `ExtractAnchors`, the restructured dispatch, the anchor-flag threading, the SY1205 arms; register both IDs → GREEN.
-- [ ] **Second full-suite gate** (`Synto.Test.Match`) — Task 13 reroutes statement-`Single` through the core and restructures the dispatch (second-highest regression point) → expect PASS.
-- [ ] **Re-review + re-accept** the statement-`Single` golden (now an anchored single-element run, not a bespoke scan); confirm `SnapshotOrphanGuardTest` green.
+- [ ] **Second full-suite gate** (`Synto.Test.Match`) — Task 13 restructures the block-bodied dispatch (anchor-extraction-first) and threads anchor flags through the shared core (second-highest regression point) → expect PASS.
+- [ ] **Confirm the statement-`Single` golden is UNCHANGED** — it already routes through `EmitAnchoredRun` (Task 9) with `anchorStart/End:false`, so threading the (false/false) anchor flags must not alter the no-anchor output; an unexpected diff signals a dispatch **regression** (do not blind-accept). Confirm `SnapshotOrphanGuardTest` green.
 - [ ] Add + accept `Single_TrailingReturnAnchored`; stage re-accepted goldens.
 - [ ] Commit: `feat(matching): Block.Start/End anchors + SY1201 + SY1205 + anchor-before-count dispatch (+register SY1201/SY1205)`.
 
@@ -554,20 +579,20 @@ Anchor extraction runs **before** any count-based shape check, so statement-`Sin
 - [ ] Add SY1203 + the pre-scan; register SY1203 → GREEN.
 - [ ] Commit: `feat(matching): SY1203 reject phantom foreach over [Capture] (+register SY1203)`.
 
-### Task 15: SY1204 — quantifier placement needs backtracking (>1 variable-length)
+### Task 15: SY1204 — quantifier placement unsupported (>1 variable-length per run + embedded variable-length)
 
-**Delivers:** SY1204 for a run (post-anchor) with **>1** variable-length element, emitting no tree.
-**Files:** modify `MatchDiagnostics.cs` (SY1204) + `MatchEmitter.cs` (a count check in `EmitAnchoredRun` before splitting); register SY1204; test in `MatchDiagnosticsTests`.
+**Delivers:** SY1204 (the quantifier-placement family, `{0}`-reason-parameterized) — (i) a run (post-anchor) with **>1** variable-length element, and (ii) a **variable-length quantifier in an embedded single-statement slot** (reclassified from SY1205, round-4 medium) — each emitting no tree.
+**Files:** modify `MatchDiagnostics.cs` (SY1204, `{0}`-parameterized) + `MatchEmitter.cs` (the `>1` count check in `EmitAnchoredRun` before splitting **and** the variable-length arm of `EmitNodeMatch`'s embedded-hole branch, extending Task 10); register SY1204; tests in `MatchDiagnosticsTests`.
 
-**Behavior & contract:** in the shared alignment core, before splitting, count the run's variable-length elements; if `> 1`, locate the **second** variable-length hole's source statement (re-querying `TryGetStatementHole` over `coreStatements` is an accepted transform-local, per-pattern re-scan — performance low; carrying the `Location` on `HoleElement` is a deferred cleanup), add SY1204 on it, set `ctx.Aborted`, and return. The Task-5 merge/bail emits diagnostics-only. Register SY1204 now.
+**Behavior & contract:** two arms, both SY1204 (`{0}`-reason-parameterized). (i) In the shared alignment core, before splitting, count the run's variable-length elements; if `> 1`, add SY1204 on the **second** variable-length hole's `Location` (carried on `HoleElement`, § run-alignment core — **no** `TryGetStatementHole` re-query), set `ctx.Aborted`, and return. (ii) In `EmitNodeMatch`'s embedded-hole branch (Task 10), a **variable-length** embedded quantifier (`if (cond) rest.All();` — meaningless in a single-statement slot) adds SY1204 on the embedded hole + `ctx.Aborted`. The Task-5 merge/bail emits diagnostics-only for both. Register SY1204 now.
 
-**Test:** `TwoVariableLengthQuantifiers_ReportsSY1204_AndEmitsNoTree`: `head.Some(); tail.All();` → one `SY1204` with a real `Location` **and** `Assert.Empty(GeneratedTrees)` (locks the abort path). Re-run a single-variable-length round-trip (still emits).
+**Test:** `TwoVariableLengthQuantifiers_ReportsSY1204_AndEmitsNoTree`: `head.Some(); tail.All();` → one `SY1204` with a real `Location` **and** `Assert.Empty(GeneratedTrees)` (locks the abort path). `VariableLengthEmbeddedHole_ReportsSY1204` (reclassified from Task 13): `if (cond) rest.All();` → one `SY1204` on the embedded hole + `Assert.Empty(GeneratedTrees)`. Re-run a single-variable-length round-trip (still emits).
 
-**Red → Green:** RED — the alignment picks the first variable element and mis-handles the second (wrong match or SY0000); no SY1204. GREEN once the count check lands.
+**Red → Green:** RED — the alignment picks the first variable element and mis-handles the second (wrong match or SY0000), and the embedded variable-length quantifier falls through to a dead literal guard; no SY1204. GREEN once the `>1` count check + the embedded-arm check land.
 
-- [ ] Write `TwoVariableLengthQuantifiers_…` → RED.
-- [ ] Add SY1204 + the `> 1` check in the core; register SY1204 → GREEN.
-- [ ] Commit: `feat(matching): SY1204 reject >1 variable-length quantifier per run (+register SY1204)`.
+- [ ] Write `TwoVariableLengthQuantifiers_…` + `VariableLengthEmbeddedHole_ReportsSY1204` → RED.
+- [ ] Add SY1204 (`{0}`-parameterized) + the `> 1` check in the core + the embedded-arm check in `EmitNodeMatch`; register SY1204 → GREEN.
+- [ ] Commit: `feat(matching): SY1204 reject unsupported quantifier placement (>1 per run + embedded variable-length) (+register SY1204)`.
 
 ### Task 16: SY1202 — provable unsatisfiable (anchor-contradiction subset)
 
@@ -605,7 +630,7 @@ Anchor extraction runs **before** any count-based shape check, so statement-`Sin
 **Spec coverage:**
 - §3.2 attribute + `MatchOption` (None/Bare/Single, non-flags), generic-attribute discovery (spike-verified, no fallback) → Tasks 1, 4 (positive **validation** readback — no emission assert against the stub; emission proof in Task 5).
 - §3.3 expression captures + slot-typing + `[Capture<TNode>]` narrowing → Task 6 (capture + narrowing, both red→green).
-- §3.4 statement quantifiers + single-variable-length line → Tasks 10, 11; over-the-line → Task 15.
+- §3.4 statement quantifiers + single-variable-length line → Tasks 10, 11; over-the-line (>1 per run) **and** embedded variable-length → SY1204 Task 15.
 - §3.5 wildcards (static verbs + `Expr.Any<T>()`) → Tasks 3, 7, 10, 11.
 - §3.6 non-linear equality → Task 8.
 - §3.7 phantom `foreach` (deferred) → SY1203 Task 14.
@@ -617,14 +642,16 @@ Anchor extraction runs **before** any count-based shape check, so statement-`Sin
 - §8/§11 diagnostics SY1201–SY1205 + SY0000 → Tasks 13–17; every reachable misuse → a located diagnostic, the SY12xx tests assert **no tree** beside it.
 - §12 snapshots + round-trips + cacheability + per-arm diagnostics → throughout; §13 frozen output shape / per-option input contract → C2 + snapshot tasks.
 
-**Two contract decisions recorded (the round-3 highs):**
-- **Result record nesting (C2):** nested in the partial target (`{Target}.{Pattern}Match`) — collision-safe across distinct targets sharing a pattern name; a deliberate, transparent deviation from spec §3.11's top-level illustration.
-- **Anchored + single-variable-length element (C6):** **supported** in v1 per spec §8 (intersection of two v1 features); the anchored drivers bound on `before + after`, never a fixed total width — the round-3 high #2 fix, covered by Tasks 11/12.
-- **SY1205 (C5):** a deliberate fifth SY12xx beyond the spec's enumerated four, justified by correctness.md's "every reachable misuse maps to a located diagnostic."
+**Contract decisions recorded:**
+- **Result record nesting (C2, round-3 high):** nested in the partial target (`{Target}.{Pattern}Match`) — collision-safe across distinct targets sharing a pattern name; a deliberate, transparent deviation from spec §3.11's top-level illustration.
+- **Anchored + single-variable-length element (C6, round-3 high):** **supported** in v1 per spec §8 (intersection of two v1 features); the anchored drivers bound on `before + after`, never a fixed total width — the round-3 high #2 fix, covered by Tasks 11/12.
+- **netstandard2.0 `IsExternalInit` (C3, round-4 critical):** the round-3 per-file `file`-local polyfill was **unbuildable** (spike: `file` → CS0518, two `internal` copies → CS0101). Re-derived to a **single per-assembly `internal static class IsExternalInit`** via `RegisterPostInitializationOutput` (canonical name satisfies the `init` modreq; one copy ⇒ no CS0101; BCL-present ⇒ at most CS0436 warning). The **block-namespace conversion is deleted** — matchers keep their file-scoped namespace (resolves the C2/C3 conflict). The positional **record** is kept over a hand-written `sealed class`+`Deconstruct` (which would need no polyfill) because the record is spec-faithful (§3.11) and the polyfill is now one deduped constant file. The proof moves to **Task 6** (first capturing matcher), against a **pinned** ns2.0 ref closure (no `IsExternalInit`), with **witnessed RED (CS0518)** as an acceptance criterion + a closure self-check + a BCL-present coexistence fact.
+- **SY1204/SY1205 split (C5, round-4 medium):** SY1205's three-misuse grab-bag is split — the embedded variable-length case moves to SY1204's quantifier-placement family; both descriptors are `{0}`-reason-parameterized; net IDs stay **SY1201–SY1205** (a deliberate fifth ID beyond the spec's four, justified by correctness.md's "every reachable misuse maps to a located diagnostic").
+- **Generator-internal namespace (round-4 medium):** generator-internal Matching types live in `namespace Synto` (mirroring `TemplateInfo`); `Synto.Matching` is reserved for the injected consumer markers.
 
 **Deferred-by-spec (correctly absent):** `Deep`/`Either`/`Many<T>` markers (not injected), `foreach` lowering, multi-variable-length lowering, semantic constraints, token/identifier capture, negation, `AtLeast`/`Between`. Each reachable deferred path degrades to SY1203/SY1204, never a literal mis-match or a throw.
 
-**Sequencing self-check (the recurring round-2/3 defect class):** Task 4's positive test asserts **only** validation-passed readback (no `GeneratedTrees` against the stub); emission asserts live at Task 5; the cross-pattern cacheability test lives at Task 6 (first body-dependent emission); Task 8's reuse branch is a genuine red→green (Task 6 omits it); the signature-order positional lock lives at Task 11 (where types discriminate). The shared `EmitAnchoredRun` is introduced at Task 9 in its **final 6-arg signature** and only grows (no re-plumb); Tasks 12/13 explicitly re-review and re-accept earlier goldens, with full-suite gates after both.
+**Sequencing self-check (the recurring round-2/3/4 defect class):** Task 4's positive test asserts **only** validation-passed readback (no `GeneratedTrees` against the stub) and now also covers the **SY1003** metadata-target arm; emission asserts live at Task 5; the cross-pattern cacheability test **and the netstandard2.0 self-containment proof** live at Task 6 (the first body-dependent / first **capturing** emission — a zero-capture record at Task 5 has no `init`/polyfill so the proof can't go red there; the asserted RED diagnostic is **CS0518**, witnessed); Task 8's reuse branch is a genuine red→green (Task 6 omits it); the signature-order positional lock lives at Task 11 and uses a **reversed signature-vs-walk-order** fixture that fails RED (CS1061) without the `Ordinal` sort (the round-3 `GuardThenRest` fixture was illusory). The shared `EmitAnchoredRun` is introduced at Task 9 in its **final 6-arg signature** and only grows (no re-plumb); Tasks 12/13 explicitly re-review earlier goldens, with full-suite gates after both.
 
 **Cacheability / no-leak:** all semantic work in the FAWMN transform; only the equatable `MatchGenerationResult` flows; `MatchInfo` (holding `SemanticModel`/symbols) stays transform-local; a `MatchGenerationResult` equatability case guards it.
 
