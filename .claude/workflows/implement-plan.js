@@ -1,20 +1,20 @@
 export const meta = {
   name: 'implement-plan',
   description:
-    'Implement ONE approved implementation plan (a single top-level docs/superpowers/plans/*.md, handed by exact path) in its own isolated worktree the subagent-driven-development way: a fresh subagent per TASK doing strict red-green TDD, each followed by a spec-compliance review and a code-quality review (with bounded fix loops). Continuous integration: after every GREEN COMMIT the worktree branch rebases onto origin/main, re-runs the full green-gate, and fast-forward-pushes HEAD straight to main. A final whole-plan review runs at the end, then the plan file is archived to completed/. The local main checkout is left untouched.',
+    'Implement ONE approved implementation plan (a single top-level docs/superpowers/plans/*.md, handed by exact path) in its own isolated jj workspace the subagent-driven-development way: a fresh subagent per TASK doing strict red-green TDD, each followed by a spec-compliance review and a code-quality review (with bounded fix loops). Continuous integration: after every GREEN COMMIT the task stack is rebased onto the latest tip of the integration bookmark B, the full green-gate re-runs, and bookmark B is advanced to the new tip. In the default LOCAL mode nothing is pushed; under SYNTO_FLOW_INTEGRATE=push the advanced bookmark is also pushed. A final whole-plan review runs at the end, then the plan file is archived to completed/. The operator working copy follows the advanced bookmark via jj auto-rebase.',
   whenToUse:
-    'Run when ONE written implementation plan is ready to implement. Pass {plan:"docs/superpowers/plans/<file>.md"} — the exact top-level plan path (NOT drafts/, NOT completed/, NOT a subdirectory). Pass {mode:"dry-run"} to implement+gate per task without pushing. /issue-implement and the issue-flow driver resolve the ready issue\'s promoted top-level plan and pass its path here, so no other plan is ever touched.',
+    'Run when ONE written implementation plan is ready to implement. Pass {plan:"docs/superpowers/plans/<file>.md"} — the exact top-level plan path (NOT drafts/, NOT completed/, NOT a subdirectory). Pass {mode:"dry-run"} to implement+gate per task without advancing the bookmark or pushing. /issue-implement and the issue-flow driver resolve the ready issue\'s promoted top-level plan and pass its path here, so no other plan is ever touched.',
   phases: [
-    { title: 'Preflight', detail: 'verify clean main synced to origin; validate the plan path' },
+    { title: 'Preflight', detail: 'resolve integration bookmark B (base-branch.sh) + run the jj-native probe (probe.sh); validate the plan path' },
     {
       title: 'Implement',
       detail:
-        'one worktree; setup+extract tasks, then per task a TDD implementer + spec & code-quality review (fix loops)',
+        'one jj workspace rooted at B; setup+extract tasks, then per task a TDD implementer + spec & code-quality review (fix loops)',
     },
     {
       title: 'Integrate',
       detail:
-        'after each green task: rebase onto origin/main -> full gate -> ff-push HEAD:main; then final review + archive',
+        'after each green task: rebase the task stack onto the latest B -> full gate -> advance bookmark B (push only under SYNTO_FLOW_INTEGRATE=push); then final review + archive',
     },
   ],
 }
@@ -28,9 +28,11 @@ if (typeof A === 'string') { try { A = JSON.parse(A) } catch { A = {} } }
 
 const PLANS_DIR = 'docs/superpowers/plans'
 const COMPLETED_DIR = 'docs/superpowers/plans/completed'
-const WORKTREES_DIR = '.claude/worktrees'
-const REPO_DIR = 'C:/dev/Synto' // main repo root (for worktree cleanup; never checked out off main)
-const MODE = A.mode || 'merge' // 'merge' (per-commit CI push to origin/main) | 'dry-run'
+const WORKSPACES_DIR = '.claude/workspaces' // one isolated jj workspace per plan run (rooted at bookmark B's tip)
+const REPO_DIR = 'C:/dev/Synto' // main repo root (for jj workspace forget + dir cleanup; never touches the default workspace)
+const MODE = A.mode || 'integrate' // 'integrate' (per-task CI: advance bookmark B) | 'dry-run' (implement+gate only)
+// SYNTO_FLOW_INTEGRATE (env) = 'local' (default) | 'push' gates whether the advanced bookmark is ALSO pushed. It is
+// read inside the integrate/archive AGENT shells (the sandboxed JS runtime exposes no env); local mode pushes NOTHING.
 const PLAN = A.plan // the ONE plan to implement: a repo-relative top-level plan path.
 
 // Normalize any plan reference (slug, filename, or repo-relative path) to a bare slug:
@@ -50,12 +52,12 @@ function planPathError(p) {
   return null
 }
 
-const MAX_ATTEMPTS = 3 // local green-gate fix-and-retry attempts (NOT the shared-main push race)
-// ff-push HEAD:main retry budget — deliberately higher than MAX_ATTEMPTS because this push lands on the
-// SHARED trunk: a concurrently-pushing walk (the issue-flow loops) keeps advancing origin/main, so a small
-// budget gets STARVED before it can win the race (exactly the kind of starvation that parks a plan
-// mid-integrate). Each attempt re-fetches/re-rebases/re-gates and then retries behind an incremental backoff
-// so the competing push can settle. Tunable — raise if main-push contention grows.
+const MAX_ATTEMPTS = 3 // local green-gate fix-and-retry attempts (NOT the shared bookmark-advance race)
+// Bookmark-advance retry budget — deliberately higher than MAX_ATTEMPTS because the advance lands on the SHARED
+// integration bookmark B: a concurrently-running plan (the issue-flow loops) keeps advancing B, so a small budget
+// gets STARVED before it can win the race (exactly the kind of starvation that parks a plan mid-integrate). Each
+// attempt re-rebases onto the latest B tip, re-gates, and re-advances behind an incremental backoff so the
+// competing advance can settle. Name kept (FF_PUSH_*) for continuity. Tunable — raise if contention grows.
 const FF_PUSH_MAX_ATTEMPTS = 8
 const MAX_REVIEW_ROUNDS = 2 // per-stage review->fix->review iterations
 
@@ -67,7 +69,7 @@ const GREEN_GATE =
 // Synto's green-gate (dotnet build + test + format) is deterministic and fully LOCAL — there is no DB, no
 // container, and no network runtime, so almost every failure is a real CODE/TEST defect in THIS diff. But a
 // few ENVIRONMENT faults are NOT code defects and cannot be fixed by editing code: a transient NuGet RESTORE
-// failure / network blip, or a transient file-lock / build-host fault when several worktrees build at once.
+// failure / network blip, or a transient file-lock / build-host fault when several workspaces build at once.
 // Telling an agent to "DEBUG + FIX + re-run until green" on one of those just burns gate attempts on an
 // unfixable condition. The guard makes the gate/integrate agents CLASSIFY the failure, do a SHORT bounded
 // backoff-retry (a transient blip usually clears), and otherwise PARK cleanly with transient=true.
@@ -77,7 +79,7 @@ const GATE_TRANSIENT_GUARD = [
   'GATE FAILURE POLICY -- CLASSIFY BEFORE YOU FIX. A failing gate is one of two kinds:',
   '  - TRANSIENT/ENVIRONMENT: not a defect in your diff and not fixable by editing code. Signatures: a NuGet',
   '    RESTORE failure or network blip (e.g. "Unable to load the service index", an "NU1301"/feed error, a',
-  '    connection or timeout pulling a package); a transient FILE LOCK or build-host fault when another worktree',
+  '    connection or timeout pulling a package); a transient FILE LOCK or build-host fault when another workspace',
   '    is building at the same time (e.g. "being used by another process", a locked obj/bin output, an MSBuild',
   '    worker that died). These come and go on their own under concurrency; you CANNOT fix them by editing code.',
   '  - CODE/TEST: a C# COMPILE error, a failing xUnit ASSERTION, a Verify SNAPSHOT mismatch (a *.received.cs vs',
@@ -88,7 +90,7 @@ const GATE_TRANSIENT_GUARD = [
   'restore" first) up to ' + GATE_TRANSIENT_MAX_RECHECKS + ' times -- the blip usually clears. If it is STILL',
   'failing transiently after ' + GATE_TRANSIENT_MAX_RECHECKS + ' retries, STOP: report green=false (and, where',
   'the schema asks for it, transient=true) with problems naming the exact signature (for example "NuGet restore',
-  'failed: connection timeout" or "build output locked by a concurrent worktree"). Parking cleanly on a',
+  'failed: connection timeout" or "build output locked by a concurrent workspace"). Parking cleanly on a',
   'transient failure is CORRECT, not a failure -- a human (or a later walk) retries once the environment settles.',
 ].join('\n')
 
@@ -98,12 +100,15 @@ const GATE_TRANSIENT_GUARD = [
 const PREFLIGHT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  properties: { ok: { type: 'boolean' }, reason: { type: 'string' } },
+  // base = the resolved integration bookmark name B (from base-branch.sh) the run integrates onto.
+  properties: { ok: { type: 'boolean' }, reason: { type: 'string' }, base: { type: 'string' } },
   required: ['ok', 'reason'],
 }
 
 // Setup + task extraction for one plan. Also folds in the old Discover step: the plan's touched
-// `files` and one-line `summary` (used by the final whole-plan review).
+// `files` and one-line `summary` (used by the final whole-plan review). Field names are kept for
+// continuity but now hold jj values: worktreePath = the jj workspace path; branch = the workspace
+// name (plan-<slug>); baseSha = the jj commit id of bookmark B's tip at workspace creation.
 const TASKS_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -195,7 +200,9 @@ const GATE_SCHEMA = {
   required: ['green', 'attempts'],
 }
 
-// One per-commit "land on origin/main" report (rebase -> gate -> ff-push HEAD:main).
+// One per-task "land on bookmark B" report (rebase onto latest B -> gate -> advance bookmark B; push only under
+// SYNTO_FLOW_INTEGRATE=push). `pushed` is kept as the field name but now means LANDED on B (advanced locally in
+// local mode, or also pushed in push mode).
 const INTEGRATE_INCREMENT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -213,7 +220,7 @@ const INTEGRATE_INCREMENT_SCHEMA = {
   required: ['pushed', 'problems'],
 }
 
-// Plan-file archive + worktree cleanup report.
+// Plan-file archive report (move plan -> completed/, commit, advance bookmark B; cleanup is a separate step).
 const ARCHIVE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -225,58 +232,74 @@ const ARCHIVE_SCHEMA = {
   required: ['pushed', 'problems'],
 }
 
+// jj workspace cleanup report (runs on EVERY exit path via implementPlan's finally): forget the workspace so jj
+// never tracks a dead one, and remove its directory on success (kept for inspection on any non-success).
+const CLEANUP_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    forgotten: { type: 'boolean' },
+    removedDir: { type: 'boolean' },
+    problems: { type: 'string' },
+  },
+  required: ['forgotten'],
+}
+
 // ---------------------------------------------------------------------------
 // Prompt builders (no backticks inside; use plain quotes for code/commands)
 // ---------------------------------------------------------------------------
 function preflightPrompt() {
   return [
     'You are the preflight check for an autonomous plan-implementation run on the Synto repo.',
-    'Project: Synto, a C#/.NET Roslyn source-generator toolkit (netstandard2.0, .NET 10, jj over git).',
-    'Host: Windows, PowerShell (a Bash tool is also available).',
-    'Working directory is the repo root (C:/dev/Synto). Verify ALL of the following and report:',
-    '1. The trunk is "main"  (git rev-parse --abbrev-ref HEAD). NOTE: the repo is managed with jj over git, so the',
-    '   working copy may sit on a DETACHED HEAD. If so, that is fine — verify the local "main" ref instead and treat',
-    '   it as the trunk pointer for the checks below.',
-    '2. Working tree is clean  (git status --porcelain prints nothing).',
-    '3. Local main has not DIVERGED from origin. Run "git fetch origin", then:',
-    '   - if main == origin/main: fine;',
-    '   - if origin/main is an ancestor of main (unpushed local commits exist, e.g. your own WIP): fine, leave them',
-    '     UNTOUCHED — plans branch off and integrate onto origin/main, so your local-only commits are never moved or pushed;',
-    '   - if main is an ancestor of origin/main (local is behind): run "git merge --ff-only origin/main" to catch up;',
-    '   - otherwise the branch has diverged: set ok=false, reason "main diverged from origin".',
-    '   (Test ancestry with: git merge-base --is-ancestor <maybe-ancestor> <descendant> ; exit 0 means yes.)',
-    'Synto is a build-time library + source generators: there is NO database, NO containers, and NO network runtime',
-    'to bring up — there is nothing else to check.',
-    'Other than an allowed fast-forward of main in step 3, do NOT change any tracked files.',
-    'Return ok=true only if the trunk is main, the tree is clean, and main has not diverged;',
-    'otherwise ok=false with a precise reason.',
+    'Project: Synto, a C#/.NET Roslyn source-generator toolkit (netstandard2.0, .NET 10, jj over a colocated git repo).',
+    'Host: Windows, Git Bash (a PowerShell tool is also available). Work from the repo root (' + REPO_DIR + ').',
+    'jj manages the repo; HEAD is typically DETACHED and the integration target is a jj BOOKMARK, not a checked-out branch.',
+    'Do EXACTLY two things — run the two project SCRIPTS, do NOT re-derive any check yourself, and do NOT modify any',
+    'tracked file:',
+    '1. Resolve the integration bookmark B. Run EXACTLY:',
+    '     bash .claude/scripts/base-branch.sh',
+    '   It prints the resolved bookmark NAME on STDOUT (all logs go to STDERR). Capture that one stdout line as "base".',
+    '2. Run the jj-native precondition probe. Run EXACTLY:',
+    '     bash .claude/scripts/probe.sh --implement',
+    '   It prints human progress to STDERR and EXACTLY ONE compact JSON line to STDOUT: {"ok":true|false,"reason":"…"}.',
+    '   The script owns every check (B resolves, the B bookmark exists, the working copy @ is conflict-free). Capture',
+    '   that one stdout JSON line verbatim.',
+    'Synto is a build-time library + source generators: there is NO database, NO containers, and NO network runtime to',
+    'bring up — there is nothing else to check.',
+    'Return ok (the probe JSON\'s ok verbatim — set ok=false if base-branch.sh produced no bookmark name), reason (the',
+    'probe JSON\'s reason, or the failure reason), and base (the bookmark name from step 1).',
   ].join('\n')
 }
 
 // --- Implement phase: one plan, broken into per-task subagents ---
 
-function setupExtractPrompt(plan) {
+function setupExtractPrompt(plan, B) {
+  const wsName = 'plan-' + plan.slug
+  const wsDir = WORKSPACES_DIR + '/' + wsName
   return [
     'You are the SETUP+EXTRACT step for ONE approved implementation plan in the Synto repo.',
-    'Project: Synto, a C#/.NET Roslyn source-generator toolkit (netstandard2.0, .NET 10, jj over git).',
-    'Host: Windows, PowerShell (Bash tool also available). You run in the MAIN repository working directory (C:/dev/Synto).',
+    'Project: Synto, a C#/.NET Roslyn source-generator toolkit (netstandard2.0, .NET 10, jj over a colocated git repo).',
+    'Host: Windows, Git Bash (PowerShell tool also available). You run in the MAIN repository working directory (' + REPO_DIR + ').',
     '',
     'Plan file: ' + plan.path + '   (slug: ' + plan.slug + ')',
+    'Integration bookmark B: ' + B,
     '',
-    'STEP A — validate the path, then create an isolated worktree branched off the current trunk (origin/main):',
+    'STEP A — validate the path, then create an isolated jj WORKSPACE rooted at the current tip of bookmark ' + B + ':',
     '  FIRST confirm the plan file exists DIRECTLY under ' + PLANS_DIR + '/ (top level ONLY — NOT ' + PLANS_DIR + '/drafts/,',
     '  NOT ' + COMPLETED_DIR + '/, NOT any other subdirectory). If it is missing or not a top-level plan, set setupOk=false',
     '  with a notes reason and STOP (return empty tasks[], empty files[], and an empty summary).',
-    '  Run:  git fetch origin',
-    '  Run:  git worktree add ' + WORKTREES_DIR + '/plan-' + plan.slug + ' -b plan/' + plan.slug + ' origin/main',
-    '  - If branch plan/' + plan.slug + ' already exists from a stale run, remove the stale worktree',
-    '    ("git worktree remove --force ..." then "git branch -D plan/' + plan.slug + '") and retry.',
-    '  - If "git worktree add" fails because of a lock (another plan is being set up concurrently), wait a moment',
+    '  Create the workspace whose working-copy commit @ starts ON TOP of ' + B + ' (so the plan is read CURRENT from ' + B + '):',
+    '    jj workspace add ' + wsDir + ' --name ' + wsName + ' --revision ' + B,
+    '  - If a workspace named ' + wsName + ' already exists in jj, OR the directory ' + wsDir + ' already exists on disk',
+    '    from a stale/failed run, clear BOTH first: run "jj workspace forget ' + wsName + '" (ignore an "unknown',
+    '    workspace" error) then REMOVE the directory ' + wsDir + ', and retry "jj workspace add".',
+    '  - If "jj workspace add" fails because of a lock (another plan is being set up concurrently), wait a moment',
     '    and retry, up to 3 times.',
-    '  Then capture the absolute worktree path:  git -C ' + WORKTREES_DIR + '/plan-' + plan.slug + ' rev-parse --show-toplevel',
-    '  And capture baseSha — the trunk commit this branch starts from (for the final cumulative review):',
-    '    git -C ' + WORKTREES_DIR + '/plan-' + plan.slug + ' rev-parse HEAD',
-    '  Do NOT switch the MAIN worktree off main, and do NOT modify the local main branch — another process uses it.',
+    '  Then capture the ABSOLUTE workspace path: cd into ' + wsDir + ' and run  jj workspace root  (print its output).',
+    '  And capture baseSha — the jj commit id of ' + B + '\'s tip this workspace starts from (the base revision for the',
+    '  final cumulative review). From INSIDE the workspace run:',
+    '    jj log --no-graph -r ' + B + ' -T \'commit_id.short()\'',
+    '  Do NOT advance or move bookmark ' + B + ', and do NOT touch the DEFAULT workspace (its @) — another process uses it.',
     '',
     'STEP B — read the plan file and split it into its ordered tasks:',
     '  Tasks are the sections whose heading line starts with "### Task " (e.g. "### Task 1: ..."). For EACH task return:',
@@ -296,9 +319,9 @@ function setupExtractPrompt(plan) {
     '    parenthetical note; keep only the bare path. De-duplicate.',
     '  - summary: one or two sentences on what the plan delivers.',
     '',
-    'Do NOT implement anything and do NOT modify tracked files — only create the worktree and read the plan.',
-    'Return setupOk (true only if the plan is a valid top-level file AND the worktree exists on branch plan/' + plan.slug + '),',
-    'worktreePath (the absolute path), baseSha (the trunk commit captured above), branch (plan/' + plan.slug + '), tasks[],',
+    'Do NOT implement anything and do NOT modify tracked files — only create the workspace and read the plan.',
+    'Return setupOk (true only if the plan is a valid top-level file AND the workspace ' + wsName + ' exists rooted at ' + B + '),',
+    'worktreePath (the ABSOLUTE workspace path), baseSha (the base revision captured above), branch (the workspace name ' + wsName + '), tasks[],',
     'files[] (the plan\'s touched repo-relative paths), summary (what the plan delivers), and notes.',
   ].join('\n')
 }
@@ -306,17 +329,18 @@ function setupExtractPrompt(plan) {
 function taskImplementerPrompt(plan, task, worktreePath, index, total) {
   return [
     'You are implementing ONE task of an approved plan using strict Test-Driven Development.',
-    'Project: Synto, a C#/.NET Roslyn source-generator toolkit (netstandard2.0, .NET 10, jj over git).',
+    'Project: Synto, a C#/.NET Roslyn source-generator toolkit (netstandard2.0, .NET 10, jj over a colocated git repo).',
     'Host: Windows, PowerShell (Bash tool also available). Conventions you MUST follow: Conventional Commits; NEVER add any',
     'Claude/AI attribution footer to commit messages.',
     '',
     'If you have a "superpowers:test-driven-development" skill available, invoke it and follow it. Either way, the',
     'red-green discipline below is mandatory.',
     '',
-    'Work ENTIRELY inside this git worktree — cd into it and run all git/dotnet commands there:',
+    'Work ENTIRELY inside this jj workspace — cd into it and run all jj/dotnet commands there:',
     '  ' + worktreePath,
-    'You are on branch plan/' + plan.slug + '. This is ' + task.id + ' (' + (index + 1) + ' of ' + total + ').',
-    'Earlier tasks of this plan are ALREADY committed on this branch. Later tasks are NOT done yet — do NOT touch them.',
+    'You are in the jj workspace plan-' + plan.slug + '. This is ' + task.id + ' (' + (index + 1) + ' of ' + total + ').',
+    'Earlier tasks of this plan are ALREADY committed in this workspace (a stack on bookmark B). Later tasks are NOT done',
+    'yet — do NOT touch them. Do NOT touch the DEFAULT workspace or move any bookmark.',
     '',
     '=== YOUR TASK (verbatim from the plan) ===',
     task.fullText,
@@ -340,10 +364,13 @@ function taskImplementerPrompt(plan, task, worktreePath, index, total) {
     '',
     'The suite is Verify-snapshot tests (golden *.verified.cs files) plus CSharpGeneratorDriver harness tests, run',
     'under the Microsoft Testing Platform (MTP v2) runner. They touch NO shared state (no DB, no network), so it is',
-    'safe to run the suite while other worktrees run theirs in parallel.',
+    'safe to run the suite while other workspaces run theirs in parallel.',
     '',
-    'Commit when the task says to, staging only the files this task changed, using the EXACT commit message the task',
-    'specifies (Conventional Commit; no AI footer).',
+    'Commit when the task says to, using the EXACT commit MESSAGE the task specifies (the task text may show a "git',
+    'commit" command — use its message, but commit with jj):  jj commit -m "<that message>"  . jj commits the',
+    'working-copy changes — which are this task\'s own — and starts a fresh empty working-copy commit on top. To be',
+    'explicit you MAY fileset-scope it to just the files you changed:  jj commit <file1> <file2> -m "<that message>"  .',
+    'Conventional Commit; no AI footer.',
     '',
     'If you get genuinely stuck, do NOT fake it: report status BLOCKED or NEEDS_CONTEXT with specifics. Bad work is',
     'worse than no work — you will not be penalized for escalating. Report DONE only if the task is fully implemented',
@@ -369,10 +396,10 @@ function taskImplementerPrompt(plan, task, worktreePath, index, total) {
 function specReviewPrompt(plan, task, worktreePath, implReport) {
   return [
     'You are reviewing whether ONE task implementation matches its specification. Do NOT trust the implementer report —',
-    'verify by READING THE ACTUAL CODE in the worktree.',
-    'cd into this worktree:  ' + worktreePath,
-    'Branch: plan/' + plan.slug + '. Inspect the commit(s) this task just added (e.g. "git log --oneline -5",',
-    '"git show HEAD", or diff against the previous task commit). Read the real code, not just the diff summary.',
+    'verify by READING THE ACTUAL CODE in the jj workspace.',
+    'cd into this jj workspace:  ' + worktreePath,
+    'Workspace: plan-' + plan.slug + '. Inspect the commit(s) this task just added (e.g. "jj log -r ::@ -T builtin_log_compact",',
+    '"jj show @-" for the latest commit, or "jj diff -r @-" for its diff). Read the real code, not just the diff summary.',
     '',
     '=== WHAT WAS REQUESTED (' + task.id + ', verbatim) ===',
     task.fullText,
@@ -394,9 +421,9 @@ function specReviewPrompt(plan, task, worktreePath, implReport) {
 function qualityReviewPrompt(plan, task, worktreePath) {
   return [
     'You are a CODE-QUALITY reviewer for ONE task implementation (spec compliance has already passed).',
-    'cd into this worktree:  ' + worktreePath,
-    'Branch: plan/' + plan.slug + '. Review the diff THIS task introduced — inspect its commit(s) ("git show HEAD",',
-    'or diff against the previous task commit) and read the actual code.',
+    'cd into this jj workspace:  ' + worktreePath,
+    'Workspace: plan-' + plan.slug + '. Review the diff THIS task introduced — inspect its commit(s) ("jj show @-",',
+    'or "jj diff -r @-") and read the actual code.',
     '',
     'BEFORE you judge anything: read .claude/rules/project-phase.md and let it set your severity bar — Synto is a',
     'POC, so calibrate what counts as CRITICAL per that file (critical is the gate that blocks this task).',
@@ -416,10 +443,10 @@ function qualityReviewPrompt(plan, task, worktreePath) {
 
 function fixPrompt(plan, worktreePath, kind, issues, scopeLabel, contextText) {
   return [
-    'A reviewer found issues in an implementation. Fix them in the worktree, then commit.',
+    'A reviewer found issues in an implementation. Fix them in the jj workspace, then commit.',
     'Project: Synto (C#/.NET Roslyn source generators). Host: Windows/PowerShell. Conventions: Conventional Commits, NO AI footer.',
-    'cd into this worktree:  ' + worktreePath,
-    'Branch: plan/' + plan.slug + '.   Scope: ' + scopeLabel,
+    'cd into this jj workspace:  ' + worktreePath,
+    'Workspace: plan-' + plan.slug + '.   Scope: ' + scopeLabel,
     '',
     'Resolve these ' + kind + ' issues:',
     JSON.stringify(issues, null, 2),
@@ -430,8 +457,8 @@ function fixPrompt(plan, worktreePath, kind, issues, scopeLabel, contextText) {
     '',
     'Fix ONLY these issues (plus anything strictly required to make them correct). Keep changes minimal and inside this',
     'scope — do NOT start unrelated tasks. Preserve TDD: a behavior change needs a test that fails first. Re-run the',
-    'relevant tests and CONFIRM they pass (and that you broke nothing else). Then commit with a Conventional Commit',
-    'message (no AI footer).',
+    'relevant tests and CONFIRM they pass (and that you broke nothing else). Then commit with jj ("jj commit -m ...",',
+    'or fileset-scoped "jj commit <files> -m ..."), a Conventional Commit message (no AI footer).',
     '',
     'Report: status (DONE if fixed and green, else BLOCKED/NEEDS_CONTEXT), redObserved, greenObserved, commits,',
     'filesChanged, summary, and concerns.',
@@ -440,18 +467,18 @@ function fixPrompt(plan, worktreePath, kind, issues, scopeLabel, contextText) {
 
 function greenGatePrompt(plan, worktreePath) {
   return [
-    'Run the GREEN-GATE for an implemented plan branch and make it pass. Project: Synto (C#/.NET Roslyn source generators).',
+    'Run the GREEN-GATE for an implemented plan workspace and make it pass. Project: Synto (C#/.NET Roslyn source generators).',
     'Host: Windows/PowerShell. Conventions: Conventional Commits, NO AI footer.',
-    'cd into this worktree:  ' + worktreePath,
-    'Branch: plan/' + plan.slug + '. All tasks are implemented and committed.',
+    'cd into this jj workspace:  ' + worktreePath,
+    'Workspace: plan-' + plan.slug + '. All tasks are implemented and committed.',
     '',
-    'From the worktree root, run the full gate:',
+    'From the workspace root, run the full gate:',
     '    ' + GREEN_GATE,
-    'For a CODE/TEST failure: DEBUG the root cause, FIX it (test-first if it is a behavior change), commit the fix',
-    '(Conventional Commit, no AI footer), and re-run the gate. Repeat up to ' + MAX_ATTEMPTS + ' total attempts.',
+    'For a CODE/TEST failure: DEBUG the root cause, FIX it (test-first if it is a behavior change), commit the fix with',
+    'jj ("jj commit -m ...", Conventional Commit, no AI footer), and re-run the gate. Repeat up to ' + MAX_ATTEMPTS + ' total attempts.',
     'The suite is Verify-snapshot + CSharpGeneratorDriver tests under the MTP v2 runner; they touch no shared state',
-    '(no DB, no network), so it is safe to run alongside other worktrees.',
-    'Do NOT rebase, merge, push, or touch main.',
+    '(no DB, no network), so it is safe to run alongside other workspaces.',
+    'Do NOT rebase, advance any bookmark, push, or touch the default workspace.',
     '',
     GATE_TRANSIENT_GUARD,
     '',
@@ -467,12 +494,12 @@ function finalReviewPrompt(plan, worktreePath, baseSha) {
     plan.files && plan.files.length ? plan.files.map((f) => '"' + f + '"').join(' ') : '.'
   return [
     'You are the FINAL reviewer for a completed plan, reviewing its WHOLE cumulative implementation against the plan.',
-    'cd into this worktree:  ' + worktreePath,
-    'Branch: plan/' + plan.slug + '. This plan was integrated to the trunk incrementally (each task already',
-    'fast-forwarded onto origin/main), so review the cumulative contribution since the trunk point it started from',
+    'cd into this jj workspace:  ' + worktreePath,
+    'Workspace: plan-' + plan.slug + '. This plan was integrated incrementally (each task already advanced the',
+    'integration bookmark B), so review the cumulative contribution since the base revision this workspace started from',
     '(commit ' + baseSha + '), scoped to the files this plan owns:',
-    '    git diff ' + baseSha + ' HEAD -- ' + fileScope,
-    'Also skim the commit messages:  git log --oneline ' + baseSha + '..HEAD  — then OPEN and read the changed code.',
+    '    jj diff --from ' + baseSha + ' --to @ ' + fileScope,
+    'Also skim the commit messages:  jj log -r ' + baseSha + '..@  — then OPEN and read the changed code.',
     'Plan file (the requirements): ' + plan.path + '. What it delivers: ' + plan.summary,
     '',
     'BEFORE you judge anything: read .claude/rules/project-phase.md and let it set your severity bar — Synto is a',
@@ -487,80 +514,118 @@ function finalReviewPrompt(plan, worktreePath, baseSha) {
   ].join('\n')
 }
 
-function integrateIncrementPrompt(plan, worktreePath) {
+function integrateIncrementPrompt(plan, worktreePath, B) {
   return [
-    'You are LANDING the latest committed work of a plan branch onto the shared trunk (origin/main),',
-    'continuous-integration style. You run INSIDE this plan worktree and MUST NOT check out, modify, reset, or',
-    'fast-forward the LOCAL "main" branch or the main working directory — another process is actively using it.',
-    'Host: Windows/PowerShell. Conventions: Conventional Commits, NO AI attribution footer.',
-    'cd into this worktree:  ' + worktreePath,
-    'Branch: plan/' + plan.slug + '.',
+    'You are LANDING the latest committed work of this plan onto the SHARED integration bookmark ' + B + ', continuous-',
+    'integration style, using jj. You run INSIDE this plan workspace and MUST NOT touch the DEFAULT workspace (its @)',
+    'or any other workspace — another process is actively using the default working copy. Bookmark ' + B + ' is the',
+    'shared target: a co-running plan may advance it under you, which this loop handles by re-rebasing.',
+    'Host: Windows/PowerShell (Git Bash also available). Conventions: Conventional Commits, NO AI attribution footer.',
+    'cd into this jj workspace:  ' + worktreePath,
+    '',
+    'INTEGRATION MODE — read the environment variable SYNTO_FLOW_INTEGRATE (bash: "$SYNTO_FLOW_INTEGRATE"; PowerShell:',
+    '$env:SYNTO_FLOW_INTEGRATE). UNSET or "local" => LOCAL mode: advance the bookmark only, push NOTHING. ONLY the exact',
+    'value "push" => PUSH mode: after the advance, ALSO run "jj git push". Treat any other/empty value as LOCAL. NEVER',
+    'push in local mode.',
     '',
     'STEP 0 — is there anything to land?',
-    '  git fetch origin',
-    '  git rev-list --count origin/main..HEAD',
-    '  If that count is 0, an earlier task in a multi-task compile unit committed nothing yet — there is nothing to',
-    '  integrate. Report pushed=false, nothingToIntegrate=true, problems="" and STOP. THIS IS SUCCESS, not a failure.',
+    '  jj log --no-graph -r \'' + B + '..@\' -T \'change_id.short() ++ "\\n"\'',
+    '  If that shows NO described commit between ' + B + ' and @ (only the empty working-copy commit @, i.e. @- is ' + B + '),',
+    '  an earlier task in a multi-task compile unit committed nothing yet — there is nothing to integrate. Report',
+    '  pushed=false, nothingToIntegrate=true, problems="" and STOP. THIS IS SUCCESS, not a failure.',
     '',
-    'Otherwise land the work with LINEAR history. NEVER force-push; NEVER "git reset --hard"; never discard commits',
-    'you did not create. Repeat the following up to ' + FF_PUSH_MAX_ATTEMPTS + ' times (the trunk is SHARED — a',
-    'co-running walk keeps pushing to origin/main, so this budget is generous on purpose):',
-    '  1. git fetch origin',
-    '  2. Rebase this branch onto the current trunk:  git rebase origin/main',
-    '     - On conflict: resolve keeping BOTH intents — this plan change AND whatever is already on origin/main',
-    '       (e.g. union both sets of additions in a shared file like Directory.Packages.props or Synto.slnx). "git add"',
-    '       the resolved files, then "git rebase --continue". Repeat until the rebase completes.',
-    '     - If you cannot resolve after real effort: "git rebase --abort" and report pushed=false with the reason.',
-    '  3. Run the FULL green-gate on the rebased branch (a rebase can introduce a semantic conflict the textual',
-    '     merge missed):',
+    'Otherwise land the work. NEVER move ' + B + ' BACKWARDS or SIDEWAYS — NEVER pass "--allow-backwards" (-B) to',
+    '"jj bookmark set", and never abandon commits you did not create. Repeat the following up to ' + FF_PUSH_MAX_ATTEMPTS + ' times (' + B + ' is',
+    'SHARED — a co-running plan keeps advancing it, so this budget is generous on purpose):',
+    '  1. Rebase this plan\'s task stack onto the CURRENT tip of ' + B + ':',
+    '         jj rebase -b @ -o ' + B,
+    '     - On conflict: jj records conflicts IN-TREE (first-class) rather than stopping. Resolve them keeping BOTH',
+    '       intents — this plan change AND whatever already landed on ' + B + ' (e.g. union both sets of additions in a',
+    '       shared file like Directory.Packages.props or Synto.slnx). Edit the conflicted files (or "jj resolve") until',
+    '       "jj log -r \'' + B + '..@\' -T conflict" shows only "false". If you cannot resolve after real effort, report',
+    '       pushed=false with the reason.',
+    '  2. Run the FULL green-gate on the rebased stack (a rebase can introduce a semantic conflict the textual merge',
+    '     missed):',
     '         ' + GREEN_GATE,
     '     If it fails, apply the GATE FAILURE POLICY at the BOTTOM of this prompt: classify transient vs code. Fix only',
-    '     a CODE/TEST failure (test-first for a behavior change; commit, no AI footer; re-run), BOUNDED to ' + MAX_ATTEMPTS + ' attempts',
+    '     a CODE/TEST failure (test-first for a behavior change; "jj commit" the fix, no AI footer; re-run), BOUNDED to ' + MAX_ATTEMPTS + ' attempts',
     '     — do NOT "re-run until green" forever. If a code failure still cannot go green, report pushed=false,',
     '     gateGreen=false + reason. On an unrecoverable TRANSIENT/ENVIRONMENT failure, STOP per the policy and report',
     '     pushed=false, gateGreen=false, transient=true + the exact signature — do NOT churn the gate or edit code.',
-    '  4. Fast-forward the trunk by pushing THIS branch HEAD straight to main on the remote (this does NOT touch the',
-    '     local main checkout):',
-    '         git push origin HEAD:main',
-    '     - SUCCESS: report pushed=true, gateGreen=true, headShaAfter=(git rev-parse --short HEAD), attempts, and any',
-    '       files in conflictsResolved. STOP.',
-    '     - REJECTED as non-fast-forward (another plan pushed to main first): wait a short, GROWING backoff so the',
-    '       competing push settles before you retry — roughly 2x the attempt number in seconds (~2s before retry 2,',
-    '       ~4s before 3, ~6s before 4, ... capped ~16s; e.g. PowerShell  Start-Sleep -Seconds <n>) — then loop again',
-    '       from step 1 to rebase onto the new trunk and re-gate. Do NOT force-push.',
-    'If you exhaust ' + FF_PUSH_MAX_ATTEMPTS + ' attempts still losing the push race, report pushed=false, reason "lost push race repeatedly".',
+    '  3. Advance the bookmark to the new tip of the rebased stack — the last DESCRIBED task commit, which with jj\'s',
+    '     working-copy model is "@-" (the parent of the empty working-copy commit @):',
+    '         jj bookmark set ' + B + ' -r @-',
+    '     jj only allows a FORWARD (fast-forward) move here, which is exactly what we want.',
+    '     - SUCCESS (forward advance accepted): in PUSH mode ONLY (SYNTO_FLOW_INTEGRATE == "push") now push the advanced',
+    '       bookmark to the remote:  jj git push --bookmark ' + B + '   (first push of a brand-new remote bookmark may',
+    '       instead need  jj git push --named ' + B + '=@-  ). In LOCAL mode push NOTHING. Then report pushed=true,',
+    '       gateGreen=true, headShaAfter=(jj log --no-graph -r @- -T \'commit_id.short()\'), attempts, and any files in',
+    '       conflictsResolved. STOP.',
+    '     - REFUSED as a non-fast-forward ("refusing to move bookmark backwards or sideways" — a co-running plan advanced',
+    '       ' + B + ' to a commit that is NOT an ancestor of your tip): do NOT force it and do NOT pass --allow-backwards.',
+    '       Wait a short, GROWING backoff so the competing advance settles — roughly 2x the attempt number in seconds',
+    '       (~2s before retry 2, ~4s before 3, ~6s before 4, ... capped ~16s; PowerShell  Start-Sleep -Seconds <n>) —',
+    '       then loop again from step 1 to re-rebase onto the new ' + B + ' tip and re-gate.',
+    'If you exhaust ' + FF_PUSH_MAX_ATTEMPTS + ' attempts still losing the advance race, report pushed=false, reason "lost bookmark-advance race repeatedly".',
     '',
-    'Do NOT archive the plan file and do NOT remove the worktree here — that happens once, at the very end.',
-    'Report: pushed, nothingToIntegrate, gateGreen, transient (true ONLY if you stopped on an unrecoverable',
-    'transient/environment failure per the policy below), headShaAfter, attempts, conflictsResolved (files), problems.',
+    'Do NOT archive the plan file and do NOT remove the workspace here — that happens once, at the very end.',
+    'Report: pushed (true = the work is LANDED on ' + B + ' — advanced locally in local mode, or also pushed in push mode),',
+    'nothingToIntegrate, gateGreen, transient (true ONLY if you stopped on an unrecoverable transient/environment failure',
+    'per the policy below), headShaAfter, attempts, conflictsResolved (files), problems.',
     '',
     GATE_TRANSIENT_GUARD,
   ].join('\n')
 }
 
-function archiveAndPushPrompt(plan, worktreePath, planPath) {
+function archiveAndPushPrompt(plan, worktreePath, planPath, B) {
+  const planFile = String(planPath).replace(/\\/g, '/').split('/').pop() // bare filename, e.g. 2026-06-19-foo.md
   return [
-    'Final step for a fully-implemented, fully-integrated plan: archive its plan file on the trunk and clean up.',
-    'You run INSIDE this worktree. Do NOT touch the LOCAL main branch or the main working directory.',
-    'Host: Windows/PowerShell. Conventions: Conventional Commits, NO AI attribution footer.',
-    'cd into this worktree:  ' + worktreePath,
-    'Branch: plan/' + plan.slug + '.',
+    'Final step for a fully-implemented, fully-integrated plan: archive its plan file on the integration bookmark ' + B + '.',
+    'You run INSIDE this jj workspace. Do NOT touch the DEFAULT workspace (its @) or any other workspace.',
+    'Host: Windows/PowerShell (Git Bash also available). Conventions: Conventional Commits, NO AI attribution footer.',
+    'cd into this jj workspace:  ' + worktreePath,
     '',
-    '1. Move the plan file into the completed/ archive and commit (a pure file move — no gate needed):',
-    '     git mv "' + planPath + '" ' + COMPLETED_DIR + '/',
-    '     git commit -m "chore(plans): archive ' + plan.slug + ' (implemented)"',
-    '2. Land it on the trunk (a fast-forward; on non-ff rejection re-fetch/re-rebase/re-push; resolve any conflict',
-    '   keeping both intents). Retry up to ' + FF_PUSH_MAX_ATTEMPTS + ', waiting a short GROWING backoff between',
-    '   attempts (~2s,4s,6s,... capped ~16s; PowerShell Start-Sleep) so a concurrent walk\'s push to the shared',
-    '   trunk settles first:',
-    '     git fetch origin ; git rebase origin/main ; git push origin HEAD:main',
-    '3. Clean up — run these from the MAIN repo dir, NOT from inside the worktree:',
-    '     cd ' + REPO_DIR,
-    '     git worktree remove --force "' + worktreePath + '"',
-    '     git branch -D plan/' + plan.slug,
+    'INTEGRATION MODE — read SYNTO_FLOW_INTEGRATE exactly as the integrate step did: UNSET/"local" => advance the',
+    'bookmark only, push NOTHING; ONLY "push" => also "jj git push" after the advance. NEVER push in local mode.',
     '',
-    'Report: pushed (did the archive commit reach origin/main), headShaAfter (git rev-parse --short of the pushed',
-    'commit), and problems (empty if clean).',
+    '1. Move the plan file into the completed/ archive (a pure file move — no gate needed). jj auto-tracks the move; move',
+    '   the file on disk, then commit EXACTLY those two paths so the commit is fileset-scoped to just the archive move:',
+    '     - move ' + planPath + '  ->  ' + COMPLETED_DIR + '/  (PowerShell: Move-Item; bash: mv). Create ' + COMPLETED_DIR + '/ if missing.',
+    '     jj commit ' + COMPLETED_DIR + '/' + planFile + ' ' + planPath + ' -m "chore(plans): archive ' + plan.slug + ' (implemented)"',
+    '2. Land it on ' + B + ' using the SAME local-integration path as the per-task integrate: rebase the archive commit',
+    '   onto the current tip of ' + B + ', then advance the bookmark FORWARD-only (NEVER --allow-backwards). Retry up to ' + FF_PUSH_MAX_ATTEMPTS + ',',
+    '   waiting a short GROWING backoff between attempts (~2s,4s,6s,... capped ~16s; PowerShell Start-Sleep) so a',
+    '   concurrent plan\'s advance of the shared bookmark settles first:',
+    '     jj rebase -b @ -o ' + B + '   (resolve any conflict keeping both intents)',
+    '     jj bookmark set ' + B + ' -r @-',
+    '   THEN in PUSH mode ONLY also run:  jj git push --bookmark ' + B + '   . In LOCAL mode push NOTHING.',
+    '3. Do NOT remove the workspace here — a separate cleanup step forgets it at the very end.',
+    '',
+    'Report: pushed (true = the archive commit is LANDED on ' + B + ' — advanced locally, or also pushed in push mode),',
+    'headShaAfter (jj log --no-graph -r @- -T \'commit_id.short()\' of the landed commit), and problems (empty if clean).',
+  ].join('\n')
+}
+
+// Cleanup runs on EVERY exit path (implementPlan's finally): forget the jj workspace so jj never tracks a dead one,
+// and remove its directory ONLY on success (kept for inspection on any non-success, mirroring the prior worktree
+// "kept for inspection" behavior). The landed commits are NOT touched — they remain reachable in the repo.
+function cleanupPrompt(workspaceName, worktreePath, removeDir) {
+  return [
+    'Clean up the jj workspace for a finished plan-implementation run. Host: Windows/PowerShell (Git Bash also available).',
+    'Run from the MAIN repo directory (' + REPO_DIR + '), NOT from inside the workspace.',
+    '',
+    'The plan workspace is named "' + workspaceName + '" (directory: ' + worktreePath + ').',
+    'ALWAYS forget it so jj never tracks a dead workspace — this does NOT delete the landed commits (they remain in the',
+    'repo, reachable from bookmark history / the op log):',
+    '     jj workspace forget ' + workspaceName,
+    '     (if jj reports the workspace is already forgotten / unknown, that is fine — treat it as success.)',
+    removeDir
+      ? 'Then REMOVE the workspace directory from disk (the run SUCCEEDED — nothing to inspect):  ' + worktreePath + '  (PowerShell: Remove-Item -Recurse -Force; bash: rm -rf).'
+      : 'KEEP the workspace directory ' + worktreePath + ' on disk for inspection (the run did NOT fully succeed) — do NOT delete it.',
+    '',
+    'Do NOT touch the DEFAULT workspace or any other workspace, do NOT move or advance any bookmark, and do NOT push.',
+    'Report: forgotten (did "jj workspace forget" succeed or was it already gone), removedDir (did you delete the dir),',
+    'and problems (empty if clean).',
   ].join('\n')
 }
 
@@ -641,7 +706,7 @@ async function reviewAndFix(plan, task, worktreePath, implReport) {
 }
 
 // Uniform result shape for one plan. `merged` = at least fully integrated through
-// its last task; `pushedTasks` = how many increments reached origin/main (CI may
+// its last task; `pushedTasks` = how many increments landed on bookmark B (CI may
 // leave earlier tasks landed even when a later task stops the plan).
 function planResult(plan, branch, worktreePath, fields) {
   const problems = fields.problems
@@ -665,7 +730,7 @@ function planResult(plan, branch, worktreePath, fields) {
 }
 
 // Close-completeness reconciliation. Every task records exactly one disposition in the task
-// loop: 'landed' (its commit(s) pushed to main), 'already-satisfied' (no commit, but its checks
+// loop: 'landed' (its commit(s) advanced onto bookmark B), 'already-satisfied' (no commit, but its checks
 // already pass against existing code — implementer-attested with evidence), or 'rode-along' (no
 // commit; production code is expected to land in a LATER task's commit). A rode-along is ACCOUNTED
 // only if every file it touched appears among files a LATER landed task carried — otherwise the
@@ -691,41 +756,46 @@ function reconcileDispositions(dispositions) {
   return { tasksTotal: dispositions.length, tasksAccounted: accounted, dropped }
 }
 
-// Implement ONE plan end-to-end in its own worktree, integrating each green commit
-// onto origin/main as it lands (continuous integration). The local main checkout is
-// never touched. Always returns a planResult.
-async function implementPlan(plan) {
-  const branchGuess = 'plan/' + plan.slug
+// Implement ONE plan end-to-end in its own jj workspace, advancing bookmark B with each green
+// commit as it lands (continuous integration). The DEFAULT workspace is never touched directly;
+// it follows the advanced bookmark via jj auto-rebase. Always returns a planResult.
+async function implementPlan(plan, B) {
+  const workspaceName = 'plan-' + plan.slug
+  const workspaceDir = WORKSPACES_DIR + '/' + workspaceName
+  const branchGuess = workspaceName
+  let succeeded = false                 // set true ONLY on the fully-archived success return; gates dir removal in cleanup
+  let cleanupPath = workspaceDir        // updated to the ABSOLUTE workspace path once setup reports it
   try {
-    // 1. Setup worktree (off origin/main) + extract tasks + capture baseSha + fold in files/summary.
-    const setup = await agent(setupExtractPrompt(plan), {
+    // 1. Setup jj workspace (rooted at B's tip) + extract tasks + capture baseSha + fold in files/summary.
+    const setup = await agent(setupExtractPrompt(plan, B), {
       schema: TASKS_SCHEMA,
       agentType: 'general-purpose',
       label: 'setup:' + plan.slug,
       phase: 'Implement',
     })
     if (!setup || !setup.setupOk || !setup.worktreePath || !(setup.tasks && setup.tasks.length)) {
-      return planResult(plan, (setup && setup.branch) || branchGuess, (setup && setup.worktreePath) || '', {
+      return planResult(plan, (setup && setup.branch) || branchGuess, (setup && setup.worktreePath) || workspaceDir, {
         summary: 'setup/extract failed',
-        problems: setup ? 'no tasks extracted or worktree not ready; notes: ' + (setup.notes || '') : 'setup agent returned null',
+        problems: setup ? 'no tasks extracted or workspace not ready; notes: ' + (setup.notes || '') : 'setup agent returned null',
         reason: 'setup failed',
       })
     }
     const worktreePath = setup.worktreePath
+    cleanupPath = worktreePath || workspaceDir
     const branch = setup.branch || branchGuess
     const tasks = setup.tasks
-    const baseSha = setup.baseSha || 'origin/main'
+    const baseSha = setup.baseSha || B // base revision for review scoping; falls back to the bookmark name
     plan.files = setup.files || [] // fold-in: the plan's touched files (was the Discover step)
     plan.summary = setup.summary || '' // fold-in: what the plan delivers
-    log(plan.slug + ': worktree ready (' + worktreePath + '); ' + tasks.length + ' task(s); base ' + baseSha + '.')
+    log(plan.slug + ': workspace ready (' + worktreePath + '); ' + tasks.length + ' task(s); base ' + baseSha + ' on ' + B + '.')
 
     const allCommits = []
     const problems = []
     let pushedTasks = 0
     const dispositions = [] // one per task: { id, index, kind: 'landed'|'already-satisfied'|'rode-along', files }
 
-    // 2. Implement each task sequentially in the shared worktree, with review gates,
-    //    then land its commit(s) on origin/main before moving to the next task.
+    // 2. Implement each task sequentially in the shared workspace, with review gates,
+    //    then land its commit(s) on bookmark B before moving to the next task.
     for (let t = 0; t < tasks.length; t++) {
       const task = tasks[t]
       const impl = await agent(taskImplementerPrompt(plan, task, worktreePath, t, tasks.length), {
@@ -763,7 +833,7 @@ async function implementPlan(plan) {
       if (rev.openIssues && rev.openIssues.length) problems.push(task.id + ' notes: ' + rev.openIssues.join('; '))
       log('OK ' + plan.slug + ' ' + task.id + ' implemented + reviewed (' + (t + 1) + '/' + tasks.length + ').')
 
-      // --- Continuous integration: land this task's commit(s) on origin/main now. ---
+      // --- Continuous integration: land this task's commit(s) on bookmark B now. ---
       const taskCommits = [...(impl.commits || []), ...(rev.commits || [])]
       const taskFiles = impl.filesChanged || []
       if (MODE === 'dry-run') {
@@ -786,7 +856,7 @@ async function implementPlan(plan) {
         }
         continue
       }
-      const integ = await agent(integrateIncrementPrompt(plan, worktreePath), {
+      const integ = await agent(integrateIncrementPrompt(plan, worktreePath, B), {
         schema: INTEGRATE_INCREMENT_SCHEMA,
         agentType: 'general-purpose',
         label: 'integrate:' + plan.slug + ':' + task.id,
@@ -799,7 +869,7 @@ async function implementPlan(plan) {
         return planResult(plan, branch, worktreePath, {
           pushedTasks,
           commits: allCommits,
-          summary: 'stopped at ' + task.id + ' (integration' + (transient ? ', transient env failure' : '') + '); ' + pushedTasks + ' earlier increment(s) already on main',
+          summary: 'stopped at ' + task.id + ' (integration' + (transient ? ', transient env failure' : '') + '); ' + pushedTasks + ' earlier increment(s) already on ' + B,
           problems,
           reason: transient
             ? 'stopped at ' + task.id + ' (integration transient env failure; retry once the environment settles)'
@@ -810,9 +880,9 @@ async function implementPlan(plan) {
         pushedTasks++
         if (integ.conflictsResolved && integ.conflictsResolved.length)
           problems.push(task.id + ' rebase resolved: ' + integ.conflictsResolved.join(', '))
-        log('  LANDED ' + plan.slug + ' ' + task.id + ' -> origin/main ' + (integ.headShaAfter || ''))
+        log('  LANDED ' + plan.slug + ' ' + task.id + ' -> ' + B + ' ' + (integ.headShaAfter || ''))
       }
-      // Past the integrate guard with a real commit => this task's work is on main (pushed, or
+      // Past the integrate guard with a real commit => this task's work is on B (advanced, or
       // nothingToIntegrate because it was already there). Record it landed, with its files.
       dispositions.push({ id: task.id, index: t, kind: 'landed', files: taskFiles })
     }
@@ -864,7 +934,7 @@ async function implementPlan(plan) {
       })
     }
 
-    // 3b. Final whole-plan cross-task review against the trunk point; fix-forward + land any critical.
+    // 3b. Final whole-plan cross-task review against the base revision; fix-forward + land any critical.
     const final = await agent(finalReviewPrompt(plan, worktreePath, baseSha), {
       schema: QUALITY_REVIEW_SCHEMA,
       label: 'final-review:' + plan.slug,
@@ -878,7 +948,7 @@ async function implementPlan(plan) {
         { schema: TASK_IMPL_SCHEMA, agentType: 'general-purpose', label: 'fix-final:' + plan.slug, phase: 'Integrate' },
       )
       if (fix && fix.commits) allCommits.push(...fix.commits)
-      const integ = await agent(integrateIncrementPrompt(plan, worktreePath), {
+      const integ = await agent(integrateIncrementPrompt(plan, worktreePath, B), {
         schema: INTEGRATE_INCREMENT_SCHEMA,
         agentType: 'general-purpose',
         label: 'integrate-final:' + plan.slug,
@@ -896,20 +966,20 @@ async function implementPlan(plan) {
         problems.push('final review critical unresolved: ' + stillCritical.join('; ') +
           (transient ? ' [final integrate parked on TRANSIENT env failure; retry once the environment settles]' : ''))
         return planResult(plan, branch, worktreePath, {
-          merged: true, // earlier increments are already on main; the fix-forward did not land
+          merged: true, // earlier increments are already on B; the fix-forward did not land
           pushedTasks,
           commits: allCommits,
           tasksTotal: recon.tasksTotal,
           tasksAccounted: recon.tasksAccounted,
-          summary: 'final review found unresolved critical issues (earlier tasks already on main)',
+          summary: 'final review found unresolved critical issues (earlier tasks already on ' + B + ')',
           problems,
           reason: 'final review unresolved', // not 'merged + archived' => walk close-gate excludes it anyway
         })
       }
     }
 
-    // 4. Archive the plan file on the trunk + clean up the worktree/branch.
-    const arch = await agent(archiveAndPushPrompt(plan, worktreePath, plan.path), {
+    // 4. Archive the plan file on bookmark B (cleanup of the workspace runs in the finally, every exit path).
+    const arch = await agent(archiveAndPushPrompt(plan, worktreePath, plan.path, B), {
       schema: ARCHIVE_SCHEMA,
       agentType: 'general-purpose',
       label: 'archive:' + plan.slug,
@@ -918,6 +988,7 @@ async function implementPlan(plan) {
     const archived = !!(arch && arch.pushed)
     if (!archived) problems.push('archive: ' + (arch ? arch.problems : 'agent returned null'))
 
+    succeeded = archived // full success only when archived — gates the cleanup dir removal
     return planResult(plan, branch, worktreePath, {
       green: true,
       merged: true,
@@ -932,11 +1003,25 @@ async function implementPlan(plan) {
       reason: archived ? 'merged + archived' : 'merged; archive failed',
     })
   } catch (e) {
-    return planResult(plan, branchGuess, WORKTREES_DIR + '/plan-' + plan.slug, {
+    return planResult(plan, branchGuess, cleanupPath, {
       summary: 'exception during implementation',
       problems: 'exception: ' + ((e && e.message) || String(e)),
       reason: 'exception',
     })
+  } finally {
+    // Cleanup on EVERY exit path (success, gate failure, agent error, exception): forget the jj workspace so jj
+    // never tracks a dead one. The directory is removed only on full success (succeeded); on any non-success it is
+    // kept for inspection. Best-effort — a cleanup failure NEVER overrides the run's planResult.
+    try {
+      await agent(cleanupPrompt(workspaceName, cleanupPath, succeeded), {
+        schema: CLEANUP_SCHEMA,
+        agentType: 'general-purpose',
+        label: 'cleanup:' + plan.slug,
+        phase: 'Integrate',
+      })
+    } catch (_) {
+      /* swallow — cleanup is best-effort and must not mask the result */
+    }
   }
 }
 
@@ -945,11 +1030,13 @@ async function implementPlan(plan) {
 // ---------------------------------------------------------------------------
 phase('Preflight')
 const pf = await agent(preflightPrompt(), { schema: PREFLIGHT_SCHEMA, label: 'preflight' })
-if (!pf || !pf.ok) {
-  log('Preflight FAILED, aborting: ' + (pf ? pf.reason : 'preflight agent returned null'))
-  return { aborted: true, reason: pf ? pf.reason : 'preflight null' }
+if (!pf || !pf.ok || !pf.base) {
+  const reason = pf ? (pf.ok && !pf.base ? 'preflight resolved no integration bookmark B' : pf.reason) : 'preflight agent returned null'
+  log('Preflight FAILED, aborting: ' + reason)
+  return { aborted: true, reason }
 }
-log('Preflight OK — clean main in sync with origin.')
+const B = String(pf.base).trim() // the integration bookmark this run advances; resolved by base-branch.sh
+log('Preflight OK — integration bookmark B=' + B + ' resolved; jj probe passed.')
 
 // Validate the single plan input (fail-closed: must be a top-level plan path).
 const pathErr = planPathError(PLAN)
@@ -959,26 +1046,27 @@ if (pathErr) {
 }
 
 const plan = { slug: toSlug(PLAN), path: PLAN.replace(/\\/g, '/') }
-if (MODE === 'dry-run') log('MODE = dry-run: the plan will be implemented and gated but NOT merged or pushed.')
-log('Implementing plan ' + plan.slug + ' (' + plan.path + ').')
+if (MODE === 'dry-run') log('MODE = dry-run: the plan will be implemented and gated but the bookmark is NOT advanced and nothing is pushed.')
+log('Implementing plan ' + plan.slug + ' (' + plan.path + ') onto bookmark ' + B + '.')
 
 phase('Implement')
-const result = await implementPlan(plan)
+const result = await implementPlan(plan, B)
 
 if (result.merged) {
-  log('DONE  ' + result.slug + ': ' + result.pushedTasks + ' increment(s) on origin/main — ' + result.reason)
+  log('DONE  ' + result.slug + ': ' + result.pushedTasks + ' increment(s) landed on ' + B + ' — ' + result.reason)
 } else if (MODE === 'dry-run' && result.green) {
-  log('OK    ' + result.slug + ' green (dry-run, not pushed). worktree=' + (result.worktreePath || '?'))
+  log('OK    ' + result.slug + ' green (dry-run, bookmark not advanced). workspace=' + (result.worktreePath || '?'))
 } else {
   log(
     'FAIL  ' + result.slug + ': ' + result.reason + '. ' + result.pushedTasks + ' increment(s) landed before stopping. ' +
-      'worktree=' + (result.worktreePath || '?') + ' kept for inspection. ' + (result.problems || ''),
+      'workspace=' + (result.worktreePath || '?') + ' kept for inspection. ' + (result.problems || ''),
   )
 }
 if (MODE !== 'dry-run' && result.merged) {
   log(
-    'NOTE: your local main was left untouched; origin/main has the merged work. Run "git pull --ff-only" ' +
-      '(or "git pull --rebase" if you have local-only commits) when ready.',
+    'NOTE: the work is on bookmark ' + B + ' locally; in local mode (SYNTO_FLOW_INTEGRATE unset/local, the default) ' +
+      'nothing was pushed. Your default working copy follows ' + B + ' via jj auto-rebase. ' +
+      '(Under SYNTO_FLOW_INTEGRATE=push it was also pushed to the remote.)',
   )
 }
 
