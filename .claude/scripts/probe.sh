@@ -12,22 +12,23 @@
 # now just RUNS this script and returns its stdout, instead of re-deriving the checks from a prose spec.
 #
 # Synto has NO database, NO containers, NO network runtime — it is a build-time library + source
-# generators — so there is no infra to bring up. The only precondition is the git one below.
+# generators — so there is no infra to bring up. The jj guardrails below verify the working copy
+# is in a safe, consistent state for an issue-flow run.
 #
-# Checks:
-#   1. main is fast-forwardable vs origin/main (mirror implement-plan preflight):
-#        - HEAD == origin/main: fine;
-#        - origin/main is an ancestor of HEAD (unpushed local commits — operator commits to main): fine;
-#        - HEAD is an ancestor of origin/main (behind): `git merge --ff-only origin/main` to catch up
-#          (this is the ONE allowed mutation — nothing else is changed);
-#        - otherwise DIVERGED: ok=false.
+# Checks (jj-native — run in order; first fatal failure exits 1):
+#   1. B resolves: bash .claude/scripts/base-branch.sh succeeds with non-empty output.
+#   2. Bookmark exists: the resolved B appears in `jj bookmark list -T 'name ++ "\n"'`
+#      (catches typo'd overrides and deleted branches before any commit lands on a phantom target).
+#   3. Working copy conflict-free: @ has no conflicts (jj status shows no "conflict").
+#   4. (WARN, non-fatal) Stray edits: if @ has tracked changes, warn on stderr. Downstream commits
+#      are fileset-scoped, so stray edits (e.g. the operator's README) are NOT swept — advisory only.
 #
 # The --implement / --no-implement flag is still ACCEPTED for caller compatibility, but it no longer
-# gates on anything (there is no DB to check) — both modes run the same git check.
+# gates on anything (there is no infra to check) — both modes run the same jj check.
 #
 # Usage:
 #   bash .claude/scripts/probe.sh                 # implement mode (default)
-#   bash .claude/scripts/probe.sh --no-implement  # Phase-1-only run (same git check)
+#   bash .claude/scripts/probe.sh --no-implement  # Phase-1-only run (same jj check)
 set -uo pipefail
 
 implement=1
@@ -52,41 +53,43 @@ emit() {
 }
 
 # The implement flag no longer gates on any infrastructure (Synto has none) — it is accepted for
-# caller compatibility and both modes run the same git check below.
+# caller compatibility and both modes run the same jj check below.
 if [ "$implement" = "1" ]; then
-  log "implement mode (default) — no infra to check; running the git check only"
+  log "implement mode (default) — no infra to check; running the jj check only"
 else
-  log "implement is OFF this run — no infra to check anyway; running the git check only"
+  log "implement is OFF this run — no infra to check anyway; running the jj check only"
 fi
 
-# ── Check: main fast-forwardable vs origin/main (the one allowed mutation) ───────────────────────
-branch=$(git symbolic-ref --short -q HEAD || echo "")
-if [ "$branch" != "main" ]; then
-  emit 0 "primary checkout is not on main (HEAD=${branch:-detached}); the runners commit to main. Remediation: git switch main, then re-run."
+# ── Guardrail 1: B resolves ───────────────────────────────────────────────────────────────────────
+log "resolving integration branch B …"
+B="$(bash .claude/scripts/base-branch.sh 2>/dev/null)" || B=""
+if [ -z "$B" ]; then
+  emit 0 "could not resolve integration branch B. Remediation: set \$SYNTO_FLOW_BASE to the target branch, then re-run."
+fi
+log "resolved B=${B}"
+
+# ── Guardrail 2: bookmark exists ──────────────────────────────────────────────────────────────────
+log "checking bookmark '${B}' exists in jj …"
+if ! jj bookmark list -T 'name ++ "\n"' 2>/dev/null | grep -qxF "$B"; then
+  emit 0 "bookmark '${B}' not found in jj bookmark list. Remediation: create it ('jj bookmark create ${B}') or fix \$SYNTO_FLOW_BASE, then re-run."
+fi
+log "bookmark '${B}' confirmed"
+
+# ── Guardrail 3 + 4: working-copy state ───────────────────────────────────────────────────────────
+log "checking working copy state …"
+_jj_status="$(jj status 2>/dev/null)" || _jj_status=""
+
+# Guardrail 3 (FATAL): no conflicts in @
+if echo "$_jj_status" | grep -qi "conflict"; then
+  emit 0 "working copy @ has conflicts — resolve them with 'jj resolve' before running the issue flow."
+fi
+log "no conflicts in @"
+
+# Guardrail 4 (WARN, non-fatal): stray tracked-file edits in @
+# Downstream commits are fileset-scoped so stray edits (e.g. the operator's README.md) will NOT
+# be swept — this warning is advisory only.
+if echo "$_jj_status" | grep -qE '^[MADR] '; then
+  log "WARNING: @ has tracked changes ('jj status' shows edits). Downstream commits are fileset-scoped — stray edits (e.g. README.md) will NOT be swept, but verify your fileset after committing."
 fi
 
-log "git fetch origin …"
-if ! git fetch origin >/dev/null 2>&1; then
-  emit 0 "git fetch origin failed (network/auth?). Remediation: restore connectivity to origin, then re-run."
-fi
-
-local_sha=$(git rev-parse HEAD)
-remote_sha=$(git rev-parse origin/main 2>/dev/null || echo "")
-if [ -z "$remote_sha" ]; then
-  emit 0 "could not resolve origin/main after fetch. Remediation: check the origin remote, then re-run."
-fi
-
-if [ "$local_sha" = "$remote_sha" ]; then
-  emit 1 "main == origin/main"
-elif git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
-  emit 1 "main has unpushed local commits ahead of origin/main (left untouched)"
-elif git merge-base --is-ancestor "$local_sha" "$remote_sha"; then
-  log "main is behind origin/main — fast-forwarding …"
-  if git merge --ff-only origin/main >/dev/null 2>&1; then
-    emit 1 "main fast-forwarded to origin/main"
-  else
-    emit 0 "main is behind origin/main but git merge --ff-only failed (dirty working tree?). Remediation: clean/stash the tree, then re-run."
-  fi
-else
-  emit 0 "main diverged from origin/main (neither is an ancestor of the other). Remediation: reconcile main with origin manually, then re-run."
-fi
+emit 1 "all jj guardrails passed (B=${B})"
