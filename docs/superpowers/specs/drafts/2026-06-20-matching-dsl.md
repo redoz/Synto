@@ -48,10 +48,11 @@ notation) is paid by the DSL design below.
   (§9), built later.
 - A rewrite/replace API. Matching returns captures; rewriting is the consumer's job with the
   captured nodes (a future `Rewrite` feature could pair with it).
-- Backtracking-heavy sequence matching — a statement run with **more than one** unbounded
-  quantifier, or an unbounded quantifier abutting content it could also consume — and deep
-  search, in the first cut: designed-for (§8/§9), deferred. v1 *does* support a run with **at
-  most one** unbounded quantifier (the single greedy split is straight-line; §3.4, §8).
+- Backtracking-heavy sequence matching — a statement run with **more than one**
+  variable-length quantifier (`Some`/`All`/`Opt`), or a variable-length quantifier abutting
+  content it could also consume — and deep search, in the first cut: designed-for (§8/§9),
+  deferred. v1 *does* support a run with **at most one** variable-length quantifier (the
+  single greedy split is straight-line; §3.4, §8).
 
 ## 3. The authoring surface (the DSL)
 
@@ -125,7 +126,7 @@ body compile and lights up autocomplete — and the captured result is an `Expre
 > a `return` of an `object`-typed method), **not** in a `bool` slot (`if (cond)` over an
 > `object` is CS0266). This is the same constraint that forbids a `SyntaxNode`-typed param
 > below; it does not change the capture's *result* type, which is always `ExpressionSyntax`
-> (or the §3.3 narrowed node type).
+> (or the narrowed node type below).
 
 Do **not** put a `SyntaxNode` type on the param (`[Capture] BinaryExpressionSyntax x`) — it
 won't compile where the matched code expects a `bool`/`int`/etc. To **narrow** the matched
@@ -166,15 +167,19 @@ Subtlety accepted: **the quantifier method determines the result type** (`.One()
 several. `AtLeast(n)` / `Between(a,b)` are obvious extensions; not built in v1.
 
 **v1 straight-line line (no backtracking).** A matched run may contain **at most one
-unbounded quantifier** (`Some` = 1+, `All` = 0+). The surrounding fixed-arity elements
-(`One`, `Opt` = 0–1, `Exactly(n)`, and literal statements) pin that hole's boundaries, so a
-single greedy forward pass splits the run **deterministically** — no backtracking. **Two**
-unbounded quantifiers in one run, or an unbounded quantifier abutting content it could also
-match (an ambiguous split), needs the deferred backtracking lowering and is rejected in v1
-with **`SY1204`** (§8, §11) — the same "reachable construct, deferred lowering, clean
-diagnostic" treatment as the phantom `foreach` (§3.7). This is also what keeps §4's "leftmost"
-position rule unambiguous: with one unbounded hole the split point is unique; with two it
-isn't, which is exactly why that shape is rejected rather than matched.
+variable-length quantifier** — `Some` = 1+, `All` = 0+, **and `Opt` = 0–1** (an `Opt`
+contributes 0 *or* 1 to the run length, so it is **variable-length, not fixed-arity**). The
+surrounding **fixed-arity** elements (`One`, `Exactly(n)`, and literal statements) consume
+known counts, pinning the one variable-length hole's boundaries, so a single greedy forward
+pass splits the run **deterministically** — no backtracking. **Two** variable-length
+quantifiers in one run (`guard.Opt(); body.All();`, two `Opt`s, `Some` + `All`, …), or a
+variable-length quantifier abutting content it could also match (an ambiguous split), leaves
+the run length under-determined — one equation, two unknowns — so it needs the deferred
+backtracking lowering and is rejected in v1 with **`SY1204`** (§8, §11), the same "reachable
+construct, deferred lowering, clean diagnostic" treatment as the phantom `foreach` (§3.7).
+This is also what keeps §4's "leftmost" position rule unambiguous: with one variable-length
+hole the split point is unique; with two it isn't, which is exactly why that shape is rejected
+rather than matched.
 
 ### 3.5 Wildcards (match, don't capture)
 
@@ -191,7 +196,7 @@ capture*. This replaces any discard-named-capture hack. (Mechanical note for
 implementation: C# forbids a static and an instance method of the same name on one type, so
 capture and wildcard live on two parallel marker surfaces sharing the verbs — names
 bikesheddable.) Wildcard quantifiers obey the same v1 straight-line line as captures (§3.4):
-at most one unbounded wildcard per run.
+at most one variable-length wildcard per run.
 
 ### 3.6 Non-linear / equality (free)
 
@@ -215,7 +220,8 @@ static void Concat([Capture] StringBuilder sb, [Capture] Many<object> parts)
     foreach (var part in parts)     // zero-or-more of…
         sb.Append(part);            // …this shape, capturing each `part`
 }
-// → result has IReadOnlyList<ExpressionSyntax> Parts
+// → result captures each `part` as a run; the run collection type is settled with the v2
+//   foreach lowering, aligned to the v1 statement-run abstraction (§10)
 ```
 
 This is leak-free by §3.1: a `foreach` is "repetition" *only* when it iterates a `[Capture]`
@@ -227,7 +233,8 @@ native-C# path, so v1 rejects it with `SY1203` (§11) until the lowering ships.)
 ### 3.8 Optional
 
 `Opt()` (statement) and nullable holes express "may be absent"; the capture comes back
-nullable.
+nullable. `Opt` is **variable-length** (0 or 1) and so counts against the §3.4 one-per-run
+straight-line line.
 
 ### 3.9 Anchors — `Block.Start()` / `Block.End()`
 
@@ -245,7 +252,8 @@ static object TrailingReturn([Capture] object result)
 
 `Block.Start()` before the first matched statement = "…is first in its block"; both =
 "exactly this block." Anchors are how a `Bare` "contains" match is pinned to a block's
-start/end.
+start/end. (The `TrailingReturn` body above is block-bodied, so it is a **statement**-`Single`
+matching a `return` statement; the expression-`Single` form is the arrow body in §4.)
 
 - In **`None`** the body's braces already bound the match completely, so anchors are a
   usage error → **diagnostic `SY1201`** (§11). "No hidden before/after" is precisely the
@@ -302,9 +310,9 @@ Value guards/predicates are deliberately **out of the DSL** — you get a typed 
     block only** (it does not descend into nested blocks). Unanchored (§3.9), several offsets
     may satisfy — the matcher commits to the **leftmost** and returns **exactly one** result.
     This single deterministic position is load-bearing: an undefined choice would flap
-    snapshots and break caching. The §3.4 single-unbounded-quantifier rule (enforced by
-    `SY1204`) is what keeps "leftmost" itself well-defined — two unbounded holes would make
-    the split point undefined, so that shape is rejected, not matched.
+    snapshots and break caching. The §3.4 single-variable-length-quantifier rule (enforced by
+    `SY1204`) is what keeps "leftmost" itself well-defined — two variable-length holes would
+    make the split point undefined, so that shape is rejected, not matched.
     `Block.Start()`/`Block.End()` pin the run to the block's first/last edge.
   - **`Single`** — likewise rooted on the candidate block. A **statement** `Single` matches
     one of the block's **direct** statements at the **leftmost** satisfying position (unless
@@ -314,6 +322,20 @@ Value guards/predicates are deliberately **out of the DSL** — you get a typed 
     nested calls). That bounded scope keeps `Single` a single local test and keeps "leftmost"
     well-defined; searching expressions arbitrarily deep is the consumer's `DescendantNodes()`
     loop (§3.11) or a future `Deep` (§9), handing each candidate node to the matcher.
+
+**Authoring an expression-`Single`.** Use an **expression-bodied** pattern method — the arrow
+body *is* the matched expression:
+
+```csharp
+[Match<M>(MatchOption.Single)]
+static object Sum([Capture] object a, [Capture] object b) => a + b;   // matches `<a> + <b>`
+```
+
+The arrow form (`=> shape`) is what tells an expression-`Single` apart from a
+statement-`Single` (a block body with one statement, §3.9) and from a literal expression
+statement: the body is an *expression*, not a statement, so there is no `_ = expr;` discard
+collision (§10 rejected `_ =` only as a *statement-hole* spelling). Each `[Capture] object`
+here sits in an operand slot (slot-typing rule, §3.3) and is captured as `ExpressionSyntax`.
 
 This reconciles the §5 expansion (which roots on `node is BlockSyntax` and indexes its
 statements) with "rooted at the node you hand it": the matcher roots on, and scans within,
@@ -379,10 +401,10 @@ The lowering splits cleanly by difficulty. **v1 = the straight-line half (no bac
 - Expression captures (`[Capture] T x`, `[Capture<TNode>]` narrowing) and expression
   wildcards.
 - Statement captures via the flat quantifiers `One/Opt/Some/All/Exactly`, and their static
-  wildcard forms — **with at most one unbounded quantifier (`Some`/`All`) per matched run**
-  (the single-greedy-split straight-line subset; §3.4). A run with two unbounded quantifiers,
-  or an unbounded quantifier abutting content it could also consume, needs backtracking and is
-  rejected with `SY1204`.
+  wildcard forms — **with at most one variable-length quantifier (`Some`/`All`/`Opt`) per
+  matched run** (the single-greedy-split straight-line subset; §3.4). A run with two
+  variable-length quantifiers, or a variable-length quantifier abutting content it could also
+  consume, needs backtracking and is rejected with `SY1204`.
 - **Non-linear** equality (one `IsEquivalentTo`).
 - **Anchors** `Block.Start()`/`Block.End()` + the `SY1201` validation.
 - **Diagnostics**: `SY1201` (anchor misuse), the *provable-contradiction* subset of `SY1202`
@@ -398,9 +420,10 @@ until their lowering lands (§7, §9) — so a v1 consumer simply cannot name th
 compile), and there is no inert-marker-on-a-reachable-path to guard. The exceptions are the
 constructs built from **always-available** pieces — native `foreach`, and the v1 quantifiers
 composed past the straight-line line: a consumer *can* write a phantom `foreach` over a
-`[Capture]` (§3.7), or a run with two unbounded quantifiers (§3.4), before their backtracking
-lowering exists. Each such reachable deferred path degrades to a clean diagnostic —
-**`SY1203`** / **`SY1204`** (§11) — never a literal mis-match or an unimplemented-arm throw.
+`[Capture]` (§3.7), or a run with two variable-length quantifiers (§3.4), before their
+backtracking lowering exists. Each such reachable deferred path degrades to a clean
+diagnostic — **`SY1203`** / **`SY1204`** (§11) — never a literal mis-match or an
+unimplemented-arm throw.
 
 ## 9. Designed-for growth (deferred, but the surface must not preclude)
 
@@ -412,9 +435,10 @@ v1 does not author `Deep`/`Either`/`Many<T>` into the consumer surface.
 - **`foreach` repetition / nested ellipsis** (§3.7) — needs emitted backtracking; the
   notation is fixed now so v2 only adds the lowering. One of the two deferred constructs
   reachable in v1 (native `foreach`), so v1 rejects it with `SY1203` (§11) until then.
-- **Multi-unbounded / ambiguous-split statement runs** (§3.4) — two unbounded quantifiers in
-  a run, or an unbounded quantifier abutting content it could also match; the other reachable
-  deferred construct, rejected with `SY1204` until the backtracking lowering ships.
+- **Multi-variable-length / ambiguous-split statement runs** (§3.4) — two variable-length
+  quantifiers in a run (`Some`/`All`/`Opt`), or one abutting content it could also match; the
+  other reachable deferred construct, rejected with `SY1204` until the backtracking lowering
+  ships.
 - **Deep / descendant** `Deep(…)` — subtree search. Marker injected with its lowering.
 - **`Either` / structural optional** — alternation and optional clauses. Markers injected with
   their lowering.
@@ -437,11 +461,19 @@ v1 does not author `Deep`/`Either`/`Many<T>` into the consumer surface.
   target. (`[Capture<TNode>]` reads its type arg from the parameter `AttributeData`, a
   different and safer path.) The model is unchanged either way; only the surface spelling
   differs.
+- **Captured-run collection type.** v1 statement quantifiers (`Some`/`All`/`Exactly`) yield
+  `SyntaxList<StatementSyntax>`; the deferred `foreach` repetition (§3.7) must align to **one**
+  captured-run abstraction when its lowering lands, **not** freeze a second one
+  (`IReadOnlyList<T>` vs `SyntaxList<T>`) inconsistently across the two halves. Settling the
+  unified type is deliberately deferred to the v2 `foreach` lowering, with `SyntaxList<T>` the
+  v1 anchor.
 - Final names: `Stmt`/`Many` vs `Statement`/`Statements`; the capture-vs-wildcard parallel
   marker surfaces; `Block.Start/End`.
 - Result type: `record class` vs `readonly record struct`.
 - Statement-hole reference form is settled as the fluent quantifier (`rest.All()`); the
-  paren-free `_ = rest;` alternative was rejected (reads as a throwaway assignment).
+  paren-free `_ = rest;` alternative was rejected (reads as a throwaway assignment). That
+  rejection is about the *statement-hole* spelling only — an expression-`Single` is authored
+  with an expression body (`=> shape`, §4), never `_ = expr;`.
 
 ## 11. Diagnostics
 
@@ -483,12 +515,12 @@ a literal mis-match or an unimplemented-arm throw. (The deferred *markers* — `
   `[Capture]` param (the §3.7 repetition notation, whose backtracking lowering is deferred to
   v2 — §8/§9). Located on the `foreach`.
 - **`SY1204` — quantifier placement needs backtracking (not yet supported in v1).** A matched
-  statement run with **more than one** unbounded quantifier (`Some`/`All`), or an unbounded
-  quantifier abutting content it could also consume, requires the deferred backtracking
-  lowering (§2, §3.4, §8). v1 supports **at most one** unbounded quantifier per run (the single
-  greedy split is straight-line). The pattern is *satisfiable* — this is a "can't lower it yet"
-  signal, distinct from `SY1202`'s "provably no tree matches." Located on the offending second
-  quantifier (or the ambiguous run).
+  statement run with **more than one** variable-length quantifier (`Some` = 1+, `All` = 0+,
+  `Opt` = 0–1), or a variable-length quantifier abutting content it could also consume,
+  requires the deferred backtracking lowering (§2, §3.4, §8). v1 supports **at most one**
+  variable-length quantifier per run (the single greedy split is straight-line). The pattern
+  is *satisfiable* — this is a "can't lower it yet" signal, distinct from `SY1202`'s "provably
+  no tree matches." Located on the offending second quantifier (or the ambiguous run).
 - Further arms as the implementation surfaces them (e.g. capture referenced but never placed;
   `Bare` body empty).
 
@@ -504,7 +536,8 @@ catch-all), never thrown.
 - **Cacheability**: a driver re-run on an unrelated edit yields cached steps
   (equatability of the pipeline model).
 - **Diagnostics**: a driver test per `SY12xx` arm — esp. `SY1201` (anchor misuse), `SY1203`
-  (deferred-`foreach`), and `SY1204` (over-the-line quantifier placement).
+  (deferred-`foreach`), and `SY1204` (over-the-line quantifier placement, incl. an
+  `Opt`+`All` run).
 
 ## 13. Risks & consequences
 
@@ -514,9 +547,9 @@ catch-all), never thrown.
 - **Surface is a one-way door once consumers compile against it.** The marker shape,
   generated record shape, and `Synto.Matching` namespace are compatibility boundaries — pinned
   by snapshots, changed freely only pre-consumer. This spec fixes them deliberately. (The
-  generic-vs-`typeof` attribute form, §3.2/§10, is part of that surface and must be verified
-  before it freezes.)
+  generic-vs-`typeof` attribute form, §3.2/§10, and the captured-run collection type, §10, are
+  part of that surface and must be settled before they freeze.)
 - **`Bare` = contains** is a deliberate, regex-like default; anchors are the pins, and the
-  **leftmost-single-result** position rule (§4) — kept unambiguous by the single-unbounded-
-  quantifier line (§3.4) — keeps it deterministic. Chosen so "a block containing this" needs
-  no boilerplate.
+  **leftmost-single-result** position rule (§4) — kept unambiguous by the
+  single-variable-length-quantifier line (§3.4) — keeps it deterministic. Chosen so "a block
+  containing this" needs no boilerplate.
