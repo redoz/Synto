@@ -107,11 +107,12 @@ brainstorm or the work itself failing): follow github.md § Reporting a broken s
    *plan-file* tag, which lives in the plan and is read by `implement-plan` (rigor.md
    § The tag). Omit the note on the Full path. Authoring is **read the code + write the one
    `.md`** — never edit source to "try it" (any tracked-file trial belongs in a throwaway
-   `git worktree`, never the primary checkout — github.md § Working-tree hygiene). Stage
-   **only that one file**, assert `git status --porcelain` shows nothing but it (stop and
-   report if anything else appears — never `git add -A`/`.`/`-u`/`commit -a`), then commit
-   + push to main (primary checkout):
-   `git add docs/superpowers/specs/drafts/{file}; git commit -m "docs(spec): draft for #N"; git push`
+   `jj workspace`, never the primary checkout — github.md § Working-tree hygiene). Use a fileset-scoped
+   `jj commit`, assert `jj status` shows nothing but it (stop and
+   report if anything else appears — never a bare `jj commit`/`jj squash`), then commit
+   to main (primary checkout):
+   `jj commit docs/superpowers/specs/drafts/{file} -m "docs(spec): draft for #N"`
+   `jj bookmark set "$(bash .claude/scripts/base-branch.sh)" -r @-` — advance the integration bookmark locally (no push; 'land on B' integration, github.md § Setting state; under SYNTO_FLOW_INTEGRATE=push, also `jj git push`-ed).
 8. **Comment + advance.** Post the **Spec comment** (github.md template — 3–6 bullet
    summary + the permalink to the committed draft) on `#N`, then advance via the
    set-status script (github.md § Setting state — does the label swap *and* the board card

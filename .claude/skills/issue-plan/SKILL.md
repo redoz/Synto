@@ -24,8 +24,9 @@ Takes an issue number `<n>`. Turns the issue's **approved spec** into a plan dra
    > **Spec:** docs/superpowers/specs/{slug}.md
    ```
    **Advisory rigor suggestion:** if the change is clearly a single concern, small, and diff-reviewable (no new logic branches that want test-first design), add a third header line `> **Rigor:** one-shot` as a *suggestion* — `issue-plan-review` makes the authoritative call on promotion (rigor.md, the **plan-review → implement** knob), and the default when the line is absent is `tdd-per-task`. Mention the suggestion in the Plan comment; no separate H2 is needed at this stage. On a revision, edit the existing draft to address each review finding rather than rewriting wholesale.
-4. **Commit + push** the draft to main (primary checkout) so the linked file resolves on GitHub — staging **only that one file** (github.md § Working-tree hygiene: never `git add -A`/`.`/`-u`/`commit -a`; any compile-check or tracked-file trial goes in a throwaway `git worktree`, never the primary checkout; verify `git status --porcelain` shows nothing but this artifact before committing):
-   `git add docs/superpowers/plans/drafts/{file}; git commit -m "docs(plan): draft for #<n>"; git push`
+4. **Commit** the draft to main (primary checkout) so the linked file resolves on GitHub — fileset-scoped to only that file (github.md § Working-tree hygiene: never a bare `jj commit`/`jj squash`; any compile-check or tracked-file trial goes in a throwaway `jj workspace`, never the primary checkout; verify `jj status` shows nothing but this artifact before committing):
+   `jj commit docs/superpowers/plans/drafts/{file} -m "docs(plan): draft for #<n>"`
+   `jj bookmark set "$(bash .claude/scripts/base-branch.sh)" -r @-` — advance the integration bookmark locally (no push; 'land on B' integration, github.md § Setting state; under SYNTO_FLOW_INTEGRATE=push, also `jj git push`-ed).
 5. **Comment** the **Plan comment** (github.md template): a 3–6 bullet summary + the permalink to the committed draft.
 6. **Advance.** If `manual` is set: leave `status:planning`, set `blocked`, and note "drafted — waiting for your go-ahead." Otherwise `set_status <n> plan-review-queued` (no `blocked`).
 

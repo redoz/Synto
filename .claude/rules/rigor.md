@@ -182,7 +182,7 @@ are H2 and are never mistaken for human input.
 skip-plan cannot mean "no plan file." On the **spec-review → ready** transition,
 `issue-spec-review`:
 
-1. Promotes the spec as on any LGTM (`git mv` the draft → top-level `specs/`).
+1. Promotes the spec as on any LGTM (move the draft file → top-level `specs/`).
 2. **Derives a thin plan from the spec in one pass** (no `issue-plan` stage, no
    `issue-plan-review` team) and writes it to top-level
    `docs/superpowers/plans/{YYYY-MM-DD-slug}.md` directly — born promoted, because the
