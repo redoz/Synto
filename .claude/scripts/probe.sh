@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # probe.sh [--implement | --no-implement]
 #
-# THE precondition probe for the issue-flow runners (burn-the-board / issue-flow-drive).
+# THE precondition probe for the issue-flow runners (walk-issue / burn-the-board).
 # Verifies the machine is in a state where a run can safely proceed, then prints EXACTLY ONE
 # compact JSON line to STDOUT:
 #   {"ok":true,"reason":"..."}   (ok=false carries the blocker + remediation in reason)

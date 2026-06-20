@@ -50,11 +50,47 @@ function planPathError(p) {
   return null
 }
 
-const MAX_ATTEMPTS = 3 // gate fix-and-retry / rebase / push-race attempts
+const MAX_ATTEMPTS = 3 // local green-gate fix-and-retry attempts (NOT the shared-main push race)
+// ff-push HEAD:main retry budget — deliberately higher than MAX_ATTEMPTS because this push lands on the
+// SHARED trunk: a concurrently-pushing walk (the issue-flow loops) keeps advancing origin/main, so a small
+// budget gets STARVED before it can win the race (exactly the kind of starvation that parks a plan
+// mid-integrate). Each attempt re-fetches/re-rebases/re-gates and then retries behind an incremental backoff
+// so the competing push can settle. Tunable — raise if main-push contention grows.
+const FF_PUSH_MAX_ATTEMPTS = 8
 const MAX_REVIEW_ROUNDS = 2 // per-stage review->fix->review iterations
 
 const GREEN_GATE =
   'dotnet build --no-restore -c Debug  (0 errors; analyzer warnings are findings, not gate failures) ; dotnet test --no-build -c Debug  (MTP v2 runner, all green) ; dotnet format --verify-no-changes  (no diffs)'
+
+// ---------------------------------------------------------------------------
+// Green-gate transient-flake guard (mirrors the FF_PUSH bounded+backoff pattern).
+// Synto's green-gate (dotnet build + test + format) is deterministic and fully LOCAL — there is no DB, no
+// container, and no network runtime, so almost every failure is a real CODE/TEST defect in THIS diff. But a
+// few ENVIRONMENT faults are NOT code defects and cannot be fixed by editing code: a transient NuGet RESTORE
+// failure / network blip, or a transient file-lock / build-host fault when several worktrees build at once.
+// Telling an agent to "DEBUG + FIX + re-run until green" on one of those just burns gate attempts on an
+// unfixable condition. The guard makes the gate/integrate agents CLASSIFY the failure, do a SHORT bounded
+// backoff-retry (a transient blip usually clears), and otherwise PARK cleanly with transient=true.
+// ---------------------------------------------------------------------------
+const GATE_TRANSIENT_MAX_RECHECKS = 3 // bounded backoff-retries before parking on a transient environment failure
+const GATE_TRANSIENT_GUARD = [
+  'GATE FAILURE POLICY -- CLASSIFY BEFORE YOU FIX. A failing gate is one of two kinds:',
+  '  - TRANSIENT/ENVIRONMENT: not a defect in your diff and not fixable by editing code. Signatures: a NuGet',
+  '    RESTORE failure or network blip (e.g. "Unable to load the service index", an "NU1301"/feed error, a',
+  '    connection or timeout pulling a package); a transient FILE LOCK or build-host fault when another worktree',
+  '    is building at the same time (e.g. "being used by another process", a locked obj/bin output, an MSBuild',
+  '    worker that died). These come and go on their own under concurrency; you CANNOT fix them by editing code.',
+  '  - CODE/TEST: a C# COMPILE error, a failing xUnit ASSERTION, a Verify SNAPSHOT mismatch (a *.received.cs vs',
+  '    *.verified.cs diff), or a "dotnet format" finding tied to THIS diff. THIS is what you DEBUG and FIX',
+  '    (test-first for a behavior change), commit, and re-run, per the steps above.',
+  'On a TRANSIENT/ENVIRONMENT failure do NOT edit code and do NOT churn the gate. Wait a SHORT GROWING backoff',
+  '(~2s, 4s, 6s; PowerShell Start-Sleep -Seconds <n>) and re-run the gate (for a restore blip, run "dotnet',
+  'restore" first) up to ' + GATE_TRANSIENT_MAX_RECHECKS + ' times -- the blip usually clears. If it is STILL',
+  'failing transiently after ' + GATE_TRANSIENT_MAX_RECHECKS + ' retries, STOP: report green=false (and, where',
+  'the schema asks for it, transient=true) with problems naming the exact signature (for example "NuGet restore',
+  'failed: connection timeout" or "build output locked by a concurrent worktree"). Parking cleanly on a',
+  'transient failure is CORRECT, not a failure -- a human (or a later walk) retries once the environment settles.',
+].join('\n')
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -108,6 +144,12 @@ const TASK_IMPL_SCHEMA = {
     greenObserved: { type: 'boolean' },
     commits: { type: 'array', items: { type: 'string' } },
     filesChanged: { type: 'array', items: { type: 'string' } },
+    // A no-commit task is only honest if it declares WHY: the task's checks already pass
+    // against existing code (alreadySatisfied=true + evidence naming the SHA/file/test). A
+    // mid compile-unit ride-along is also a no-commit DONE — declared in concerns, and the
+    // post-loop reconciliation VERIFIES its files land in a later task's commit.
+    alreadySatisfied: { type: 'boolean' },
+    evidence: { type: 'string' },
     summary: { type: 'string' },
     concerns: { type: 'string' },
   },
@@ -143,6 +185,9 @@ const GATE_SCHEMA = {
   additionalProperties: false,
   properties: {
     green: { type: 'boolean' },
+    // true ONLY when the gate stopped on an unrecoverable TRANSIENT/ENVIRONMENT failure (NuGet restore blip,
+    // build-host file lock), NOT a code defect — the caller parks with a "retry once the environment settles" reason.
+    transient: { type: 'boolean' },
     attempts: { type: 'integer' },
     commits: { type: 'array', items: { type: 'string' } },
     problems: { type: 'string' },
@@ -158,6 +203,8 @@ const INTEGRATE_INCREMENT_SCHEMA = {
     pushed: { type: 'boolean' },
     nothingToIntegrate: { type: 'boolean' },
     gateGreen: { type: 'boolean' },
+    // true ONLY when the rebase-time green-gate stopped on an unrecoverable TRANSIENT/ENVIRONMENT failure.
+    transient: { type: 'boolean' },
     headShaAfter: { type: 'string' },
     attempts: { type: 'integer' },
     conflictsResolved: { type: 'array', items: { type: 'string' } },
@@ -302,9 +349,20 @@ function taskImplementerPrompt(plan, task, worktreePath, index, total) {
     'worse than no work — you will not be penalized for escalating. Report DONE only if the task is fully implemented',
     'and its tests are green.',
     '',
+    'DONE WITHOUT A NEW COMMIT — never silently no-op; the workflow now machine-verifies this. If you finish a task with',
+    'NO new commit, it MUST be one of these declared cases, or it is treated as DROPPED WORK and the issue will NOT close:',
+    '  • Already satisfied — the task\'s checks ALREADY pass against existing code (nothing to implement). Set',
+    '    alreadySatisfied=true and put the PROOF in evidence: the commit/file/test that already satisfies it (e.g. the',
+    '    SHA that landed it, or "ran <test> — green against existing code"). A bare claim with no evidence is rejected.',
+    '  • Mid compile-unit ride-along — you wrote production code that cannot form a standalone green commit yet because a',
+    '    LATER task completes the compile unit and commits it. Report DONE, commits:[], list the exact filesChanged, and',
+    '    SAY SO in concerns. A later task MUST commit those same files or the workflow flags your work as dropped.',
+    'Anything else with no commit is BLOCKED / NEEDS_CONTEXT — not a plain unexplained DONE.',
+    '',
     'Report: status (DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT), redObserved (did you run a test and watch it',
     'fail for the right reason — false for no-test doc/verification tasks), greenObserved (did you run and watch the',
-    'tests/commands pass), commits (short SHAs you created), filesChanged, a summary, and concerns (any deviation/doubt).',
+    'tests/commands pass), commits (short SHAs you created), filesChanged, alreadySatisfied (true ONLY for the',
+    'already-satisfied case above) + evidence for it, a summary, and concerns (any deviation/doubt, incl. a ride-along note).',
   ].join('\n')
 }
 
@@ -351,7 +409,7 @@ function qualityReviewPrompt(plan, task, worktreePath) {
     'pre-existing file sizes or unrelated code. Do NOT modify anything.',
     '',
     'Return approved (true ONLY if there are NO critical issues), and issues split into critical (must-fix: correctness,',
-    'security, broken or fake tests, clear bugs), important (should-fix), and minor (nice-to-have) — each with a',
+    'broken or fake tests, clear bugs), important (should-fix), and minor (nice-to-have) — each with a',
     'file:line reference — plus a one-line assessment.',
   ].join('\n')
 }
@@ -389,15 +447,18 @@ function greenGatePrompt(plan, worktreePath) {
     '',
     'From the worktree root, run the full gate:',
     '    ' + GREEN_GATE,
-    'If anything fails: DEBUG the root cause, FIX it (test-first if it is a behavior change), commit the fix',
+    'For a CODE/TEST failure: DEBUG the root cause, FIX it (test-first if it is a behavior change), commit the fix',
     '(Conventional Commit, no AI footer), and re-run the gate. Repeat up to ' + MAX_ATTEMPTS + ' total attempts.',
     'The suite is Verify-snapshot + CSharpGeneratorDriver tests under the MTP v2 runner; they touch no shared state',
     '(no DB, no network), so it is safe to run alongside other worktrees.',
     'Do NOT rebase, merge, push, or touch main.',
     '',
+    GATE_TRANSIENT_GUARD,
+    '',
     'Return green (true ONLY if the FULL gate passed: build with 0 errors, all tests green, and no format diffs —',
-    'analyzer warnings are findings, not gate failures), attempts (how many gate runs), commits (any fix SHAs you',
-    'added), and problems (precise reason it is not green, if so).',
+    'analyzer warnings are findings, not gate failures), transient (true ONLY if you stopped on an unrecoverable',
+    'TRANSIENT/ENVIRONMENT failure per the policy above, else false), attempts (how many gate runs), commits (any fix',
+    'SHAs you added), and problems (precise reason it is not green, if so).',
   ].join('\n')
 }
 
@@ -418,7 +479,7 @@ function finalReviewPrompt(plan, worktreePath, baseSha) {
     'POC, so calibrate what counts as CRITICAL per that file (critical here triggers a fix pass).',
     '',
     'Confirm the plan as a whole is delivered, the per-task pieces fit together coherently, and no',
-    'correctness/security defects were introduced ACROSS tasks (the kind a single-task review would miss). Do NOT',
+    'correctness defects were introduced ACROSS tasks (the kind a single-task review would miss). Do NOT',
     'modify anything.',
     '',
     'Return approved (true ONLY if NO critical issues), critical / important / minor issue lists (file:line refs), and',
@@ -442,7 +503,8 @@ function integrateIncrementPrompt(plan, worktreePath) {
     '  integrate. Report pushed=false, nothingToIntegrate=true, problems="" and STOP. THIS IS SUCCESS, not a failure.',
     '',
     'Otherwise land the work with LINEAR history. NEVER force-push; NEVER "git reset --hard"; never discard commits',
-    'you did not create. Repeat the following up to ' + MAX_ATTEMPTS + ' times:',
+    'you did not create. Repeat the following up to ' + FF_PUSH_MAX_ATTEMPTS + ' times (the trunk is SHARED — a',
+    'co-running walk keeps pushing to origin/main, so this budget is generous on purpose):',
     '  1. git fetch origin',
     '  2. Rebase this branch onto the current trunk:  git rebase origin/main',
     '     - On conflict: resolve keeping BOTH intents — this plan change AND whatever is already on origin/main',
@@ -452,19 +514,27 @@ function integrateIncrementPrompt(plan, worktreePath) {
     '  3. Run the FULL green-gate on the rebased branch (a rebase can introduce a semantic conflict the textual',
     '     merge missed):',
     '         ' + GREEN_GATE,
-    '     If it fails: DEBUG the root cause, FIX it (test-first for a behavior change), commit (Conventional Commit,',
-    '     no AI footer), and re-run until green. If it cannot go green, report pushed=false, gateGreen=false + reason.',
+    '     If it fails, apply the GATE FAILURE POLICY at the BOTTOM of this prompt: classify transient vs code. Fix only',
+    '     a CODE/TEST failure (test-first for a behavior change; commit, no AI footer; re-run), BOUNDED to ' + MAX_ATTEMPTS + ' attempts',
+    '     — do NOT "re-run until green" forever. If a code failure still cannot go green, report pushed=false,',
+    '     gateGreen=false + reason. On an unrecoverable TRANSIENT/ENVIRONMENT failure, STOP per the policy and report',
+    '     pushed=false, gateGreen=false, transient=true + the exact signature — do NOT churn the gate or edit code.',
     '  4. Fast-forward the trunk by pushing THIS branch HEAD straight to main on the remote (this does NOT touch the',
     '     local main checkout):',
     '         git push origin HEAD:main',
     '     - SUCCESS: report pushed=true, gateGreen=true, headShaAfter=(git rev-parse --short HEAD), attempts, and any',
     '       files in conflictsResolved. STOP.',
-    '     - REJECTED as non-fast-forward (another plan pushed to main first): loop again from step 1 to rebase onto',
-    '       the new trunk and re-gate. Do NOT force-push.',
-    'If you exhaust ' + MAX_ATTEMPTS + ' attempts still losing the push race, report pushed=false, reason "lost push race repeatedly".',
+    '     - REJECTED as non-fast-forward (another plan pushed to main first): wait a short, GROWING backoff so the',
+    '       competing push settles before you retry — roughly 2x the attempt number in seconds (~2s before retry 2,',
+    '       ~4s before 3, ~6s before 4, ... capped ~16s; e.g. PowerShell  Start-Sleep -Seconds <n>) — then loop again',
+    '       from step 1 to rebase onto the new trunk and re-gate. Do NOT force-push.',
+    'If you exhaust ' + FF_PUSH_MAX_ATTEMPTS + ' attempts still losing the push race, report pushed=false, reason "lost push race repeatedly".',
     '',
     'Do NOT archive the plan file and do NOT remove the worktree here — that happens once, at the very end.',
-    'Report: pushed, nothingToIntegrate, gateGreen, headShaAfter, attempts, conflictsResolved (files), problems.',
+    'Report: pushed, nothingToIntegrate, gateGreen, transient (true ONLY if you stopped on an unrecoverable',
+    'transient/environment failure per the policy below), headShaAfter, attempts, conflictsResolved (files), problems.',
+    '',
+    GATE_TRANSIENT_GUARD,
   ].join('\n')
 }
 
@@ -480,7 +550,9 @@ function archiveAndPushPrompt(plan, worktreePath, planPath) {
     '     git mv "' + planPath + '" ' + COMPLETED_DIR + '/',
     '     git commit -m "chore(plans): archive ' + plan.slug + ' (implemented)"',
     '2. Land it on the trunk (a fast-forward; on non-ff rejection re-fetch/re-rebase/re-push; resolve any conflict',
-    '   keeping both intents). Retry up to ' + MAX_ATTEMPTS + ':',
+    '   keeping both intents). Retry up to ' + FF_PUSH_MAX_ATTEMPTS + ', waiting a short GROWING backoff between',
+    '   attempts (~2s,4s,6s,... capped ~16s; PowerShell Start-Sleep) so a concurrent walk\'s push to the shared',
+    '   trunk settles first:',
     '     git fetch origin ; git rebase origin/main ; git push origin HEAD:main',
     '3. Clean up — run these from the MAIN repo dir, NOT from inside the worktree:',
     '     cd ' + REPO_DIR,
@@ -580,11 +652,43 @@ function planResult(plan, branch, worktreePath, fields) {
     green: !!fields.green,
     merged: !!fields.merged,
     pushedTasks: fields.pushedTasks || 0,
+    // Completeness attestation (close-gate; see reconcileDispositions). null = not computed
+    // (every NOT-merged early-return); a merged+archived result MUST set both, equal, or the
+    // walk close-gate refuses to close (defense-in-depth in walk-issue.js).
+    tasksTotal: fields.tasksTotal === undefined ? null : fields.tasksTotal,
+    tasksAccounted: fields.tasksAccounted === undefined ? null : fields.tasksAccounted,
     commits: fields.commits || [],
     summary: fields.summary || '',
     problems: Array.isArray(problems) ? problems.join(' | ') : problems || '',
     reason: fields.reason || (fields.merged ? 'merged' : fields.green ? 'green (not merged)' : 'not green'),
   }
+}
+
+// Close-completeness reconciliation. Every task records exactly one disposition in the task
+// loop: 'landed' (its commit(s) pushed to main), 'already-satisfied' (no commit, but its checks
+// already pass against existing code — implementer-attested with evidence), or 'rode-along' (no
+// commit; production code is expected to land in a LATER task's commit). A rode-along is ACCOUNTED
+// only if every file it touched appears among files a LATER landed task carried — otherwise the
+// work was silently dropped (the "Mode B" bug: a task zero-commits, the loop finishes, the issue
+// closes with un-landed work). Returns { tasksTotal, tasksAccounted, dropped: [{id, files}] }.
+function reconcileDispositions(dispositions) {
+  const landed = dispositions.filter((d) => d.kind === 'landed')
+  const dropped = []
+  let accounted = 0
+  for (const d of dispositions) {
+    if (d.kind === 'landed' || d.kind === 'already-satisfied') {
+      accounted++
+      continue
+    }
+    // rode-along: its files must all appear in some LATER landed task's files.
+    const laterFiles = new Set()
+    for (const l of landed) if (l.index > d.index) for (const f of l.files || []) laterFiles.add(f)
+    const files = d.files || []
+    const covered = files.length > 0 && files.every((f) => laterFiles.has(f))
+    if (covered) accounted++
+    else dropped.push({ id: d.id, files })
+  }
+  return { tasksTotal: dispositions.length, tasksAccounted: accounted, dropped }
 }
 
 // Implement ONE plan end-to-end in its own worktree, integrating each green commit
@@ -618,6 +722,7 @@ async function implementPlan(plan) {
     const allCommits = []
     const problems = []
     let pushedTasks = 0
+    const dispositions = [] // one per task: { id, index, kind: 'landed'|'already-satisfied'|'rode-along', files }
 
     // 2. Implement each task sequentially in the shared worktree, with review gates,
     //    then land its commit(s) on origin/main before moving to the next task.
@@ -660,12 +765,25 @@ async function implementPlan(plan) {
 
       // --- Continuous integration: land this task's commit(s) on origin/main now. ---
       const taskCommits = [...(impl.commits || []), ...(rev.commits || [])]
+      const taskFiles = impl.filesChanged || []
       if (MODE === 'dry-run') {
         if (taskCommits.length) log('  (dry-run) ' + task.id + ' committed; not integrating.')
         continue
       }
       if (taskCommits.length === 0) {
-        log('  ' + task.id + ' produced no commit (mid compile-unit); rides along with the next green task.')
+        // No commit this task. Two legitimate, declared cases; anything else is dropped work,
+        // caught by the end-of-loop reconciliation (reconcileDispositions). An already-satisfied
+        // claim is trusted ONLY with evidence (prompt: "a bare claim with no evidence is rejected");
+        // without it, it falls to rode-along and is file-verified (or parked) like any no-commit task.
+        const satisfied = !!(impl.alreadySatisfied && (impl.evidence || '').trim())
+        if (satisfied) {
+          dispositions.push({ id: task.id, index: t, kind: 'already-satisfied', files: taskFiles })
+          log('  ' + task.id + ' already satisfied by existing code (no commit). evidence: ' + impl.evidence)
+        } else {
+          dispositions.push({ id: task.id, index: t, kind: 'rode-along', files: taskFiles })
+          log('  ' + task.id + ' no commit' + (impl.alreadySatisfied ? ' (alreadySatisfied claimed but NO evidence — not trusted)' : '') +
+            ' — must ride along on a LATER landed task (files: ' + (taskFiles.join(', ') || 'none reported') + ').')
+        }
         continue
       }
       const integ = await agent(integrateIncrementPrompt(plan, worktreePath), {
@@ -675,14 +793,17 @@ async function implementPlan(plan) {
         phase: 'Integrate',
       })
       if (!integ || (!integ.pushed && !integ.nothingToIntegrate)) {
-        problems.push(task.id + ' integrate failed: ' + (integ ? integ.problems : 'agent returned null'))
-        log('STOP ' + plan.slug + ' at ' + task.id + ': integration failed — ' + (integ ? integ.problems : 'null'))
+        const transient = !!(integ && integ.transient)
+        problems.push(task.id + ' integrate ' + (transient ? 'parked on TRANSIENT env failure' : 'failed') + ': ' + (integ ? integ.problems : 'agent returned null'))
+        log('STOP ' + plan.slug + ' at ' + task.id + ': integration ' + (transient ? 'parked on transient env failure — ' : 'failed — ') + (integ ? integ.problems : 'null'))
         return planResult(plan, branch, worktreePath, {
           pushedTasks,
           commits: allCommits,
-          summary: 'stopped at ' + task.id + ' (integration); ' + pushedTasks + ' earlier increment(s) already on main',
+          summary: 'stopped at ' + task.id + ' (integration' + (transient ? ', transient env failure' : '') + '); ' + pushedTasks + ' earlier increment(s) already on main',
           problems,
-          reason: 'stopped at ' + task.id + ' (integration)',
+          reason: transient
+            ? 'stopped at ' + task.id + ' (integration transient env failure; retry once the environment settles)'
+            : 'stopped at ' + task.id + ' (integration)',
         })
       }
       if (integ.pushed) {
@@ -691,6 +812,30 @@ async function implementPlan(plan) {
           problems.push(task.id + ' rebase resolved: ' + integ.conflictsResolved.join(', '))
         log('  LANDED ' + plan.slug + ' ' + task.id + ' -> origin/main ' + (integ.headShaAfter || ''))
       }
+      // Past the integrate guard with a real commit => this task's work is on main (pushed, or
+      // nothingToIntegrate because it was already there). Record it landed, with its files.
+      dispositions.push({ id: task.id, index: t, kind: 'landed', files: taskFiles })
+    }
+
+    // Completeness gate: every task must be accounted (landed, already-satisfied, or a ride-along
+    // whose files a LATER task carried). A rode-along whose work never landed is DROPPED work — do
+    // NOT archive/close. Return not-merged so the walk parks the issue for a human (Mode A). This is
+    // the latent "Mode B" fix: previously a zero-commit task silently rode `continue` to merged:true.
+    const recon = reconcileDispositions(dispositions)
+    if (MODE !== 'dry-run' && recon.dropped.length) {
+      const ids = recon.dropped.map((d) => d.id).join(', ')
+      problems.push('incomplete: task(s) ' + ids + ' never landed (no commit, not already-satisfied, no later task carried their files)')
+      log('INCOMPLETE ' + plan.slug + ': ' + ids + ' never landed -> NOT closing; ' + recon.tasksAccounted + '/' + recon.tasksTotal + ' accounted.')
+      return planResult(plan, branch, worktreePath, {
+        merged: false,
+        pushedTasks,
+        commits: allCommits,
+        tasksTotal: recon.tasksTotal,
+        tasksAccounted: recon.tasksAccounted,
+        summary: 'incomplete: ' + ids + ' never landed (' + recon.tasksAccounted + '/' + recon.tasksTotal + ' accounted)',
+        problems,
+        reason: 'incomplete: ' + ids + ' never landed',
+      })
     }
 
     // 3a. dry-run: one end-to-end green-gate + informational final review, no push/archive.
@@ -747,14 +892,18 @@ async function implementPlan(plan) {
       })
       const stillCritical = (final2 && final2.critical) || []
       if (stillCritical.length || !integ || (!integ.pushed && !integ.nothingToIntegrate)) {
-        problems.push('final review critical unresolved: ' + stillCritical.join('; '))
+        const transient = !!(integ && integ.transient)
+        problems.push('final review critical unresolved: ' + stillCritical.join('; ') +
+          (transient ? ' [final integrate parked on TRANSIENT env failure; retry once the environment settles]' : ''))
         return planResult(plan, branch, worktreePath, {
           merged: true, // earlier increments are already on main; the fix-forward did not land
           pushedTasks,
           commits: allCommits,
+          tasksTotal: recon.tasksTotal,
+          tasksAccounted: recon.tasksAccounted,
           summary: 'final review found unresolved critical issues (earlier tasks already on main)',
           problems,
-          reason: 'final review unresolved',
+          reason: 'final review unresolved', // not 'merged + archived' => walk close-gate excludes it anyway
         })
       }
     }
@@ -774,6 +923,10 @@ async function implementPlan(plan) {
       merged: true,
       pushedTasks,
       commits: allCommits,
+      // All tasks accounted (the drop-gate above returned early otherwise) — attest it so the walk
+      // close-gate is satisfied. tasksAccounted === tasksTotal here by construction.
+      tasksTotal: recon.tasksTotal,
+      tasksAccounted: recon.tasksAccounted,
       summary: (final && final.assessment) || 'implemented + integrated ' + tasks.length + ' task(s)',
       problems,
       reason: archived ? 'merged + archived' : 'merged; archive failed',

@@ -34,8 +34,8 @@ owner="redoz"; repo="Synto"; proj=1
 # budget on a board-sized sweep. Only the actual card write (item-add + item-edit) still hits the API.
 # The status→column map is fixed (github.md § The board), so these ids are stable constants.
 #
-# These are PLACEHOLDERS (the OuroCore ids will NOT exist for Synto). Until they are regenerated the
-# board move is a guarded no-op (it LOGS and exits 0) so the authoritative label swap still succeeds.
+# These are PLACEHOLDERS (`REPLACE_ME_*` sentinels — no real ids for Synto's board exist yet). Until they
+# are regenerated the board move is a guarded no-op (it LOGS and exits 0) so the authoritative label swap still succeeds.
 #
 # REGENERATION RECIPE — create/locate the "Synto — Issue Flow" board under owner redoz, then refresh:
 #   gh project view 1 --owner redoz --format json -q .id              # → PROJECT_NODE_ID
