@@ -3,7 +3,7 @@ export const meta = {
   description:
     'Walk issue(s) through the issue-flow board to TERMINAL (closed/done OR blocked) — the one issue-flow loop. The primitive is walk(issue): advance an issue stage-by-stage via the matching issue-* skill (brainstorm -> spec-review -> plan -> plan-review -> implement -> close), re-reading its labels after each stage, until it is no longer actionable. A rolling worker pool of width N walks up to N issues concurrently and, the instant any walk finishes, refills the freed slot from a fresh proximity-sorted snapshot (closest-to-done first), to a fixpoint. SCOPE selects which issues the pool draws from: {scope:"all"} = every actionable open issue (this is /burn-the-board); {only:[n]} = just issue n (/walk-issue <n> on a unit); {epic:E} = the open children of epic E (/walk-issue <E>), rollup-closing E if all children end closed. ready->implement (default-ON) lands the plan and closes the issue. Carries NO snapshot-as-goal, NO reconcile, NO intake — it walks what is already actionable. Continuous via /loop /walk-issue or /loop /burn-the-board.',
   phases: [
-    { title: 'RunStart', detail: 'infra probe + scope resolve; board/epic scope also: ff-sync + stale-worktree sweep + crash-reaper' },
+    { title: 'RunStart', detail: 'infra probe + scope resolve; board/epic scope also: working-copy check + stale-workspace sweep + crash-reaper' },
     { title: 'Walk', detail: 'rolling worker pool of width N: walk each picked issue to terminal, refill each freed slot from a fresh snapshot, to fixpoint' },
     { title: 'Report', detail: 'heartbeat digest + durable run-log + structured return' },
   ],
@@ -68,12 +68,9 @@ const N = Math.max(1, A.N || 3)                 // max issues WALKED CONCURRENTL
 const MAX_ROUNDS = A.maxRounds || 200           // defensive bound on TOTAL walk dispatches (each walk drives ONE issue to
                                                 //   terminal then leaves the actionable set, so this normally terminates well below the cap)
 const MAX_WALK_STEPS = A.maxWalkSteps || (4 * K + 5)  // defensive per-walk stage cap (the K round-limit already bounds the review cycles)
-const FF_PUSH_MAX_ATTEMPTS = 8                  // ff-push HEAD:main retry budget. The trunk is SHARED: up to N walks (and a
-                                                //   co-running implement-plan) all rebase-retry ff-push to origin/main at once, so a
-                                                //   small budget gets STARVED before it wins the race (this parked #143). Generous +
-                                                //   an incremental backoff per attempt lets the competing push settle. Tunable.
 const GRACE_MS = 15 * 60 * 1000                 // reaper recency guard: an issue updated < 15 min ago is a live run, not a crash
-const WORKTREES_DIR = '.claude/worktrees'
+const WORKSPACES_DIR = '.claude/workspaces'     // jj workspaces dir — the stale-workspace sweep cleans crashed walk-*/burn-*/drive-*/smoke-*
+                                                //   leaks here; implement-plan (Task 5) owns plan-<slug> workspaces under it (never swept)
 const REPO_DIR = 'C:/dev/Synto'
 const RUNID = A.runid || 'walk'                 // fresh per tick from the skill; deterministic fallback
 const RUNLOG = '.claude/logs/walk-issue.jsonl'
@@ -91,9 +88,9 @@ let SCOPE = { mode: 'all', inScope: null, epic: null }   // set by resolveScope(
 // Per-agent model tiers (cost calibration). Agents that omit `model` inherit the session model (Opus 4.8),
 // which we keep for the genuinely cognitive / irreversible-write stages: authoring (writes the spec/plan),
 // the review+implement CLAIM guards (the unaddressed-comment go-ahead-vs-caveat classification), and the
-// review ROUTE (verbatim verdict + promote/demote git mv + ff-push to main). The mechanical agents are
-// dropped: pure shell/gh reads -> Haiku (FAST); light-judgment but git/GitHub-mutating -> Sonnet (MID).
-const FAST = 'haiku'      // pure-mechanical, read-only shell/gh: snapshot, ff-sync, runlog, worktree sweep
+// review ROUTE (verbatim verdict + promote/demote via fileset-scoped jj commit on the primary working copy, local-no-push).
+// The mechanical agents are dropped: pure shell/gh reads -> Haiku (FAST); light-judgment but repo/GitHub-mutating -> Sonnet (MID).
+const FAST = 'haiku'      // pure-mechanical, read-only shell/gh: snapshot, working-copy check, runlog, workspace sweep
 const MID = 'sonnet'      // specified-but-consequential: infra probe, reaper, self-heal fileBug, park, close
 
 // Structured-return accumulator. Per-issue rows are { issue, fromStage, toState, outcome }.
@@ -397,22 +394,25 @@ async function snapshotOpen() {
   return (res && res.open) || []
 }
 
-// ffSyncPrimary() — re-fast-forward-sync the primary checkout before each refill, so a promotion/draft push
-// never starts from a stale tree.
+// ffSyncPrimary() — a cheap consistency check of the PRIMARY jj working copy before each stage / refill. Under
+// jj local-only mode there is NO remote and NO separate checkout to fast-forward: every authoring/promotion commit
+// lands on THIS working copy, so it already carries all prior-stage commits and there is nothing to fetch or merge.
+// We only confirm it is in a safe state to act on next (the integration bookmark B resolves and @ is conflict-free).
 async function ffSyncPrimary() {
   const res = await agent(
     [
-      'Fast-forward-sync the PRIMARY checkout before a walk-pool refill. Host: Windows, Git Bash. Run from ' + REPO_DIR + '.',
-      '  git fetch origin',
-      '  - HEAD == origin/main: fine.',
-      '  - origin/main ancestor of HEAD (unpushed local commits): fine, leave them untouched.',
-      '  - HEAD ancestor of origin/main (behind): git merge --ff-only origin/main.',
-      '  - diverged: do NOT force anything; report ok=false, problems="primary checkout diverged from origin".',
-      'Change no tracked files beyond the allowed fast-forward. Return { ok, problems }.',
+      'Verify the PRIMARY jj working copy is consistent before a walk stage / pool refill. Host: Windows, Git Bash.',
+      'Run from ' + REPO_DIR + '. jj over a colocated git repo, LOCAL-ONLY (no remote, no push): every authoring/promotion',
+      'commit lands on THIS working copy, so there is nothing to fetch or fast-forward — it already carries every prior-stage',
+      'commit. Just confirm it is safe to act on next (read-only checks; mutate nothing):',
+      '  - Integration bookmark B resolves:  B=$(bash .claude/scripts/base-branch.sh)  (non-empty stdout).',
+      '  - Working copy @ is conflict-free:  jj log --no-graph -r "@" -T conflict  prints "false".',
+      '  - If B does not resolve OR @ has conflicts: report ok=false with the blocker (do NOT force or mutate anything).',
+      'Change no tracked files. Return { ok, problems }.',
     ].join('\n'),
     { label: 'ffsync:' + RUNID, phase: 'Walk', schema: FFSYNC_SCHEMA, model: FAST },
   )
-  if (!res || !res.ok) hb('ff-sync warning: ' + (res ? res.problems : 'agent returned null'))
+  if (!res || !res.ok) hb('working-copy check warning: ' + (res ? res.problems : 'agent returned null'))
   return res
 }
 
@@ -513,14 +513,15 @@ async function rollupEpic(epic) {
 // ---------------------------------------------------------------------------
 // Run-start: infra probe (BOTH paths) -> resolve SCOPE. For UNIT scope ({only:[n]}) that is ALL of run-start —
 // it returns immediately and the issue is walked directly. For BOARD/EPIC scope it continues with the
-// burn-the-board "Safe" machinery: ff-sync -> stale-worktree sweep -> minimal crash-reaper.
+// burn-the-board "Safe" machinery: working-copy check -> stale-workspace sweep -> minimal crash-reaper.
 // NO reconcile and NO intake — walk-issue walks what is already actionable; un-parking blocked issues and
 // stamping new ones are out of scope (a human un-blocks, and the next pass re-picks the issue).
 // ---------------------------------------------------------------------------
 async function runStart() {
   // Step 1: infra precondition probe — a deterministic SCRIPT (.claude/scripts/probe.sh). The agent RUNS it and
-  // returns its single stdout JSON line; the script owns the checks (main fast-forward vs origin/main — the one
-  // allowed mutation). A failure SKIPS the whole run. FAST model.
+  // returns its single stdout JSON line; the script owns the jj checks (the integration bookmark B resolves, the
+  // bookmark exists, and the working copy @ is conflict-free — all read-only, no mutation). A failure SKIPS the
+  // whole run. FAST model.
   const probeArg = IMPLEMENT ? '--implement' : '--no-implement'
   const probe = await agent(
     [
@@ -529,15 +530,15 @@ async function runStart() {
       '  bash .claude/scripts/probe.sh ' + probeArg,
       'The script prints human-readable progress to STDERR and EXACTLY ONE compact JSON line to STDOUT:',
       '  {"ok":true|false,"reason":"…"}',
-      'It performs every check itself (and the single allowed fast-forward of main). Do NOT perform any check',
-      'yourself, do NOT change any other file. Capture that one stdout JSON line and',
+      'It performs every check itself (B resolves, the bookmark exists, @ is conflict-free — all read-only, no mutation).',
+      'Do NOT perform any check yourself, do NOT change any file. Capture that one stdout JSON line and',
       'return it verbatim as { ok, reason }.',
     ].join('\n'),
     { label: 'probe:' + RUNID, phase: 'RunStart', schema: PROBE_SCHEMA, model: FAST },
   )
   if (!probe || !probe.ok) {
     const reason = probe ? probe.reason : 'probe agent returned null'
-    hb('PRECONDITION FAILED — skipping run, NO issue touched. Blocker: ' + reason + '. Remediation: reconcile main with origin, then re-run.')
+    hb('PRECONDITION FAILED — skipping run, NO issue touched. Blocker: ' + reason + '. Remediation: address the blocker above (resolve B / create the bookmark / clear @ conflicts), then re-run.')
     return { skipped: true, reason }
   }
 
@@ -548,30 +549,32 @@ async function runStart() {
   const seed = resolved.seed || {}
 
   // Unit scope ({only:[n]}) walks the named issue(s) DIRECTLY — none of the board-wide plumbing below applies:
-  // ff-sync is done per-stage inside walk(); the stale-worktree sweep, board snapshot, and crash-reaper are
-  // burn-the-board's concerns (a single-issue walk must not sweep the board or reap issues elsewhere).
+  // the working-copy check is done per-stage inside walk(); the stale-workspace sweep, board snapshot, and crash-reaper
+  // are burn-the-board's concerns (a single-issue walk must not sweep workspaces or reap issues elsewhere).
   if (SCOPE.mode === 'only') return { skipped: false, seed }
 
   // ── Board / epic scope only (the burn-the-board machinery) ──────────────────────────────────────────────
-  // Step 3: ff-sync the primary checkout (also done per-round; here it catches up before the sweep/reaper).
+  // Step 3: working-copy consistency check on the primary jj working copy (also done per-stage; here before the sweep/reaper).
   await ffSyncPrimary()
 
-  // Step 4: stale-worktree sweep — remove every .claude/worktrees/ tree that is not a live implement-plan
-  // plan-<slug> tree (walk-* / burn-* / drive-* / smoke-* leaks from a crashed prior run). Safe under single-operator.
+  // Step 4: stale-workspace sweep — forget every .claude/workspaces/ jj workspace that is not a live implement-plan
+  // plan-<slug> workspace (walk-* / burn-* / drive-* / smoke-* leaks from a crashed prior run). Safe under single-operator.
   const sweep = await agent(
     [
-      'Sweep stale git worktrees for walk-issue. Host: Windows, Git Bash. Run from ' + REPO_DIR + '.',
-      '  1. git worktree prune',
-      '  2. git worktree list --porcelain  to enumerate worktrees.',
-      '  3. For every worktree under ' + WORKTREES_DIR + '/ whose directory name does NOT start with "plan-"',
-      '     (i.e. it is a walk-*/burn-*/drive-*/smoke-* leak from a crashed prior run, NEVER a live implement-plan plan-<slug> tree):',
-      '       git worktree remove --force <path>   and, if a matching local branch exists (walk/* or burn/* or drive/* or smoke/*), git branch -D it.',
-      '     Leave any plan-<slug> worktree untouched (a concurrent implement-plan may own it).',
-      'Return { removed: [paths removed], problems }.',
+      'Sweep stale jj workspaces for walk-issue. Host: Windows, Git Bash. Run from ' + REPO_DIR + '. jj over a colocated git repo.',
+      '  1. jj workspace list   to enumerate the registered workspaces (names + paths).',
+      '  2. For every workspace whose NAME (and ' + WORKSPACES_DIR + '/ directory name) starts with "walk-", "burn-", "drive-",',
+      '     or "smoke-" — a leak from a crashed prior run, NEVER a live implement-plan plan-<slug> workspace:',
+      '       jj workspace forget <name>   (de-registers it; the landed commits remain in the repo), then REMOVE its directory',
+      '       on disk (PowerShell: Remove-Item -Recurse -Force; bash: rm -rf).',
+      '  3. LEAVE any  plan-<slug>  workspace UNTOUCHED — implement-plan (Task 5) creates jj workspaces named plan-<slug> under',
+      '     ' + WORKSPACES_DIR + '/, and a CONCURRENT implement-plan may own one; never forget or remove a plan-* workspace.',
+      '     Also never touch the DEFAULT workspace (the primary working copy).',
+      'Return { removed: [workspace names/paths removed], problems }.',
     ].join('\n'),
     { label: 'sweep:' + RUNID, phase: 'RunStart', schema: SWEEP_SCHEMA, model: FAST },
   )
-  if (sweep && sweep.removed && sweep.removed.length) hb('swept ' + sweep.removed.length + ' stale worktree(s): ' + sweep.removed.join(', '))
+  if (sweep && sweep.removed && sweep.removed.length) hb('swept ' + sweep.removed.length + ' stale workspace(s): ' + sweep.removed.join(', '))
 
   // Step 5: minimal crash-reaper — recover issues orphaned in a Doing state (not blocked, not braked) by a
   // crashed prior run, with the recency guard. JS pre-filters candidates (pure label logic); the agent applies
@@ -624,9 +627,9 @@ async function walk(issue) {
   let steps = 0
   for (; steps < MAX_WALK_STEPS; steps++) {
     if (!burnActionable(cur.labels)) break          // terminal: closed / blocked / split / out of our control
-    // ff-sync the primary checkout BEFORE each stage: every authoring/promotion/review stage reads or acts on the
-    // primary checkout, which must reflect origin/main INCLUDING this walk's own prior-stage pushes (else a stage
-    // reads a stale tree -> false "artifact missing" findings, e.g. a plan-review claiming the plan does not exist).
+    // working-copy consistency check BEFORE each stage: every authoring/promotion/review stage reads or acts on the
+    // primary jj working copy. Under local-only mode every prior stage committed its artifact RIGHT HERE (no push, no
+    // separate checkout), so the working copy already carries them — this just confirms B resolves and @ is conflict-free.
     await ffSyncPrimary()
     await advanceOneStep(cur)
     const fresh = await issueLabels(cur.number)      // re-read THIS issue (a stage changed its labels/state)
@@ -652,7 +655,7 @@ async function walk(issue) {
 async function walkPool() {
   const inFlight = new Map()   // issue number -> Promise<number> (settles to the number, success OR failure)
 
-  // nextActionable(slots) — ff-sync, re-snapshot, and return up to `slots` highest-priority IN-SCOPE actionable
+  // nextActionable(slots) — working-copy check, re-snapshot, and return up to `slots` highest-priority IN-SCOPE actionable
   // issues NOT already in flight, closest-to-done first (oldest-updated tie-break). The fresh snapshot is what
   // makes the pool dynamic: it observes walks that just closed / parked an issue, and (in scope:'all') any new
   // actionable work, e.g. a split's children.
@@ -728,15 +731,21 @@ async function advanceOneStep(issue) {
 
 // ---------------------------------------------------------------------------
 // Authoring stages (brainstorm, plan) — ONE agent that reads+follows the skill + github.md, with the
-// named deviation: the persist-draft step (commit+push to the primary checkout) is replaced by a per-issue
-// worktree + canonical rebase-retry ff-push (so N concurrent stages never stomp the primary checkout); the
-// brake branch is suppressed (the actionable filter already excludes braked issues).
+// named deviation: the persist-draft step (commit+push to the primary checkout) becomes a FILESET-SCOPED
+// `jj commit` of the one artifact on the PRIMARY jj working copy, LOCAL ONLY (no push); the brake branch is
+// suppressed (the actionable filter already excludes braked issues).
+//
+// PLAN-MANDATED design note (the one residual concurrency seam). Authoring/promotion commit to the SHARED
+// primary jj working copy, NOT a per-walk isolated workspace the way implement-plan (Task 5) does. This is a
+// deliberate, plan-level decision: each authoring/promotion commit is FILESET-SCOPED to ONLY its own artifact
+// path, so concurrent walks authoring DIFFERENT issues' artifacts never sweep each other's drafts or the
+// operator's README (jj's op-log serializes the commits; a fileset-scoped commit leaves every other
+// working-copy change untouched). The documented UPSHIFT if this proves racy under width-N is to give
+// authoring its own `jj workspace` (matching implement-plan) — NOT a defect to "fix" inline here.
 // ---------------------------------------------------------------------------
 async function runAuthoringStage(issue, kind) {
   const skillFile = kind === 'brainstorm' ? '.claude/skills/issue-brainstorm/SKILL.md' : '.claude/skills/issue-plan/SKILL.md'
   const draftDir = kind === 'brainstorm' ? 'docs/superpowers/specs/drafts' : 'docs/superpowers/plans/drafts'
-  const wt = WORKTREES_DIR + '/walk-' + RUNID + '-' + issue
-  const br = 'walk/' + RUNID + '-' + issue
   const res = await agent(
     [
       'You are the ' + kind + ' authoring stage for issue #' + issue + ' in walk-issue. Host: Windows, Git Bash.',
@@ -748,22 +757,26 @@ async function runAuthoringStage(issue, kind) {
       '  revised ' + (kind === 'brainstorm' ? 'spec' : 'plan') + ' or briefly justify why it does not apply. Never draft over a review finding silently.',
       'Follow the skill EXACTLY, with these TWO named deviations (anchor to the skill markers, not step numbers):',
       '',
-      'DEVIATION 1 — replace the skill PERSIST-DRAFT step (its "commit + push to main / primary checkout") with the',
-      'per-issue worktree + canonical rebase-retry ff-push:',
-      '  a. git fetch origin ; git worktree add ' + wt + ' -b ' + br + ' origin/main   (the unique walk-' + RUNID + '-' + issue + ' worktree path the run-start sweep can target),',
-      '       (if ' + br + ' exists from a stale run: git worktree remove --force ' + wt + ' ; git branch -D ' + br + ' ; retry).',
-      '  b. In that worktree, write the draft under ' + draftDir + '/{YYYY-MM-DD-slug}.md (date via bash date -u +%F);',
+      'DEVIATION 1 — replace the skill PERSIST-DRAFT step (its "commit + push to main / primary checkout") with a',
+      'FILESET-SCOPED jj commit on the PRIMARY jj working copy — LOCAL ONLY, NO push (jj over a colocated git repo):',
+      '  a. Write the draft under ' + draftDir + '/{YYYY-MM-DD-slug}.md (date via bash date -u +%F) on the primary working copy;',
       '     immediately after the standard skill header add the line:  > **Tracking issue:** #' + issue,
       (kind === 'plan' ? '     and the next line:  > **Spec:** docs/superpowers/specs/{slug}.md   (the approved spec it derives from).' : '     (brainstorm/spec draft — no Spec header line).'),
-      '  c. git add ONLY the draft file (' + draftDir + '/{YYYY-MM-DD-slug}.md — never -A/./-u/commit -a; github.md § Working-tree hygiene) ; git commit ; then the CANONICAL rebase-retry ff-push from the worktree:',
-      '       repeat up to ' + FF_PUSH_MAX_ATTEMPTS + ':  git fetch origin && git rebase origin/main && git push origin HEAD:main',
-      '       (abort+retry on conflict; on non-ff rejection wait a short GROWING backoff — ~2s,4s,6s... capped ~16s, e.g.',
-      '       PowerShell Start-Sleep — so a concurrent walk\'s push to the shared trunk settles, then retry).',
-      '  d. Post the Spec/Plan comment (github.md template — its permalink needs the pushed commit), then advance with',
+      '  b. Commit ONLY that one artifact path, FILESET-SCOPED (NEVER a bare `jj commit`, NEVER -A/./commit -a;',
+      '     github.md § Working-tree hygiene):  jj commit ' + draftDir + '/{YYYY-MM-DD-slug}.md -m "<the skill commit message>".',
+      '     CONCURRENCY CONTRACT: the commit NAMES ONLY its own artifact path, so concurrent walks authoring DIFFERENT',
+      '     issues\' drafts never sweep each other\'s files or the operator\'s README — jj\'s op-log serializes the commits',
+      '     and a fileset-scoped commit leaves all other working-copy changes untouched. Do NOT push (no jj git push / git push).',
+      '     THEN advance the integration bookmark B to that just-made commit — the faithful jj translation of the git',
+      '     model where every artifact commit fast-forwarded the integration branch (canonical snippet: github.md',
+      '     § Setting state). FORWARD-ONLY and LOCAL — NEVER a push in local mode:',
+      '         B="$(bash .claude/scripts/base-branch.sh)"   # resolve the integration bookmark name',
+      '         jj bookmark set "$B" -r @-                    # @- is the commit jj commit just made (jj leaves a fresh empty @ on top)',
+      '     Under SYNTO_FLOW_INTEGRATE=push ONLY, ALSO push it:  jj git push --bookmark "$B"  (local mode pushes NOTHING).',
+      '  c. Post the Spec/Plan comment (github.md template — link the artifact file path; local-only, so there is no',
+      '     pushed-commit permalink to cite), then advance with',
       '     `bash .claude/scripts/set-status.sh ' + issue + ' <new-status> [block]` (label + board card, one command):',
       '     brainstorm -> spec-review-queued on a drafted spec, OR brainstorming + block if you posted questions; plan -> plan-review-queued.',
-      '  e. CLEANUP, success AND failure:  cd ' + REPO_DIR + ' ; git worktree remove --force ' + wt + ' ; git branch -D ' + br,
-      '     (the run-start sweep is the crash backstop).',
       '',
       'DEVIATION 2 — SUPPRESS the skill brake branch (do not park on `manual`): the actionable filter already',
       'excludes braked issues, so this issue is not braked. Otherwise honor the skill, INCLUDING its claim of the Doing',
@@ -788,7 +801,8 @@ async function runAuthoringStage(issue, kind) {
 // ---------------------------------------------------------------------------
 // Review stages (spec, plan) — the SCRIPT owns the issue-review workflow() call (the proven shape); agents
 // do the entry guard + claim, then post the verdict verbatim and route per the skill, with the named
-// deviation that any promote/demote git mv runs in a worktree + ff-push (concurrency-safe).
+// deviation that any promote/demote is an OS-move rename + FILESET-SCOPED jj commit on the PRIMARY jj working
+// copy, LOCAL ONLY (no push) — naming only the renamed/written path(s), so concurrent walks never collide.
 // ---------------------------------------------------------------------------
 async function runReviewStage(issue, kind) {
   const reviewing = kind === 'spec' ? 'spec-reviewing' : 'plan-reviewing'
@@ -904,25 +918,23 @@ function claimReviewPrompt(issue, reviewing) {
 }
 function postAndRoutePrompt(issue, kind, reviewing, r) {
   const skillFile = '.claude/skills/issue-' + kind + '-review/SKILL.md'
-  const wt = WORKTREES_DIR + '/walk-' + RUNID + '-' + issue
-  const br = 'walk/' + RUNID + '-' + issue
   const failQueue = kind === 'spec' ? 'brainstorm-queued' : (r.verdict === 'RETHINK' ? 'brainstorm-queued' : 'plan-queued')
   // The LGTM branch is KIND-AWARE (rigor.md § Skip-plan, § The tag & the status jump): the SPEC gate promotes the spec
   // then makes the adaptive-rigor skip-plan decision — straight to `ready` with a thin one-shot plan derived inline, or
   // the full path to `plan-queued`; the PLAN gate promotes the plan, tags its implement rigor, and advances to `ready`.
   const lgtmBranch = kind === 'spec'
     ? [
-        '  - LGTM (spec gate) -> FIRST PROMOTE the spec via the worktree ff-push above: git mv draft -> top-level',
-        '      docs/superpowers/specs/{slug}.md, edit the `## 📐 Spec` comment link to the promoted path. THEN apply',
-        '      issue-spec-review\'s Route-step skip-plan decision (rigor.md § Skip-plan, § Heuristics):',
+        '  - LGTM (spec gate) -> FIRST PROMOTE the spec via the fileset-scoped jj commit above: OS-move the draft to top-level',
+        '      docs/superpowers/specs/{slug}.md then jj commit it (naming BOTH paths), edit the `## 📐 Spec` comment link to the',
+        '      promoted path. THEN apply issue-spec-review\'s Route-step skip-plan decision (rigor.md § Skip-plan, § Heuristics):',
         '      * SKIP-PLAN when the spec is FULLY diff-reviewable — no schema/migration, no new module, no multi-step',
-        '        sequencing, no non-obvious TDD structure: in the SAME worktree derive a thin one-shot plan inline — write',
+        '        sequencing, no non-obvious TDD structure: derive a thin one-shot plan inline — write',
         '        top-level docs/superpowers/plans/{YYYY-MM-DD-slug}.md (the SAME slug as the spec) whose header, immediately',
         '        after the writing-plans header, carries the three lines  > **Tracking issue:** #' + issue + '  ,  > **Spec:**',
         '        docs/superpowers/specs/{slug}.md  , and  > **Rigor:** one-shot  plus a short change description (it MAY have',
-        '        NO ### Task sections — implement-plan\'s one-shot mode reads the whole plan as the change). git add ONLY that',
-        '        plan file (never -A/./-u/commit -a) ; git commit ; ff-push ; edit the `## 📐 Spec` comment to note the derived',
-        '        plan path ; then `bash .claude/scripts/set-status.sh ' + issue + ' ready` (no block) ; post a',
+        '        NO ### Task sections — implement-plan\'s one-shot mode reads the whole plan as the change). Commit ONLY that',
+        '        plan file:  jj commit docs/superpowers/plans/{YYYY-MM-DD-slug}.md -m "<message>"  (never bare jj commit / -A/./commit -a) ;',
+        '        edit the `## 📐 Spec` comment to note the derived plan path ; then `bash .claude/scripts/set-status.sh ' + issue + ' ready` (no block) ; post a',
         '        "## ⚡ Rigor — spec-review: skip-plan" H2 comment (one-line rationale). Set toState="status:ready", promoted=true, demoted=false.',
         '        UPSHIFT: if while deriving you find it actually needs decomposition / schema / multi-step sequencing, do NOT',
         '        write the thin plan — `bash .claude/scripts/set-status.sh ' + issue + ' plan-queued` and post "## ⚡ Rigor —',
@@ -930,11 +942,12 @@ function postAndRoutePrompt(issue, kind, reviewing, r) {
         '      * ELSE (full path) -> `bash .claude/scripts/set-status.sh ' + issue + ' plan-queued` (no block). Set toState="status:plan-queued", promoted=true, demoted=false.',
       ]
     : [
-        '  - LGTM (plan gate) -> PROMOTE the plan via the worktree ff-push above: git mv draft -> top-level',
-        '      docs/superpowers/plans/{slug}.md, edit the `## 📋 Plan` comment link, and TAG its implement rigor per',
-        '      issue-plan-review\'s Route step — set the header line  > **Rigor:** one-shot  when one-shot-eligible (single',
-        '      concern, small, diff-reviewable, no new logic branches wanting test-first design), else ensure NO',
-        '      "> **Rigor:** one-shot" line remains (absent ⇒ tdd-per-task). Then `bash .claude/scripts/set-status.sh ' + issue + ' ready`',
+        '  - LGTM (plan gate) -> PROMOTE the plan via the fileset-scoped jj commit above: OS-move the draft to top-level',
+        '      docs/superpowers/plans/{slug}.md then jj commit it (naming BOTH paths), edit the `## 📋 Plan` comment link, and',
+        '      TAG its implement rigor per issue-plan-review\'s Route step — set the header line  > **Rigor:** one-shot  when',
+        '      one-shot-eligible (single concern, small, diff-reviewable, no new logic branches wanting test-first design), else',
+        '      ensure NO "> **Rigor:** one-shot" line remains (absent ⇒ tdd-per-task). If you edit the header to tag rigor, fold',
+        '      that edit into the SAME fileset-scoped plan commit. Then `bash .claude/scripts/set-status.sh ' + issue + ' ready`',
         '      (no block); if one-shot, post one "## ⚡ Rigor — plan-review: one-shot" comment. Set toState="status:ready", promoted=true, demoted=false.',
       ]
   return [
@@ -950,21 +963,28 @@ function postAndRoutePrompt(issue, kind, reviewing, r) {
     'STEP B — ROUTE. READ AND FOLLOW  ' + skillFile + '\'s Route step (its § Approval-detection routing — the SINGLE SOURCE,',
     'INCLUDING its adaptive-rigor branches) for verdict ' + r.verdict + ' at round ' + r.round + '/' + K + ', with TWO named deviations:',
     '  (1) IGNORE the `manual` brake branch — the actionable filter excludes braked issues, so this issue is not braked.',
-    '  (2) For ANY git write this route makes — a promote/demote git mv, AND (spec skip-plan) the thin one-shot plan file —',
-    '      do it in a PER-ISSUE WORKTREE + canonical rebase-retry ff-push, NOT a commit on the primary checkout',
-    '      (concurrency-safe): git fetch origin ; git worktree add ' + wt + ' -b ' + br + ' origin/main (if ' + br + ' exists:',
-    '      git worktree remove --force ' + wt + ' ; git branch -D ' + br + ' ; retry) ; make the change(s) there ; git add ONLY the',
-    '      renamed/written paths (never -A/./-u/commit -a) ; git commit ; repeat up to ' + FF_PUSH_MAX_ATTEMPTS + ': git fetch origin && git rebase',
-    '      origin/main && git push origin HEAD:main (abort+retry on conflict; on non-ff rejection wait a short GROWING backoff',
-    '      ~2s,4s,6s... capped ~16s, e.g. PowerShell Start-Sleep, so a concurrent walk\'s push to the shared trunk settles, then retry). The spec skip-plan path makes TWO',
-    '      path-scoped commits in this SAME worktree (promote the spec, then write the thin plan), pushing after each. CLEAN UP',
-    '      LAST, after this route\'s final push: cd ' + REPO_DIR + ' ; git worktree remove --force ' + wt + ' ; git branch -D ' + br + '.',
-    '      The Spec/Plan comment-link edits and every set_status are gh/board ops — do them after the push(es).',
+    '  (2) For ANY repo write this route makes — a promote/demote rename, AND (spec skip-plan) the thin one-shot plan file —',
+    '      do it as a FILESET-SCOPED jj commit on the PRIMARY jj working copy, LOCAL ONLY (no push), NOT a worktree/workspace:',
+    '      * promote/demote = OS-move the file (plain `mv <old> <new>`; jj tracks the rename by content — there is NO `git mv`',
+    '        and NO staging), then  jj commit <new> <old> -m "<message>"  (name BOTH paths so the commit is scoped to exactly the rename).',
+    '      * a freshly written file (the thin one-shot plan) = write it, then  jj commit <that-path> -m "<message>"  (name ONLY that path).',
+    '      NEVER a bare `jj commit`, NEVER -A/./commit -a (github.md § Working-tree hygiene) — each commit names ONLY its own',
+    '      artifact path(s), so concurrent walks never sweep each other\'s files or the operator\'s README (jj\'s op-log serializes',
+    '      the commits; a fileset-scoped commit leaves all other working-copy changes untouched). Do NOT push (no jj git push / git push).',
+    '      IMMEDIATELY AFTER each such fileset-scoped jj commit, advance the integration bookmark B to that just-made commit',
+    '      — the faithful jj translation of the git model where every artifact commit fast-forwarded the integration branch',
+    '      (canonical snippet: github.md § Setting state). FORWARD-ONLY and LOCAL — NEVER a push in local mode:',
+    '          B="$(bash .claude/scripts/base-branch.sh)"   # resolve the integration bookmark name (once is enough; re-running is harmless)',
+    '          jj bookmark set "$B" -r @-                    # @- is the commit jj commit just made (jj leaves a fresh empty @ on top)',
+    '      So the spec skip-plan path advances B TWICE (once per commit), leaving B at the thin-plan commit. Under',
+    '      SYNTO_FLOW_INTEGRATE=push ONLY, ALSO push after the advance:  jj git push --bookmark "$B"  (local mode pushes NOTHING).',
+    '      The spec skip-plan path makes TWO fileset-scoped commits (promote the spec, then write the thin plan) — no cleanup needed.',
+    '      The Spec/Plan comment-link edits and every set_status are gh/board ops — do them after the commit(s).',
     'The branches — route the GATED verdict (do not re-litigate the verdict itself), but DO make the skill\'s adaptive-rigor',
     'sub-decisions (the spec skip-plan; the plan implement tag) per its Route step:',
     ...lgtmBranch,
     '  - NEEDS WORK / RETHINK and round < ' + K + ' -> `bash .claude/scripts/set-status.sh ' + issue + ' ' + failQueue + ' unblock`; if a previously-promoted',
-    '      top-level artifact exists, DEMOTE-ON-RE-ENTRY (git mv top-level -> drafts/ + fix the comment link) via the worktree ff-push.',
+    '      top-level artifact exists, DEMOTE-ON-RE-ENTRY (OS-move top-level -> drafts/ + jj commit naming BOTH paths + fix the comment link) via the fileset-scoped jj commit.',
     '      Set toState="status:' + failQueue + '", promoted=false, demoted=<true only if you moved a file>.',
     '  - round >= ' + K + ' with a failing verdict -> stay status:' + reviewing + ', `bash .claude/scripts/set-status.sh ' + issue + ' ' + reviewing + ' block`,',
     '      append the "## 🛑 Stuck — needs you (after K rounds)" note. Set toState="status:' + reviewing + '+blocked", promoted=false, demoted=false.',
@@ -987,7 +1007,7 @@ async function runImplementStage(issue) {
   }
   const planPath = claim && claim.planPath
   if (!planPath) {
-    await parkBlocked(issue, 'implementing', 'status:ready but NO resolvable promoted top-level plan on origin/main (docs/superpowers/plans/*.md with its > **Tracking issue:** #' + issue + ' header). Promote it via /issue-respond, or check the header.')
+    await parkBlocked(issue, 'implementing', 'status:ready but NO resolvable promoted top-level plan on bookmark B (docs/superpowers/plans/*.md with its > **Tracking issue:** #' + issue + ' header). Promote it via /issue-respond, or check the header.')
     report.parked.push({ issue, fromStage: 'implement', toState: 'status:implementing+blocked', outcome: 'unresolved' })
     narrate(issue, 'implement: no resolvable plan -> parked blocked')
     return
@@ -1039,16 +1059,18 @@ function implementClaimPrompt(issue) {
     '  (untrusted/skill comments already filtered out — do NOT re-detect by "##"). If that array is NON-EMPTY AND its latest',
     '  comment is NOT a clear go-ahead/ack, do NOT implement: run `bash .claude/scripts/set-status.sh ' + issue + ' implementing block`,',
     '  post the github.md "## 🛑 Needs you — unaddressed comment" note, and return { guarded: true, planPath: "", claimed: false }.',
-    'RESOLVE THE PLAN against origin/main, NOT the local working tree (the operator\'s primary checkout may be STALE —',
-    '  behind origin/main — so a glob of the on-disk plans/ FALSE-NEGATIVES a plan promoted only on origin/main, the exact',
-    '  bug this guards). First:  git fetch origin -q . Enumerate the PROMOTED candidates (top level ONLY, NOT drafts/ or',
-    '  completed/) from origin/main with git plumbing, not the disk:',
-    '    git ls-tree -r --name-only origin/main -- docs/superpowers/plans/ | grep -E "^docs/superpowers/plans/[^/]+\\.md$"',
-    '  For each candidate, read its header off origin/main (NOT disk):  git show origin/main:<path>  — and pick the one whose',
+    'RESOLVE THE PLAN against the integration bookmark B — the SOURCE OF TRUTH under jj local mode. The primary working',
+    '  copy FOLLOWS B (every promotion committed there, no push, no separate checkout), so there is NO stale-checkout',
+    '  false-negative to guard against — read promoted candidates AT B with jj (read-only). First resolve B:',
+    '    B=$(bash .claude/scripts/base-branch.sh)   (capture stdout — the bookmark name; non-empty).',
+    '  Enumerate the PROMOTED candidates (top level ONLY, NOT drafts/ or completed/) AT B (the `tr` normalizes jj\'s Windows',
+    '  BACKSLASH paths to forward slashes so the forward-slash grep matches; jj file show below accepts forward slashes too):',
+    '    jj file list -r "$B" docs/superpowers/plans/ | tr \'\\\\\' \'/\' | grep -E "^docs/superpowers/plans/[^/]+\\.md$"',
+    '  For each candidate, read its header AT B:  jj file show -r "$B" <path>  — and pick the one whose',
     '  header carries the line  > **Tracking issue:** #' + issue + '  (newest by the YYYY-MM-DD- filename prefix if several match).',
-    '  If NO candidate on origin/main has that header, it is genuinely not promoted — return { guarded: false, planPath: "",',
-    '  claimed: false } (do NOT claim). Otherwise set planPath to that repo-relative path (implement-plan bases its worktree',
-    '  off origin/main, so the file resolves there).',
+    '  If NO candidate at B has that header, it is genuinely not promoted — return { guarded: false, planPath: "",',
+    '  claimed: false } (do NOT claim). Otherwise set planPath to that repo-relative path (implement-plan bases its workspace',
+    '  off B, so the file resolves there).',
     'CLAIM: with a resolved planPath, run `bash .claude/scripts/set-status.sh ' + issue + ' implementing unblock` (label + board,',
     '  clears blocked) and post the durable breadcrumb comment  ## ⏳ implementing — pushing <slug>  (slug = filename minus the',
     '  YYYY-MM-DD- prefix and .md). Return { guarded: false, planPath: "<repo-relative path>", claimed: true }.',
@@ -1119,8 +1141,8 @@ if (start.skipped) { report.preconditionSkipped = true; report.skipReason = star
 phase('Walk')
 if (SCOPE.mode === 'only') {
   // Unit path — walk each named issue DIRECTLY to terminal. NO pool, NO board snapshot/sweep/reaper, NO
-  // per-refill ff-sync: walk() does its own per-stage ff-sync and isolates per-stage failures (park + file
-  // bug), so a single bad issue never aborts the others. This is what /walk-issue <n> now costs — just the walk.
+  // per-refill working-copy check: walk() does its own per-stage working-copy check and isolates per-stage failures
+  // (park + file bug), so a single bad issue never aborts the others. This is what /walk-issue <n> now costs — just the walk.
   for (const n of [...SCOPE.inScope]) {
     report.rounds++
     try {
