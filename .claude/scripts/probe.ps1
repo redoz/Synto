@@ -12,7 +12,7 @@
 #   1. B resolves: pwsh .claude/scripts/base-branch.ps1 succeeds with non-empty output.
 #   2. Bookmark exists: the resolved B appears in `jj bookmark list -T 'name ++ "\n"'`
 #      (catches typo'd overrides and deleted branches before any commit lands on a phantom target).
-#   3. Working copy conflict-free: @ has no conflicts (jj status shows no "conflict").
+#   3. Working copy conflict-free: @ has no conflicts (`jj log -r '@' -T conflict` == "false").
 #   4. (WARN, non-fatal) Stray edits: if @ has tracked changes, warn on stderr. Downstream commits
 #      are fileset-scoped, so stray edits (e.g. the operator's README) are NOT swept — advisory only.
 #
@@ -74,10 +74,12 @@ LogP "bookmark '$B' confirmed"
 # ── Guardrail 3 + 4: working-copy state ───────────────────────────────────────────────────────────
 LogP "checking working copy state …"
 $jjStatusLines = @(jj status 2>$null)
-$jjStatusText  = ($jjStatusLines | Out-String)
 
 # Guardrail 3 (FATAL): no conflicts in @
-if ($jjStatusText -match '(?i)conflict') {
+# Use `jj log -r '@' -T conflict` (outputs literal "true"/"false") rather than grepping jj status,
+# which may contain the word "conflict" in commit messages and cause false positives.
+$conflictVal = (jj log --no-graph -r '@' -T conflict 2>$null | Out-String).Trim()
+if ($conflictVal -eq 'true') {
   Emit $false "working copy @ has conflicts — resolve them with 'jj resolve' before running the issue flow."
 }
 LogP "no conflicts in @"

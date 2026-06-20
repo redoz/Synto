@@ -19,7 +19,7 @@
 #   1. B resolves: bash .claude/scripts/base-branch.sh succeeds with non-empty output.
 #   2. Bookmark exists: the resolved B appears in `jj bookmark list -T 'name ++ "\n"'`
 #      (catches typo'd overrides and deleted branches before any commit lands on a phantom target).
-#   3. Working copy conflict-free: @ has no conflicts (jj status shows no "conflict").
+#   3. Working copy conflict-free: @ has no conflicts (`jj log -r '@' -T conflict` == "false").
 #   4. (WARN, non-fatal) Stray edits: if @ has tracked changes, warn on stderr. Downstream commits
 #      are fileset-scoped, so stray edits (e.g. the operator's README) are NOT swept — advisory only.
 #
@@ -80,7 +80,10 @@ log "checking working copy state …"
 _jj_status="$(jj status 2>/dev/null)" || _jj_status=""
 
 # Guardrail 3 (FATAL): no conflicts in @
-if echo "$_jj_status" | grep -qi "conflict"; then
+# Use `jj log -r '@' -T conflict` (outputs literal "true"/"false") rather than grepping jj status,
+# which may contain the word "conflict" in commit messages and cause false positives.
+_conflict_val="$(jj log --no-graph -r '@' -T conflict 2>/dev/null)" || _conflict_val=""
+if [ "$_conflict_val" = "true" ]; then
   emit 0 "working copy @ has conflicts — resolve them with 'jj resolve' before running the issue flow."
 fi
 log "no conflicts in @"
