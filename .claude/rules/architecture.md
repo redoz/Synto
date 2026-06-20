@@ -70,7 +70,7 @@ generator-internal helpers**:
   `SurfaceInjectionGenerator` (injects the markers as `internal`), `TemplateFactorySourceGenerator`
   + `FileLocalHelpers` (emits helpers as `file`-scoped copies), the equatable pipeline
   models (`TemplateInfo`, `TemplateGenerationResult`, `DiagnosticInfo`, `EquatableArray`),
-  and the hand-written `Diagnostics` descriptors (`SY0000`, `SY1001`–`SY1007`).
+  and the hand-written `Diagnostics` descriptors (`SY0000`, `SY1001`–`SY1009`).
 - **`src/Synto.Bootstrap`** → **not shipped**. The self-host generator that emits part of
   `src/Synto`'s quoter (`CSharpSyntaxQuoter.Generated.cs`).
 - **`src/Synto.Diagnostics`** → ships as the separate, **dev-only** package
