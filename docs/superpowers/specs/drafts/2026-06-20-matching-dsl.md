@@ -313,6 +313,8 @@ The lowering splits cleanly by difficulty. **v1 = the straight-line half (no bac
   wildcard forms.
 - **Non-linear** equality (one `IsEquivalentTo`).
 - **Anchors** `Block.Start()`/`Block.End()` + the `SY1008` validation.
+- **Diagnostics**: `SY1008` (anchor misuse) and the *provable-contradiction* subset of
+  `SY1009` (unsatisfiable pattern) the straight-line lowering can detect for free.
 - The generated nullable result record and the bespoke straight-line matcher.
 
 ## 9. Designed-for growth (deferred, but the surface must not preclude)
@@ -346,8 +348,25 @@ New `SY1xxx` usage diagnostics, in the hand-written `Diagnostics` family (or via
 
 - **`SY1008` — anchor not allowed.** `Block.Start()`/`Block.End()` used in a `None` pattern
   (already fully bounded). Located on the marker call.
+- **`SY1009` — pattern can never match (unsatisfiable).** Emitted *only* when the generator
+  can **prove** no syntax tree satisfies the pattern's combined constraints. The
+  conservatism rule is load-bearing: a false positive would reject a valid matcher, so we
+  stay silent on anything merely suspicious and flag only the provably-dead. Cheap, provable
+  triggers detected during lowering:
+  - **anchor contradiction** — content positioned before `Block.Start()` or after
+    `Block.End()` (e.g. `Statement.Some(); Block.Start();` — statements required before the
+    block begins);
+  - **narrowing incompatible with the slot** — `[Capture<TNode>]` where `TNode` can never
+    appear at that position (a statement-kind narrow in an expression slot; a kind the parent
+    never permits);
+  - **conflicting cardinality** — the same hole placed twice with incompatible quantifiers,
+    or `Exactly(0)` on an otherwise-required hole.
+
+  Full unsatisfiability is not decidable in general, so this is deliberately a *partial,
+  provable-only* check — it never claims a pattern is dead unless it is. (Analogous to the C#
+  compiler's "this pattern can never match" / unreachable-case diagnostics.)
 - Further arms as the implementation surfaces them (e.g. capture referenced but never placed;
-  conflicting quantifiers on one hole; `Bare` body empty).
+  `Bare` body empty).
 
 All generation failures are converted to a `DiagnosticInfo` (`SY0000` internal-error
 catch-all), never thrown.
