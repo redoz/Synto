@@ -210,8 +210,9 @@ Two carve-outs, both checked against the issue's labels at the time intake runs:
   runs and the epic is correctly skipped.
 - **Untrusted author** — if `trust.sh issue-author <n>` returns *untrusted* (the issue was opened by
   anyone other than the account running the flow / a `SYNTO_TRUSTED_LOGINS` account), **skip** — it never
-  enters the flow (§ Trust boundary). To work it anyway, comment on it yourself (your own go-ahead is
-  trusted) or re-file it; the body of an externally-authored issue must not reach an authoring agent un-vetted.
+  enters the flow (§ Trust boundary). To work it anyway, run **`/issue-triage <n> --force`** — the
+  deliberate, auditable override that accepts the body reaching authoring agents as untrusted data — or
+  comment on it yourself (your own go-ahead is trusted) / re-file it.
 
 ## § Comment templates
 
@@ -626,7 +627,8 @@ closed** (a `gh` error aborts non-zero, never read as trusted).
 
 - **Intake** (§ Intake) — `/issue-triage` stamps `status:inbox` only if `trust.sh issue-author <n>` is
   trusted; a stranger's issue stays **off-board** (never enters the flow, so its body never reaches an
-  authoring agent).
+  authoring agent). The sole override is `/issue-triage <n> --force` — the deliberate, auditable operator
+  act that accepts the residual surface (the body then reaches authoring agents as untrusted data).
 - **The unaddressed-comment guard** (§ The unaddressed-comment guard) and **reconcile** (§ Queues vs
   Doing) — "unaddressed human input" is **`trust.sh new-human <n>` non-empty**, not "any non-`##`
   comment". An untrusted comment is **inert**: it never trips the guard and is never classified.
