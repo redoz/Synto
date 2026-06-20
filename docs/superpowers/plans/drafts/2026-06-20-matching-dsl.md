@@ -17,9 +17,29 @@
 - **Pipeline values are equatable value types.** Never capture `Compilation`, `ISymbol`, `SemanticModel`, or `SyntaxNode` into pipeline state. Do all semantic work inside the FAWMN transform and flow out only an equatable `MatchGenerationResult` (`string? FileName`, `string? Source`, `EquatableArray<DiagnosticInfo>`).
 - **Failures become a `DiagnosticInfo` (SY-series), never a thrown exception.** Wrap generation in `try/catch` that converts any escaping exception to `Diagnostics.InternalError` (**SY0000**).
 - **Matching is a sibling folder/namespace** under the one umbrella generator (`src/Synto.SourceGenerator/Matching/`, namespace `Synto.Matching`). **No new package.** Consumer markers are injected `internal` under `namespace Synto.Matching`; any emitted helper is `file`-scoped. Generated output is **self-contained** (references only Roslyn — no Synto runtime dependency).
-- **Generic-attribute discovery (verified on the 5.0 floor):** key FAWMN on metadata name `` Synto.Matching.MatchAttribute`1 `` and read the matcher target type off `ctx.Attributes[0].AttributeClass!.TypeArguments[0]`. Do **not** use a `[Match(typeof(M))]` fallback.
+- **Generic-attribute discovery (spike-verified on the Roslyn 5.0 floor — evidence below):** key FAWMN on the arity-suffixed metadata name `` Synto.Matching.MatchAttribute`1 `` and read the matcher target type off `ctx.Attributes[0].AttributeClass!.TypeArguments[0]`. Do **not** add a `[Match(typeof(M))]` fallback — it is unnecessary (see evidence).
+
+  > **Spike evidence (the spec's one must-verify-before-freeze item, §10) — already done, recorded here.** A throwaway spike against **`Microsoft.CodeAnalysis.CSharp` 5.0.0** confirmed end-to-end:
+  > - `ForAttributeWithMetadataName("Synto.Matching.MatchAttribute`1", …)` **fires** on a `[Match<M>]`-annotated method. The **backtick-`1` arity suffix is REQUIRED** — the bare name `"Synto.Matching.MatchAttribute"` matches **nothing** (a generic attribute's metadata name carries its arity), so the metadata-name constant must keep the `` `1 `` suffix.
+  > - `ctx.Attributes[0].AttributeClass.TypeArguments[0]` resolves to a **real `NamedType`** — for `[Match<int>]` the `int` symbol with **`IsErrorType == false`** — so the matcher target is readable directly off the attribute; no `typeof` ctor-arg round-trip is needed.
+  > - **No generator diagnostics** were produced.
+  >
+  > Conclusion: the generic `[Match<M>]` form works on the 5.0 floor; the `[Match(typeof(M))]` fallback is **not** needed and is intentionally omitted. No spike *task* remains — the result is recorded here as the evidence the plan review (round 1) asked for, replacing the prior unsupported "verified" claim.
 - **Output shape is pinned by Verify snapshots.** Every new emission path gets a snapshot test; an unexplained snapshot change is a finding, not a rubber stamp.
-- **Diagnostics ID ranges:** Matching's new pattern-specific diagnostics live in the reserved **`SY12xx`** range (SY1201–SY1204 here). Do **not** reuse `SY1008`/`SY1009`. Each new descriptor is registered in `AnalyzerReleases.Unshipped.md`.
+- **Diagnostics ID ranges:** Matching's new pattern-specific diagnostics live in the reserved **`SY12xx`** range (SY1201–SY1204 here). Do **not** reuse `SY1008`/`SY1009`. Each descriptor is registered in `AnalyzerReleases.Unshipped.md` **in the same task that adds it** (Tasks 14–17), not deferred to a single end-of-plan task, so each intermediate green-gate stays RS2008-clean.
+
+---
+
+## Execution Model & Branch Isolation (read before running any task)
+
+**This feature does NOT land on `main`.** Issue #92 mandates the entire Matching feature land on the long-lived **`experimental/matching`** branch (the branch this plan, spec, and the unpushed stack already live on). The shipped `Synto` generator package's injected marker surface (the 7 new consumer-facing types — `MatchAttribute<TMatcher>`, `MatchOption`, `CaptureAttribute`, `CaptureAttribute<TNode>`, `Stmt`, `Statement`/`Expr`/`Block`) and the new `SY1201`–`SY1204` diagnostics are a **one-way door** the moment any consumer compiles against a published package (`consequences.md`, `project-phase.md` one-way-doors). They MUST NOT reach `main` until the feature is *deliberately* merged as a whole — an experimental branch exists precisely to hold that surface off the published contract while it is still free to change.
+
+**Branch contract (binds every task):**
+- **Base AND push target = `experimental/matching`.** Every task's commit is a *local* commit on `experimental/matching` (or a worktree branched from it), never on `main`. Read every bare `git commit -m "…"` in the tasks below as a **local commit on `experimental/matching`** — **no task pushes**.
+- **The per-green ff-push-to-main is suppressed.** github.md's standard `ready→implement` flow rebases each green commit onto `origin/main` and fast-forward-pushes `HEAD` straight to `main`. That path is **disabled** for this plan — it would land 18 partial, mid-development commits *and* the one-way-door surface on `main`. This project does **not** practice full CI yet, so there is no green-gate-to-main to honor; do **not** route this plan through the standard main-pushing flow.
+- **How to execute:** **`superpowers:subagent-driven-development` in a throwaway worktree branched from `experimental/matching`** — a fresh subagent per task, commits land on the worktree's branch, never `main`.
+  - **Do NOT use `implement-plan` (incl. `{mode:"dry-run"}`).** It hardcodes its worktree base to `origin/main` (`.claude/workflows/implement-plan.js`: `git worktree add … -b plan/<slug> origin/main`). `origin/main` is *before* this feature's 15-commit stack (markers, packaging redesign, .NET 10 baseline), so that worktree cannot compile the Matching code. `dry-run` only relaxes the *push*, not the *base* — it does not help here. The base **must** be `experimental/matching`.
+- **Final integration is a single deliberate batched push to `experimental/matching`** (`git push origin HEAD:experimental/matching`) **after the whole plan is green** — not per-commit. Merging `experimental/matching → main` is a separate, later, human decision **outside this plan**.
 
 ---
 
@@ -42,15 +62,15 @@
 
 **Modified:**
 - `src/Synto.SourceGenerator/Synto.SourceGenerator.csproj` — add `Synto.Runtime.*` `<EmbeddedResource>` items for the new markers.
-- `src/Synto.SourceGenerator/Diagnostics.cs` — add `Location`-based overloads of `TargetNotPartial`/`TargetNotDeclaredInSource` (reused for matcher-target validation; DRY — same message, no new IDs).
-- `src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md` — register SY1201–SY1204.
+- `src/Synto.SourceGenerator/Diagnostics.cs` — add `LocationInfo`-based overloads of **all four** target-validation factories — `TargetNotDeclaredInSource` (SY1003), `TargetNotClass` (SY1002), `TargetNotPartial` (SY1001), `TargetAncestorNotPartial` (SY1004) — reused for matcher-target validation so Matching mirrors Templating's full four-arm check; DRY — same descriptors/messages, **no new IDs**. (Templating's existing overloads take a `TargetType`, which encodes a `GetReferenceLocation()`; Matching has only the attribute `Location`, hence the `LocationInfo`-based twins.)
+- `src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md` — register each of SY1201/SY1202/SY1203/SY1204 **in the task that adds its descriptor** (SY1201→Task 14, SY1203→Task 15, SY1204→Task 16, SY1202→Task 17), so no intermediate green-gate emits an unregistered descriptor (RS2008). Task 18 only *verifies* all four are present.
 
 **New tests (`test/Synto.Test/Match/`, the existing folder placeholder):**
-- `MatchTestHarness.cs` — shared in-memory compilation + driver helpers (mirrors `SimpleTemplateTest`).
+- `MatchTestHarness.cs` — shared in-memory compilation + driver helpers (mirrors `SimpleTemplateTest`). **Every test file carries `using Synto.Matching;` and `using System.Linq;`** (the `[Match<…>]`/`MatchOption`/`Capture` forms and the LINQ over `Diagnostics` won't compile otherwise — round-1 low). `Run(...)` **asserts the consumer source compiles before generation** (`compilation.GetDiagnostics()` has no errors), mirroring `SimpleTemplateTest.VerifyTemplate`, so a snippet that doesn't bind fails loudly as a bad fixture rather than silently producing no matcher.
 - `MatchSnapshotTests.cs` — golden `*.verified.cs` per output shape (Verify).
-- `MatchRoundTripTests.cs` — in-process behavioral round-trips (mirrors `RoundTripTests`; the generator already runs as an analyzer on `Synto.Test`).
-- `MatchDiagnosticsTests.cs` — one driver test per SY12xx arm + target validation + SY0000 + cacheability.
-- `MatchSurfaceTests.cs` — the injected `Synto.Matching` surface is referenceable/binds (the surface snapshot itself is covered by the existing `SurfaceInjectionTest`).
+- `MatchRoundTripTests.cs` — in-process behavioral round-trips (mirrors `RoundTripTests`; the generator already runs as an analyzer on `Synto.Test`). **Round-trip patterns are authored as per-`[Fact]` local functions** (Templating's `RoundTripTests` isolation model), not class-scope methods, so one non-compiling pattern can't gate the whole partial-class test assembly (round-1 low/question). The generator discovers `[Match<M>]` on a local function exactly as it does on a method — `MatchInfo.Create` and the emitter's body extractors already handle `LocalFunctionStatementSyntax` — so the matcher still lands in `partial class M` and the `[Fact]` calls `M.<Pattern>(…)`. (`M` stays a single `private static partial class M { }` shared by the file; only the pattern methods move into their `[Fact]`s.)
+- `MatchDiagnosticsTests.cs` — one driver test per SY12xx arm + the full four-arm target validation (SY1001/SY1002/SY1003/SY1004) + a positive `[Match<M>]` type-arg readback + SY0000 + single-pattern and **cross-pattern** cacheability.
+- `MatchSurfaceTests.cs` — validates the **public `Synto.Core` marker shape** binds (it references `SyntoCoreAssembly` and runs **no** generator, so it exercises the public Core copy, *not* the injected-internal surface). The real injected-`internal` gate is the existing **`SurfaceInjectionTest`** golden (each Task 1–3 Step 5) plus the round-trips; this file's comment says so explicitly (round-1 testability medium — the prior comment over-claimed).
 
 ---
 
@@ -64,14 +84,52 @@
 
 Everything else is **literal** shape, matched exactly. Detection is by symbol, never by type/shape, so literal `foreach`/`default`/`StatementSyntax` locals in matched code never collide.
 
+**Marker resolution (symbol identity, not string-matching — mirrors the existing finders).** `MatchMarkers.Create` resolves each marker type **once** into an `INamedTypeSymbol` via `Compilation.GetTypeByMetadataName(typeof(global::Synto.Matching.X).FullName!)` and classifies holes by **`SymbolEqualityComparer.Default.Equals(...)`**, never by `ToDisplayString()` string equality. This is exactly how `SyntaxParameterFinder.cs` (`GetTypeByMetadataName(typeof(Synto.Templating.Syntax).FullName!)`, and for the generic `Syntax<>` the unbound `ConstructUnboundGenericType()` compared via `SymbolEqualityComparer.Default` at `:79`) and `InlinedParameterFinder.cs` already resolve their markers — Matching does **not** introduce a parallel format-dependent path. The unbound generic `CaptureAttribute<>` is resolved with `…GetTypeByMetadataName(typeof(CaptureAttribute<>).FullName!).ConstructUnboundGenericType()` and an attribute's `AttributeClass.ConstructUnboundGenericType()` is compared against it. (The generator project already references `Synto.Core`/`src/Synto`, so `typeof(global::Synto.Matching.*)` binds — same as Templating's `typeof(InlineAttribute)`.)
+
 **Generic structural walk (`MatchEmitter.EmitNodeMatch`).** Two trees are structurally equal (trivia-insensitive, the same notion as `SyntaxNode.IsEquivalentTo(other, topLevel:false)`) iff they have the same `RawKind`, the same number of `ChildNodesAndTokens()`, equal token texts, and structurally-equal child nodes. The emitter unrolls this comparison at generation time over the *known* pattern tree, emitting `if (...) return null;` guards against a runtime candidate, and at a hole position it **captures** instead of comparing. Because `ChildSyntaxList` (returned by `ChildNodesAndTokens()`) has an `int` indexer returning `SyntaxNodeOrToken`, child navigation is generic — **no per-`SyntaxKind` switch is needed**.
+
+> **Kind guard is load-bearing — assert `RawKind`, not just the .NET type (plan-review medium).** At each node position the emitter must guard BOTH the .NET type (`is not {TypeName} {tmp}` — needed to bind `{tmp}` for child navigation) **and** the `RawKind` (`{tmp}.IsKind(SyntaxKind.{pattern.Kind()})`). Checking only the .NET type name over-accepts kinds that share a type but differ in kind — e.g. `ArrayInitializerExpression` vs `CollectionInitializerExpression` (both `InitializerExpressionSyntax`, both tokenizing as `{ 1 , 2 }`), or the several `BinaryExpressionSyntax` kinds (`AddExpression`/`SubtractExpression`/…) — which would silently mis-match. (The binary-operator *token* text is also compared, but the kind guard is the correct, direct check and closes the design-vs-impl gap the structural-equality note promises.)
+>
+> **`IsKind` availability on the 5.0 floor (author question).** `CSharpExtensions.IsKind` is defined for **both** `SyntaxNode?` and `SyntaxNodeOrToken` in `Microsoft.CodeAnalysis.CSharp` (present since Roslyn 1.0, so available on the 5.0 floor and imported into generated output). So both `{tmp}.IsKind(SyntaxKind.X)` (node position) and `{list}[{i}].IsKind(SyntaxKind.X)` (the token branch, where `{list}[{i}]` is a `SyntaxNodeOrToken`) bind without an `.AsToken()`/`.Kind()` workaround.
+>
+> **Generated indexing is deliberately readable, not micro-optimized (round-1 low, decided).** The emitted matcher indexes `ChildNodesAndTokens()` / `Statements[..]` directly and uses `Skip/Take` for slices. This is **Shinn-style straight-line, "reads like hand-written" code — the spec's explicit emission goal (§5)** — and it runs at the **consumer's runtime** (when they call `M.Foo(node)`), **not** in the generator/incremental hot path, so it is outside Synto's caching-performance concern. Binding each child once or pre-sizing slices would churn **every** snapshot golden for negligible benefit, so it is **deliberately deferred** (the shape is snapshot-frozen); revisit only if a consumer profiles a real matcher hot loop.
+
+**Accessor type contract (the walk's one invariant — plan-review high).** Every `accessor` string threaded through `EmitNodeMatch`/`EmitCapture`/`EmitStatementCapture` is a C# expression whose **static type is one of exactly two**: `SyntaxNode` (the `node` parameter, and every node-child boundary, projected via `…ChildNodesAndTokens()[i].AsNode()`) or `StatementSyntax` (the `_blk.Statements[i]` indexer in the statement/Bare/None paths). It is **never** a raw `SyntaxNodeOrToken` (tokens are consumed inline by the token branch) and **never** double-projected. The rules that keep this true:
+- **Node-child recursion passes the `.AsNode()` accessor unchanged** — `EmitNodeMatch(body, $"{listVar}[{i}].AsNode()", child.AsNode()!, ctx)`. A hole branch reached through that recursion **must not append a second `.AsNode()`** (the round-1 high: `accessor + ".AsNode()"` → `…AsNode().AsNode()`, CS1061).
+- **Holes type-narrow *at* the hole**, regardless of the accessor's static type: a capture/statement-capture emits `if ({accessor} is not {MemberType} {local}) return null;` (mirroring `EmitCapture`). The `is`-pattern both rejects a non-matching node **and** binds a `{MemberType}`-typed local, so a captured statement binds to a `StatementSyntax` record member with **no CS0266** even when `{accessor}` is statically `SyntaxNode`. This makes `EmitStatementCapture` correct at **both** its call sites — the `StatementSyntax`-typed `_blk.Statements[i]` indexer (the `is not StatementSyntax` is a redundant-but-harmless true-narrow) **and** the `SyntaxNode`-typed `…AsNode()` embedded-statement child (where it is the load-bearing narrow). Never bind with a bare `var {local} = {accessor};` into a typed member.
+
+**Emitter-core design — `EmitAnchoredRun` + `MatchContext` (pinned up front; filled in by Tasks 11–17, never re-plumbed).** Statement-`Single`, `Bare`, and `None` all lower to **one** shared run-alignment core so later tasks add *behavior*, not *contract*. `MatchContext` is introduced in its **final shape at Task 5** (incl. `Diagnostics`/`Aborted`, unused until the diagnostic tasks); the `EmitAnchoredRun` **signature is pinned at Task 11** and only its body grows (12 adds the variable split, 13 the `anchorStart`/`anchorEnd` exact-bound, 14 threads real anchors, 16/17 use `ctx.Diagnostics`/`ctx.Aborted`). Neither gains fields after it is introduced:
+
+```csharp
+// the single alignment core — final signature pinned at Task 11:
+private static void EmitAnchoredRun(
+    List<StatementSyntax> body,
+    IReadOnlyList<StatementSyntax> statements,   // RAW pattern statements (kept for diagnostic Locations)
+    List<RunElement> run,                         // anchors already extracted
+    MatchContext ctx,
+    bool anchorStart, bool anchorEnd);
+
+// MatchContext — final shape pinned at Task 5 (see Task 5's MatchEmitter listing):
+//   required MatchInfo Info; required MatchMarkers Markers;
+//   List<Capture> Captures; HashSet<string> BoundCaptureLocals;
+//   List<DiagnosticInfo> Diagnostics; bool Aborted; string NextTmp();
+```
+
+`Emit` wires `ctx.Diagnostics` into the outer `diagnostics` list and, after each option branch, does `if (ctx.Aborted) return null;` (diagnostics-only emit, like Templating's converter-error bail). Tasks 12–17 **fill in** these fields; they do **not** change the signature or add fields. Statement-`Single` (Task 10) and the fixed/variable Bare paths (Tasks 11/12) all route through `EmitAnchoredRun` (Task 10's single-statement case is a one-element run with `anchorStart:false, anchorEnd:false`).
 
 **Generated shape (frozen, snapshot-pinned).**
 - File name: `{TargetFullName}.{PatternName}.g.cs` (mirrors Templating).
 - A top-level `public sealed record {PatternName}Match(...members...)` in the target's namespace; members are the `[Capture]` params **in signature order**, typed per their placement.
 - A `partial class {TargetName} { public static {PatternName}Match? {PatternName}(SyntaxNode node) { ...guards...; return new {PatternName}Match(...); } }`, wrapped in the target's ancestry via `WithAncestryFrom`.
-- Usings: `Microsoft.CodeAnalysis`, `Microsoft.CodeAnalysis.CSharp`, `Microsoft.CodeAnalysis.CSharp.Syntax`; emitted under `#nullable enable`; normalized with `NormalizeWhitespace()` then `SyntaxFormatter.Format(...)`.
+- Usings: `Microsoft.CodeAnalysis`, `Microsoft.CodeAnalysis.CSharp`, `Microsoft.CodeAnalysis.CSharp.Syntax` (plus `System.Linq` once Task 11 emits `Skip`/`Take` slices); emitted under `#nullable enable`; normalized with `NormalizeWhitespace()` then `SyntaxFormatter.Format(...)`.
 - Capture local naming: `cap_{paramName}`; record member naming: `{ParamName}` with the first letter upper-cased.
+
+> **One-way-door surface decisions (confirmed frozen — plan-review question).** These are deliberately permanent and snapshot-pinned, chosen for reuse by the deferred `foreach` repetition (§3.7) without a reshape:
+> - **Captured statement-run member type is `SyntaxList<StatementSyntax>`** (and `StatementSyntax?` for `Opt`, `StatementSyntax` for `One`) — the spec's §3.4 table, anchored across the quantifiers and the deferred `foreach` (spec §10). Not `IReadOnlyList<T>`.
+> - **Result type is a `public sealed record {PatternName}Match(...)`** — a sibling top-level record *class* in the target's namespace.
+> - **Pattern-name uniqueness per target is a real constraint.** The matcher method `{PatternName}(SyntaxNode)` and the record `{PatternName}Match` are keyed on the pattern method's **name**; two `[Match<M>]` patterns with the **same method name** targeting the **same** class collide (CS0111 on the matcher method, duplicate record) — the same shape as two same-named partial methods. v1 treats this as expected author error (the host C# compiler reports the collision on the generated members); a dedicated `SY12xx` "duplicate pattern name" diagnostic is a **deferred** nicety, not a v1 gate. Distinct targets, or distinct pattern names, never collide.
+>
+> **Namespace placement of generator-internal Matching types (plan-review question / low).** `MatchEmitter`/`MatchMarkers`/`MatchInfo`/`MatchGenerationResult`/`MatchFactorySourceGenerator`/`MatchDiagnostics`/`MatchTrackingNames` live in **`namespace Synto.Matching`** (feature-scoped), a deliberate, low-risk divergence from Templating's flat `namespace Synto` for its internals. Rationale: architecture.md names the feature namespaces `Synto.Templating.*` / `Synto.Matching.*`, and these are generator-assembly-internal types that never reach consumer output, so they cannot collide with the *consumer* `Synto.Matching` markers (which live in the referenced `Synto.Core` assembly, a different assembly). This keeps the whole feature in one navigable namespace. (`Diagnostics.cs` stays in `namespace Synto` — it is shared with Templating and reused via the new overloads.)
 
 ---
 
@@ -91,6 +149,7 @@ Everything else is **literal** shape, matched exactly. Detection is by symbol, n
 `test/Synto.Test/Match/MatchSurfaceTests.cs`:
 
 ```csharp
+using System.Linq;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -103,9 +162,10 @@ public class MatchSurfaceTests
     private static readonly MetadataReference NetStandard = MetadataReference.CreateFromFile(Assembly.Load("netstandard, Version=2.0.0.0").Location);
     private static readonly MetadataReference SystemRuntime = MetadataReference.CreateFromFile(Assembly.Load("System.Runtime, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location);
 
-    // The injected INTERNAL Synto.Matching surface (from SurfaceInjectionGenerator, running as an analyzer
-    // on Synto.Test) must bind: this source uses [Match<M>(MatchOption.Bare)] against it and must compile
-    // with zero diagnostics inside this test assembly.
+    // Validates the PUBLIC Synto.Core marker shape: this compilation references SyntoCoreAssembly (the public
+    // Core markers) and runs NO generator, so it binds the public Core copy — it does NOT exercise the
+    // injected-INTERNAL surface. The injected-internal gate is the SurfaceInjectionTest golden (Task 1–3
+    // Step 5) plus the round-trips; this test only proves the consumer-facing forms are shaped to compile.
     [Fact]
     public void InjectedMatchAttributeAndOptionBind()
     {
@@ -483,16 +543,18 @@ git commit -m "feat(matching): inject Stmt/Statement/Expr/Block quantifier + anc
   - `MatchGenerationResult(string? FileName, string? Source, EquatableArray<DiagnosticInfo> Diagnostics)`.
   - `MatchInfo` with `SemanticModel SemanticModel`, `AttributeSyntax AttributeSyntax`, `INamedTypeSymbol Target`, `IMethodSymbol PatternSymbol`, `SyntaxNode PatternSyntax`, `string PatternName`, `MatchOption Option`, and a static `MatchInfo? Create(GeneratorAttributeSyntaxContext)`.
   - `MatchFactorySourceGenerator : IIncrementalGenerator`.
-  - `Diagnostics.TargetNotPartial(Location?, string fullName)` and `Diagnostics.TargetNotDeclaredInSource(Location?, string fullName, string? projectName)` overloads (reusing descriptors SY1001/SY1003).
+  - `LocationInfo`-based overloads of all four target-validation factories: `Diagnostics.TargetNotDeclaredInSource` (SY1003), `Diagnostics.TargetNotClass` (SY1002), `Diagnostics.TargetNotPartial` (SY1001), `Diagnostics.TargetAncestorNotPartial` (SY1004) — reusing the existing descriptors, so `ValidateTarget` mirrors Templating's full four-arm check.
 
 - [ ] **Step 1: Write the failing tests**
 
 `test/Synto.Test/Match/MatchTestHarness.cs`:
 
 ```csharp
+using System.Linq;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Synto.Matching;   // MatchFactorySourceGenerator lives in namespace Synto.Matching
 
 namespace Synto.Test.Match;
 
@@ -521,6 +583,15 @@ internal static class MatchTestHarness
     public static GeneratorDriver Run(string source)
     {
         var compilation = CreateCompilation(source);
+
+        // Assert the CONSUMER source compiles before generation (mirrors SimpleTemplateTest.VerifyTemplate):
+        // a fixture that doesn't bind is a bad test, not a generator result — fail it loudly here rather than
+        // silently produce no matcher. (Excludes generated-code errors — only the input tree is checked.)
+        var consumerErrors = compilation.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToArray();
+        Assert.Empty(consumerErrors);
+
         var driver = CSharpGeneratorDriver.Create(new MatchFactorySourceGenerator());
         return driver.RunGenerators(compilation);
     }
@@ -530,11 +601,15 @@ internal static class MatchTestHarness
 }
 ```
 
+> The consumer-compile assert applies to the **diagnostic/snapshot** harness only. The negative target-validation tests (struct / non-partial / non-source target) deliberately feed source that *does* compile as plain C# (a non-partial class, a struct, a nested matcher) — the matcher misuse is semantic, caught by `ValidateTarget`, not by the C# compiler — so the assert holds for them too.
+
 `test/Synto.Test/Match/MatchDiagnosticsTests.cs`:
 
 ```csharp
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Synto.Matching;   // MatchFactorySourceGenerator / MatchTrackingNames live in namespace Synto.Matching
 
 namespace Synto.Test.Match;
 
@@ -546,7 +621,7 @@ public class MatchDiagnosticsTests
         var diagnostics = MatchTestHarness.Diagnostics(
             """
             using Synto.Matching;
-            class M { }            // not partial
+            class M { }            // a class, in source, but not partial -> SY1001
             static class Patterns {
                 [Match<M>(MatchOption.Single)]
                 static object P([Capture] int a) => a;
@@ -556,6 +631,67 @@ public class MatchDiagnosticsTests
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1001");
         Assert.NotEqual(Location.None, diag.Location);
         Assert.False(diag.Location.SourceSpan.IsEmpty);
+    }
+
+    [Theory]                                    // arm 2: struct/record-struct/interface target -> SY1002 (NOT SY1003)
+    [InlineData("struct")]
+    [InlineData("record struct")]
+    [InlineData("interface")]
+    public void TargetNotClass_ReportsSY1002(string kind)
+    {
+        var diagnostics = MatchTestHarness.Diagnostics(
+            $$"""
+            using Synto.Matching;
+            partial {{kind}} M { }
+            static class Patterns {
+                [Match<M>(MatchOption.Single)]
+                static object P([Capture] int a) => a;
+            }
+            """);
+
+        // The target IS declared in source, so SY1003 would be wrong; it must be SY1002 (not a class).
+        Assert.Single(diagnostics, d => d.Id == "SY1002");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SY1003");
+    }
+
+    [Fact]                                      // arm 4: matcher nested under a NON-partial ancestor -> SY1004
+    public void TargetAncestorNotPartial_ReportsSY1004()
+    {
+        var diagnostics = MatchTestHarness.Diagnostics(
+            """
+            using Synto.Matching;
+            class Outer {                 // ancestor not partial
+                public partial class M { }
+            }
+            static class Patterns {
+                [Match<Outer.M>(MatchOption.Single)]
+                static object P([Capture] int a) => a;
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1004");
+        Assert.NotEqual(Location.None, diag.Location);
+        Assert.False(diag.Location.SourceSpan.IsEmpty);
+    }
+
+    [Fact]   // positive end-to-end: a well-formed [Match<M>] reads the type arg and emits an M.<Pattern> matcher
+    public void WellFormedMatch_ReadsTypeArg_AndEmitsMatcher()
+    {
+        var result = MatchTestHarness.Run(
+            """
+            using Synto.Matching;
+            partial class M { }
+            static class Patterns {
+                [Match<M>(MatchOption.Single)]
+                static object One() => 1;
+            }
+            """).GetRunResult();
+
+        Assert.Empty(result.Diagnostics);                                  // no validation/internal error
+        var generated = Assert.Single(result.GeneratedTrees);              // exactly one matcher file
+        var text = generated.GetText().ToString();
+        Assert.Contains("partial class M", text);                          // emitted into the type-arg target M
+        Assert.Contains("One(SyntaxNode node)", text);                     // the matcher method named for the pattern
     }
 
     [Fact]
@@ -591,10 +727,44 @@ public class MatchDiagnosticsTests
                 $"step '{trackingName}' had reason {o.Reason}"));
         }
     }
+
+    [Fact]   // cross-pattern: editing one [Match] pattern must leave the OTHER's Transform/Result Cached
+    public void Generator_IsIncremental_AcrossPatterns_OnEditingOne()
+    {
+        const string source =
+            """
+            using Synto.Matching;
+            partial class M { }
+            static class Patterns {
+                [Match<M>(MatchOption.Single)] static object A([Capture] int a) => a;
+                [Match<M>(MatchOption.Single)] static object B([Capture] int b) => b;
+            }
+            """;
+
+        var compilation = MatchTestHarness.CreateCompilation(source);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new MatchFactorySourceGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+        driver = driver.RunGenerators(compilation);
+
+        // Edit ONLY pattern B's body (a -> a, b -> b + 1); A's transform/result must stay cached.
+        var edited = compilation.ReplaceSyntaxTree(
+            compilation.SyntaxTrees.Single(),
+            CSharpSyntaxTree.ParseText(source.Replace("=> b;", "=> b + 1;"), path: "Pattern.cs"));
+        driver = driver.RunGenerators(edited);
+
+        var result = driver.GetRunResult().Results.Single();
+        // At least one Transform/Result output stays Cached/Unchanged (pattern A's), proving per-pattern caching.
+        foreach (var trackingName in new[] { MatchTrackingNames.Transform, MatchTrackingNames.Result })
+        {
+            var outputs = result.TrackedSteps[trackingName].SelectMany(s => s.Outputs).ToArray();
+            Assert.Contains(outputs, o => o.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged);
+        }
+    }
 }
 ```
 
-> The cacheability test will only go green once Task 5 emits a non-null result; until then the `Result` step has no outputs and `Assert.All` over an empty set passes, while `Transform` is present. It is written now to lock the tracking-name contract and re-run green throughout.
+> Both cacheability tests lock the tracking-name contract and re-run green throughout. On the unrelated-edit test the `Result` step **does** have an output even before Task 5 emits source — a `MatchGenerationResult` whose `Source` is `null` — and that equatable value is reported **`Cached`** on an unrelated edit (it is *not* an empty set; the earlier note's "empty set" reasoning was wrong). Once Task 5 emits non-null source the same step stays `Cached`. The cross-pattern test (`…AcrossPatterns…`) additionally proves that editing one pattern leaves the other's per-pattern Transform/Result outputs cached — Matching ships multiple patterns per class far more naturally than Templating, so this is the realistic regression to guard.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -703,6 +873,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;          // SyntaxKind + SyntaxTokenList.Any(SyntaxKind)
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
@@ -763,24 +934,52 @@ public sealed class MatchFactorySourceGenerator : IIncrementalGenerator
         return new MatchGenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
+    // Mirrors Templating's four-arm ValidateTemplate EXACTLY (NotDeclaredInSource -> NotClass -> NotPartial ->
+    // AncestorNotPartial), reusing the SAME descriptors via the new LocationInfo overloads. Each reachable
+    // misuse maps to its precise SY1xxx; nothing falls through to a malformed `partial class` that cascades
+    // into CS0260/CS0101 (correctness.md's bar). Splitting "in source" from "is a class" is load-bearing: a
+    // struct/interface IS in source, so it must be SY1002, never SY1003.
     private static bool ValidateTarget(List<DiagnosticInfo> diagnostics, string? assemblyName, MatchInfo info)
     {
-        var location = info.AttributeSyntax.GetLocation();
+        var location = LocationInfo.CreateFrom(info.AttributeSyntax.GetLocation());
         var fullName = info.Target.ToDisplayString();
 
-        if (info.Target.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is not ClassDeclarationSyntax classSyntax)
+        // Arm 1 — must be declared in source (not a metadata/referenced-assembly type).
+        if (info.Target.DeclaringSyntaxReferences.FirstOrDefault() is not { } syntaxRef)
         {
-            diagnostics.Add(Diagnostics.TargetNotDeclaredInSource(LocationInfo.CreateFrom(location), fullName, assemblyName));
+            diagnostics.Add(Diagnostics.TargetNotDeclaredInSource(location, fullName, assemblyName));
             return false;
         }
 
-        if (!classSyntax.Modifiers.Any(m => m.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword)))
+        // Arm 2 — must be a (non-record) class. A record CLASS parses as RecordDeclarationSyntax, not
+        // ClassDeclarationSyntax; Templating accepts only ClassDeclarationSyntax, so mirror that contract
+        // exactly (a `record class` target is SY1002, same as a struct/interface) — do not widen it here.
+        if (syntaxRef.GetSyntax() is not ClassDeclarationSyntax classSyntax)
         {
-            diagnostics.Add(Diagnostics.TargetNotPartial(LocationInfo.CreateFrom(location), fullName));
+            diagnostics.Add(Diagnostics.TargetNotClass(location, fullName));
             return false;
         }
 
-        return true;
+        // Arm 3 — the target class itself must be partial.
+        if (!classSyntax.Modifiers.Any(SyntaxKind.PartialKeyword))
+        {
+            diagnostics.Add(Diagnostics.TargetNotPartial(location, fullName));
+            return false;
+        }
+
+        // Arm 4 — every ancestor class must be partial, else the emitted `partial class Outer { … }` collides
+        // with the user's non-partial outer (CS0260/CS0101). Report each non-partial ancestor; fail if any.
+        bool ancestryPartial = true;
+        for (var parent = classSyntax.Parent; parent is ClassDeclarationSyntax parentClass; parent = parentClass.Parent)
+        {
+            if (!parentClass.Modifiers.Any(SyntaxKind.PartialKeyword))
+            {
+                diagnostics.Add(Diagnostics.TargetAncestorNotPartial(location, fullName, parentClass.Identifier.Text));
+                ancestryPartial = false;
+            }
+        }
+
+        return ancestryPartial;
     }
 
     private static void Emit(SourceProductionContext context, MatchGenerationResult result)
@@ -816,9 +1015,23 @@ internal static partial class MatchEmitter
 }
 ```
 
-Add to `src/Synto.SourceGenerator/Diagnostics.cs` (new overloads beside the existing `TargetNotPartial`/`TargetNotDeclaredInSource`; they reuse the SAME private descriptors `_targetNotPartial` / `_targetNotDeclaredInSource`, decoupled from `TargetType`/`typeof`):
+Add to `src/Synto.SourceGenerator/Diagnostics.cs` **`LocationInfo`-based overloads of all four** target-validation factories beside the existing `TargetType`-based ones; they reuse the SAME private descriptors (`_targetNotDeclaredInSource` SY1003, `_targetNotClass` SY1002, `_targetNotPartial` SY1001, `_targetAncestorNotPartial` SY1004), decoupled from `TargetType`/`typeof`:
 
 ```csharp
+    public static DiagnosticInfo TargetNotDeclaredInSource(LocationInfo? location, string fullName, string? projectName)
+    {
+        return new DiagnosticInfo(_targetNotDeclaredInSource,
+            location,
+            new EquatableArray<string>(ImmutableArray.Create(fullName, projectName ?? "<unknown>")));
+    }
+
+    public static DiagnosticInfo TargetNotClass(LocationInfo? location, string fullName)
+    {
+        return new DiagnosticInfo(_targetNotClass,
+            location,
+            new EquatableArray<string>(ImmutableArray.Create(fullName)));
+    }
+
     public static DiagnosticInfo TargetNotPartial(LocationInfo? location, string fullName)
     {
         return new DiagnosticInfo(_targetNotPartial,
@@ -826,25 +1039,25 @@ Add to `src/Synto.SourceGenerator/Diagnostics.cs` (new overloads beside the exis
             new EquatableArray<string>(ImmutableArray.Create(fullName)));
     }
 
-    public static DiagnosticInfo TargetNotDeclaredInSource(LocationInfo? location, string fullName, string? projectName)
+    public static DiagnosticInfo TargetAncestorNotPartial(LocationInfo? location, string fullName, string ancestorName)
     {
-        return new DiagnosticInfo(_targetNotDeclaredInSource,
+        return new DiagnosticInfo(_targetAncestorNotPartial,
             location,
-            new EquatableArray<string>(ImmutableArray.Create(fullName, projectName ?? "<unknown>")));
+            new EquatableArray<string>(ImmutableArray.Create(fullName, ancestorName)));
     }
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchDiagnosticsTests"`
-Expected: PASS (`TargetNotPartial_ReportsSY1001` and `Generator_IsIncremental_OnUnrelatedEdit`).
+Expected: PASS — `TargetNotPartial_ReportsSY1001`, `TargetNotClass_ReportsSY1002` (×3), `TargetAncestorNotPartial_ReportsSY1004`, `WellFormedMatch_ReadsTypeArg_AndEmitsMatcher`, `Generator_IsIncremental_OnUnrelatedEdit`, `Generator_IsIncremental_AcrossPatterns_OnEditingOne`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit** (local commit on `experimental/matching` — no push)
 
 ```bash
 git add src/Synto.SourceGenerator/Matching/ src/Synto.SourceGenerator/Diagnostics.cs \
         test/Synto.Test/Match/MatchTestHarness.cs test/Synto.Test/Match/MatchDiagnosticsTests.cs
-git commit -m "feat(matching): pipeline scaffold + matcher-target validation (SY1001/SY1003)"
+git commit -m "feat(matching): pipeline scaffold + four-arm matcher-target validation (SY1001-SY1004)"
 ```
 
 ---
@@ -872,6 +1085,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Synto.Matching;
 
 #pragma warning disable CS8321 // local pattern functions are consumed by the generator, not called here
+#pragma warning disable CS0162 // a trailing Block.End() anchor sits after a phantom `return` -> unreachable (Task 14)
 
 namespace Synto.Test.Match;
 
@@ -884,18 +1098,24 @@ public partial class MatchRoundTripTests
 {
     private static partial class M { }
 
-    [Match<M>(MatchOption.Single)]
-    private static object LiteralOne() => 1;
-
     [Fact]
     public void LiteralOne_MatchesOne_RejectsTwo()
     {
+        // Pattern authored as a per-[Fact] LOCAL FUNCTION (Templating's RoundTripTests isolation): the
+        // generator discovers [Match<M>] on the local function and emits M.LiteralOne; one non-compiling
+        // pattern fails only its own [Fact], not the whole partial-class test assembly. (M is the shared
+        // private static partial class above; only the pattern moves into the [Fact].)
+        [Match<M>(MatchOption.Single)]
+        static object LiteralOne() => 1;
+
         Assert.NotNull(M.LiteralOne(SyntaxFactory.ParseExpression("1")));
         Assert.Null(M.LiteralOne(SyntaxFactory.ParseExpression("2")));
         Assert.Null(M.LiteralOne(SyntaxFactory.ParseExpression("1 + 1")));
     }
 }
 ```
+
+> **Round-trip authoring convention (applies to every later round-trip Step).** For brevity the subsequent tasks show each pattern as a class-scope `private static` method; **author each as a local function inside its own `[Fact]`** as shown here (the `[Match<M>]`, `[Capture]`, quantifier forms are identical — only the placement moves). This is Templating's isolation model and keeps one bad fixture from gating the suite. The shared `private static partial class M { }` stays at class scope.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -920,13 +1140,16 @@ namespace Synto.Matching;
 /// </summary>
 internal sealed class MatchMarkers
 {
-    private const string CaptureAttr = "Synto.Matching.CaptureAttribute";
-    private const string CaptureAttrGeneric = "Synto.Matching.CaptureAttribute`1";
-
-    private MatchMarkers(IReadOnlyList<IParameterSymbol> captures, IReadOnlyDictionary<IParameterSymbol, ITypeSymbol?> narrows)
+    private MatchMarkers(
+        IReadOnlyList<IParameterSymbol> captures,
+        IReadOnlyDictionary<IParameterSymbol, ITypeSymbol?> narrows,
+        INamedTypeSymbol? exprMarker, INamedTypeSymbol? statementMarker, INamedTypeSymbol? blockMarker)
     {
         Captures = captures;
         Narrows = narrows;
+        ExprMarker = exprMarker;
+        StatementMarker = statementMarker;
+        BlockMarker = blockMarker;
     }
 
     /// <summary>The pattern method's <c>[Capture]</c>/<c>[Capture&lt;T&gt;]</c> parameters, in signature order.</summary>
@@ -935,8 +1158,31 @@ internal sealed class MatchMarkers
     /// <summary>For a <c>[Capture&lt;TNode&gt;]</c> param, the narrow type; null for plain <c>[Capture]</c>.</summary>
     public IReadOnlyDictionary<IParameterSymbol, ITypeSymbol?> Narrows { get; }
 
+    /// <summary>Resolved <c>Synto.Matching.Expr</c> wildcard holder (used by <c>IsExpressionWildcard</c>, Task 8).</summary>
+    public INamedTypeSymbol? ExprMarker { get; }
+
+    /// <summary>Resolved <c>Synto.Matching.Statement</c> wildcard holder (used by <c>TryGetStatementHole</c>, Task 11).</summary>
+    public INamedTypeSymbol? StatementMarker { get; }
+
+    /// <summary>Resolved <c>Synto.Matching.Block</c> anchor holder (used by <c>TryGetAnchor</c>, Task 14).</summary>
+    public INamedTypeSymbol? BlockMarker { get; }
+
     public static MatchMarkers Create(MatchInfo info)
     {
+        var compilation = info.SemanticModel.Compilation;
+
+        // Resolve every marker ONCE by metadata name and compare by symbol identity (SymbolEqualityComparer),
+        // exactly as SyntaxParameterFinder.cs:79 / InlinedParameterFinder do — never ToDisplayString(). The
+        // generator references Synto.Core, so typeof(global::Synto.Matching.*) binds (like Templating's
+        // typeof(InlineAttribute)); GetTypeByMetadataName turns that into the compilation's symbol.
+        var captureAttr = compilation.GetTypeByMetadataName(typeof(global::Synto.Matching.CaptureAttribute).FullName!);
+        var captureAttrUnbound = compilation
+            .GetTypeByMetadataName(typeof(global::Synto.Matching.CaptureAttribute<>).FullName!)   // metadata name "Synto.Matching.CaptureAttribute`1"
+            ?.ConstructUnboundGenericType();
+        var exprMarker = compilation.GetTypeByMetadataName(typeof(global::Synto.Matching.Expr).FullName!);
+        var statementMarker = compilation.GetTypeByMetadataName(typeof(global::Synto.Matching.Statement).FullName!);
+        var blockMarker = compilation.GetTypeByMetadataName(typeof(global::Synto.Matching.Block).FullName!);
+
         var captures = new List<IParameterSymbol>();
         var narrows = new Dictionary<IParameterSymbol, ITypeSymbol?>(SymbolEqualityComparer.Default);
 
@@ -944,29 +1190,24 @@ internal sealed class MatchMarkers
         {
             foreach (var a in p.GetAttributes())
             {
-                var md = a.AttributeClass?.ConstructedFrom?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                // ConstructedFrom keeps the generic definition; compare against metadata-style names.
-                var name = a.AttributeClass is { IsGenericType: true } g
-                    ? g.ConstructUnboundGenericType().ToDisplayString()
-                    : a.AttributeClass?.ToDisplayString();
+                var ac = a.AttributeClass;
+                if (ac is null) continue;
 
-                if (name is null) continue;
-
-                if (name == "Synto.Matching.CaptureAttribute")
+                if (SymbolEqualityComparer.Default.Equals(ac, captureAttr))
                 {
                     captures.Add(p);
                     narrows[p] = null;
                 }
-                else if (name == "Synto.Matching.CaptureAttribute<>")
+                else if (ac.IsGenericType && captureAttrUnbound is not null
+                         && SymbolEqualityComparer.Default.Equals(ac.ConstructUnboundGenericType(), captureAttrUnbound))
                 {
                     captures.Add(p);
-                    narrows[p] = a.AttributeClass!.TypeArguments[0];
+                    narrows[p] = ac.TypeArguments[0];
                 }
-                _ = md;
             }
         }
 
-        return new MatchMarkers(captures, narrows);
+        return new MatchMarkers(captures, narrows, exprMarker, statementMarker, blockMarker);
     }
 
     /// <summary>Does <paramref name="id"/> bind to one of the capture parameters? If so, return it.</summary>
@@ -984,6 +1225,8 @@ internal sealed class MatchMarkers
     }
 }
 ```
+
+> `MatchMarkers.Create` is cheap (a handful of `GetTypeByMetadataName` lookups + the parameter scan) and is built once per pattern in `MatchEmitter.Emit`. Where later tasks need it during a node walk (e.g. `TryFindDeferredForeach`, Task 15) they reuse `ctx.Markers` rather than rebuilding it per node.
 
 Replace the body of `src/Synto.SourceGenerator/Matching/MatchEmitter.cs`:
 
@@ -1011,15 +1254,24 @@ internal static partial class MatchEmitter
         public string LocalName = "";   // e.g. cap_a
         public string MemberName = "";  // e.g. A
         public string MemberType = "";  // e.g. ExpressionSyntax
+        public int Ordinal;             // the [Capture] parameter's signature position (record member order)
     }
 
-    /// <summary>Mutable per-pattern emit state threaded through the walk.</summary>
+    /// <summary>
+    /// Mutable per-pattern emit state threaded through the walk. **Introduced here in its FINAL shape and
+    /// frozen** (see the "Emitter-core design" design note) — Tasks 11–17 fill in *behavior* using
+    /// <c>Diagnostics</c>/<c>Aborted</c>, they do NOT add fields or re-plumb the contract. `Diagnostics`/
+    /// `Aborted` are unused until the run-alignment tasks (SY1202/SY1204) but exist now so the shape never
+    /// churns across the shared `EmitAnchoredRun` refactor.
+    /// </summary>
     private sealed class MatchContext
     {
         public required MatchInfo Info;
         public required MatchMarkers Markers;
         public readonly List<Capture> Captures = new();
         public readonly HashSet<string> BoundCaptureLocals = new();
+        public readonly List<DiagnosticInfo> Diagnostics = new();  // emitter-raised findings (SY1202/SY1204, Tasks 16/17)
+        public bool Aborted;                                       // a branch set this + returned -> Emit emits diagnostics-only
         private int _tmp;
         public string NextTmp() => "n" + _tmp++;
     }
@@ -1068,10 +1320,14 @@ internal static partial class MatchEmitter
     /// </summary>
     private static void EmitNodeMatch(List<StatementSyntax> body, string accessor, SyntaxNode pattern, MatchContext ctx)
     {
-        // Literal node: assert kind via a typed pattern, then compare each child.
+        // Literal node: assert BOTH the .NET type (binds {tmp} for child navigation) AND the RawKind, so a
+        // kind that shares a .NET type but differs in kind is not over-accepted — InitializerExpressionSyntax
+        // (Array vs Collection), BinaryExpressionSyntax (Add vs Subtract vs ...), etc. (see the structural-walk
+        // design note: "assert RawKind, not just the .NET type"). `pattern.Kind()` is the compile-time kind;
+        // `{tmp}.IsKind(SyntaxKind.X)` is the runtime guard (CSharpExtensions.IsKind, present on the 5.0 floor).
         var typeName = pattern.GetType().Name; // e.g. "BinaryExpressionSyntax" (all *Syntax types are imported)
         var tmp = ctx.NextTmp();
-        body.Add(ParseStatement($"if ({accessor} is not {typeName} {tmp}) return null;"));
+        body.Add(ParseStatement($"if ({accessor} is not {typeName} {tmp} || !{tmp}.IsKind(SyntaxKind.{pattern.Kind()})) return null;"));
 
         var children = pattern.ChildNodesAndTokens();
         var listVar = tmp + "c";
@@ -1222,12 +1478,29 @@ git commit -m "feat(matching): generic structural walk + expression-Single liter
         Assert.Null(M.Sum(SyntaxFactory.ParseExpression("foo() - 42"))); // wrong operator
         Assert.Null(M.Sum(SyntaxFactory.ParseExpression("foo()")));      // not a binary expr
     }
+
+    // The [Capture<TNode>] NARROWING behavior is added together with EmitCapture in THIS task (EmitCapture
+    // reads ctx.Markers.Narrows), so its behavioral lock lives here as a red->green step — not as a
+    // green-on-arrival test in Task 7. Authored as a local function per the round-trip convention.
+    [Fact]
+    public void Narrowed_OnlyMatchesInvocation_AndTypesTheMember()
+    {
+        [Match<M>(MatchOption.Single)]
+        static object Narrowed([Capture<Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax>] object call) => call;
+
+        var m = M.Narrowed(SyntaxFactory.ParseExpression("foo(1)"));
+        Assert.NotNull(m);
+        Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax typed = m!.Call; // must compile AS the narrow type
+        Assert.Equal("foo(1)", typed.ToString());
+
+        Assert.Null(M.Narrowed(SyntaxFactory.ParseExpression("1 + 1"))); // not an invocation
+    }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
-Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchRoundTripTests.Sum_CapturesBothOperands"`
-Expected: FAIL — `M.Sum` exists but its members are absent / it does not capture (compile error on `m.A`, or the walk treats `a`/`b` as literal identifiers and over-constrains).
+Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchRoundTripTests.Sum_CapturesBothOperands|FullyQualifiedName~MatchRoundTripTests.Narrowed_OnlyMatchesInvocation_AndTypesTheMember"`
+Expected: FAIL — `M.Sum`/`M.Narrowed` exist but do not capture/narrow (compile error on `m.A` / `m.Call` typed as `ExpressionSyntax`, or the walk treats `a`/`b` as literal identifiers and over-constrains). The narrowing test fails red until `EmitCapture` reads `ctx.Markers.Narrows` in Step 3.
 
 - [ ] **Step 3: Write minimal implementation** — at the very top of `EmitNodeMatch`, before the literal-node handling, add the capture-hole check:
 
@@ -1262,25 +1535,23 @@ Add the `EmitCapture` helper to `MatchEmitter`:
 
         body.Add(ParseStatement($"if ({accessor} is not {memberType} {local}) return null;"));
         ctx.BoundCaptureLocals.Add(local);
-        ctx.Captures.Add(new Capture { LocalName = local, MemberName = member, MemberType = memberType });
+        ctx.Captures.Add(new Capture { LocalName = local, MemberName = member, MemberType = memberType, Ordinal = param.Ordinal });
     }
 ```
 
-> The captures are added in *walk* order. To freeze the record member order to *signature* order (spec shows `GuardedMatch(Cond, Guard, Rest)`), sort `ctx.Captures` by the parameter's `Ordinal` in `Compose` before building the record/return. Update `Compose`'s capture enumerations to use the signature-ordered list:
+> The captures are added in *walk* order. To freeze the record member order to *signature* order (spec shows `GuardedMatch(Cond, Guard, Rest)`), each `Capture` carries the parameter's `Ordinal`, so `Compose` sorts by it in **O(n log n)** — no per-key `ToList()`/`FindIndex` rescan of `ctx.Markers.Captures` (which would be O(n²)). Update `Compose`'s capture enumerations to use the signature-ordered list:
 
 ```csharp
         // at the top of Compose, replace direct ctx.Captures use with:
-        var orderedCaptures = ctx.Captures
-            .OrderBy(c => ctx.Markers.Captures.ToList().FindIndex(p => "cap_" + p.Name == c.LocalName))
-            .ToList();
+        var orderedCaptures = ctx.Captures.OrderBy(c => c.Ordinal).ToList();
 ```
 
-and use `orderedCaptures` for both the `return new ...(args)` and the record-parameter list.
+and use `orderedCaptures` for both the `return new ...(args)` and the record-parameter list. (Task 10 hoists this into the shared `OrderCaptures(MatchContext)` — `static List<Capture> OrderCaptures(MatchContext ctx) => ctx.Captures.OrderBy(c => c.Ordinal).ToList();` — used by every emit branch.)
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Run tests to verify they pass**
 
-Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchRoundTripTests.Sum_CapturesBothOperands"`
-Expected: PASS.
+Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchRoundTripTests.Sum_CapturesBothOperands|FullyQualifiedName~MatchRoundTripTests.Narrowed_OnlyMatchesInvocation_AndTypesTheMember"`
+Expected: PASS (capture + narrowing).
 
 - [ ] **Step 5: Add + accept snapshot, then commit** — add to `MatchSnapshotTests`:
 
@@ -1308,51 +1579,38 @@ git commit -m "feat(matching): expression captures (bare identifier -> Expressio
 
 ---
 
-### Task 7: Emitter — `[Capture<TNode>]` narrowing
+### Task 7: Emitter — `[Capture<TNode>]` narrowing — **snapshot lock**
+
+> **Scope (round-1 testability medium).** The narrowing *behavior* is round-trip-covered as a **red→green** step in **Task 6** (`Narrowed_OnlyMatchesInvocation_AndTypesTheMember`, green only once `EmitCapture` reads `ctx.Markers.Narrows`), and `MatchMarkers.Create` already resolves the `` CaptureAttribute`1 `` symbol by identity (Task 5). So this task adds **no behavioral test and no emitter code** — it is a deliberate **snapshot lock** of the narrowed *output shape* (the emitted member type and the narrowed `is`-guard), nothing more.
 
 **Files:**
-- (No emitter change — `EmitCapture` already honors `Narrows`.) This task is a **test-only** lock of the narrowing path, plus a snapshot.
-- Test: `MatchRoundTripTests.cs`, `MatchSnapshotTests.cs`
+- (No emitter change.) `MatchSnapshotTests.cs` only.
+- Test: `MatchSnapshotTests.cs`
 
-- [ ] **Step 1: Write the failing round-trip test** — add to `MatchRoundTripTests`:
+- [ ] **Step 1: Add the narrowed-output snapshot** — add to `MatchSnapshotTests`:
 
 ```csharp
-    [Match<M>(MatchOption.Single)]
-    private static object Narrowed([Capture<Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax>] object call) => call;
-
     [Fact]
-    public void Narrowed_OnlyMatchesInvocation_AndTypesTheMember()
-    {
-        var m = M.Narrowed(SyntaxFactory.ParseExpression("foo(1)"));
-        Assert.NotNull(m);
-        Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax typed = m!.Call; // must compile as the narrow type
-        Assert.Equal("foo(1)", typed.ToString());
-
-        Assert.Null(M.Narrowed(SyntaxFactory.ParseExpression("1 + 1"))); // not an invocation
-    }
+    public Task ExpressionSingle_Narrowed() => VerifyMatcher(
+        """
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using Synto.Matching;
+        partial class M { }
+        static class Patterns {
+            [Match<M>(MatchOption.Single)]
+            static object Narrowed([Capture<InvocationExpressionSyntax>] object call) => call;
+        }
+        """);
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run, review, accept the golden** — run the snapshot test; review the `*.received.cs` and confirm the captured member is the **fully-qualified narrow** `global::Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax` and the guard is `if (node is not global::…InvocationExpressionSyntax cap_call) return null;`; then accept it. (Red first — new received file — then green on accept.)
 
-Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchRoundTripTests.Narrowed_OnlyMatchesInvocation_AndTypesTheMember"`
-Expected: FAIL — `m.Call` is currently typed `ExpressionSyntax`, so the assignment to `InvocationExpressionSyntax` does not compile.
-
-> If it already passes (because `EmitCapture` reads `Narrows`), confirm via the snapshot that the member is `InvocationExpressionSyntax`. The root cause to verify: the narrow type must be read from `CaptureAttribute<T>` correctly in `MatchMarkers.Create`. If the test fails because `Narrows` is empty, fix the attribute-name comparison in `MatchMarkers.Create` (the `ConstructUnboundGenericType().ToDisplayString()` must equal `"Synto.Matching.CaptureAttribute<>"`).
-
-- [ ] **Step 3: Write minimal implementation** — ensure `MatchMarkers.Create` records the narrow type. The pattern body `=> call` where `call` is the bare capture identifier means the matched node IS the candidate; `EmitCapture` emits `if (node is not global::Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax cap_call) return null;` and the member type is the fully-qualified narrow. No new code if Task 6's `EmitCapture` and Task 2's `MatchMarkers` are correct; otherwise correct `MatchMarkers.Create` as noted.
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchRoundTripTests.Narrowed_OnlyMatchesInvocation_AndTypesTheMember"`
-Expected: PASS.
-
-- [ ] **Step 5: Add + accept snapshot, then commit** — add `ExpressionSingle_Narrowed` to `MatchSnapshotTests` (pattern as above) and accept (member typed `global::Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax`).
+- [ ] **Step 3: Commit** (local commit on `experimental/matching` — no push)
 
 ```bash
-git add test/Synto.Test/Match/MatchRoundTripTests.cs test/Synto.Test/Match/MatchSnapshotTests.cs \
-        src/Synto.SourceGenerator/Matching/MatchMarkers.cs \
+git add test/Synto.Test/Match/MatchSnapshotTests.cs \
         test/Synto.Test/Match/snapshots/MatchSnapshotTests.ExpressionSingle_Narrowed#M.Narrowed.g.verified.cs
-git commit -m "feat(matching): [Capture<TNode>] narrowing types the captured member"
+git commit -m "test(matching): snapshot-lock [Capture<TNode>] narrowed member type"
 ```
 
 ---
@@ -1397,14 +1655,9 @@ Add to `MatchMarkers`:
     /// <summary>Does <paramref name="inv"/> bind to <c>Synto.Matching.Expr.Any&lt;T&gt;()</c>?</summary>
     public bool IsExpressionWildcard(SemanticModel model, InvocationExpressionSyntax inv)
     {
-        if (model.GetSymbolInfo(inv).Symbol is IMethodSymbol m
+        return model.GetSymbolInfo(inv).Symbol is IMethodSymbol m
             && m.Name == "Any"
-            && m.ContainingType?.ToDisplayString() == "Synto.Matching.Expr")
-        {
-            return true;
-        }
-
-        return false;
+            && SymbolEqualityComparer.Default.Equals(m.ContainingType, ExprMarker);   // resolved symbol, not ToDisplayString()
     }
 ```
 
@@ -1529,12 +1782,13 @@ git commit -m "feat(matching): non-linear equality via single IsEquivalentTo"
 - [ ] **Step 1: Write the failing round-trip test** — add to `MatchRoundTripTests`:
 
 ```csharp
-    [Match<M>(MatchOption.Single)]
-    private static void ReturnCapture([Capture] object result) { return result; }
-
     [Fact]
     public void StatementSingle_FindsLeftmostReturn_InABlock()
     {
+        // object return type (per §3.9) — a `void` pattern with `return result;` is CS0127.
+        [Match<M>(MatchOption.Single)]
+        static object ReturnCapture([Capture] object result) { return result; }
+
         var block = (Microsoft.CodeAnalysis.CSharp.Syntax.BlockSyntax)
             SyntaxFactory.ParseStatement("{ Foo(); return x + 1; return y; }");
         var m = M.ReturnCapture(block);
@@ -1724,7 +1978,7 @@ Add to `MatchMarkers` a statement-hole classifier:
             hole = new StatementHole(HoleKind.Capture, verb.Value, count, p);
             return true;
         }
-        if (method.ContainingType?.ToDisplayString() == "Synto.Matching.Statement")
+        if (SymbolEqualityComparer.Default.Equals(method.ContainingType, StatementMarker))   // resolved symbol, not ToDisplayString()
         {
             hole = new StatementHole(HoleKind.Wildcard, verb.Value, count, null);
             return true;
@@ -1824,17 +2078,22 @@ Add the run model + fixed-arity alignment (variable-length added in Task 12; her
         body.Add(ParseStatement("return null;"));
     }
 
+    // accessor is EITHER a SyntaxNode (a node-child boundary, e.g. the embedded statement of `if (cond)
+    // guard.One();`, projected via `…AsNode()`) OR a StatementSyntax (the `_blk.Statements[..]` indexer). The
+    // `is not {memberType} {local}` narrows AT the hole regardless of which (mirrors EmitCapture): it binds a
+    // {memberType}-typed local so the record member binds with NO CS0266, and rejects a non-statement at the
+    // node-child site. Do NOT bind with `var {local} = {accessor};` — that is the round-1 CS0266. See the
+    // "Accessor type contract" design note; this method has two call sites (direct indexer vs `.AsNode()`
+    // child) and the narrow makes BOTH correct (a redundant-but-harmless true-narrow on the indexer site).
     private static void EmitStatementCapture(List<StatementSyntax> body, string accessor, IParameterSymbol param, string memberType, MatchContext ctx)
     {
         var local = "cap_" + param.Name;
         var member = char.ToUpperInvariant(param.Name[0]) + param.Name.Substring(1);
-        // The captured statement must still structurally match the hole's position; for a bare One() there is
-        // no inner shape, so we just bind the statement node.
-        body.Add(ParseStatement($"var {local} = {accessor};"));
+        body.Add(ParseStatement($"if ({accessor} is not {memberType} {local}) return null;"));
         if (!ctx.BoundCaptureLocals.Contains(local))
         {
             ctx.BoundCaptureLocals.Add(local);
-            ctx.Captures.Add(new Capture { LocalName = local, MemberName = member, MemberType = memberType });
+            ctx.Captures.Add(new Capture { LocalName = local, MemberName = member, MemberType = memberType, Ordinal = param.Ordinal });
         }
     }
 
@@ -1847,7 +2106,7 @@ Add the run model + fixed-arity alignment (variable-length added in Task 12; her
         if (!ctx.BoundCaptureLocals.Contains(local))
         {
             ctx.BoundCaptureLocals.Add(local);
-            ctx.Captures.Add(new Capture { LocalName = local, MemberName = member, MemberType = "SyntaxList<StatementSyntax>" });
+            ctx.Captures.Add(new Capture { LocalName = local, MemberName = member, MemberType = "SyntaxList<StatementSyntax>", Ordinal = param.Ordinal });
         }
     }
 ```
@@ -1856,12 +2115,16 @@ Add the run model + fixed-arity alignment (variable-length added in Task 12; her
 
 ```csharp
         // Embedded statement hole (e.g. the body of `if (cond) guard.One();`): a [Capture] Stmt invocation
-        // sitting as a single embedded statement captures that one statement node.
+        // sitting as a single embedded statement captures that one statement node. `accessor` here is what the
+        // PARENT recursion passed for this node-child position — already `{listVar}[{i}].AsNode()` (a
+        // SyntaxNode). Pass it UNCHANGED: NO second `.AsNode()` (the round-1 high: `accessor + ".AsNode()"`
+        // produced `…AsNode().AsNode()`, CS1061). EmitStatementCapture type-narrows `is not StatementSyntax
+        // {local}` at the hole, so the SyntaxNode binds to a StatementSyntax member with no CS0266.
         if (pattern is StatementSyntax embedded
             && ctx.Markers.TryGetStatementHole(ctx.Info.SemanticModel, embedded, out var embeddedHole)
             && embeddedHole is { Kind: MatchMarkers.HoleKind.Capture, Quantifier: MatchMarkers.Quant.One })
         {
-            EmitStatementCapture(body, accessor + ".AsNode()", embeddedHole.Capture!, "StatementSyntax", ctx);
+            EmitStatementCapture(body, accessor, embeddedHole.Capture!, "StatementSyntax", ctx);
             return;
         }
 ```
@@ -1922,12 +2185,34 @@ git commit -m "feat(matching): Bare run alignment for fixed-arity elements (lite
         Assert.NotNull(m2);
         Assert.Equal(0, m2!.Rest.Count);        // All() = 0+
     }
+
+    [Fact]
+    public void Bare_FixedElementAfterVariable_IndexesTail()
+    {
+        // A LITERAL statement AFTER the variable-length quantifier (`return;` is literal — it binds to no
+        // marker), so after = 1 and the `_o + before + _var`-relative tail indexing actually runs (the
+        // GuardThenRest case puts the variable LAST, after = 0, and never reaches it).
+        [Match<M>(MatchOption.Bare)]
+        static void RunThenReturn([Capture] Stmt body) { body.All(); return; }
+
+        var ok = (Microsoft.CodeAnalysis.CSharp.Syntax.BlockSyntax)
+            SyntaxFactory.ParseStatement("{ A(); B(); return; }");
+        var m = M.RunThenReturn(ok);
+        Assert.NotNull(m);
+        Assert.Equal(2, m!.Body.Count);          // A(); B();  — the trailing `return;` is the fixed tail, not captured
+        Assert.Equal("A();", m.Body[0].ToString());
+
+        // a trailing non-`return` statement breaks the match — proves the tail element is checked at the _var-relative slot
+        var bad = (Microsoft.CodeAnalysis.CSharp.Syntax.BlockSyntax)
+            SyntaxFactory.ParseStatement("{ A(); B(); C(); }");
+        Assert.Null(M.RunThenReturn(bad));
+    }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
-Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchRoundTripTests.Bare_OneVariableLength_SplitsDeterministically"`
-Expected: FAIL — the `rest.All()` element has no fixed width; the Task 11 `width` sum mis-handles it (over-/under-counts) so no match or wrong slice.
+Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchRoundTripTests.Bare_OneVariableLength_SplitsDeterministically|FullyQualifiedName~MatchRoundTripTests.Bare_FixedElementAfterVariable_IndexesTail"`
+Expected: FAIL — the `rest.All()`/`body.All()` element has no fixed width; the Task 11 `width` sum mis-handles it (over-/under-counts) so no match, wrong slice, or no tail check.
 
 - [ ] **Step 3: Write minimal implementation** — generalize `EmitBareRun` to a single greedy split. Compute `before` = fixed width of elements before the variable element, `after` = fixed width of elements after it, and `varElement` (0 or 1). When there is no variable element, fall back to Task 11's fixed path. When there is one:
 
@@ -1967,7 +2252,37 @@ Concretely emit (inside `_TryAt(int _o)`):
             else
                 EmitVariableStatementListCapture(attempt, "_blk", "_o", before, varHole.Capture!, ctx);
         }
-        // after-elements at slots starting `_o + before + _var`
+
+        // after-elements: the fixed run AFTER the variable element. Element j (0-based among the after-run)
+        // sits at the RUNTIME index `_o + before + _var + <afterSlot>` — i.e. relative to the computed `_var`,
+        // not a generation-time constant. This is the index path the GuardThenRest test (rest.All() LAST,
+        // after = 0) never exercises; the Bare_FixedElementAfterVariable round-trip below pins it.
+        int afterSlot = 0;
+        foreach (var element in run.Skip(varIndex + 1))
+        {
+            string at = $"_blk.Statements[_o + {before} + _var + {afterSlot}]";
+            switch (element)
+            {
+                case LiteralElement lit:
+                    EmitNodeMatch(attempt, at, lit.Statement, ctx);
+                    afterSlot += 1;
+                    break;
+                case HoleElement { Hole.Kind: MatchMarkers.HoleKind.Capture, Hole.Quantifier: MatchMarkers.Quant.One } one:
+                    EmitStatementCapture(attempt, at, one.Hole.Capture!, "StatementSyntax", ctx);
+                    afterSlot += 1;
+                    break;
+                case HoleElement { Hole.Quantifier: MatchMarkers.Quant.One }:                       // wildcard One
+                    afterSlot += 1;
+                    break;
+                case HoleElement { Hole.Quantifier: MatchMarkers.Quant.Exactly } ex:
+                    if (ex.Hole.Kind == MatchMarkers.HoleKind.Capture)
+                        EmitStatementListCapture(attempt, "_blk", $"_o + {before} + _var", afterSlot, ex.Hole.Count, ex.Hole.Capture!, ctx);
+                    afterSlot += ex.Hole.Count;
+                    break;
+            }
+        }
+        // (a second variable-length element in the after-run is impossible here — >1 variable-length is
+        // rejected by SY1204, Task 16 — so the after-run is all fixed-arity, indices are deterministic.)
 ```
 
 Add the variable-length list/optional capture helpers:
@@ -1996,10 +2311,10 @@ Add the variable-length list/optional capture helpers:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchRoundTripTests.Bare_OneVariableLength_SplitsDeterministically"`
+Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchRoundTripTests.Bare_OneVariableLength_SplitsDeterministically|FullyQualifiedName~MatchRoundTripTests.Bare_FixedElementAfterVariable_IndexesTail"`
 Expected: PASS. Re-run all of `MatchRoundTripTests` to confirm fixed-arity Bare (Task 11) still passes.
 
-- [ ] **Step 5: Add + accept snapshots, then commit** — add `Bare_GuardThenRest` and a wildcard variant (`Statement.All()`) to `MatchSnapshotTests`, accept.
+- [ ] **Step 5: Add + accept snapshots, then commit** — add `Bare_GuardThenRest`, a wildcard variant (`Statement.All()`), and **`Bare_FixedAfterVariable`** (the `body.All(); return;` shape, so the `_var`-relative tail index is snapshot-pinned too) to `MatchSnapshotTests`, accept.
 
 ```bash
 git add src/Synto.SourceGenerator/Matching/MatchEmitter.cs test/Synto.Test/Match/MatchRoundTripTests.cs \
@@ -2076,7 +2391,12 @@ Have `EmitBareRun` (Tasks 11/12) call `EmitAnchoredRun(..., anchorStart:false, a
 Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchRoundTripTests.None_MatchesDeclarationWhoseBodyIsExactlyTheShape"`
 Expected: PASS. Re-run all round-trips to confirm the `EmitAnchoredRun` refactor preserved Bare/Single behavior.
 
-- [ ] **Step 5: Add + accept snapshot, then commit** — add `None_SingleDiscard` (and re-add the `None` `SelfCompare` from Task 9 if deferred), accept.
+- [ ] **Step 4b: Re-review + intentionally re-accept the Task 10–12 goldens (refactor changes the emitted shape).** Routing statement-`Single`/`Bare` through the new shared `EmitAnchoredRun` **changes the generated matcher text** for patterns whose `*.verified.cs` goldens were accepted in Tasks 10–12 (`StatementSingle_Return`, `Bare_OneGuard`, `Bare_GuardThenRest`, `Bare_FixedAfterVariable`, the wildcard variant). The round-trips re-run green (behavior preserved) but **do not cover snapshot shape** — so run the snapshot suite, expect those goldens to show as changed (`*.received.cs`), **review each diff deliberately** (confirm it is the expected restructure into the shared core, not a regression), and re-accept. This is an *intentional, reviewed* re-accept — not a blind mass-accept (architecture.md). Then run `SnapshotOrphanGuardTest` and confirm it stays green (no orphaned/renamed snapshot files left behind by the reshape).
+
+Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchSnapshotTests"` → review changed goldens → accept.
+Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~SnapshotOrphanGuardTest"` → expect PASS.
+
+- [ ] **Step 5: Add + accept snapshot, then commit** — add `None_SingleDiscard` (and re-add the `None` `SelfCompare` from Task 9 if deferred), accept. Stage the **re-accepted** Task 10–12 goldens alongside the new one (they are part of this commit).
 
 ```bash
 git add src/Synto.SourceGenerator/Matching/MatchEmitter.cs test/Synto.Test/Match/MatchRoundTripTests.cs \
@@ -2105,12 +2425,15 @@ git commit -m "feat(matching): None (declaration-rooted, fully-bounded body matc
 Round-trip (`MatchRoundTripTests`):
 
 ```csharp
-    [Match<M>(MatchOption.Single)]
-    private static void TrailingReturn([Capture] object result) { return result; Block.End(); }
-
     [Fact]
     public void Anchor_End_PinsToLastStatement()
     {
+        // object return (per §3.9) — `void` + `return result;` is CS0127. The trailing `Block.End();` is
+        // unreachable after the return (CS0162, a harmless warning suppressed file-wide); it is the anchor,
+        // not executable code (the body is phantom).
+        [Match<M>(MatchOption.Single)]
+        static object TrailingReturn([Capture] object result) { return result; Block.End(); }
+
         var endsWithReturn = (Microsoft.CodeAnalysis.CSharp.Syntax.BlockSyntax)
             SyntaxFactory.ParseStatement("{ Foo(); return v; }");
         Assert.NotNull(M.TrailingReturn(endsWithReturn));
@@ -2181,7 +2504,7 @@ Add anchor detection to `MatchMarkers`:
         isStart = false;
         if (stmt is not ExpressionStatementSyntax { Expression: InvocationExpressionSyntax inv }) return false;
         if (model.GetSymbolInfo(inv).Symbol is not IMethodSymbol m) return false;
-        if (m.ContainingType?.ToDisplayString() != "Synto.Matching.Block") return false;
+        if (!SymbolEqualityComparer.Default.Equals(m.ContainingType, BlockMarker)) return false;   // resolved symbol, not ToDisplayString()
         isStart = m.Name == "Start";
         return m.Name is "Start" or "End";
     }
@@ -2216,19 +2539,26 @@ Make `Emit` able to signal "diagnostic, no output": have the branch set a `bool 
 
 For statement-`Single` (Task 10), `Block.End()` after the single statement now sets `anchorEnd`, so instead of "leftmost any offset" the scan requires the matched statement to be the **last** (`_o == _blk.Statements.Count - 1`). Thread the anchors into `EmitStatementSingle` (route it through `EmitAnchoredRun` with a single fixed element).
 
+**Register SY1201 now** — append to `src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md` (under `### New Rules`, after `SY1009`) the single line `SY1201 | Synto.Matching | Error | MatchDiagnostics`, so this task's green-gate / Release build is RS2008-clean (do not defer registration to Task 18).
+
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~Anchor_End_PinsToLastStatement|FullyQualifiedName~AnchorInNonePattern_ReportsSY1201"`
 Expected: PASS.
 
-- [ ] **Step 5: Add + accept snapshot, then commit** — add `Single_TrailingReturnAnchored` to `MatchSnapshotTests`, accept.
+- [ ] **Step 4b: Re-review + re-accept the statement-`Single` golden (anchor rerouting changes its shape).** Rerouting statement-`Single` (Task 10) through `EmitAnchoredRun` with the anchor flags changes the **emitted matcher text** for the Task-10 `StatementSingle_Return` golden (now an anchored single-element run, not a bespoke leftmost scan). Run the snapshot suite, review that golden's diff deliberately (expected restructure, not a regression), re-accept it, and confirm `SnapshotOrphanGuardTest` stays green.
+
+Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchSnapshotTests"` → review changed goldens → accept; then `--filter "FullyQualifiedName~SnapshotOrphanGuardTest"` → expect PASS.
+
+- [ ] **Step 5: Add + accept snapshot, then commit** — add `Single_TrailingReturnAnchored` to `MatchSnapshotTests`, accept; stage the re-accepted `StatementSingle_Return` golden with it.
 
 ```bash
 git add src/Synto.SourceGenerator/Matching/MatchDiagnostics.cs src/Synto.SourceGenerator/Matching/MatchMarkers.cs \
-        src/Synto.SourceGenerator/Matching/MatchEmitter.cs test/Synto.Test/Match/MatchRoundTripTests.cs \
+        src/Synto.SourceGenerator/Matching/MatchEmitter.cs src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md \
+        test/Synto.Test/Match/MatchRoundTripTests.cs \
         test/Synto.Test/Match/MatchDiagnosticsTests.cs test/Synto.Test/Match/MatchSnapshotTests.cs \
         test/Synto.Test/Match/snapshots/
-git commit -m "feat(matching): Block.Start/End anchors + SY1201 anchor-in-None diagnostic"
+git commit -m "feat(matching): Block.Start/End anchors + SY1201 anchor-in-None diagnostic (+register SY1201)"
 ```
 
 ---
@@ -2290,10 +2620,10 @@ Add to `MatchDiagnostics`:
         new(_foreachNotSupported, location, new EquatableArray<string>(ImmutableArray<string>.Empty));
 ```
 
-In `MatchEmitter.Emit`, before dispatching on `info.Option`, pre-scan and bail:
+In `MatchEmitter.Emit`, before dispatching on `info.Option`, pre-scan and bail — reuse the already-built `ctx.Markers` (do NOT rebuild `MatchMarkers.Create` per `foreach`):
 
 ```csharp
-        if (TryFindDeferredForeach(info, out var foreachLocation))
+        if (TryFindDeferredForeach(info, ctx.Markers, out var foreachLocation))
         {
             diagnostics.Add(MatchDiagnostics.ForeachRepetitionNotSupported(LocationInfo.CreateFrom(foreachLocation)));
             return null;
@@ -2301,13 +2631,13 @@ In `MatchEmitter.Emit`, before dispatching on `info.Option`, pre-scan and bail:
 ```
 
 ```csharp
-    private static bool TryFindDeferredForeach(MatchInfo info, out Location? location)
+    private static bool TryFindDeferredForeach(MatchInfo info, MatchMarkers markers, out Location? location)
     {
         foreach (var fe in info.PatternSyntax.DescendantNodes().OfType<ForEachStatementSyntax>())
         {
             if (fe.Expression is IdentifierNameSyntax id
                 && info.SemanticModel.GetSymbolInfo(id).Symbol is IParameterSymbol p
-                && MatchMarkers.Create(info).Captures.Any(c => SymbolEqualityComparer.Default.Equals(c, p)))
+                && markers.Captures.Any(c => SymbolEqualityComparer.Default.Equals(c, p)))   // reuse markers, not Create()-per-node
             {
                 location = fe.GetLocation();
                 return true;
@@ -2318,17 +2648,19 @@ In `MatchEmitter.Emit`, before dispatching on `info.Option`, pre-scan and bail:
     }
 ```
 
+**Register SY1203 now** — append `SY1203 | Synto.Matching | Error | MatchDiagnostics` to `src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md` (this task's green-gate stays RS2008-clean).
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~ForeachOverCapture_ReportsSY1203"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit** (local commit on `experimental/matching` — no push)
 
 ```bash
 git add src/Synto.SourceGenerator/Matching/MatchDiagnostics.cs src/Synto.SourceGenerator/Matching/MatchEmitter.cs \
-        test/Synto.Test/Match/MatchDiagnosticsTests.cs
-git commit -m "feat(matching): SY1203 reject phantom foreach over [Capture] (deferred lowering)"
+        src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md test/Synto.Test/Match/MatchDiagnosticsTests.cs
+git commit -m "feat(matching): SY1203 reject phantom foreach over [Capture] (deferred lowering, +register SY1203)"
 ```
 
 ---
@@ -2403,19 +2735,21 @@ In `EmitAnchoredRun` (the shared alignment core), before splitting, count variab
         }
 ```
 
-Thread a `List<DiagnosticInfo> Diagnostics` and `bool Aborted` onto `MatchContext` (set from `Emit`); after each option branch, `if (ctx.Aborted) return null;` in `Emit` so the generator emits diagnostics-only. (`EmitAnchoredRun` needs the raw `statements` for locations; pass them through.)
+`ctx.Diagnostics`/`ctx.Aborted` already exist on `MatchContext` (pinned in its final shape at Task 5) and `EmitAnchoredRun` already receives the raw `statements` (pinned signature, Task 11) — so this task only **uses** them, it does not re-plumb the contract. Wire `Emit` to copy `ctx.Diagnostics` into the outer `diagnostics` list and, after each option branch, `if (ctx.Aborted) return null;` so the generator emits diagnostics-only (like Templating's converter-error bail).
+
+**Register SY1204 now** — append `SY1204 | Synto.Matching | Error | MatchDiagnostics` to `src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~TwoVariableLengthQuantifiers_ReportsSY1204"`
 Expected: PASS. Re-run all round-trips (single variable-length still emits).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit** (local commit on `experimental/matching` — no push)
 
 ```bash
 git add src/Synto.SourceGenerator/Matching/MatchDiagnostics.cs src/Synto.SourceGenerator/Matching/MatchEmitter.cs \
-        test/Synto.Test/Match/MatchDiagnosticsTests.cs
-git commit -m "feat(matching): SY1204 reject >1 variable-length quantifier per run (needs backtracking)"
+        src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md test/Synto.Test/Match/MatchDiagnosticsTests.cs
+git commit -m "feat(matching): SY1204 reject >1 variable-length quantifier per run (+register SY1204)"
 ```
 
 ---
@@ -2509,34 +2843,38 @@ In `ExtractAnchors`, track positions: a `Block.Start()` must precede all core st
 
 (For the test, `body.Some()` precedes `Block.Start()`, so `sawCoreAfterStart` is true when the start anchor is seen → contradiction on the start anchor.) Keep this strictly provable-only — emit nothing on merely-suspicious patterns.
 
+**Register SY1202 now** — append `SY1202 | Synto.Matching | Error | MatchDiagnostics` to `src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md` (all four SY12xx are now registered in the tasks that add them; Task 18 only verifies).
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~ContentBeforeBlockStart_ReportsSY1202"`
 Expected: PASS. Re-run the Task 14 anchor round-trip to confirm well-formed anchors still emit.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit** (local commit on `experimental/matching` — no push)
 
 ```bash
 git add src/Synto.SourceGenerator/Matching/MatchDiagnostics.cs src/Synto.SourceGenerator/Matching/MatchEmitter.cs \
-        test/Synto.Test/Match/MatchDiagnosticsTests.cs
-git commit -m "feat(matching): SY1202 provable anchor-contradiction (conservative unsatisfiable)"
+        src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md test/Synto.Test/Match/MatchDiagnosticsTests.cs
+git commit -m "feat(matching): SY1202 provable anchor-contradiction (+register SY1202)"
 ```
 
 ---
 
-### Task 18: Register SY1201–SY1204 + SY0000 catch-all proof + final gate
+### Task 18: SY0000 catch-all regression-lock + SY12xx registration audit + final gate
+
+> **Not a red→green task — explicitly a regression-lock + whole-feature gate.** SY1201–SY1204 are already **registered in Tasks 14–17** (the task that adds each descriptor), so there is nothing to append here. The two tests below are **regression-locks** (they assert behavior implemented in earlier tasks and pass on arrival); their value is to fail loudly if a later edit *removes* a registration or the catch-all. Plus a forced end-to-end SY0000 to actually exercise the catch-convert-report path.
 
 **Files:**
-- Modify: `src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md`
-- Test: `MatchDiagnosticsTests.cs` (SY0000 mapping + a descriptor-registration test)
+- Test: `MatchDiagnosticsTests.cs` (SY0000 unit lock + end-to-end SY0000 + a descriptor-registration audit)
+- (No source change — `AnalyzerReleases.Unshipped.md` already carries all four from Tasks 14–17.)
 
 **Interfaces:**
-- Produces: the four SY12xx rules registered in `AnalyzerReleases.Unshipped.md`; a test proving the generator never throws (any internal failure → SY0000), mirroring `SimpleTemplateTest.InternalErrorMapsToSY0000`.
+- Produces: a regression-lock that any internal failure → SY0000 (the catch-all `Diagnostics.InternalError`), an end-to-end proof the generator's `try/catch` reports SY0000 rather than throwing, and an audit that all four SY12xx IDs are release-tracked.
 
-- [ ] **Step 1: Write the failing tests** — add to `MatchDiagnosticsTests`:
+- [ ] **Step 1: Write the tests** — add to `MatchDiagnosticsTests`:
 
 ```csharp
-    [Fact]
+    [Fact]   // REGRESSION-LOCK (green on arrival): the catch-all factory shape, locked against drift
     public void InternalError_MapsToSY0000()
     {
         var ex = new System.InvalidOperationException("boom");
@@ -2547,11 +2885,30 @@ git commit -m "feat(matching): SY1202 provable anchor-contradiction (conservativ
         Assert.Contains("boom", diag.GetMessage(), System.StringComparison.Ordinal);
     }
 
-    [Fact]
+    [Fact]   // END-TO-END: a generation-time throw must surface as SY0000 via GenerateMatcher's try/catch,
+             // NOT escape the generator. Forced with an internal test-only hook (see note) so the catch arm
+             // is actually executed by the pipeline, not just asserted on the factory in isolation.
+    public void EmitterThrow_IsReportedAsSY0000_NotThrown()
+    {
+        MatchEmitter.ThrowForTesting = true;
+        try
+        {
+            var diagnostics = MatchTestHarness.Diagnostics(
+                """
+                using Synto.Matching;
+                partial class M { }
+                static class Patterns {
+                    [Match<M>(MatchOption.Single)] static object P([Capture] int a) => a;
+                }
+                """);
+            Assert.Single(diagnostics, d => d.Id == "SY0000");   // reported, generator did not crash
+        }
+        finally { MatchEmitter.ThrowForTesting = false; }
+    }
+
+    [Fact]   // REGRESSION-LOCK: all four SY12xx are release-tracked (RS2008 source of truth)
     public void Sy12xxDescriptors_AreRegistered_InUnshippedReleases()
     {
-        // The analyzer-release tracking file is the source of truth the RS2008 analyzer enforces; assert the
-        // four Matching IDs are present so a new descriptor can't ship unregistered.
         var path = System.IO.Path.Combine(RepoRoot(), "src", "Synto.SourceGenerator", "AnalyzerReleases.Unshipped.md");
         var text = System.IO.File.ReadAllText(path);
         foreach (var id in new[] { "SY1201", "SY1202", "SY1203", "SY1204" })
@@ -2567,34 +2924,27 @@ git commit -m "feat(matching): SY1202 provable anchor-contradiction (conservativ
     }
 ```
 
-> If `Synto.sln` is not the solution file name, adjust the sentinel in `RepoRoot()` to an existing repo-root marker (e.g. `global.json`).
+> **The `ThrowForTesting` hook.** Add a single internal `internal static bool ThrowForTesting;` to `MatchEmitter`, checked at the top of `Emit` (`if (ThrowForTesting) throw new InvalidOperationException("forced");`). It is `internal` (test-visible via `InternalsVisibleTo`, already configured for `Synto.Test`), defaults `false`, and exists only so the end-to-end catch-convert-report path (Task 4's `try/catch`) is executed by a test rather than left green-on-arrival. If introducing a test-only field is judged not worth it, drop `EmitterThrow_IsReportedAsSY0000_NotThrown` and keep the unit lock — but the hook is cheap and makes the SY0000 guarantee a *tested* path, not an asserted-in-isolation one.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Run tests** — they are regression-locks/end-to-end, so:
 
-Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchDiagnosticsTests.Sy12xxDescriptors_AreRegistered_InUnshippedReleases"`
-Expected: FAIL — the IDs are not yet in `AnalyzerReleases.Unshipped.md`. (`InternalError_MapsToSY0000` passes immediately — it locks the existing catch-all.)
+Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~MatchDiagnosticsTests.InternalError_MapsToSY0000|FullyQualifiedName~MatchDiagnosticsTests.EmitterThrow_IsReportedAsSY0000_NotThrown|FullyQualifiedName~MatchDiagnosticsTests.Sy12xxDescriptors_AreRegistered_InUnshippedReleases"`
+Expected: PASS (the unit lock + the registration audit are green from earlier tasks; the forced-throw test goes red→green with the `ThrowForTesting` hook added in this task). If `Synto.sln` is not the solution file name, adjust the sentinel in `RepoRoot()` (e.g. `global.json`).
 
-- [ ] **Step 3: Write minimal implementation** — append to `src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md` (under `### New Rules`, after `SY1009`):
+- [ ] **Step 3: (no registration step)** — SY1201–SY1204 are already in `AnalyzerReleases.Unshipped.md` (Tasks 14–17). Add only the `ThrowForTesting` hook to `MatchEmitter` for the forced-throw test.
 
-```text
-SY1201 | Synto.Matching | Error | MatchDiagnostics
-SY1202 | Synto.Matching | Error | MatchDiagnostics
-SY1203 | Synto.Matching | Error | MatchDiagnostics
-SY1204 | Synto.Matching | Error | MatchDiagnostics
-```
-
-- [ ] **Step 4: Run the full Matching suite + a Release build to verify**
+- [ ] **Step 4: Run the full Matching suite + a Release build to verify the whole feature**
 
 Run: `dotnet test test/Synto.Test --filter "FullyQualifiedName~Synto.Test.Match"`
 Expected: PASS (all round-trip, snapshot, surface, and diagnostic tests).
 Run: `dotnet build -c Release src/Synto.SourceGenerator`
 Expected: PASS with **no RS2008** (every reported descriptor is release-tracked).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit** (local commit on `experimental/matching` — no push)
 
 ```bash
-git add src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md test/Synto.Test/Match/MatchDiagnosticsTests.cs
-git commit -m "feat(matching): register SY1201-SY1204 + lock SY0000 catch-all"
+git add src/Synto.SourceGenerator/Matching/MatchEmitter.cs test/Synto.Test/Match/MatchDiagnosticsTests.cs
+git commit -m "test(matching): SY0000 catch-all regression-lock + end-to-end throw + SY12xx registration audit"
 ```
 
 ---
@@ -2602,8 +2952,8 @@ git commit -m "feat(matching): register SY1201-SY1204 + lock SY0000 catch-all"
 ## Self-Review
 
 **Spec coverage:**
-- §3.2 attribute + `MatchOption` (None/Bare/Single, non-flags) → Task 1; generic-attribute discovery verified on the 5.0 floor → Tasks 1, 4.
-- §3.3 expression captures + slot-typing + `[Capture<TNode>]` narrowing → Tasks 6, 7.
+- §3.2 attribute + `MatchOption` (None/Bare/Single, non-flags) → Task 1; generic-attribute discovery **spike-verified on the 5.0 floor** (evidence recorded in Global Constraints; no fallback) → Tasks 1, 4 (positive type-arg readback test).
+- §3.3 expression captures + slot-typing + `[Capture<TNode>]` narrowing → Task 6 (capture + narrowing behavior, red→green); Task 7 (narrowed-output **snapshot lock**).
 - §3.4 statement quantifiers One/Opt/Some/All/Exactly + single-variable-length line → Tasks 11, 12; over-the-line → Task 16.
 - §3.5 wildcards (static verbs + `Expr.Any<T>()`) → Tasks 3, 8, 11, 12.
 - §3.6 non-linear equality → Task 9.
@@ -2619,12 +2969,16 @@ git commit -m "feat(matching): register SY1201-SY1204 + lock SY0000 catch-all"
 
 **Deferred-by-spec (correctly absent):** `Deep`/`Either`/`Many<T>` markers (injected only with their lowering), `foreach` lowering, multi-variable-length lowering, semantic constraints, token/identifier capture, negation, `AtLeast`/`Between`. Each reachable deferred path degrades to SY1203/SY1204 (Tasks 15, 16), never a literal mis-match or an unimplemented-arm throw.
 
-**Placeholder scan:** No `TODO`/`TBD`. The two test-only tasks (7, and the SY0000 half of 18) are deliberate locks of an already-implemented path, with explicit fallback instructions if the path is incomplete. Emitter tasks 11–13 share one `EmitAnchoredRun` core, refactored in place (not duplicated).
+**Placeholder scan:** No `TODO`/`TBD`. Task 7 is a deliberate **snapshot lock** (the narrowing *behavior* is red→green in Task 6) and Task 18 is a **regression-lock + whole-feature gate** (registration done in Tasks 14–17, plus a forced end-to-end SY0000) — neither is a green-on-arrival behavioral test masquerading as red→green. Emitter tasks 10–13 share one `EmitAnchoredRun` core (signature pinned at Task 11, `MatchContext` pinned at Task 5), refactored in place (not duplicated); the Tasks 13/14 reshapes explicitly re-review and re-accept the earlier goldens.
 
 **Type consistency:** `MatchGenerationResult` / `MatchTrackingNames.{Transform,Result}` / `MatchInfo` / `MatchMarkers` / `MatchEmitter.{Emit,EmitNodeMatch,Compose,EmitAnchoredRun}` / `MatchDiagnostics.{AnchorNotAllowed,PatternUnsatisfiable,ForeachRepetitionNotSupported,QuantifierNeedsBacktracking}` names are used consistently across tasks. Capture local `cap_{name}` and member `{Name}` conventions are uniform. Generated usings (`Microsoft.CodeAnalysis`, `.CSharp`, `.CSharp.Syntax`, plus `System.Linq` from Task 11) are consistent.
 
-**Known risk to validate during implementation (flag, don't pre-solve):** `MatchMarkers.Create` attribute-name matching for `CaptureAttribute<>` uses `ConstructUnboundGenericType().ToDisplayString() == "Synto.Matching.CaptureAttribute<>"` — confirm the exact display string on the 5.0 floor in Task 7's red step and adjust the comparison if needed. The generic-attribute *target* read (`AttributeClass.TypeArguments[0]`, Task 4) is the spike-verified path and is independent of this.
+**Marker identity (resolved, not a deferred risk):** `MatchMarkers.Create` resolves every marker via `GetTypeByMetadataName(typeof(global::Synto.Matching.*).FullName!)` and compares with `SymbolEqualityComparer.Default` (the unbound `CaptureAttribute<>` via `ConstructUnboundGenericType()`), exactly as `SyntaxParameterFinder.cs:79`/`InlinedParameterFinder.cs` do — so there is **no `ToDisplayString()` `"…CaptureAttribute<>"` display-string fragility** to validate at implementation time (the round-1 medium); the comparison is format-independent. The generic-attribute *target* read (`AttributeClass.TypeArguments[0]`, Task 4) is the spike-verified path (Global Constraints) and is independent.
 
 ## Execution Handoff
 
-This plan is ready for implementation via **superpowers:subagent-driven-development** (a fresh subagent per task + two-stage review), or **superpowers:executing-plans** for batched inline execution. Snapshot-accept steps require human review of each new `*.received.cs` before it becomes a golden — do not blind-accept.
+**Branch isolation governs execution — see "Execution Model & Branch Isolation" at the top.** All work targets **`experimental/matching`** (base and push target), **never `main`**; the standard `ready→implement` per-green ff-push-to-main is **disabled** (this project does not practice full CI yet, and the new shipped-package surface must not reach `main` until the feature is deliberately merged).
+
+Implement via **`superpowers:subagent-driven-development` in a throwaway worktree branched from `experimental/matching`** (a fresh subagent per task + two-stage review). **Do NOT use `implement-plan` (incl. `{mode:"dry-run"}`)** — it hardcodes its worktree base to `origin/main` (`.claude/workflows/implement-plan.js`), which lacks this feature's stack, so the Matching code won't compile there; `dry-run` relaxes only the push, not the base.
+
+Do **not** route this plan through the main-pushing flow. **Final integration** is a single deliberate `git push origin HEAD:experimental/matching` after the whole plan is green (not per-commit); merging to `main` is a later human decision outside this plan. Snapshot-accept steps require human review of each new/changed `*.received.cs` before it becomes a golden — do not blind-accept (this includes the intentional re-accepts in Tasks 13/14).
