@@ -340,14 +340,17 @@ body *is* the matched expression:
 
 ```csharp
 [Match<M>(MatchOption.Single)]
-static object Sum([Capture] object a, [Capture] object b) => a + b;   // matches `<a> + <b>`
+static object Sum([Capture] int a, [Capture] int b) => a + b;   // matches any `<a> + <b>` binary expr
 ```
 
 The arrow form (`=> shape`) is what tells an expression-`Single` apart from a
 statement-`Single` (a block body with one statement, §3.9) and from a literal expression
 statement: the body is an *expression*, not a statement, so there is no `_ = expr;` discard
-collision (§10 rejected `_ =` only as a *statement-hole* spelling). Each `[Capture] object`
-here sits in an operand slot (slot-typing rule, §3.3) and is captured as `ExpressionSyntax`.
+collision (§10 rejected `_ =` only as a *statement-hole* spelling). Each `[Capture]` here sits
+in a `+`-operand slot, so its compile-glue type must support `+` (slot-typing rule, §3.3) — the
+`int` is glue only (`object + object` would be CS0019); matching is **structural**, so it
+captures **any** operand expressions `<a>`, `<b>` as `ExpressionSyntax`, not just `int`-typed
+ones.
 The generated `Sum(SyntaxNode node)` then roots on the handed node (the bullet above) —
 returning non-null exactly when `node` is the `<a> + <b>` shape — so the consumer feeds it from
 a `DescendantNodes()` loop, never from a block.
