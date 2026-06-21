@@ -296,4 +296,26 @@ public class MatchSnapshotTests
             }
             """);
     }
+
+    [Fact]
+    public Task Single_TrailingReturnAnchored()
+    {
+        // Statement-Single with Block.End(): the anchorEnd-only driver pins _o = Count - fixedWidth so the
+        // core return aligns to the block's last statement.
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+            #pragma warning disable CS0162
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object TrailingReturn([Capture] object result) { return result; Block.End(); }
+            }
+            """);
+    }
 }

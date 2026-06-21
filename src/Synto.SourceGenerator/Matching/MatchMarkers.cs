@@ -24,6 +24,7 @@ internal sealed class MatchMarkers
     private const string StmtMetadataName = "Synto.Matching.Stmt";
     private const string StatementMetadataName = "Synto.Matching.Statement";
     private const string ExprMetadataName = "Synto.Matching.Expr";
+    private const string BlockMetadataName = "Synto.Matching.Block";
 
     private readonly SemanticModel _semanticModel;
     private readonly Dictionary<ISymbol, CaptureParameter> _expressionCaptures;
@@ -31,6 +32,7 @@ internal sealed class MatchMarkers
     private readonly INamedTypeSymbol? _exprType;
     private readonly INamedTypeSymbol? _stmtType;
     private readonly INamedTypeSymbol? _statementType;
+    private readonly INamedTypeSymbol? _blockType;
 
     private MatchMarkers(
         SemanticModel semanticModel,
@@ -38,7 +40,8 @@ internal sealed class MatchMarkers
         Dictionary<ISymbol, CaptureParameter> expressionCaptures,
         INamedTypeSymbol? exprType,
         INamedTypeSymbol? stmtType,
-        INamedTypeSymbol? statementType)
+        INamedTypeSymbol? statementType,
+        INamedTypeSymbol? blockType)
     {
         _semanticModel = semanticModel;
         _expressionCaptures = expressionCaptures;
@@ -46,6 +49,7 @@ internal sealed class MatchMarkers
         _exprType = exprType;
         _stmtType = stmtType;
         _statementType = statementType;
+        _blockType = blockType;
         CaptureParameters = captureParameters;
     }
 
@@ -63,6 +67,7 @@ internal sealed class MatchMarkers
         var stmtType = compilation.GetTypeByMetadataName(StmtMetadataName);
         var statementType = compilation.GetTypeByMetadataName(StatementMetadataName);
         var exprType = compilation.GetTypeByMetadataName(ExprMetadataName);
+        var blockType = compilation.GetTypeByMetadataName(BlockMetadataName);
 
         var captures = new List<IParameterSymbol>();
         var expressionCaptures = new Dictionary<ISymbol, CaptureParameter>(SymbolEqualityComparer.Default);
@@ -89,7 +94,29 @@ internal sealed class MatchMarkers
                 new CaptureParameter(parameter.Ordinal, parameter.Name, ToMemberName(parameter.Name), memberType));
         }
 
-        return new MatchMarkers(info.SemanticModel, captures, expressionCaptures, exprType, stmtType, statementType);
+        return new MatchMarkers(info.SemanticModel, captures, expressionCaptures, exprType, stmtType, statementType, blockType);
+    }
+
+    /// <summary>
+    /// Recognizes a <c>Block.Start()</c> / <c>Block.End()</c> anchor: an <see cref="ExpressionStatementSyntax"/>
+    /// wrapping an invocation on the <c>Synto.Matching.Block</c> holder (by resolved symbol). <paramref name="isStart"/>
+    /// distinguishes <c>Start</c> from <c>End</c>.
+    /// </summary>
+    public bool TryGetAnchor(StatementSyntax statement, out bool isStart)
+    {
+        isStart = false;
+
+        if (statement is not ExpressionStatementSyntax { Expression: InvocationExpressionSyntax invocation })
+            return false;
+
+        if (_semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
+            return false;
+
+        if (_blockType is null || !SymbolEqualityComparer.Default.Equals(method.ContainingType, _blockType))
+            return false;
+
+        isStart = method.Name == "Start";
+        return true;
     }
 
     /// <summary>

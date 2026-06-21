@@ -7,6 +7,8 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 #pragma warning disable CS8321
 // `x == x` / `x + x` non-linear fixtures deliberately compare a capture to itself.
 #pragma warning disable CS1718
+// Anchored fixtures put a phantom Block.End() after a `return` — unreachable in the phantom body.
+#pragma warning disable CS0162
 
 namespace Synto.Test.Match;
 
@@ -317,5 +319,34 @@ public partial class MatchRoundTripTests
         Assert.NotNull(three);
         MatchTestHarness.AssertCapture("A();", three!.First);
         Assert.Equal(2, three.Rest.Count);
+    }
+
+    [Fact]
+    public void Anchor_End_PinsToLastStatement()
+    {
+        // Block.End() after the core return pins it to the LAST statement of the candidate block.
+        // `Block` is qualified because `using static SyntaxFactory;` also defines a `Block` member.
+        [Match<M>(MatchOption.Single)]
+        static object TrailingReturn([Capture] object result)
+        { return result; Synto.Matching.Block.End(); }
+
+        Assert.NotNull(M.TrailingReturn(ParseStatement("{ Foo(); return v; }")));   // return is last
+        Assert.Null(M.TrailingReturn(ParseStatement("{ return v; Foo(); }")));      // return not last
+    }
+
+    [Fact]
+    public void Anchor_End_WithVariableElement_AbsorbsLead()
+    {
+        // anchorEnd + a leading variable element: rest.All() absorbs everything up to the trailing return, and
+        // Block.End() requires that return to be the block's last statement (the C6 anchorEnd+variable case).
+        [Match<M>(MatchOption.Bare)]
+        static void RunThenReturnAnchored([Capture] Stmt rest)
+        { rest.All(); return; Synto.Matching.Block.End(); }
+
+        var m = M.RunThenReturnAnchored(ParseStatement("{ A(); B(); return; }"));
+        Assert.NotNull(m);
+        Assert.Equal(2, m!.Rest.Count);
+
+        Assert.Null(M.RunThenReturnAnchored(ParseStatement("{ A(); return; B(); }")));   // return not last
     }
 }

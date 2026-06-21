@@ -264,6 +264,55 @@ public class MatchDiagnosticsTests
             reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged);
     }
 
+    [Fact]
+    public void AnchorInNonePattern_ReportsSY1201_AndEmitsNoTree()
+    {
+        // None is fully bounded by its own braces, so a Block.End() anchor is a usage error -> SY1201, and no
+        // matcher tree is emitted (the diagnostics-only bail).
+        var result = MatchTestHarness.Run(
+            """
+            using Synto.Matching;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>]
+                static void Trailing([Capture] object result) { _ = result; Block.End(); }
+            }
+            """);
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1201");
+        AssertHasRealSpan(diag);
+        Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("partial class M", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("None", "static object P([Capture] int a, [Capture] int b) => a + b;")]
+    [InlineData("Bare", "static object P([Capture] int a, [Capture] int b) => a + b;")]
+    [InlineData("Single", "static void P() { _ = 1; _ = 2; }")]
+    public void OptionBodyShapeMisuse_ReportsSY1205_AndEmitsNoTree(string option, string pattern)
+    {
+        // option×body-shape misuse: None/Bare on an expression body, or Single on a multi-statement core ->
+        // SY1205 (located on the attribute), and no matcher tree.
+        var result = MatchTestHarness.Run(
+            $$"""
+            using Synto.Matching;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.{{option}})]
+                {{pattern}}
+            }
+            """);
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1205");
+        AssertHasRealSpan(diag);
+        Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("partial class M", StringComparison.Ordinal));
+    }
+
     private static void AssertHasRealSpan(Diagnostic diag)
     {
         // The location is carried cacheably as a serializable LocationInfo and reconstructed at emit time;

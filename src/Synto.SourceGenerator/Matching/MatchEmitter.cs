@@ -26,45 +26,68 @@ internal static class MatchEmitter
         var ctx = new MatchContext(info, markers);
         var body = new List<StatementSyntax>();
 
-        if (info.Option == MatchOption.Single)
+        if (MatchMarkers.IsExpressionBodied(info.PatternSyntax, out var expression))
         {
             // Expression-Single (arrow body). Root the walk on the handed `node`; the walk captures expression
             // holes into ctx.Captures, then we return the record built from the captured locals in SIGNATURE
-            // order.
-            if (MatchMarkers.IsExpressionBodied(info.PatternSyntax, out var expression))
+            // order. A None/Bare option on an expression body is an option×body-shape misuse -> SY1205.
+            if (info.Option == MatchOption.Single)
             {
                 EmitNodeMatch(body, "node", expression, ctx);
                 body.Add(ParseStatement($"return new {info.Name}Match({RenderCaptureArguments(ctx)});"));
             }
-            // Statement-Single (block body with one core statement). Root on the candidate block and align the
-            // one-element run via the shared core (leftmost, no anchors). The caller establishes `_blk`.
-            else if (MatchMarkers.TryGetBlockBody(info.PatternSyntax, out var block) && block.Statements.Count == 1)
+            else
             {
-                var run = BuildRun(block.Statements, ctx);
-                body.Add(ParseStatement("if (node is not BlockSyntax _blk) return null;"));
-                EmitAnchoredRun(body, block.Statements, run, ctx, anchorStart: false, anchorEnd: false);
+                ctx.Diagnostics.Add(MatchDiagnostics.MalformedPatternBody(
+                    info.AttributeSyntax.GetLocation(),
+                    $"A '{info.Option}' pattern requires a block body, not an expression body"));
+                ctx.Aborted = true;
             }
         }
-        // Bare (block body, a run contained in the candidate block). Root on the candidate block and align the
-        // run at the leftmost contained offset (no anchors). An embedded One hole inside a literal statement is
-        // captured by the generic walk (EmitNodeMatch); direct variable-length run elements land in Task 11.
-        else if (info.Option == MatchOption.Bare && MatchMarkers.TryGetBlockBody(info.PatternSyntax, out var bareBlock))
+        else if (MatchMarkers.TryGetBlockBody(info.PatternSyntax, out var block))
         {
-            var run = BuildRun(bareBlock.Statements, ctx);
-            body.Add(ParseStatement("if (node is not BlockSyntax _blk) return null;"));
-            EmitAnchoredRun(body, bareBlock.Statements, run, ctx, anchorStart: false, anchorEnd: false);
-        }
-        // None (default): root on the candidate DECLARATION, derive its body block, align the run FULLY BOUNDED
-        // (both anchors implicit). A single variable-length element absorbs the slack (the fully-anchored driver
-        // requires Count >= fixed width, not Count == width).
-        else if (info.Option == MatchOption.None && MatchMarkers.TryGetBlockBody(info.PatternSyntax, out var noneBlock))
-        {
-            var run = BuildRun(noneBlock.Statements, ctx);
-            EmitDeclarationFullBody(body, noneBlock.Statements, run, ctx);
-        }
+            // Block body. Extract anchors FIRST (ExtractAnchors ordering), so the count-based shape check below
+            // counts only the CORE (post-anchor) statements — never a silent default arm.
+            var (core, anchorStart, anchorEnd, anchorLocations) = ExtractAnchors(block.Statements, ctx);
 
-        // Every other option/body-shape stays unemitted here (body.Count == 0 -> null), exactly like the
-        // former stub; later tasks fill those arms.
+            if (info.Option == MatchOption.None)
+            {
+                // None is fully bounded by its own braces, so anchors are a usage error -> SY1201 (each).
+                if (anchorStart || anchorEnd)
+                {
+                    foreach (var location in anchorLocations)
+                        ctx.Diagnostics.Add(MatchDiagnostics.AnchorNotAllowed(location));
+                    ctx.Aborted = true;
+                }
+                else
+                {
+                    var run = BuildRun(core, ctx);
+                    EmitDeclarationFullBody(body, core, run, ctx);
+                }
+            }
+            else if (info.Option == MatchOption.Single && core.Count == 1)
+            {
+                // Statement-Single: root on the candidate block, align the one-element core with the anchor flags.
+                var run = BuildRun(core, ctx);
+                body.Add(ParseStatement("if (node is not BlockSyntax _blk) return null;"));
+                EmitAnchoredRun(body, core, run, ctx, anchorStart, anchorEnd);
+            }
+            else if (info.Option == MatchOption.Bare)
+            {
+                // Bare: root on the candidate block, align the run contained in it with the anchor flags.
+                var run = BuildRun(core, ctx);
+                body.Add(ParseStatement("if (node is not BlockSyntax _blk) return null;"));
+                EmitAnchoredRun(body, core, run, ctx, anchorStart, anchorEnd);
+            }
+            else
+            {
+                // Single on a multi-statement core -> SY1205 (option×body-shape misuse).
+                ctx.Diagnostics.Add(MatchDiagnostics.MalformedPatternBody(
+                    info.AttributeSyntax.GetLocation(),
+                    $"A 'Single' pattern requires exactly one core statement, but the body has {core.Count}"));
+                ctx.Aborted = true;
+            }
+        }
 
         // The abort/merge, wired here at MatchContext's introduction: emitter-raised diagnostics always flow
         // out, and an aborted/empty body yields a diagnostics-only emit (no tree). Later tasks only SET
@@ -228,6 +251,39 @@ internal static class MatchEmitter
     }
 
     /// <summary>
+    /// Splits a block body into its CORE (non-anchor) statements and the <c>Block.Start()</c> / <c>Block.End()</c>
+    /// anchor flags, carrying each anchor's <c>Location</c> (for SY1201). Runs BEFORE any count-based shape check
+    /// so the core count never miscounts an anchor as a statement (e.g. <c>{ return x; Block.End(); }</c> extracts
+    /// to one core statement + anchorEnd, dispatching as an anchored statement-Single, never a default arm).
+    /// </summary>
+    private static (List<StatementSyntax> Core, bool AnchorStart, bool AnchorEnd, List<Location> AnchorLocations) ExtractAnchors(
+        IReadOnlyList<StatementSyntax> statements, MatchContext ctx)
+    {
+        var core = new List<StatementSyntax>();
+        var anchorLocations = new List<Location>();
+        bool anchorStart = false;
+        bool anchorEnd = false;
+
+        foreach (var statement in statements)
+        {
+            if (ctx.Markers.TryGetAnchor(statement, out bool isStart))
+            {
+                anchorLocations.Add(statement.GetLocation());
+                if (isStart)
+                    anchorStart = true;
+                else
+                    anchorEnd = true;
+            }
+            else
+            {
+                core.Add(statement);
+            }
+        }
+
+        return (core, anchorStart, anchorEnd, anchorLocations);
+    }
+
+    /// <summary>
     /// The single statement-run alignment core that <c>Bare</c>, statement-<c>Single</c> and <c>None</c> all
     /// flow through. Its 6-arg signature is FINAL at introduction (Task 9): later tasks add the variable-length
     /// split, the anchored drivers and the SY1204 check using the parameters already present — no new field or
@@ -288,6 +344,21 @@ internal static class MatchEmitter
                 : $"if (_blk.Statements.Count != {fixedWidth}) return null;";
             body.Add(ParseStatement("int _o = 0;"));
             body.Add(ParseStatement(countGuard));
+            body.Add(ParseStatement("if (_TryAt(_o) is { } _m) return _m;"));
+            body.Add(ParseStatement("return null;"));
+        }
+        else
+        {
+            // Exactly one anchor. anchorStart pins the run to the block start (_o = 0); anchorEnd pins it to the
+            // block end — for a fixed-only run that is _o = Count - fixedWidth, while a variable element already
+            // ends the run at the last statement (via _var), so _o = 0 and the variable absorbs the lead.
+            body.Add(ParseStatement($"if (_blk.Statements.Count < {fixedWidth}) return null;"));
+
+            string offset = anchorStart
+                ? "0"
+                : hasVariable ? "0" : $"_blk.Statements.Count - {fixedWidth}";
+
+            body.Add(ParseStatement($"int _o = {offset};"));
             body.Add(ParseStatement("if (_TryAt(_o) is { } _m) return _m;"));
             body.Add(ParseStatement("return null;"));
         }
