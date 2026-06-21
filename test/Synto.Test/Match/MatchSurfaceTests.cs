@@ -95,4 +95,39 @@ public class MatchSurfaceTests
             "Consumer snippet using the public Synto.Core [Capture] markers failed to bind: "
             + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
     }
+
+    [Fact]
+    public void InjectedQuantifierAndWildcardMarkersBind()
+    {
+        // A consumer writes a pattern body exercising every quantifier/wildcard/anchor marker form in
+        // body position: a Stmt quantifier verb in an embedded single-statement slot
+        // (`if (cond) guard.One();`), the static Statement wildcard (`Statement.One();`), a
+        // variable-length Stmt quantifier (`rest.All();`), the Expr expression wildcard
+        // (`_ = Expr.Any<bool>();`), and a Block anchor (`Block.End();`). The public-Core marker shapes
+        // (Stmt, Statement, Expr, Block) must all bind. No generator runs.
+        var compilation = Compile(
+            """
+            using Synto.Matching;
+
+            public partial class Consumer
+            {
+                static void Pattern([Capture] Stmt guard, [Capture] Stmt rest, bool cond)
+                {
+                    if (cond) guard.One();
+                    Statement.One();
+                    rest.All();
+                    _ = Expr.Any<bool>();
+                    Block.End();
+                }
+            }
+            """);
+
+        var errors = compilation.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        Assert.True(errors.Count == 0,
+            "Consumer snippet using the public Synto.Core quantifier/wildcard/anchor markers failed to bind: "
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+    }
 }
