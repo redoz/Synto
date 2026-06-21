@@ -61,8 +61,13 @@ const MAX_ATTEMPTS = 3 // local green-gate fix-and-retry attempts (NOT the share
 const FF_PUSH_MAX_ATTEMPTS = 8
 const MAX_REVIEW_ROUNDS = 2 // per-stage review->fix->review iterations
 
+// The format gate is scoped to `dotnet format whitespace` (line-endings + layout) ONLY.
+// Full `dotnet format` also applies analyzer code-fixes (CA1515 strips `public` off xUnit
+// test classes -> xUnit1000 build errors; CA1815 injects throwing operators) that rewrite
+// code and regress the build, so a full-format gate can never be clean here. Determinism
+// across Windows/Linux comes from the root .editorconfig (end_of_line=lf).
 const GREEN_GATE =
-  'dotnet build --no-restore -c Debug  (0 errors; analyzer warnings are findings, not gate failures) ; dotnet test --no-build -c Debug  (MTP v2 runner, all green) ; dotnet format --verify-no-changes  (no diffs)'
+  'dotnet build --no-restore -c Debug  (0 errors; analyzer warnings are findings, not gate failures) ; dotnet test --no-build -c Debug  (MTP v2 runner, all green) ; dotnet format whitespace --verify-no-changes  (no diffs)'
 
 // ---------------------------------------------------------------------------
 // Green-gate transient-flake guard (mirrors the FF_PUSH bounded+backoff pattern).
