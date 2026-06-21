@@ -254,4 +254,46 @@ public class MatchSnapshotTests
             }
             """);
     }
+
+    [Fact]
+    public Task None_SingleDiscard()
+    {
+        // None: root on the candidate declaration, derive its body block, align fully bounded. A fixed-only
+        // run requires the body Count to EXACTLY equal the run width.
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>]
+                static void SingleDiscard([Capture] object x) { _ = x; }
+            }
+            """);
+    }
+
+    [Fact]
+    public Task None_FirstThenRest()
+    {
+        // None + a variable-length element: the fully-anchored driver requires Count >= fixed width (NOT
+        // Count == width), and the variable element absorbs the remainder.
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>]
+                static void FirstThenRest([Capture] Stmt first, [Capture] Stmt rest) { first.One(); rest.All(); }
+            }
+            """);
+    }
 }

@@ -282,4 +282,40 @@ public partial class MatchRoundTripTests
         Assert.NotNull(M.WildAll(ParseStatement("{ A(); B(); }")));
         Assert.NotNull(M.WildAll(ParseStatement("{ }")));   // All = 0+
     }
+
+    [Fact]
+    public void None_MatchesDeclarationWhoseBodyIsExactlyTheShape()
+    {
+        // None (default): root on the candidate DECLARATION, derive its body, match FULLY BOUNDED. An extra
+        // trailing statement means the body is not exactly the shape -> no match.
+        [Match<M>]
+        static void SingleDiscard([Capture] object x)
+        { _ = x; }
+
+        var m = M.SingleDiscard(ParseMemberDeclaration("void F() { _ = y.z; }")!);
+        Assert.NotNull(m);
+        MatchTestHarness.AssertCapture("y.z", m!.X);
+
+        Assert.Null(M.SingleDiscard(ParseMemberDeclaration("void F() { _ = y.z; Extra(); }")!));   // not fully bounded
+    }
+
+    [Fact]
+    public void None_WithVariableElement_MatchesOneAndThreeStatementBodies()
+    {
+        // None + a single variable-length element: fully bounded, but the variable element absorbs the slack —
+        // so it matches a 1-statement body AND a 3-statement body (a `Count == width` gate would reject both
+        // but the exact one).
+        [Match<M>]
+        static void FirstThenRest([Capture] Stmt first, [Capture] Stmt rest)
+        { first.One(); rest.All(); }
+
+        var one = M.FirstThenRest(ParseMemberDeclaration("void F() { A(); }")!);
+        Assert.NotNull(one);
+        Assert.Equal(0, one!.Rest.Count);
+
+        var three = M.FirstThenRest(ParseMemberDeclaration("void F() { A(); B(); C(); }")!);
+        Assert.NotNull(three);
+        MatchTestHarness.AssertCapture("A();", three!.First);
+        Assert.Equal(2, three.Rest.Count);
+    }
 }

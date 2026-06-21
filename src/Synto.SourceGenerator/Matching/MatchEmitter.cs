@@ -54,6 +54,14 @@ internal static class MatchEmitter
             body.Add(ParseStatement("if (node is not BlockSyntax _blk) return null;"));
             EmitAnchoredRun(body, bareBlock.Statements, run, ctx, anchorStart: false, anchorEnd: false);
         }
+        // None (default): root on the candidate DECLARATION, derive its body block, align the run FULLY BOUNDED
+        // (both anchors implicit). A single variable-length element absorbs the slack (the fully-anchored driver
+        // requires Count >= fixed width, not Count == width).
+        else if (info.Option == MatchOption.None && MatchMarkers.TryGetBlockBody(info.PatternSyntax, out var noneBlock))
+        {
+            var run = BuildRun(noneBlock.Statements, ctx);
+            EmitDeclarationFullBody(body, noneBlock.Statements, run, ctx);
+        }
 
         // Every other option/body-shape stays unemitted here (body.Count == 0 -> null), exactly like the
         // former stub; later tasks fill those arms.
@@ -250,6 +258,8 @@ internal static class MatchEmitter
             .Where(element => element is not HoleElement { Hole.IsVariableLength: true })
             .Sum(FixedWidth);
 
+        bool hasVariable = run.Any(element => element is HoleElement { Hole.IsVariableLength: true });
+
         string matchType = ctx.Info.Name + "Match";
 
         var attemptBody = new List<StatementSyntax>();
@@ -260,13 +270,40 @@ internal static class MatchEmitter
             .WithBody(Block(attemptBody.ToArray()));
         body.Add(attempt);
 
-        // No-anchor (Bare contains / statement-Single): leftmost scan over offsets 0 .. Count - fixedWidth.
         if (!anchorStart && !anchorEnd)
         {
+            // No-anchor (Bare contains / statement-Single): leftmost scan over offsets 0 .. Count - fixedWidth.
             body.Add(ParseStatement(
                 $"for (int _o = 0; _o <= _blk.Statements.Count - {fixedWidth}; _o++) {{ if (_TryAt(_o) is {{ }} _m) return _m; }}"));
             body.Add(ParseStatement("return null;"));
         }
+        else if (anchorStart && anchorEnd)
+        {
+            // Fully bounded (None): no scan, pin _o = 0. With a variable element the body need only be at least
+            // the fixed width (the variable absorbs the rest); a fixed-only run requires the body to be EXACTLY
+            // the run width (else trailing statements are uncovered — not "fully bounded"). NEVER `Count == width`
+            // miscounting a variable element as 1.
+            string countGuard = hasVariable
+                ? $"if (_blk.Statements.Count < {fixedWidth}) return null;"
+                : $"if (_blk.Statements.Count != {fixedWidth}) return null;";
+            body.Add(ParseStatement("int _o = 0;"));
+            body.Add(ParseStatement(countGuard));
+            body.Add(ParseStatement("if (_TryAt(_o) is { } _m) return _m;"));
+            body.Add(ParseStatement("return null;"));
+        }
+    }
+
+    /// <summary>
+    /// Roots a <c>None</c> matcher on the candidate DECLARATION (a method / local function), derives its body
+    /// block into the non-null <c>_blk</c> local (the core's precondition), then aligns the run fully bounded
+    /// (both anchors). A declaration with no block body (expression-bodied / abstract) yields no match.
+    /// </summary>
+    private static void EmitDeclarationFullBody(List<StatementSyntax> body, IReadOnlyList<StatementSyntax> coreStatements, List<RunElement> run, MatchContext ctx)
+    {
+        body.Add(ParseStatement(
+            "BlockSyntax? _body = node switch { MethodDeclarationSyntax _md => _md.Body, LocalFunctionStatementSyntax _lf => _lf.Body, _ => null };"));
+        body.Add(ParseStatement("if (_body is not { } _blk) return null;"));
+        EmitAnchoredRun(body, coreStatements, run, ctx, anchorStart: true, anchorEnd: true);
     }
 
     /// <summary>
