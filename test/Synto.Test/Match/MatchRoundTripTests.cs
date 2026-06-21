@@ -167,4 +167,119 @@ public partial class MatchRoundTripTests
 
         Assert.Null(M.OneGuardNoElse(ParseStatement("{ if (ready) Go(); else Stop(); }")));
     }
+
+    [Fact]
+    public void Bare_OneVariableLength_SplitsDeterministically()
+    {
+        // One variable-length element (rest.All()) after a fixed literal `if`: the single greedy split is
+        // deterministic — the `if` pins the boundary, rest.All() absorbs the remainder (0+).
+        [Match<M>(MatchOption.Bare)]
+        static void GuardThenRest([Capture] bool cond, [Capture] Stmt guard, [Capture] Stmt rest)
+        { if (cond) guard.One(); rest.All(); }
+
+        var m = M.GuardThenRest(ParseStatement("{ if (ok) Go(); A(); B(); C(); }"));
+        Assert.NotNull(m);
+        MatchTestHarness.AssertCapture("ok", m!.Cond);
+        MatchTestHarness.AssertCapture("Go();", m.Guard);
+        Assert.Equal(3, m.Rest.Count);
+
+        var none = M.GuardThenRest(ParseStatement("{ if (ok) Go(); }"));
+        Assert.NotNull(none);
+        Assert.Equal(0, none!.Rest.Count);   // All = 0+
+    }
+
+    [Fact]
+    public void Bare_ReversedSignatureOrder_LocksMemberOrder()
+    {
+        // Walk order (cond first, in the `if` condition; rest last, the trailing run) DIFFERS from signature
+        // order (rest, cond). Deconstruction proves member 0 is `rest` (a SyntaxList with .Count) — without the
+        // Ordinal sort the members would be in walk order (cond first, an ExpressionSyntax) and `a.Count` is CS1061.
+        [Match<M>(MatchOption.Bare)]
+        static void Reversed([Capture] Stmt rest, [Capture] bool cond)
+        { if (cond) { } rest.All(); }
+
+        var m = M.Reversed(ParseStatement("{ if (go) { } A(); B(); }"));
+        Assert.NotNull(m);
+
+        var (a, b) = m!;
+        Assert.Equal(2, a.Count);                 // member 0 = rest (SyntaxList<StatementSyntax>)
+        MatchTestHarness.AssertCapture("go", b);   // member 1 = cond (ExpressionSyntax)
+    }
+
+    [Fact]
+    public void Bare_FixedElementAfterVariable_IndexesTail()
+    {
+        // A fixed literal AFTER the variable element exercises the _var-relative tail index.
+        [Match<M>(MatchOption.Bare)]
+        static void RunThenReturn([Capture] Stmt body)
+        { body.All(); return; }
+
+        var m = M.RunThenReturn(ParseStatement("{ A(); B(); return; }"));
+        Assert.NotNull(m);
+        Assert.Equal(2, m!.Body.Count);
+
+        Assert.Null(M.RunThenReturn(ParseStatement("{ A(); B(); C(); }")));   // no trailing return
+    }
+
+    [Fact]
+    public void Bare_Some_RequiresAtLeastOne()
+    {
+        // Some = 1+: a leading fixed `if` then body.Some() requires at least one trailing statement.
+        [Match<M>(MatchOption.Bare)]
+        static void GuardThenSome([Capture] bool cond, [Capture] Stmt body)
+        { if (cond) Statement.One(); body.Some(); }
+
+        var m = M.GuardThenSome(ParseStatement("{ if (ok) Go(); A(); }"));
+        Assert.NotNull(m);
+        Assert.Equal(1, m!.Body.Count);
+
+        Assert.Null(M.GuardThenSome(ParseStatement("{ if (ok) Go(); }")));   // Some needs >= 1
+    }
+
+    [Fact]
+    public void Bare_Opt_MatchesZeroOrOne()
+    {
+        // Opt = 0–1: the captured member is nullable; present -> the statement, absent -> null.
+        [Match<M>(MatchOption.Bare)]
+        static void HeadThenOpt([Capture] bool cond, [Capture] Stmt tail)
+        { if (cond) Statement.One(); tail.Opt(); }
+
+        var present = M.HeadThenOpt(ParseStatement("{ if (ok) Go(); A(); }"));
+        Assert.NotNull(present);
+        Assert.NotNull(present!.Tail);
+        MatchTestHarness.AssertCapture("A();", present.Tail!);
+
+        var absent = M.HeadThenOpt(ParseStatement("{ if (ok) Go(); }"));
+        Assert.NotNull(absent);
+        Assert.Null(absent!.Tail);
+
+        Assert.Null(M.HeadThenOpt(ParseStatement("{ if (ok) Go(); A(); B(); }")));   // Opt <= 1
+    }
+
+    [Fact]
+    public void Bare_Exactly_CapturesFixedSlice()
+    {
+        // Exactly(n) is fixed-arity: it captures exactly n consecutive statements as a SyntaxList.
+        [Match<M>(MatchOption.Bare)]
+        static void Pair([Capture] Stmt pair)
+        { pair.Exactly(2); }
+
+        var m = M.Pair(ParseStatement("{ A(); B(); C(); }"));
+        Assert.NotNull(m);
+        Assert.Equal(2, m!.Pair.Count);   // leftmost two
+
+        Assert.Null(M.Pair(ParseStatement("{ A(); }")));   // fewer than 2
+    }
+
+    [Fact]
+    public void Bare_WildcardAll_MatchesAnyBlock()
+    {
+        // Statement.All() is the variable WILDCARD: it matches any run (0+) and captures nothing.
+        [Match<M>(MatchOption.Bare)]
+        static void WildAll()
+        { Statement.All(); }
+
+        Assert.NotNull(M.WildAll(ParseStatement("{ A(); B(); }")));
+        Assert.NotNull(M.WildAll(ParseStatement("{ }")));   // All = 0+
+    }
 }

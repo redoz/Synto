@@ -171,4 +171,87 @@ public class MatchSnapshotTests
             }
             """);
     }
+
+    [Fact]
+    public Task Bare_GuardThenRest()
+    {
+        // One variable-length element after a fixed `if`: the _var split (Count - _o - before - after) + a
+        // SyntaxList slice for rest.All(), with `using System.Linq;` added for Skip/Take.
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Bare)]
+                static void GuardThenRest([Capture] bool cond, [Capture] Stmt guard, [Capture] Stmt rest) { if (cond) guard.One(); rest.All(); }
+            }
+            """);
+    }
+
+    [Fact]
+    public Task Bare_WildcardAll()
+    {
+        // A pure variable wildcard run (Statement.All()): no member, no captured slice — the wildcard matches
+        // any block, so the attempt body just returns the (empty) record.
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Bare)]
+                static void WildAll() { Statement.All(); }
+            }
+            """);
+    }
+
+    [Fact]
+    public Task Bare_FixedAfterVariable()
+    {
+        // A fixed literal AFTER the variable element: the tail indexes at _o + _var (the _var-relative tail).
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Bare)]
+                static void RunThenReturn([Capture] Stmt body) { body.All(); return; }
+            }
+            """);
+    }
+
+    [Fact]
+    public Task Bare_ReversedSignatureOrder()
+    {
+        // Pins the signature-order record members (SyntaxList<StatementSyntax> Rest, ExpressionSyntax Cond)
+        // against the reversed walk order (cond captured first, rest last).
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Bare)]
+                static void Reversed([Capture] Stmt rest, [Capture] bool cond) { if (cond) { } rest.All(); }
+            }
+            """);
+    }
 }
