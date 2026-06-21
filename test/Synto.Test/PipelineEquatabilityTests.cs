@@ -127,4 +127,34 @@ public class PipelineEquatabilityTests
 
         Assert.NotEqual(a, b);
     }
+
+    // ----- MatchGenerationResult (the value that flows through the matching pipeline) ----------------
+
+    [Fact]
+    public void MatchGenerationResultEqualByValueDrivenByDiagnosticArray()
+    {
+        // distinct DiagnosticInfo arrays with identical content => the wrapping results must compare equal,
+        // which is exactly what lets the matching pipeline cache an unchanged pattern.
+        var diagA = new EquatableArray<DiagnosticInfo>(ImmutableArray.Create(
+            new DiagnosticInfo(SampleDescriptor, Location: null, new EquatableArray<string>(ImmutableArray.Create("x")))));
+        var diagB = new EquatableArray<DiagnosticInfo>(ImmutableArray.Create(
+            new DiagnosticInfo(SampleDescriptor, Location: null, new EquatableArray<string>(ImmutableArray.Create("x")))));
+
+        var a = new MatchGenerationResult("File.g.cs", "source", diagA);
+        var b = new MatchGenerationResult("File.g.cs", "source", diagB);
+
+        Assert.Equal(a, b);
+        Assert.Equal(a.GetHashCode(), b.GetHashCode());
+    }
+
+    [Fact]
+    public void MatchGenerationResultDifferentSourceAreUnequal()
+    {
+        var empty = EquatableArray<DiagnosticInfo>.Empty;
+
+        var a = new MatchGenerationResult("File.g.cs", "source one", empty);
+        var b = new MatchGenerationResult("File.g.cs", "source two", empty);
+
+        Assert.NotEqual(a, b);
+    }
 }

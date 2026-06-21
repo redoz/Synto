@@ -35,9 +35,16 @@ internal static class Diagnostics
 
     public static DiagnosticInfo TargetNotPartial(TargetType target)
     {
+        return TargetNotPartial(LocationInfo.CreateFrom(target.GetReferenceLocation()), target.FullName);
+    }
+
+    // LocationInfo-based overload (C5): Matching has only the attribute Location (no typeof argument), so it
+    // supplies the located target name directly. Same descriptor / ID as the TargetType overload above.
+    public static DiagnosticInfo TargetNotPartial(LocationInfo? location, string targetName)
+    {
         return new DiagnosticInfo(_targetNotPartial,
-                                    LocationInfo.CreateFrom(target.GetReferenceLocation()),
-                                    new EquatableArray<string>(ImmutableArray.Create(target.FullName)));
+                                    location,
+                                    new EquatableArray<string>(ImmutableArray.Create(targetName)));
     }
 
     private static readonly DiagnosticDescriptor _targetNotClass = new(IdPrefix + "1002",
@@ -49,9 +56,14 @@ internal static class Diagnostics
 
     public static DiagnosticInfo TargetNotClass(TargetType target)
     {
+        return TargetNotClass(LocationInfo.CreateFrom(target.GetReferenceLocation()), target.FullName);
+    }
+
+    public static DiagnosticInfo TargetNotClass(LocationInfo? location, string targetName)
+    {
         return new DiagnosticInfo(_targetNotClass,
-                                    LocationInfo.CreateFrom(target.GetReferenceLocation()),
-                                    new EquatableArray<string>(ImmutableArray.Create(target.FullName)));
+                                    location,
+                                    new EquatableArray<string>(ImmutableArray.Create(targetName)));
     }
 
     private static readonly DiagnosticDescriptor _targetNotDeclaredInSource = new(IdPrefix + "1003",
@@ -63,9 +75,14 @@ internal static class Diagnostics
 
     public static DiagnosticInfo TargetNotDeclaredInSource(TargetType target, string? projectName)
     {
+        return TargetNotDeclaredInSource(LocationInfo.CreateFrom(target.GetReferenceLocation()), target.FullName, projectName);
+    }
+
+    public static DiagnosticInfo TargetNotDeclaredInSource(LocationInfo? location, string targetName, string? projectName)
+    {
         return new DiagnosticInfo(_targetNotDeclaredInSource,
-                                    LocationInfo.CreateFrom(target.GetReferenceLocation()),
-                                    new EquatableArray<string>(ImmutableArray.Create(target.FullName, projectName ?? "<unknown>")));
+                                    location,
+                                    new EquatableArray<string>(ImmutableArray.Create(targetName, projectName ?? "<unknown>")));
     }
 
     private static readonly DiagnosticDescriptor _targetAncestorNotPartial = new(IdPrefix + "1004",
@@ -77,9 +94,14 @@ internal static class Diagnostics
 
     public static DiagnosticInfo TargetAncestorNotPartial(TargetType target, string ancestorName)
     {
+        return TargetAncestorNotPartial(LocationInfo.CreateFrom(target.GetReferenceLocation()), target.FullName, ancestorName);
+    }
+
+    public static DiagnosticInfo TargetAncestorNotPartial(LocationInfo? location, string targetName, string ancestorName)
+    {
         return new DiagnosticInfo(_targetAncestorNotPartial,
-                                    LocationInfo.CreateFrom(target.GetReferenceLocation()),
-                                    new EquatableArray<string>(ImmutableArray.Create(target.FullName, ancestorName)));
+                                    location,
+                                    new EquatableArray<string>(ImmutableArray.Create(targetName, ancestorName)));
     }
 
     private static readonly DiagnosticDescriptor _bareSourceCannotBeEmpty = new(IdPrefix + "1005",
