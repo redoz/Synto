@@ -81,13 +81,23 @@ internal static class MatchTestHarness
 
     // ----- C3 self-containment proof closures ------------------------------------------------------
     //
-    // The proof needs a PINNED reference closure that LACKS System.Runtime.CompilerServices.IsExternalInit, so
-    // the generated positional record's `init` modreq stays unresolved (CS0518) unless our polyfill supplies
-    // the canonical type. We use the NETStandard.Library.Ref ref-pack (located via the NetStandardRefPath
-    // assembly-metadata attribute the csproj injects) — explicitly NOT typeof(object).Assembly.Location (the
-    // running net10 corlib) and NOT Assembly.Load("netstandard") (the runtime facade), both of which forward
-    // to a corlib that DEFINES IsExternalInit and would pass the proof green even with a broken polyfill. The
-    // `NetStandard20Closure_LacksIsExternalInit` self-check fact guards exactly that property.
+    // The proof needs a PINNED reference closure FAITHFUL to what a real netstandard2.0 generator project sees,
+    // and one that provides no ACCESSIBLE System.Runtime.CompilerServices.IsExternalInit — so the generated
+    // positional record's `init` modreq stays unresolved (CS0518) unless our polyfill supplies the canonical
+    // type. The closure is built from:
+    //   1. The NETStandard.Library.Ref ref-pack (located via the NetStandardRefPath assembly-metadata
+    //      attribute the csproj injects) — explicitly NOT typeof(object).Assembly.Location (the running net10
+    //      corlib) and NOT Assembly.Load("netstandard") (the runtime facade), both of which forward to a corlib
+    //      that DEFINES a PUBLIC IsExternalInit and would pass the proof green even with a broken polyfill.
+    //   2. The netstandard2.0 BUILD of Roslyn 5.0.0 (lib/netstandard2.0/*.dll) — NOT the loaded net build. The
+    //      loaded net build's System.Runtime 9.0 closure binds against the ns2.x BCL refs (System.Runtime
+    //      4.1.2.0) at a skewed version and throws CS1705 on the incremental-provider API; the ns2.0 build is
+    //      exactly what src/Synto.SourceGenerator (netstandard2.0) compiles against, so it is the faithful view.
+    //   3. The four assemblies the ns2.0 Roslyn build references that the ref pack lacks (Immutable, Reflection
+    //      .Metadata, CompilerServices.Unsafe, Encoding.CodePages), at the versions Roslyn 5.0.0 declares.
+    // Roslyn's ns2.0 build legitimately embeds an INTERNAL IsExternalInit — unusable cross-assembly, so it does
+    // NOT satisfy a consumer's `init` modreq and does NOT mask a broken polyfill. The
+    // `NetStandard20Closure_LacksAccessibleIsExternalInit` self-check fact guards that no PUBLIC one sneaks in.
 
     private static readonly Lazy<ImmutableArray<MetadataReference>> NetStandardClosureReferences = new(() =>
     {
@@ -96,9 +106,18 @@ internal static class MatchTestHarness
             .Select(static path => (MetadataReference)MetadataReference.CreateFromFile(path))
             .ToList();
 
-        // Roslyn — the generated matcher references only Microsoft.CodeAnalysis(.CSharp); no Synto runtime.
-        references.Add(MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location));
-        references.Add(MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location));
+        // Roslyn — the netstandard2.0 build (not the loaded net build; see the note above). The generated
+        // matcher + injected ForMatch surface reference only Microsoft.CodeAnalysis(.CSharp); no Synto runtime.
+        references.Add(ResolvePackageDll("MicrosoftCodeAnalysisCommonPath", "lib/netstandard2.0/Microsoft.CodeAnalysis.dll"));
+        references.Add(ResolvePackageDll("MicrosoftCodeAnalysisCSharpPath", "lib/netstandard2.0/Microsoft.CodeAnalysis.CSharp.dll"));
+
+        // The four deps the ns2.0 Roslyn build references that the ref pack lacks (>= the versions Roslyn 5.0.0
+        // declares for its .NETStandard2.0 dependency group). Without these the incremental-provider API binds
+        // against a skewed System.Runtime and throws CS1705.
+        references.Add(ResolvePackageDll("SystemCollectionsImmutablePath", "lib/netstandard2.0/System.Collections.Immutable.dll"));
+        references.Add(ResolvePackageDll("SystemReflectionMetadataPath", "lib/netstandard2.0/System.Reflection.Metadata.dll"));
+        references.Add(ResolvePackageDll("SystemRuntimeCompilerServicesUnsafePath", "lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll"));
+        references.Add(ResolvePackageDll("SystemTextEncodingCodePagesPath", "lib/netstandard2.0/System.Text.Encoding.CodePages.dll"));
         return references.ToImmutableArray();
     });
 
@@ -227,6 +246,34 @@ internal static class MatchTestHarness
         return CreateNetStandardClosure(injected, polyfill).GetDiagnostics();
     }
 
+    /// <summary>
+    /// The C-FM3 self-containment proof for the injected <c>ForMatch</c> EXTENSION surface: compiles the
+    /// injected <c>SyntoMatchProviderExtensions</c> wrappers over the Roslyn incremental-provider API on the
+    /// FAITHFUL netstandard2.0 closure (the ns2.0 Roslyn build + its deps), alongside the data surface they
+    /// reference and the <c>IsExternalInit</c> polyfill the <c>Matched&lt;T&gt;</c> record struct needs. Returns
+    /// the resulting diagnostics — they must be error-free, proving the extensions are self-contained on
+    /// netstandard2.0 (no Synto runtime-package dependency, no version-skewed Roslyn).
+    /// </summary>
+    public static ImmutableArray<Diagnostic> CompileInjectedForMatchExtensionsOnNetStandard20()
+    {
+        var dataSurface = InjectedSurfaceSource("readonly struct MatchPattern");
+        var extensions = InjectedSurfaceSource("class SyntoMatchProviderExtensions");
+        var polyfill = GeneratedPolyfillSource(Run(
+            """
+            using Synto.Matching;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object Sum([Capture] int a, [Capture] int b) => a + b;
+            }
+            """));
+
+        return CreateNetStandardClosure(dataSurface, extensions, polyfill).GetDiagnostics();
+    }
+
     private static CSharpCompilation CreateClosure(string assemblyName, ImmutableArray<MetadataReference> references, string[] sources)
     {
         var parseOptions = new CSharpParseOptions(LanguageVersion.Latest);
@@ -237,15 +284,32 @@ internal static class MatchTestHarness
 
     private static string ResolveNetStandardRefDirectory()
     {
+        // The package lays its reference assemblies under ref/netstandard2.x/; pick the single ref TFM folder.
+        var refRoot = Path.Combine(ResolvePackageRoot("NetStandardRefPath"), "ref");
+        return Directory.GetDirectories(refRoot).Single();
+    }
+
+    /// <summary>
+    /// Resolves a NuGet package's restored root from the <see cref="AssemblyMetadataAttribute"/> the test
+    /// csproj injects (surfaced from a <c>GeneratePathProperty</c> <c>Pkg*</c> property), then combines it with
+    /// <paramref name="relativePath"/> into a <see cref="MetadataReference"/>. Machine-independent — mirrors
+    /// the <c>NetStandardRefPath</c> mechanism, so no absolute ~/.nuget path is hardcoded in test code.
+    /// </summary>
+    private static PortableExecutableReference ResolvePackageDll(string metadataKey, string relativePath)
+    {
+        var dllPath = Path.Combine(ResolvePackageRoot(metadataKey), relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Assert.True(File.Exists(dllPath), $"Expected package assembly not found for '{metadataKey}': {dllPath}");
+        return MetadataReference.CreateFromFile(dllPath);
+    }
+
+    private static string ResolvePackageRoot(string metadataKey)
+    {
         var metadata = typeof(MatchTestHarness).Assembly
             .GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(attribute => attribute.Key == "NetStandardRefPath");
+            .FirstOrDefault(attribute => attribute.Key == metadataKey);
 
         Assert.NotNull(metadata);
-        Assert.False(string.IsNullOrEmpty(metadata!.Value), "NetStandardRefPath assembly metadata was empty");
-
-        // The package lays its reference assemblies under ref/netstandard2.x/; pick the single ref TFM folder.
-        var refRoot = Path.Combine(metadata.Value!, "ref");
-        return Directory.GetDirectories(refRoot).Single();
+        Assert.False(string.IsNullOrEmpty(metadata!.Value), $"{metadataKey} assembly metadata was empty");
+        return metadata.Value!;
     }
 }

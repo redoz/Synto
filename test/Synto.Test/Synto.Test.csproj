@@ -11,8 +11,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Common" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <!--
+      GeneratePathProperty surfaces each package root (Pkg* property) so the Matching self-containment
+      proof can reference the netstandard2.0 BUILD of Roslyn (lib/netstandard2.0/*.dll) rather than the
+      LOADED net build. Asset flow is unchanged: the net build still flows to the test output so the suite
+      runs; only the proof's reference closure reaches into lib/netstandard2.0.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
     <PackageReference Include="Verify.DiffPlex" />
     <PackageReference Include="Verify.SourceGenerators" />
@@ -25,12 +31,49 @@
       surfaced to test code via the NetStandardRefPath assembly-metadata attribute below.
     -->
     <PackageReference Include="NETStandard.Library.Ref" GeneratePathProperty="true" ExcludeAssets="all" PrivateAssets="all" />
+    <!--
+      Restore-only deps that complete the FAITHFUL netstandard2.0 closure: the four assemblies the ns2.0
+      Roslyn build references that the netstandard ref pack lacks. ExcludeAssets=all + PrivateAssets=all so
+      they do NOT flow into the net10 test output; restored only for their lib/netstandard2.0 ref DLLs,
+      located at runtime via GeneratePathProperty + the AssemblyMetadata attributes below.
+    -->
+    <!-- NU1510: these are framework-provided on net10 and so "prunable"; we keep them deliberately for their
+         lib/netstandard2.0 ref DLLs (ExcludeAssets=all means they contribute nothing to compile/runtime). -->
+    <PackageReference Include="System.Collections.Immutable" GeneratePathProperty="true" ExcludeAssets="all" PrivateAssets="all" NoWarn="NU1510" />
+    <PackageReference Include="System.Reflection.Metadata" GeneratePathProperty="true" ExcludeAssets="all" PrivateAssets="all" NoWarn="NU1510" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" GeneratePathProperty="true" ExcludeAssets="all" PrivateAssets="all" NoWarn="NU1510" />
+    <PackageReference Include="System.Text.Encoding.CodePages" GeneratePathProperty="true" ExcludeAssets="all" PrivateAssets="all" NoWarn="NU1510" />
   </ItemGroup>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>NetStandardRefPath</_Parameter1>
       <_Parameter2>$(PkgNETStandard_Library_Ref)</_Parameter2>
+    </AssemblyAttribute>
+    <!-- Package roots for the faithful ns2.0 closure (read by MatchTestHarness, machine-independent). -->
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>MicrosoftCodeAnalysisCommonPath</_Parameter1>
+      <_Parameter2>$(PkgMicrosoft_CodeAnalysis_Common)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>MicrosoftCodeAnalysisCSharpPath</_Parameter1>
+      <_Parameter2>$(PkgMicrosoft_CodeAnalysis_CSharp)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SystemCollectionsImmutablePath</_Parameter1>
+      <_Parameter2>$(PkgSystem_Collections_Immutable)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SystemReflectionMetadataPath</_Parameter1>
+      <_Parameter2>$(PkgSystem_Reflection_Metadata)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SystemRuntimeCompilerServicesUnsafePath</_Parameter1>
+      <_Parameter2>$(PkgSystem_Runtime_CompilerServices_Unsafe)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SystemTextEncodingCodePagesPath</_Parameter1>
+      <_Parameter2>$(PkgSystem_Text_Encoding_CodePages)</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
 

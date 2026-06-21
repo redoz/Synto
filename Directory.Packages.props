@@ -30,6 +30,17 @@
 	  (ExcludeAssets=all), located at runtime via GeneratePathProperty + an AssemblyMetadata attribute.
 	-->
 	<PackageVersion Include="NETStandard.Library.Ref" Version="2.1.0" />
+	<!--
+	  Restore-only deps that complete the FAITHFUL netstandard2.0 reference closure for the Matching
+	  self-containment proof. The ns2.0 build of Roslyn 5.0.0 references these at exactly these versions
+	  (the .NETStandard2.0 dependency group of Microsoft.CodeAnalysis.Common 5.0.0); the netstandard ref
+	  pack does NOT carry them. Restored only for their ref DLLs (ExcludeAssets=all in the test csproj),
+	  located at runtime via GeneratePathProperty + AssemblyMetadata attributes.
+	-->
+	<PackageVersion Include="System.Collections.Immutable" Version="9.0.0" />
+	<PackageVersion Include="System.Reflection.Metadata" Version="9.0.0" />
+	<PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.0" />
+	<PackageVersion Include="System.Text.Encoding.CodePages" Version="8.0.0" />
 	<PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
 	<PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.7.0" />
 	<PackageVersion Include="Verify.XunitV3" Version="31.19.0" />

@@ -11,6 +11,15 @@ namespace Synto.Test.Match;
 /// BCL-present coexistence side. The proof lands here (Task 6), the first capturing matcher — a zero-capture
 /// record has no <c>init</c> member, so the proof could not reach RED at Task 5.
 /// </summary>
+/// <remarks>
+/// The netstandard2.0 closure is FAITHFUL to a real generator project: it references the ns2.0 BUILD of Roslyn
+/// (not the loaded net build), which legitimately embeds an INTERNAL <c>IsExternalInit</c>. That internal copy
+/// is inaccessible cross-assembly and so does NOT satisfy a consumer's <c>init</c> modreq — the witnessed-RED
+/// <see cref="GeneratedMatcher_WithoutPolyfill_FailsCS0518_OnNetStandard20"/> remains the direct, load-bearing
+/// proof that the injected polyfill is required. <see cref="NetStandard20Closure_LacksAccessibleIsExternalInit"/>
+/// is accordingly a refined CANARY: it asserts the closure exposes no <em>accessible</em> (public)
+/// <c>IsExternalInit</c>, catching a net corlib sneaking in while tolerating Roslyn's internal copy.
+/// </remarks>
 public class MatchSelfContainmentTests
 {
     private const string CapturingMatcherSource =
@@ -27,13 +36,22 @@ public class MatchSelfContainmentTests
         """;
 
     [Fact]
-    public void NetStandard20Closure_LacksIsExternalInit()
+    public void NetStandard20Closure_LacksAccessibleIsExternalInit()
     {
-        // Closure self-check: a future ref-set change must not silently restore IsExternalInit and let the
-        // proof pass green with a broken/absent polyfill. The pinned closure MUST NOT define the type.
+        // Closure self-check (the canary for the load-bearing CS0518 proof below): a future ref-set change
+        // must not silently restore an ACCESSIBLE IsExternalInit and let GeneratedMatcher_WithoutPolyfill_
+        // FailsCS0518_OnNetStandard20 pass green with a broken/absent polyfill.
+        //
+        // The faithful ns2.0 Roslyn build legitimately embeds an INTERNAL IsExternalInit. That copy is unusable
+        // cross-assembly — it does NOT satisfy a consumer's `init` modreq (witnessed by the still-RED CS0518
+        // test) — so it does not undermine the proof and is tolerated here. What the closure must NEVER provide
+        // is a PUBLIC IsExternalInit (e.g. a net corlib sneaking in), which a consumer COULD use; that is the
+        // exact regression this guard exists to catch.
         var compilation = MatchTestHarness.CreateNetStandardClosure();
 
-        Assert.Null(compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.IsExternalInit"));
+        var type = compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.IsExternalInit");
+        Assert.True(type is null || type.DeclaredAccessibility != Accessibility.Public,
+            "the netstandard2.0 closure must provide no PUBLIC IsExternalInit a consumer could use to satisfy an `init` modreq");
     }
 
     [Fact]

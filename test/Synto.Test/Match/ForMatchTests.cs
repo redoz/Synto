@@ -42,9 +42,23 @@ public partial class ForMatchTests
     [Fact]
     public void InjectedForMatchSurface_CompilesOn_NetStandard20()
     {
-        // C-FM3: the injected helper surface compiles self-contained on the netstandard2.0 closure (with the
-        // IsExternalInit polyfill the matching DSL injects) — no Synto runtime-package dependency.
+        // C-FM3 (data surface): the injected Matched<T> / MatchPattern<T> helper surface compiles
+        // self-contained on the netstandard2.0 closure (with the IsExternalInit polyfill the matching DSL
+        // injects) — no Synto runtime-package dependency.
         var diagnostics = MatchTestHarness.CompileInjectedForMatchSurfaceOnNetStandard20();
+
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public void InjectedForMatchExtensions_CompileOn_NetStandard20()
+    {
+        // C-FM3 (extension surface): the injected SyntoMatchProviderExtensions wrappers over the Roslyn
+        // incremental-provider API ALSO compile self-contained on the FAITHFUL netstandard2.0 closure (the
+        // ns2.0 Roslyn build + its deps), alongside the data surface they reference and the polyfill. This is
+        // the coverage the faithful closure unlocks: the loaded net Roslyn build threw CS1705 binding the
+        // provider API against the ns2.x BCL refs, so the extensions could not previously be proven.
+        var diagnostics = MatchTestHarness.CompileInjectedForMatchExtensionsOnNetStandard20();
 
         Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
     }
