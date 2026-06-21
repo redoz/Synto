@@ -36,6 +36,7 @@
        EmbeddedResource in Synto.SourceGenerator.csproj). It must never be <Compile>d into Synto.Core. -->
   <ItemGroup>
     <Compile Remove="Matching\ForMatchHelpers.cs" />
+    <Compile Remove="Matching\ForMatchProviderExtensions.cs" />
   </ItemGroup>
 
   <!-- Both shipped generators consume Synto.Core's generator-internal machinery (CSharpSyntaxQuoter,

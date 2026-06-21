@@ -136,9 +136,9 @@ internal static class MatchTestHarness
 
     /// <summary>
     /// Runs <see cref="SurfaceInjectionGenerator"/> over an empty compilation and returns the single injected
-    /// (post-init) source whose text contains <paramref name="contentMarker"/> — e.g. <c>"MatchPattern"</c>
-    /// selects the injected <c>ForMatchHelpers.g.cs</c>. This is the same surface a real consumer's generator
-    /// project receives.
+    /// (post-init) source whose text contains <paramref name="contentMarker"/> — e.g.
+    /// <c>"readonly struct MatchPattern"</c> selects the injected data surface <c>ForMatchHelpers.g.cs</c>.
+    /// This is the same surface a real consumer's generator project receives.
     /// </summary>
     public static string InjectedSurfaceSource(string contentMarker)
     {
@@ -165,6 +165,19 @@ internal static class MatchTestHarness
     }
 
     /// <summary>
+    /// Runs an in-test consumer <paramref name="generator"/> (one that hooks its pipeline via
+    /// <c>ForMatch</c>) over <paramref name="source"/> and returns the generated source texts. Mirrors a real
+    /// consumer generator project: only the consumer generator runs; the matcher members it references are
+    /// already present on this assembly's <c>M</c> target.
+    /// </summary>
+    public static IReadOnlyList<string> RunConsumerGenerator(IIncrementalGenerator generator, string source)
+    {
+        var compilation = CreateCompilation(source);
+        var driver = CSharpGeneratorDriver.Create(generator).RunGenerators(compilation);
+        return driver.GetRunResult().GeneratedTrees.Select(tree => tree.ToString()).ToList();
+    }
+
+    /// <summary>
     /// The C-FM3 self-containment proof for the injected <c>ForMatch</c> surface: compiles the injected
     /// <c>ForMatchHelpers</c> source plus the <c>IsExternalInit</c> polyfill on the pinned netstandard2.0
     /// closure (the closure that LACKS <c>IsExternalInit</c>, so the <c>Matched&lt;T&gt;</c> record struct's
@@ -172,7 +185,7 @@ internal static class MatchTestHarness
     /// </summary>
     public static ImmutableArray<Diagnostic> CompileInjectedForMatchSurfaceOnNetStandard20()
     {
-        var injected = InjectedSurfaceSource("MatchPattern");
+        var injected = InjectedSurfaceSource("readonly struct MatchPattern");
         var polyfill = GeneratedPolyfillSource(Run(
             """
             using Synto.Matching;

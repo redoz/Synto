@@ -80,4 +80,27 @@ public partial class ForMatchTests
         MatchTestHarness.AssertCapture("1", m!.A);
         MatchTestHarness.AssertCapture("2", m.B);
     }
+
+    [Fact]
+    public void ForMatch_Thin_YieldsOneResultPerMatchedNode() // C-FM4
+    {
+        // The thin ForMatch yields one Matched<T> per node where the matcher succeeds. Source has two
+        // add-expressions, so the consumer generator emits exactly two outputs.
+        var outputs = MatchTestHarness.RunConsumerGenerator(
+            new ThinConsumerGenerator(),
+            "class C { int F(int a, int b) => a + b; int G(int c, int d) => c + d; }");
+
+        Assert.Equal(2, outputs.Count);
+    }
+
+    /// <summary>Consumer generator that hooks the thin <c>ForMatch</c> overload, emitting one source per match.</summary>
+    private sealed class ThinConsumerGenerator : IIncrementalGenerator
+    {
+        public void Initialize(IncrementalGeneratorInitializationContext context)
+        {
+            var matches = context.SyntaxProvider.ForMatch(M.SumPattern);
+            context.RegisterSourceOutput(matches, static (productionContext, matched) =>
+                productionContext.AddSource($"thin_{matched.Node.SpanStart}.g.cs", "// " + matched.Captures.A));
+        }
+    }
 }

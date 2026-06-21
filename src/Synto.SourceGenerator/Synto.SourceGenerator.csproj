@@ -49,10 +49,11 @@
 	<EmbeddedResource Include="..\Synto\Matching\MatchAttribute.cs" LogicalName="Synto.Runtime.MatchAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\CaptureAttribute.cs" LogicalName="Synto.Runtime.CaptureAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\Markers.cs" LogicalName="Synto.Runtime.Markers.cs" />
-	<!-- The ForMatch helper surface (Matched<T> / MatchPattern<T> / SyntoMatchProviderExtensions). NOT
-		 <Compile>d in Synto.Core (it references the incremental-generator pipeline types); injected as
-		 internal source into the consumer's generator project alongside the markers. -->
+	<!-- The ForMatch helper surface. NOT <Compile>d in Synto.Core; injected as internal source into the
+		 consumer's generator project alongside the markers. Split in two: the netstandard2.0-pure data
+		 surface (Matched<T> / MatchPattern<T>) and the incremental-pipeline ForMatch extension wrappers. -->
 	<EmbeddedResource Include="..\Synto\Matching\ForMatchHelpers.cs" LogicalName="Synto.Runtime.ForMatchHelpers.cs" />
+	<EmbeddedResource Include="..\Synto\Matching\ForMatchProviderExtensions.cs" LogicalName="Synto.Runtime.ForMatchProviderExtensions.cs" />
   </ItemGroup>
 
   <!-- The runtime HELPERS that CAN be emitted into consumer code (ToSyntax / ToTypeSyntax /

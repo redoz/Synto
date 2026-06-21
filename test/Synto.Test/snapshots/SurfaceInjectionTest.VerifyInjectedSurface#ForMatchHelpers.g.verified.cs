@@ -44,11 +44,3 @@ internal readonly struct MatchPattern<TMatch> where TMatch : class
     /// <summary>Runs the full matcher against <paramref name="node"/>, returning its captures or <see langword="null"/>.</summary>
     public TMatch? Match(SyntaxNode node) => MatchFn(node);
 }
-
-/// <summary>
-/// <c>ForMatch</c> — the consumer-facing mirror of <c>ForAttributeWithMetadataName</c>: hooks an
-/// incremental generator pipeline onto a Synto <c>[Match]</c> pattern. The overloads land in later tasks.
-/// </summary>
-internal static class SyntoMatchProviderExtensions
-{
-}
