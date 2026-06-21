@@ -80,4 +80,28 @@ public partial class MatchRoundTripTests
 
         Assert.Null(M.EqualsAnything(ParseExpression("x + y")));   // not an == expression
     }
+
+    [Fact]
+    public void SelfEq_RequiresBothSidesSyntacticallyEqual()
+    {
+        [Match<M>(MatchOption.Single)]
+        static object SelfEq([Capture] object x) => x == x;
+
+        // The reused `x` collapses to one member + one IsEquivalentTo: both operands must be structurally equal.
+        Assert.NotNull(M.SelfEq(ParseExpression("a.b == a.b")));
+        Assert.Null(M.SelfEq(ParseExpression("a.b == a.c")));   // sides differ
+    }
+
+    [Fact]
+    public void SelfEq3_RequiresAllThreeSidesEqual()
+    {
+        // Three sites of one capture -> two reuse sites in one scope. A fixed reuse-temp name would re-declare
+        // (CS0128); a unique temp per site is what lets this compile. (`int` glue so `+` binds — the glue type
+        // does not affect matching; the member is still ExpressionSyntax.)
+        [Match<M>(MatchOption.Single)]
+        static object SelfEq3([Capture] int x) => x + x + x;
+
+        Assert.NotNull(M.SelfEq3(ParseExpression("a.b + a.b + a.b")));
+        Assert.Null(M.SelfEq3(ParseExpression("a.b + a.b + a.c")));   // last side differs
+    }
 }

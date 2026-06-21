@@ -112,13 +112,26 @@ internal static class MatchEmitter
     /// record the capture carrying <c>Ordinal = param.Ordinal</c> for signature-order record members.
     /// </summary>
     /// <remarks>
-    /// Task 6 deliberately has NO reuse branch: a second occurrence of the same capture re-declares
-    /// <c>cap_{name}</c> (CS0128) and re-adds the member (CS0102) — the RED state Task 8's non-linear
-    /// equality fixes. Adding a working reuse branch now would make Task 8 green-on-arrival.
+    /// Non-linear equality (Task 8): a REUSED capture adds no new member — at a site whose local is already
+    /// bound, narrow a UNIQUE temp (so 3+ reuse sites don't re-declare a fixed name → CS0128) and require it
+    /// <c>IsEquivalentTo</c> the first-site local. The first site binds the typed <c>cap_{name}</c> local and
+    /// records the member.
     /// </remarks>
     private static void EmitCapture(List<StatementSyntax> body, string accessor, CaptureParameter capture, MatchContext ctx)
     {
         string local = "cap_" + capture.ParameterName;
+
+        if (ctx.BoundCaptureLocals.Contains(local))
+        {
+            // Reuse site: narrow into a unique temp (enforces the same kind as the first site) and require
+            // structural equality with the first-site capture. No new member.
+            string temp = ctx.NextTmp();
+            body.Add(ParseStatement($"if ({accessor} is not {capture.MemberType} {temp}) return null;"));
+            // topLevel:false is load-bearing — the single-arg IsEquivalentTo defaults to topLevel:true
+            // (signature-only / trivia-sensitive on a sub-expression), which rejects structurally-equal sides.
+            body.Add(ParseStatement($"if (!{temp}.IsEquivalentTo({local}, topLevel: false)) return null;"));
+            return;
+        }
 
         body.Add(ParseStatement($"if ({accessor} is not {capture.MemberType} {local}) return null;"));
 

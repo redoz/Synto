@@ -108,4 +108,25 @@ public class MatchSnapshotTests
             }
             """);
     }
+
+    [Fact]
+    public Task ExpressionSingle_NonLinear()
+    {
+        // Reused capture: ONE record member (X), a first-site cap_x binding + a reuse-site temp guarded by
+        // IsEquivalentTo(cap_x). No second member.
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object SelfEq([Capture] object x) => x == x;
+            }
+            """);
+    }
 }
