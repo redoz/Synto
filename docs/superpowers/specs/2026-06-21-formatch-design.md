@@ -177,10 +177,10 @@ implementations**, not one expressed via the other.
 - **Relationship to v1:** additive — its own implementation plan and increment on
   `experimental/matching` (or a sibling experimental branch). Does not alter the v1 matcher surface.
 
-## 10. Open questions (resolve during planning)
+## 10. Open questions (resolved)
 
-- **Naming.** `ForMatch` (lean: yes); `Matched<T>` vs `MatchResult<T>` (lean: `Matched<T>`);
-  `MatchPattern<T>` vs `Pattern<T>` (lean: `MatchPattern<T>`).
-- **Imperative convenience.** Whether `MatchPattern<T>` should also expose `Match(node)` /
-  `IsMatch(node)` for non-pipeline (imperative) callers — likely yes and cheap, but confirm during
-  planning.
+- **Naming — LOCKED.** `ForMatch`, `Matched<T>`, and `MatchPattern<T>` are the locked names (over
+  `MatchResult<T>` / `Pattern<T>`). Namespace `Synto.Matching`. Generated members `{Pattern}CouldMatch`
+  / `{Pattern}Pattern`.
+- **Imperative convenience — DELIVERED (Task 1).** `MatchPattern<T>` exposes `IsMatch(node)` (cheap gate
+  AND the matcher) and `Match(node)` (the matcher) for non-pipeline (imperative) callers.

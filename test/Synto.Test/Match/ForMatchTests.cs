@@ -136,4 +136,40 @@ public partial class ForMatchTests
                 productionContext.AddSource($"proj_{value}.g.cs", "// " + value));
         }
     }
+
+    [Fact]
+    public void ForMatch_EndToEnd_GeneratesPerMatch()
+    {
+        // Full path: M.SumPattern -> projecting ForMatch -> RegisterSourceOutput. The projection carries both
+        // capture text AND the matched node (its text + location line), proving the node is available downstream.
+        var outputs = MatchTestHarness.RunConsumerGenerator(
+            new EndToEndConsumerGenerator(),
+            "class C\n{\n    int Sum1() => 1 + 2;\n    int Sum2() => 3 + 4;\n}");
+
+        Assert.Equal(2, outputs.Count);
+        Assert.Contains(outputs, output => output.Contains("a=1 b=2 node=1 + 2 line=2", StringComparison.Ordinal));
+        Assert.Contains(outputs, output => output.Contains("a=3 b=4 node=3 + 4 line=3", StringComparison.Ordinal));
+    }
+
+    /// <summary>Realistic consumer generator: projects each Sum match to its capture text + matched-node text/location.</summary>
+    private sealed class EndToEndConsumerGenerator : IIncrementalGenerator
+    {
+        public void Initialize(IncrementalGeneratorInitializationContext context)
+        {
+            var projected = context.SyntaxProvider.ForMatch(M.SumPattern, static (matched, _) =>
+                new SumProjection(
+                    matched.Captures.A.ToString(),
+                    matched.Captures.B.ToString(),
+                    matched.Node.ToString(),
+                    matched.Node.GetLocation().GetLineSpan().StartLinePosition.Line));
+
+            context.RegisterSourceOutput(projected, static (productionContext, projection) =>
+                productionContext.AddSource(
+                    $"sum_{projection.A}_{projection.B}.g.cs",
+                    $"// a={projection.A} b={projection.B} node={projection.Node} line={projection.Line}"));
+        }
+    }
+
+    /// <summary>Equatable projection of a Sum match — only equatable data crosses the pipeline boundary (C-FM2).</summary>
+    private readonly record struct SumProjection(string A, string B, string Node, int Line);
 }
