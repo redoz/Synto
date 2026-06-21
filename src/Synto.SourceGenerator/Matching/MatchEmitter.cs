@@ -26,15 +26,15 @@ internal static class MatchEmitter
         var ctx = new MatchContext(info, markers);
         var body = new List<StatementSyntax>();
 
-        // Task 5: expression-Single with zero captures. Root the walk on the handed `node` and return the
-        // (empty-member) record on a full structural match. Every other option/body-shape stays unemitted
-        // here (body.Count == 0 -> null), exactly like the former stub; later tasks fill those arms.
+        // Expression-Single (arrow body). Root the walk on the handed `node`; the walk captures expression
+        // holes (Task 6) into ctx.Captures, then we return the record built from the captured locals in
+        // SIGNATURE order. Every other option/body-shape stays unemitted here (body.Count == 0 -> null),
+        // exactly like the former stub; later tasks fill those arms.
         if (info.Option == MatchOption.Single
-            && markers.CaptureParameters.Count == 0
             && MatchMarkers.IsExpressionBodied(info.PatternSyntax, out var expression))
         {
             EmitNodeMatch(body, "node", expression, ctx);
-            body.Add(ParseStatement($"return new {info.Name}Match();"));
+            body.Add(ParseStatement($"return new {info.Name}Match({RenderCaptureArguments(ctx)});"));
         }
 
         // The abort/merge, wired here at MatchContext's introduction: emitter-raised diagnostics always flow
@@ -55,7 +55,14 @@ internal static class MatchEmitter
     /// </summary>
     private static void EmitNodeMatch(List<StatementSyntax> body, string accessor, SyntaxNode pattern, MatchContext ctx)
     {
-        // (Task 6+ checks for a hole at this position first and dispatches to capture/wildcard handling.)
+        // Hole dispatch: a node that binds to a [Capture] parameter is a capture position, not literal syntax
+        // to match. Narrowing + binding happens AT the hole (the accessor-type contract), so a captured node
+        // binds straight into its typed record member even when {accessor} is statically SyntaxNode.
+        if (ctx.Markers.TryGetCapture(pattern, out var capture))
+        {
+            EmitCapture(body, accessor, capture, ctx);
+            return;
+        }
 
         string local = ctx.NextTmp();
         string typeName = pattern.GetType().Name;
@@ -90,6 +97,34 @@ internal static class MatchEmitter
             }
         }
     }
+
+    /// <summary>
+    /// Emits an expression-capture hole: narrow + bind the candidate into a <c>cap_{name}</c> local at the
+    /// hole (so it binds straight into the typed record member regardless of the accessor's static type), and
+    /// record the capture carrying <c>Ordinal = param.Ordinal</c> for signature-order record members.
+    /// </summary>
+    /// <remarks>
+    /// Task 6 deliberately has NO reuse branch: a second occurrence of the same capture re-declares
+    /// <c>cap_{name}</c> (CS0128) and re-adds the member (CS0102) — the RED state Task 8's non-linear
+    /// equality fixes. Adding a working reuse branch now would make Task 8 green-on-arrival.
+    /// </remarks>
+    private static void EmitCapture(List<StatementSyntax> body, string accessor, CaptureParameter capture, MatchContext ctx)
+    {
+        string local = "cap_" + capture.ParameterName;
+
+        body.Add(ParseStatement($"if ({accessor} is not {capture.MemberType} {local}) return null;"));
+
+        ctx.BoundCaptureLocals.Add(local);
+        ctx.Captures.Add(new Capture(capture.Ordinal, capture.MemberName, capture.MemberType, local));
+    }
+
+    /// <summary>
+    /// The captured-local argument list for the result-record constructor, in SIGNATURE order (by
+    /// <see cref="Capture.Ordinal"/>) — the same order <see cref="Compose"/> sorts the record members by, so
+    /// positional construction lines up with the positional record regardless of walk order.
+    /// </summary>
+    private static string RenderCaptureArguments(MatchContext ctx) =>
+        string.Join(", ", ctx.Captures.OrderBy(capture => capture.Ordinal).Select(capture => capture.LocalName));
 
     /// <summary>
     /// Composes the generated file: the nested result record + the matcher method, wrapped in the partial
@@ -144,16 +179,20 @@ internal static class MatchEmitter
 /// </summary>
 internal sealed class Capture
 {
-    public Capture(int ordinal, string memberName, string memberType)
+    public Capture(int ordinal, string memberName, string memberType, string localName)
     {
         Ordinal = ordinal;
         MemberName = memberName;
         MemberType = memberType;
+        LocalName = localName;
     }
 
     public int Ordinal { get; }
     public string MemberName { get; }
     public string MemberType { get; }
+
+    /// <summary>The runtime local the captured node binds to (<c>cap_{paramName}</c>); the record ctor argument.</summary>
+    public string LocalName { get; }
 }
 
 /// <summary>

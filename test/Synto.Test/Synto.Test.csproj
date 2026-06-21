@@ -19,6 +19,19 @@
     <PackageReference Include="Verify.XunitV3" />
     <PackageReference Include="xunit.v3.mtp-v2" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <!--
+      The pinned netstandard reference closure for the Matching C3 self-containment proof. Restored only to
+      obtain its ref DLLs (no compile/runtime asset flow into this net10 test project); the package root is
+      surfaced to test code via the NetStandardRefPath assembly-metadata attribute below.
+    -->
+    <PackageReference Include="NETStandard.Library.Ref" GeneratePathProperty="true" ExcludeAssets="all" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>NetStandardRefPath</_Parameter1>
+      <_Parameter2>$(PkgNETStandard_Library_Ref)</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>

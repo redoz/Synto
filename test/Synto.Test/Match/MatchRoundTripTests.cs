@@ -1,3 +1,4 @@
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Matching;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
@@ -31,5 +32,38 @@ public partial class MatchRoundTripTests
         Assert.NotNull(M.LiteralOne(ParseExpression("1")));
         Assert.Null(M.LiteralOne(ParseExpression("2")));        // wrong literal text
         Assert.Null(M.LiteralOne(ParseExpression("1 + 1")));    // not a literal at all
+    }
+
+    [Fact]
+    public void Sum_CapturesBothOperands()
+    {
+        [Match<M>(MatchOption.Single)]
+        static object Sum([Capture] int a, [Capture] int b) => a + b;
+
+        // Structural match of `<a> + <b>` captures BOTH operands as ExpressionSyntax, whatever their shape.
+        var m = M.Sum(ParseExpression("foo() + 42"));
+        Assert.NotNull(m);
+        MatchTestHarness.AssertCapture("foo()", m!.A);
+        MatchTestHarness.AssertCapture("42", m.B);
+
+        Assert.Null(M.Sum(ParseExpression("foo() - 42")));   // wrong operator kind (SubtractExpression)
+        Assert.Null(M.Sum(ParseExpression("foo()")));        // not a binary expression at all
+    }
+
+    [Fact]
+    public void Narrowed_OnlyMatchesInvocation_AndTypesTheMember()
+    {
+        [Match<M>(MatchOption.Single)]
+        static object Narrowed([Capture<InvocationExpressionSyntax>] object call) => call;
+
+        var m = M.Narrowed(ParseExpression("foo(1)"));
+        Assert.NotNull(m);
+
+        // The narrowed member MUST compile as InvocationExpressionSyntax — assigning to that exact type and
+        // reaching an invocation-only member proves the static type, not just the runtime value.
+        InvocationExpressionSyntax call = m!.Call;
+        Assert.Single(call.ArgumentList.Arguments);
+
+        Assert.Null(M.Narrowed(ParseExpression("1 + 1")));   // not an invocation -> narrowed guard rejects it
     }
 }

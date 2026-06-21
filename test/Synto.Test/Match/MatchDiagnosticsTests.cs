@@ -199,6 +199,71 @@ public class MatchDiagnosticsTests
         }
     }
 
+    [Fact]
+    public void Generator_IsIncremental_AcrossPatterns_OnEditingOne()
+    {
+        // Cross-pattern cacheability (C4): two [Match] patterns on one target; editing ONE body re-runs that
+        // pattern's Transform/Result (Modified) while the other's Result stays Cached/Unchanged. Asserted
+        // host-Roslyn-robustly as ">=1 Modified AND >=1 Cached/Unchanged" across both tracked steps.
+        const string before =
+            """
+            using Synto.Matching;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object One() => 1;
+
+                [Match<M>(MatchOption.Single)]
+                static object Two() => 2;
+            }
+            """;
+
+        // Only Two's literal body changes (2 -> 3); One's tree text is byte-identical.
+        const string after =
+            """
+            using Synto.Matching;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object One() => 1;
+
+                [Match<M>(MatchOption.Single)]
+                static object Two() => 3;
+            }
+            """;
+
+        var compilation = MatchTestHarness.CreateCompilation(before);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new MatchFactorySourceGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation);
+
+        var modified = compilation.ReplaceSyntaxTree(
+            compilation.SyntaxTrees.Single(),
+            CSharpSyntaxTree.ParseText(after));
+        driver = driver.RunGenerators(modified);
+
+        var result = driver.GetRunResult().Results.Single();
+
+        var reasons = new[] { MatchTrackingNames.Transform, MatchTrackingNames.Result }
+            .SelectMany(name => result.TrackedSteps[name])
+            .SelectMany(step => step.Outputs)
+            .Select(output => output.Reason)
+            .ToList();
+
+        Assert.Contains(IncrementalStepRunReason.Modified, reasons);
+        Assert.Contains(reasons, reason =>
+            reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged);
+    }
+
     private static void AssertHasRealSpan(Diagnostic diag)
     {
         // The location is carried cacheably as a serializable LocationInfo and reconstructed at emit time;

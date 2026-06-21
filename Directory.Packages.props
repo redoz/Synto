@@ -23,6 +23,13 @@
 
   <!-- Test (Microsoft Testing Platform v2; no VSTest/coverlet) -->
   <ItemGroup>
+	<!--
+	  Pinned netstandard reference closure for the Matching C3 self-containment proof: a ref set that
+	  LACKS System.Runtime.CompilerServices.IsExternalInit, so the generated positional record's `init`
+	  modreq stays unresolved without our injected polyfill (CS0518). Restored only for its ref DLLs
+	  (ExcludeAssets=all), located at runtime via GeneratePathProperty + an AssemblyMetadata attribute.
+	-->
+	<PackageVersion Include="NETStandard.Library.Ref" Version="2.1.0" />
 	<PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
 	<PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.7.0" />
 	<PackageVersion Include="Verify.XunitV3" Version="31.19.0" />

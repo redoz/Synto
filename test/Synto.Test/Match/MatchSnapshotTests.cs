@@ -44,4 +44,47 @@ public class MatchSnapshotTests
             }
             """);
     }
+
+    [Fact]
+    public Task ExpressionSingle_Captures()
+    {
+        // Two plain [Capture] expression holes: a positional record SumMatch(ExpressionSyntax A,
+        // ExpressionSyntax B) + a structural `<a> + <b>` walk binding each operand into a cap_ local.
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object Sum([Capture] int a, [Capture] int b) => a + b;
+            }
+            """);
+    }
+
+    [Fact]
+    public Task ExpressionSingle_Narrowed()
+    {
+        // [Capture<TNode>] narrowing: the member is typed the fully-qualified narrow type and the guard is an
+        // `is not <narrow>` that both rejects a non-matching kind and binds the typed local.
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object Narrowed([Capture<InvocationExpressionSyntax>] object call) => call;
+            }
+            """);
+    }
 }
