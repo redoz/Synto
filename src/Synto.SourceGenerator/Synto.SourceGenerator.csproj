@@ -45,6 +45,8 @@
 	<EmbeddedResource Include="..\Synto\Templating\RuntimeAttribute.cs" LogicalName="Synto.Runtime.RuntimeAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\TemplateOption.cs" LogicalName="Synto.Runtime.TemplateOption.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Syntax.cs" LogicalName="Synto.Runtime.Syntax.cs" />
+	<EmbeddedResource Include="..\Synto\Matching\MatchOption.cs" LogicalName="Synto.Runtime.MatchOption.cs" />
+	<EmbeddedResource Include="..\Synto\Matching\MatchAttribute.cs" LogicalName="Synto.Runtime.MatchAttribute.cs" />
   </ItemGroup>
 
   <!-- The runtime HELPERS that CAN be emitted into consumer code (ToSyntax / ToTypeSyntax /
