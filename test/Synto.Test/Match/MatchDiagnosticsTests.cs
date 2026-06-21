@@ -409,6 +409,45 @@ public class MatchDiagnosticsTests
         Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("partial class M", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void InternalError_MapsToSY0000()
+    {
+        // The SY0000 catch-all: any exception escaping generation converts to a located-at-None diagnostic
+        // carrying the exception text (the generator's try/catch never throws).
+        var exception = new InvalidOperationException("boom-marker-7f3a");
+
+        var diagnostic = Synto.Diagnostics.InternalError(exception).ToDiagnostic();
+
+        Assert.Equal("SY0000", diagnostic.Id);
+        Assert.Equal(Location.None, diagnostic.Location);
+        Assert.Contains("boom-marker-7f3a", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Sy12xxDescriptors_AreRegistered_InUnshippedReleases()
+    {
+        // Registration audit: every SY12xx descriptor must be tracked in AnalyzerReleases.Unshipped.md so the
+        // generator stays RS2008-clean. Fails loudly if a later edit drops a registration.
+        var content = File.ReadAllText(FindUnshippedReleasesPath());
+
+        foreach (var id in new[] { "SY1201", "SY1202", "SY1203", "SY1204", "SY1205" })
+            Assert.Contains(id, content, StringComparison.Ordinal);
+    }
+
+    private static string FindUnshippedReleasesPath()
+    {
+        var directory = AppContext.BaseDirectory;
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory, "src", "Synto.SourceGenerator", "AnalyzerReleases.Unshipped.md");
+            if (File.Exists(candidate))
+                return candidate;
+            directory = Path.GetDirectoryName(directory);
+        }
+
+        throw new FileNotFoundException($"AnalyzerReleases.Unshipped.md not found walking up from {AppContext.BaseDirectory}");
+    }
+
     private static void AssertHasRealSpan(Diagnostic diag)
     {
         // The location is carried cacheably as a serializable LocationInfo and reconstructed at emit time;
