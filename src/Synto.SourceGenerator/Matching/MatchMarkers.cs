@@ -21,17 +21,21 @@ namespace Synto;
 internal sealed class MatchMarkers
 {
     private const string StmtMetadataName = "Synto.Matching.Stmt";
+    private const string ExprMetadataName = "Synto.Matching.Expr";
 
     private readonly SemanticModel _semanticModel;
     private readonly Dictionary<ISymbol, CaptureParameter> _expressionCaptures;
+    private readonly INamedTypeSymbol? _exprType;
 
     private MatchMarkers(
         SemanticModel semanticModel,
         IReadOnlyList<IParameterSymbol> captureParameters,
-        Dictionary<ISymbol, CaptureParameter> expressionCaptures)
+        Dictionary<ISymbol, CaptureParameter> expressionCaptures,
+        INamedTypeSymbol? exprType)
     {
         _semanticModel = semanticModel;
         _expressionCaptures = expressionCaptures;
+        _exprType = exprType;
         CaptureParameters = captureParameters;
     }
 
@@ -47,6 +51,7 @@ internal sealed class MatchMarkers
             .GetTypeByMetadataName(typeof(CaptureAttribute<>).FullName!)?
             .ConstructUnboundGenericType();
         var stmtType = compilation.GetTypeByMetadataName(StmtMetadataName);
+        var exprType = compilation.GetTypeByMetadataName(ExprMetadataName);
 
         var captures = new List<IParameterSymbol>();
         var expressionCaptures = new Dictionary<ISymbol, CaptureParameter>(SymbolEqualityComparer.Default);
@@ -73,7 +78,20 @@ internal sealed class MatchMarkers
                 new CaptureParameter(parameter.Ordinal, parameter.Name, ToMemberName(parameter.Name), memberType));
         }
 
-        return new MatchMarkers(info.SemanticModel, captures, expressionCaptures);
+        return new MatchMarkers(info.SemanticModel, captures, expressionCaptures, exprType);
+    }
+
+    /// <summary>
+    /// Recognizes the expression wildcard <c>Expr.Any&lt;T&gt;()</c> — an invocation binding (by symbol) to a
+    /// method on the <c>Synto.Matching.Expr</c> holder. It matches any expression and captures nothing.
+    /// </summary>
+    public bool IsExpressionWildcard(SyntaxNode node)
+    {
+        if (_exprType is null)
+            return false;
+
+        return _semanticModel.GetSymbolInfo(node).Symbol is IMethodSymbol method
+            && SymbolEqualityComparer.Default.Equals(method.ContainingType, _exprType);
     }
 
     /// <summary>

@@ -87,4 +87,25 @@ public class MatchSnapshotTests
             }
             """);
     }
+
+    [Fact]
+    public Task ExpressionSingle_Wildcard()
+    {
+        // Expr.Any<T>() in the right operand: an `is not ExpressionSyntax` assertion with NO capture member,
+        // and no recursion into the marker invocation. Only the left [Capture] surfaces.
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object EqualsAnything([Capture] object lhs) => lhs == Expr.Any<object>();
+            }
+            """);
+    }
 }

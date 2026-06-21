@@ -66,4 +66,18 @@ public partial class MatchRoundTripTests
 
         Assert.Null(M.Narrowed(ParseExpression("1 + 1")));   // not an invocation -> narrowed guard rejects it
     }
+
+    [Fact]
+    public void Wildcard_MatchesAnyRightOperand_WithoutCapturing()
+    {
+        [Match<M>(MatchOption.Single)]
+        static object EqualsAnything([Capture] object lhs) => lhs == Expr.Any<object>();
+
+        // Expr.Any<T>() matches ANY expression in the right slot and captures nothing; only `lhs` surfaces.
+        var m = M.EqualsAnything(ParseExpression("x == foo(1, 2)"));
+        Assert.NotNull(m);
+        MatchTestHarness.AssertCapture("x", m!.Lhs);
+
+        Assert.Null(M.EqualsAnything(ParseExpression("x + y")));   // not an == expression
+    }
 }

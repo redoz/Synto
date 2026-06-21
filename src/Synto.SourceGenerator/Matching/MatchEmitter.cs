@@ -64,6 +64,14 @@ internal static class MatchEmitter
             return;
         }
 
+        // Expression wildcard Expr.Any<T>(): assert the candidate is an expression, capture nothing, and do
+        // NOT recurse into the marker invocation's children.
+        if (ctx.Markers.IsExpressionWildcard(pattern))
+        {
+            body.Add(ParseStatement($"if ({accessor} is not ExpressionSyntax) return null;"));
+            return;
+        }
+
         string local = ctx.NextTmp();
         string typeName = pattern.GetType().Name;
 
