@@ -35,6 +35,18 @@ internal static class MatchDiagnostics
     public static DiagnosticInfo ForeachRepetitionNotSupported(Location? location) =>
         new(_foreachRepetitionNotSupported, LocationInfo.CreateFrom(location), EquatableArray<string>.Empty);
 
+    // SY1202 — a PROVABLE anchor contradiction ({0}-reason-parameterized): a core statement before
+    // Block.Start() or after Block.End(). Conservative — only the provably-dead, never merely-suspicious.
+    private static readonly DiagnosticDescriptor _patternUnsatisfiable = new("SY1202",
+        "Unsatisfiable Pattern",
+        "{0}",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo PatternUnsatisfiable(Location? location, string reason) =>
+        new(_patternUnsatisfiable, LocationInfo.CreateFrom(location), new EquatableArray<string>(ImmutableArray.Create(reason)));
+
     // SY1204 — the quantifier-placement family ({0}-reason-parameterized): a run with >1 variable-length
     // element, or a variable-length quantifier in an embedded single-statement slot. Located on the offending hole.
     private static readonly DiagnosticDescriptor _quantifierPlacementUnsupported = new("SY1204",

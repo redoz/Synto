@@ -386,6 +386,29 @@ public class MatchDiagnosticsTests
         Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("partial class M", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ContentBeforeBlockStart_ReportsSY1202()
+    {
+        // A core statement before Block.Start() requires content before the block's first statement -> provably
+        // unsatisfiable -> SY1202, no tree.
+        var result = MatchTestHarness.Run(
+            """
+            using Synto.Matching;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Bare)]
+                static void Lead([Capture] Stmt body) { body.Some(); Block.Start(); }
+            }
+            """);
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1202");
+        AssertHasRealSpan(diag);
+        Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("partial class M", StringComparison.Ordinal));
+    }
+
     private static void AssertHasRealSpan(Diagnostic diag)
     {
         // The location is carried cacheably as a serializable LocationInfo and reconstructed at emit time;

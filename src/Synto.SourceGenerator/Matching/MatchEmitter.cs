@@ -57,10 +57,15 @@ internal static class MatchEmitter
         else if (MatchMarkers.TryGetBlockBody(info.PatternSyntax, out var block))
         {
             // Block body. Extract anchors FIRST (ExtractAnchors ordering), so the count-based shape check below
-            // counts only the CORE (post-anchor) statements — never a silent default arm.
+            // counts only the CORE (post-anchor) statements — never a silent default arm. ExtractAnchors may also
+            // raise SY1202 (provable anchor contradiction) and abort, in which case we emit nothing.
             var (core, anchorStart, anchorEnd, anchorLocations) = ExtractAnchors(block.Statements, ctx);
 
-            if (info.Option == MatchOption.None)
+            if (ctx.Aborted)
+            {
+                // SY1202 raised during extraction — diagnostics-only, no tree.
+            }
+            else if (info.Option == MatchOption.None)
             {
                 // None is fully bounded by its own braces, so anchors are a usage error -> SY1201 (each).
                 if (anchorStart || anchorEnd)
@@ -275,6 +280,9 @@ internal static class MatchEmitter
     /// anchor flags, carrying each anchor's <c>Location</c> (for SY1201). Runs BEFORE any count-based shape check
     /// so the core count never miscounts an anchor as a statement (e.g. <c>{ return x; Block.End(); }</c> extracts
     /// to one core statement + anchorEnd, dispatching as an anchored statement-Single, never a default arm).
+    /// While walking in order it also detects the PROVABLE anchor contradiction (SY1202): a core statement
+    /// before <c>Block.Start()</c> or after <c>Block.End()</c> can never be satisfied. Conservative — only the
+    /// provably-dead is flagged.
     /// </summary>
     private static (List<StatementSyntax> Core, bool AnchorStart, bool AnchorEnd, List<Location> AnchorLocations) ExtractAnchors(
         IReadOnlyList<StatementSyntax> statements, MatchContext ctx)
@@ -290,12 +298,34 @@ internal static class MatchEmitter
             {
                 anchorLocations.Add(statement.GetLocation());
                 if (isStart)
+                {
                     anchorStart = true;
+
+                    // Content before Block.Start() requires statements before the block's first — unsatisfiable.
+                    if (core.Count > 0 && !ctx.Aborted)
+                    {
+                        ctx.Diagnostics.Add(MatchDiagnostics.PatternUnsatisfiable(
+                            statement.GetLocation(),
+                            "a core statement appears before Block.Start(), so the pattern can never match"));
+                        ctx.Aborted = true;
+                    }
+                }
                 else
+                {
                     anchorEnd = true;
+                }
             }
             else
             {
+                // Content after Block.End() requires statements past the block's last — unsatisfiable.
+                if (anchorEnd && !ctx.Aborted)
+                {
+                    ctx.Diagnostics.Add(MatchDiagnostics.PatternUnsatisfiable(
+                        statement.GetLocation(),
+                        "a core statement appears after Block.End(), so the pattern can never match"));
+                    ctx.Aborted = true;
+                }
+
                 core.Add(statement);
             }
         }
