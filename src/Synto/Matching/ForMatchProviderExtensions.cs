@@ -1,3 +1,5 @@
+using System;
+using System.Threading;
 using Microsoft.CodeAnalysis;
 
 namespace Synto.Matching;
@@ -35,5 +37,31 @@ public static class SyntoMatchProviderExtensions
                 })
             .Where(static matched => matched.HasValue)
             .Select(static (matched, _) => matched!.Value);
+    }
+
+    /// <summary>
+    /// The PROJECTING overload: cacheable by construction. A SINGLE <c>CreateSyntaxProvider</c> runs the
+    /// matcher AND the consumer <paramref name="transform"/> together, emitting only the equatable
+    /// <typeparamref name="TResult"/>; the non-equatable <see cref="Matched{TMatch}"/> is transform-local and
+    /// never becomes a cached pipeline value. (C-FM2: only <typeparamref name="TResult"/> enters cached state.)
+    /// This is deliberately NOT <c>ForMatch(pattern).Select(transform)</c> — that would cache the non-equatable
+    /// <see cref="Matched{TMatch}"/> at the intermediate step.
+    /// </summary>
+    public static IncrementalValuesProvider<TResult> ForMatch<TMatch, TResult>(
+        this SyntaxValueProvider syntax, MatchPattern<TMatch> pattern,
+        Func<Matched<TMatch>, CancellationToken, TResult> transform)
+        where TMatch : class
+    {
+        return syntax.CreateSyntaxProvider(
+                predicate: (node, _) => pattern.CouldMatch(node),
+                transform: (context, cancellationToken) =>
+                {
+                    var captures = pattern.MatchFn(context.Node);
+                    return captures is not null
+                        ? new ValueTuple<bool, TResult>(true, transform(new Matched<TMatch>(context.Node, captures), cancellationToken))
+                        : default;
+                })
+            .Where(static result => result.Item1)
+            .Select(static (result, _) => result.Item2);
     }
 }

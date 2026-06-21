@@ -178,6 +178,31 @@ internal static class MatchTestHarness
     }
 
     /// <summary>
+    /// Runs an in-test consumer <paramref name="generator"/> over <paramref name="source"/> with step-tracking
+    /// on, then re-runs after adding an UNRELATED tree (<paramref name="unrelatedSource"/>) — the cacheability
+    /// fixture. Returns both run results so a test can assert the consumer's tracked steps stay
+    /// <c>Cached</c>/<c>Unchanged</c> on the second run (mirrors <c>Generator_IsIncremental_OnUnrelatedEdit</c>).
+    /// </summary>
+    public static (GeneratorDriverRunResult First, GeneratorDriverRunResult Second) RunConsumerGeneratorTwice(
+        IIncrementalGenerator generator, string source, string unrelatedSource)
+    {
+        var compilation = CreateCompilation(source);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { generator.AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation);
+        var first = driver.GetRunResult();
+
+        var modified = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(unrelatedSource));
+        driver = driver.RunGenerators(modified);
+        var second = driver.GetRunResult();
+
+        return (first, second);
+    }
+
+    /// <summary>
     /// The C-FM3 self-containment proof for the injected <c>ForMatch</c> surface: compiles the injected
     /// <c>ForMatchHelpers</c> source plus the <c>IsExternalInit</c> polyfill on the pinned netstandard2.0
     /// closure (the closure that LACKS <c>IsExternalInit</c>, so the <c>Matched&lt;T&gt;</c> record struct's

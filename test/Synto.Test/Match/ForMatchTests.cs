@@ -103,4 +103,37 @@ public partial class ForMatchTests
                 productionContext.AddSource($"thin_{matched.Node.SpanStart}.g.cs", "// " + matched.Captures.A));
         }
     }
+
+    [Fact]
+    public void ForMatch_Projecting_IsCacheable_OnUnrelatedEdit() // C-FM2
+    {
+        // The projecting overload's only pipeline output is the equatable TResult (string). An unrelated edit
+        // leaves the source tree byte-identical, so every consumer step result must come from cache.
+        var (_, second) = MatchTestHarness.RunConsumerGeneratorTwice(
+            new ProjectingConsumerGenerator(),
+            "class C { int F(int a, int b) => a + b; int G(int c, int d) => c + d; }",
+            "namespace Other { internal sealed class Unrelated { } }");
+
+        var result = second.Results.Single();
+        Assert.True(result.TrackedSteps.ContainsKey("consumer"), "no tracked step 'consumer'");
+
+        var reasons = result.TrackedSteps["consumer"].SelectMany(step => step.Outputs).Select(output => output.Reason);
+        Assert.All(reasons, reason => Assert.True(
+            reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+            $"consumer step had reason {reason}, expected Cached/Unchanged"));
+    }
+
+    /// <summary>Consumer generator that hooks the PROJECTING <c>ForMatch</c> overload, projecting to an equatable string.</summary>
+    private sealed class ProjectingConsumerGenerator : IIncrementalGenerator
+    {
+        public void Initialize(IncrementalGeneratorInitializationContext context)
+        {
+            var projected = context.SyntaxProvider
+                .ForMatch(M.SumPattern, static (matched, _) => matched.Captures.A.ToString())
+                .WithTrackingName("consumer");
+
+            context.RegisterSourceOutput(projected, static (productionContext, value) =>
+                productionContext.AddSource($"proj_{value}.g.cs", "// " + value));
+        }
+    }
 }
