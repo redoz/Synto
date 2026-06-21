@@ -50,4 +50,9 @@ partial class M
 
         return null;
     }
+
+    public static bool OneGuardCouldMatch(SyntaxNode node)
+    {
+        return node is BlockSyntax;
+    }
 }

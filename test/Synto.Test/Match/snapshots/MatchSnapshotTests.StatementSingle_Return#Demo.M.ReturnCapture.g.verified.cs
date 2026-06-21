@@ -43,4 +43,9 @@ partial class M
 
         return null;
     }
+
+    public static bool ReturnCaptureCouldMatch(SyntaxNode node)
+    {
+        return node is BlockSyntax;
+    }
 }

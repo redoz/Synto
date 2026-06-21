@@ -27,4 +27,9 @@ partial class M
             return null;
         return new SumMatch(cap_a, cap_b);
     }
+
+    public static bool SumCouldMatch(SyntaxNode node)
+    {
+        return node is BinaryExpressionSyntax && node.IsKind(SyntaxKind.AddExpression);
+    }
 }

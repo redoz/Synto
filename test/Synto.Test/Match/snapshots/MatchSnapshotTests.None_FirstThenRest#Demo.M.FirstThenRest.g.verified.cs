@@ -35,4 +35,9 @@ partial class M
             return _m;
         return null;
     }
+
+    public static bool FirstThenRestCouldMatch(SyntaxNode node)
+    {
+        return node is MethodDeclarationSyntax or LocalFunctionStatementSyntax;
+    }
 }

@@ -27,4 +27,9 @@ partial class M
             return null;
         return new EqualsAnythingMatch(cap_lhs);
     }
+
+    public static bool EqualsAnythingCouldMatch(SyntaxNode node)
+    {
+        return node is BinaryExpressionSyntax && node.IsKind(SyntaxKind.EqualsExpression);
+    }
 }

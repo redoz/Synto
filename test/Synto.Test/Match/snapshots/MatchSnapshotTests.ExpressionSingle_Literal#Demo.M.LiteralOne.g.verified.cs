@@ -23,4 +23,9 @@ partial class M
             return null;
         return new LiteralOneMatch();
     }
+
+    public static bool LiteralOneCouldMatch(SyntaxNode node)
+    {
+        return node is LiteralExpressionSyntax && node.IsKind(SyntaxKind.NumericLiteralExpression);
+    }
 }

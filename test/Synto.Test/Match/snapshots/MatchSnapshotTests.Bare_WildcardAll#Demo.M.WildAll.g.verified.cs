@@ -25,4 +25,9 @@ partial class M
 
         return null;
     }
+
+    public static bool WildAllCouldMatch(SyntaxNode node)
+    {
+        return node is BlockSyntax;
+    }
 }

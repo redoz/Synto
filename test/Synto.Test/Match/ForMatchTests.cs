@@ -48,4 +48,23 @@ public partial class ForMatchTests
 
         Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
     }
+
+    [Fact]
+    public void CouldMatch_AcceptsMatchRoot_RejectsWrongKind()
+    {
+        // The cheap companion predicate is the matcher's top-level type + RawKind gate only.
+        Assert.True(M.SumCouldMatch(ParseExpression("x + y")));    // AddExpression
+        Assert.False(M.SumCouldMatch(ParseExpression("x * y")));   // wrong kind (MultiplyExpression)
+        Assert.False(M.SumCouldMatch(ParseExpression("x")));       // wrong type (not a binary expression)
+    }
+
+    [Fact]
+    public void CouldMatch_IsSupersetOf_Match() // C-FM1
+    {
+        // CouldMatch must accept every node Match accepts — it is the matcher's own root gate.
+        var root = ParseCompilationUnit("class C { object F() => (1 + 2) + foo(3 + 4); }");
+        foreach (var node in root.DescendantNodesAndSelf())
+            if (M.Sum(node) is not null)
+                Assert.True(M.SumCouldMatch(node), $"CouldMatch must accept every node Match accepts: {node}");
+    }
 }

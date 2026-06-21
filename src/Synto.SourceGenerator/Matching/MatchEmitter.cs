@@ -43,6 +43,7 @@ internal static class MatchEmitter
             // order. A None/Bare option on an expression body is an option×body-shape misuse -> SY1205.
             if (info.Option == MatchOption.Single)
             {
+                ctx.CouldMatchGuard = ComputeExpressionRootGate(expression, ctx);
                 EmitNodeMatch(body, "node", expression, ctx);
                 body.Add(ParseStatement($"return new {info.Name}Match({RenderCaptureArguments(ctx)});"));
             }
@@ -76,6 +77,9 @@ internal static class MatchEmitter
                 }
                 else
                 {
+                    // None roots on the candidate DECLARATION (method / local function) — the cheap gate is the
+                    // declaration-kind check; the body-shape match runs in the matcher.
+                    ctx.CouldMatchGuard = "node is MethodDeclarationSyntax or LocalFunctionStatementSyntax";
                     var run = BuildRun(core, ctx);
                     EmitDeclarationFullBody(body, core, run, ctx);
                 }
@@ -83,6 +87,7 @@ internal static class MatchEmitter
             else if (info.Option == MatchOption.Single && core.Count == 1)
             {
                 // Statement-Single: root on the candidate block, align the one-element core with the anchor flags.
+                ctx.CouldMatchGuard = "node is BlockSyntax";
                 var run = BuildRun(core, ctx);
                 body.Add(ParseStatement("if (node is not BlockSyntax _blk) return null;"));
                 EmitAnchoredRun(body, core, run, ctx, anchorStart, anchorEnd);
@@ -90,6 +95,7 @@ internal static class MatchEmitter
             else if (info.Option == MatchOption.Bare)
             {
                 // Bare: root on the candidate block, align the run contained in it with the anchor flags.
+                ctx.CouldMatchGuard = "node is BlockSyntax";
                 var run = BuildRun(core, ctx);
                 body.Add(ParseStatement("if (node is not BlockSyntax _blk) return null;"));
                 EmitAnchoredRun(body, core, run, ctx, anchorStart, anchorEnd);
@@ -193,6 +199,23 @@ internal static class MatchEmitter
                 body.Add(ParseStatement($"if ({tok}.AsToken().Text != {SymbolDisplay.FormatLiteral(token.Text, quote: true)}) return null;"));
             }
         }
+    }
+
+    /// <summary>
+    /// Computes the cheap root gate for an expression-Single matcher rooted on <paramref name="pattern"/>:
+    /// the SAME first guard <see cref="EmitNodeMatch"/> emits at the root, lifted to a boolean over <c>node</c>.
+    /// A capture root narrows to the capture's member type; an expression wildcard narrows to
+    /// <c>ExpressionSyntax</c>; any other node roots on its .NET type + <c>RawKind</c>. C-FM1 superset.
+    /// </summary>
+    private static string ComputeExpressionRootGate(SyntaxNode pattern, MatchContext ctx)
+    {
+        if (ctx.Markers.TryGetCapture(pattern, out var capture))
+            return $"node is {capture.MemberType}";
+
+        if (ctx.Markers.IsExpressionWildcard(pattern))
+            return "node is ExpressionSyntax";
+
+        return $"node is {pattern.GetType().Name} && node.IsKind(SyntaxKind.{pattern.Kind()})";
     }
 
     /// <summary>
@@ -630,11 +653,16 @@ internal static class MatchEmitter
         var method = ((MethodDeclarationSyntax)ParseMemberDeclaration($"public static {matchName}? {info.Name}(SyntaxNode node) {{ }}")!)
             .WithBody(Block(body.ToArray()));
 
+        // The companion cheap predicate {Name}CouldMatch: the matcher's top-level type/kind/shape gate as a
+        // standalone bool (C-FM1 superset). Each dispatch branch recorded the SAME guard it roots on.
+        var couldMatch = (MethodDeclarationSyntax)ParseMemberDeclaration(
+            $"public static bool {info.Name}CouldMatch(SyntaxNode node) {{ return {ctx.CouldMatchGuard}; }}")!;
+
         var targetClassDecl = (ClassDeclarationSyntax)info.Target.DeclaringSyntaxReferences[0].GetSyntax();
 
         MemberDeclarationSyntax targetSyntax = ClassDeclaration(targetClassDecl.Identifier)
             .WithModifiers(targetClassDecl.Modifiers)
-            .AddMembers(record, method);
+            .AddMembers(record, method, couldMatch);
 
         targetSyntax = targetSyntax.WithAncestryFrom(info.Target);
 
@@ -756,6 +784,13 @@ internal sealed class MatchContext
 
     /// <summary>Set by the slice-emitting helpers when the body uses <c>Skip</c>/<c>Take</c>; gates the <c>using System.Linq;</c> in <see cref="MatchEmitter"/>'s output so capture-less goldens don't churn.</summary>
     public bool NeedsLinq { get; set; }
+
+    /// <summary>
+    /// The cheap companion-predicate body: a boolean expression over <c>node</c> equal to the matcher's
+    /// top-level type/kind/shape gate (C-FM1 superset). Each dispatch branch sets it to the SAME guard it
+    /// roots the matcher on; <see cref="MatchEmitter.Compose"/> emits <c>{Name}CouldMatch</c> from it.
+    /// </summary>
+    public string? CouldMatchGuard { get; set; }
 
     /// <summary>A unique temp-local name per call.</summary>
     public string NextTmp() => "_t" + _tmpCounter++;

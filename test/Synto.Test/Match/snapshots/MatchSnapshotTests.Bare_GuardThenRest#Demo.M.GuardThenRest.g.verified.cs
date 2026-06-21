@@ -53,4 +53,9 @@ partial class M
 
         return null;
     }
+
+    public static bool GuardThenRestCouldMatch(SyntaxNode node)
+    {
+        return node is BlockSyntax;
+    }
 }

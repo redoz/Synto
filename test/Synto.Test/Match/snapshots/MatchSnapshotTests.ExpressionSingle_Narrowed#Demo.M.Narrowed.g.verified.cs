@@ -14,4 +14,9 @@ partial class M
             return null;
         return new NarrowedMatch(cap_call);
     }
+
+    public static bool NarrowedCouldMatch(SyntaxNode node)
+    {
+        return node is global::Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax;
+    }
 }

@@ -67,4 +67,9 @@ partial class M
 
         return null;
     }
+
+    public static bool ReversedCouldMatch(SyntaxNode node)
+    {
+        return node is BlockSyntax;
+    }
 }

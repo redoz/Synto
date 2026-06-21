@@ -31,4 +31,9 @@ partial class M
             return null;
         return new SelfEqMatch(cap_x);
     }
+
+    public static bool SelfEqCouldMatch(SyntaxNode node)
+    {
+        return node is BinaryExpressionSyntax && node.IsKind(SyntaxKind.EqualsExpression);
+    }
 }

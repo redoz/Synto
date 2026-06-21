@@ -42,4 +42,9 @@ partial class M
             return _m;
         return null;
     }
+
+    public static bool TrailingReturnCouldMatch(SyntaxNode node)
+    {
+        return node is BlockSyntax;
+    }
 }
