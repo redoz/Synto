@@ -28,4 +28,6 @@ partial class M
     {
         return node is LiteralExpressionSyntax && node.IsKind(SyntaxKind.NumericLiteralExpression);
     }
+
+    public static global::Synto.Matching.MatchPattern<LiteralOneMatch> LiteralOnePattern { get; } = new(LiteralOneCouldMatch, LiteralOne);
 }

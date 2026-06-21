@@ -72,4 +72,6 @@ partial class M
     {
         return node is BlockSyntax;
     }
+
+    public static global::Synto.Matching.MatchPattern<ReversedMatch> ReversedPattern { get; } = new(ReversedCouldMatch, Reversed);
 }

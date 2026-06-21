@@ -32,4 +32,6 @@ partial class M
     {
         return node is BinaryExpressionSyntax && node.IsKind(SyntaxKind.AddExpression);
     }
+
+    public static global::Synto.Matching.MatchPattern<SumMatch> SumPattern { get; } = new(SumCouldMatch, Sum);
 }

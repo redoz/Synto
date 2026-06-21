@@ -30,4 +30,6 @@ partial class M
     {
         return node is BlockSyntax;
     }
+
+    public static global::Synto.Matching.MatchPattern<WildAllMatch> WildAllPattern { get; } = new(WildAllCouldMatch, WildAll);
 }

@@ -48,4 +48,6 @@ partial class M
     {
         return node is BlockSyntax;
     }
+
+    public static global::Synto.Matching.MatchPattern<ReturnCaptureMatch> ReturnCapturePattern { get; } = new(ReturnCaptureCouldMatch, ReturnCapture);
 }

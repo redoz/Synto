@@ -47,4 +47,6 @@ partial class M
     {
         return node is BlockSyntax;
     }
+
+    public static global::Synto.Matching.MatchPattern<TrailingReturnMatch> TrailingReturnPattern { get; } = new(TrailingReturnCouldMatch, TrailingReturn);
 }

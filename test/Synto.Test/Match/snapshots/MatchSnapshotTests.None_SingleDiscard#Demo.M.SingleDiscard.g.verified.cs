@@ -70,4 +70,6 @@ partial class M
     {
         return node is MethodDeclarationSyntax or LocalFunctionStatementSyntax;
     }
+
+    public static global::Synto.Matching.MatchPattern<SingleDiscardMatch> SingleDiscardPattern { get; } = new(SingleDiscardCouldMatch, SingleDiscard);
 }

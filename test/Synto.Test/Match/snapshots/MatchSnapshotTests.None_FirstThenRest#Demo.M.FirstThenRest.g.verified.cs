@@ -40,4 +40,6 @@ partial class M
     {
         return node is MethodDeclarationSyntax or LocalFunctionStatementSyntax;
     }
+
+    public static global::Synto.Matching.MatchPattern<FirstThenRestMatch> FirstThenRestPattern { get; } = new(FirstThenRestCouldMatch, FirstThenRest);
 }

@@ -32,4 +32,6 @@ partial class M
     {
         return node is BinaryExpressionSyntax && node.IsKind(SyntaxKind.EqualsExpression);
     }
+
+    public static global::Synto.Matching.MatchPattern<EqualsAnythingMatch> EqualsAnythingPattern { get; } = new(EqualsAnythingCouldMatch, EqualsAnything);
 }

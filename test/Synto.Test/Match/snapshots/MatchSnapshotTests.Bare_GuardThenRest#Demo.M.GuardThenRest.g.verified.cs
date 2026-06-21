@@ -58,4 +58,6 @@ partial class M
     {
         return node is BlockSyntax;
     }
+
+    public static global::Synto.Matching.MatchPattern<GuardThenRestMatch> GuardThenRestPattern { get; } = new(GuardThenRestCouldMatch, GuardThenRest);
 }

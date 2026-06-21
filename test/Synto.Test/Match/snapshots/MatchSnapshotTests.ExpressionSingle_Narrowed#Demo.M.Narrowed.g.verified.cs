@@ -19,4 +19,6 @@ partial class M
     {
         return node is global::Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax;
     }
+
+    public static global::Synto.Matching.MatchPattern<NarrowedMatch> NarrowedPattern { get; } = new(NarrowedCouldMatch, Narrowed);
 }

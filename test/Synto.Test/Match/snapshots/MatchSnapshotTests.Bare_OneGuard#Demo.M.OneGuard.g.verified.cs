@@ -55,4 +55,6 @@ partial class M
     {
         return node is BlockSyntax;
     }
+
+    public static global::Synto.Matching.MatchPattern<OneGuardMatch> OneGuardPattern { get; } = new(OneGuardCouldMatch, OneGuard);
 }

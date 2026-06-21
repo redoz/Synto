@@ -67,4 +67,17 @@ public partial class ForMatchTests
             if (M.Sum(node) is not null)
                 Assert.True(M.SumCouldMatch(node), $"CouldMatch must accept every node Match accepts: {node}");
     }
+
+    [Fact]
+    public void Pattern_BundlesGeneratedPredicateAndMatcher()
+    {
+        // The generated {Pattern}Pattern descriptor pairs {Pattern}CouldMatch with {Pattern}.
+        var add = ParseExpression("1 + 2");
+        Assert.True(M.SumPattern.IsMatch(add));
+
+        var m = M.SumPattern.Match(add);
+        Assert.NotNull(m);
+        MatchTestHarness.AssertCapture("1", m!.A);
+        MatchTestHarness.AssertCapture("2", m.B);
+    }
 }

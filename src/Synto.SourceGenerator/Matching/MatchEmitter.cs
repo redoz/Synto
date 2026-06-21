@@ -658,11 +658,17 @@ internal static class MatchEmitter
         var couldMatch = (MethodDeclarationSyntax)ParseMemberDeclaration(
             $"public static bool {info.Name}CouldMatch(SyntaxNode node) {{ return {ctx.CouldMatchGuard}; }}")!;
 
+        // The {Name}Pattern descriptor bundles the cheap predicate + the full matcher into the injected
+        // MatchPattern<TMatch> (the single symbol a consumer hands to ForMatch). Fully-qualified so it binds
+        // to the injected-internal copy regardless of the consumer's usings.
+        var pattern = (PropertyDeclarationSyntax)ParseMemberDeclaration(
+            $"public static global::Synto.Matching.MatchPattern<{matchName}> {info.Name}Pattern {{ get; }} = new({info.Name}CouldMatch, {info.Name});")!;
+
         var targetClassDecl = (ClassDeclarationSyntax)info.Target.DeclaringSyntaxReferences[0].GetSyntax();
 
         MemberDeclarationSyntax targetSyntax = ClassDeclaration(targetClassDecl.Identifier)
             .WithModifiers(targetClassDecl.Modifiers)
-            .AddMembers(record, method, couldMatch);
+            .AddMembers(record, method, couldMatch, pattern);
 
         targetSyntax = targetSyntax.WithAncestryFrom(info.Target);
 

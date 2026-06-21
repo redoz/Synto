@@ -43,8 +43,13 @@ public class MatchSelfContainmentTests
         var matcher = MatchTestHarness.GeneratedMatcherSource(result);
         var polyfill = MatchTestHarness.GeneratedPolyfillSource(result);
 
-        // GREEN: matcher + the injected polyfill compile self-contained on the IsExternalInit-less closure.
-        var compilation = MatchTestHarness.CreateNetStandardClosure(matcher, polyfill);
+        // The matcher now references the injected MatchPattern<T> (its {Pattern}Pattern descriptor), so the
+        // self-contained closure includes the injected ForMatch surface alongside the matcher + polyfill.
+        var forMatch = MatchTestHarness.InjectedSurfaceSource("MatchPattern");
+
+        // GREEN: matcher + injected surface + the injected polyfill compile self-contained on the
+        // IsExternalInit-less closure.
+        var compilation = MatchTestHarness.CreateNetStandardClosure(matcher, forMatch, polyfill);
 
         Assert.Empty(compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
     }
@@ -56,8 +61,9 @@ public class MatchSelfContainmentTests
         // -> CS0518 (NOT CS0656). This is what makes the single per-assembly polyfill provably load-bearing.
         var result = MatchTestHarness.Run(CapturingMatcherSource);
         var matcher = MatchTestHarness.GeneratedMatcherSource(result);
+        var forMatch = MatchTestHarness.InjectedSurfaceSource("MatchPattern");
 
-        var compilation = MatchTestHarness.CreateNetStandardClosure(matcher);
+        var compilation = MatchTestHarness.CreateNetStandardClosure(matcher, forMatch);
 
         Assert.Contains(compilation.GetDiagnostics(),
             d => d.Severity == DiagnosticSeverity.Error && d.Id == "CS0518");
@@ -69,10 +75,11 @@ public class MatchSelfContainmentTests
         var result = MatchTestHarness.Run(CapturingMatcherSource);
         var matcher = MatchTestHarness.GeneratedMatcherSource(result);
         var polyfill = MatchTestHarness.GeneratedPolyfillSource(result);
+        var forMatch = MatchTestHarness.InjectedSurfaceSource("MatchPattern");
 
         // BCL-present coexistence: the corlib already DEFINES IsExternalInit, so the injected source copy is
         // redundant-but-harmless (at most CS0436, a warning; the source copy wins) — zero ERROR diagnostics.
-        var compilation = MatchTestHarness.CreateNetWithBclClosure(matcher, polyfill);
+        var compilation = MatchTestHarness.CreateNetWithBclClosure(matcher, forMatch, polyfill);
 
         Assert.Empty(compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
     }

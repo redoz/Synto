@@ -49,4 +49,6 @@ partial class M
     {
         return node is BlockSyntax;
     }
+
+    public static global::Synto.Matching.MatchPattern<RunThenReturnMatch> RunThenReturnPattern { get; } = new(RunThenReturnCouldMatch, RunThenReturn);
 }
