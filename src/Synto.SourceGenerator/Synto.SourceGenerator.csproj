@@ -47,6 +47,7 @@
 	<EmbeddedResource Include="..\Synto\Templating\Syntax.cs" LogicalName="Synto.Runtime.Syntax.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\MatchOption.cs" LogicalName="Synto.Runtime.MatchOption.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\MatchAttribute.cs" LogicalName="Synto.Runtime.MatchAttribute.cs" />
+	<EmbeddedResource Include="..\Synto\Matching\CaptureAttribute.cs" LogicalName="Synto.Runtime.CaptureAttribute.cs" />
   </ItemGroup>
 
   <!-- The runtime HELPERS that CAN be emitted into consumer code (ToSyntax / ToTypeSyntax /

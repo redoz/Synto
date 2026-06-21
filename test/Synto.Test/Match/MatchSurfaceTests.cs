@@ -69,4 +69,30 @@ public class MatchSurfaceTests
             "Consumer snippet using the public Synto.Core matching markers failed to bind: "
             + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
     }
+
+    [Fact]
+    public void InjectedCaptureAttributesBind()
+    {
+        // A consumer marks pattern parameters with the two [Capture] hole markers: the non-generic
+        // [Capture] (an open expression hole) and the generic [Capture<TNode>] (narrowed to a Roslyn
+        // syntax type). The public-Core marker shape must bind both forms. No generator runs.
+        var compilation = Compile(
+            """
+            using Synto.Matching;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+            public partial class Consumer
+            {
+                static void Pattern([Capture] object x, [Capture<BinaryExpressionSyntax>] object y) { }
+            }
+            """);
+
+        var errors = compilation.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        Assert.True(errors.Count == 0,
+            "Consumer snippet using the public Synto.Core [Capture] markers failed to bind: "
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+    }
 }
