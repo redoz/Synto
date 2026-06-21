@@ -353,3 +353,7 @@ nuget.config
 
 # AI code-understanding tool cache
 .understand-anything/
+
+# implement-plan transient jj workspaces (one per plan run; auto-removed on success,
+# kept for inspection on failure — never meant to be committed)
+.claude/workspaces/
