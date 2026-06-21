@@ -5,6 +5,8 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 // The pattern methods are phantom local functions — recognized structurally by the generator, never invoked
 // — so the compiler's "unused local function" warning is expected and suppressed file-wide.
 #pragma warning disable CS8321
+// `x == x` / `x + x` non-linear fixtures deliberately compare a capture to itself.
+#pragma warning disable CS1718
 
 namespace Synto.Test.Match;
 
@@ -103,5 +105,21 @@ public partial class MatchRoundTripTests
 
         Assert.NotNull(M.SelfEq3(ParseExpression("a.b + a.b + a.b")));
         Assert.Null(M.SelfEq3(ParseExpression("a.b + a.b + a.c")));   // last side differs
+    }
+
+    [Fact]
+    public void StatementSingle_FindsLeftmostReturn_InABlock()
+    {
+        // A block body with one core statement -> statement-Single: root on the candidate block, scan its
+        // direct statements, commit to the LEFTMOST match. (`object` return so `return result;` binds, §3.9.)
+        [Match<M>(MatchOption.Single)]
+        static object ReturnCapture([Capture] object result)
+        { return result; }
+
+        var m = M.ReturnCapture(ParseStatement("{ Foo(); return x + 1; return y; }"));
+        Assert.NotNull(m);
+        MatchTestHarness.AssertCapture("x + 1", m!.Result);   // leftmost return wins
+
+        Assert.Null(M.ReturnCapture(ParseStatement("{ Foo(); Bar(); }")));   // no return at all
     }
 }

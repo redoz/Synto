@@ -124,6 +124,22 @@ internal sealed class MatchMarkers
         return arrow is not null;
     }
 
+    /// <summary>
+    /// A pattern with a block (statement) body — a method or local function whose <c>{ }</c> holds the
+    /// statement core the matcher aligns (statement-Single / Bare / None).
+    /// </summary>
+    public static bool TryGetBlockBody(SyntaxNode pattern, out BlockSyntax block)
+    {
+        block = pattern switch
+        {
+            MethodDeclarationSyntax method => method.Body!,
+            LocalFunctionStatementSyntax localFunction => localFunction.Body!,
+            _ => null!,
+        };
+
+        return block is not null;
+    }
+
     private static bool TryClassifyCapture(
         IParameterSymbol parameter,
         INamedTypeSymbol? captureAttribute,

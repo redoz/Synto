@@ -129,4 +129,25 @@ public class MatchSnapshotTests
             }
             """);
     }
+
+    [Fact]
+    public Task StatementSingle_Return()
+    {
+        // Statement-Single: block-root (`node is not BlockSyntax _blk`), a per-offset attempt local function
+        // `_TryAt(int _o)`, and a leftmost scan over the block's direct statements.
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object ReturnCapture([Capture] object result) { return result; }
+            }
+            """);
+    }
 }
