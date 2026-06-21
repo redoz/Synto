@@ -342,6 +342,50 @@ public class MatchDiagnosticsTests
         Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("partial class M", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void TwoVariableLengthQuantifiers_ReportsSY1204_AndEmitsNoTree()
+    {
+        // Two variable-length elements in one run need backtracking -> SY1204 (located on the second), no tree.
+        var result = MatchTestHarness.Run(
+            """
+            using Synto.Matching;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Bare)]
+                static void TwoVar([Capture] Stmt head, [Capture] Stmt tail) { head.Some(); tail.All(); }
+            }
+            """);
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1204");
+        AssertHasRealSpan(diag);
+        Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("partial class M", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void VariableLengthEmbeddedHole_ReportsSY1204_AndEmitsNoTree()
+    {
+        // A variable-length quantifier in a single-statement embedded slot can't expand -> SY1204, no tree.
+        var result = MatchTestHarness.Run(
+            """
+            using Synto.Matching;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Bare)]
+                static void EmbeddedVar([Capture] bool cond, [Capture] Stmt rest) { if (cond) rest.All(); }
+            }
+            """);
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1204");
+        AssertHasRealSpan(diag);
+        Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("partial class M", StringComparison.Ordinal));
+    }
+
     private static void AssertHasRealSpan(Diagnostic diag)
     {
         // The location is carried cacheably as a serializable LocationInfo and reconstructed at emit time;

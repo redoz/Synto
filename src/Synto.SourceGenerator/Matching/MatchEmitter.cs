@@ -136,14 +136,24 @@ internal static class MatchEmitter
 
         // Embedded statement hole: a [Capture] Stmt .One() / Statement.One() sitting as a single embedded
         // statement (e.g. the body of `if (cond) only.One();`) captures / matches that one statement. Only the
-        // fixed single (One) is meaningful in a single embedded slot; a variable-length quantifier there is left
-        // for Task 15's SY1204 (until then it falls through to a dead literal guard, never a crash).
-        if (pattern is StatementSyntax statement
-            && ctx.Markers.TryGetStatementHole(statement, out var statementHole)
-            && statementHole.Quantifier == StatementQuantifier.One)
+        // fixed single (One) is meaningful in a single embedded slot; a variable-length quantifier there can't
+        // expand to one slot -> SY1204 (quantifier-placement, arm ii).
+        if (pattern is StatementSyntax statement && ctx.Markers.TryGetStatementHole(statement, out var statementHole))
         {
-            EmitStatementCapture(body, accessor, statementHole, ctx);
-            return;
+            if (statementHole.Quantifier == StatementQuantifier.One)
+            {
+                EmitStatementCapture(body, accessor, statementHole, ctx);
+                return;
+            }
+
+            if (statementHole.IsVariableLength)
+            {
+                ctx.Diagnostics.Add(MatchDiagnostics.QuantifierPlacementUnsupported(
+                    statement.GetLocation(),
+                    "a variable-length quantifier (Some/All/Opt) is not allowed in a single-statement slot"));
+                ctx.Aborted = true;
+                return;
+            }
         }
 
         string local = ctx.NextTmp();
@@ -334,6 +344,19 @@ internal static class MatchEmitter
         bool anchorEnd)
     {
         _ = coreStatements;
+
+        // SY1204 (quantifier-placement, arm i): a run may contain AT MOST one variable-length element (the
+        // straight-line single greedy split). >1 needs the deferred backtracking lowering -> located on the
+        // SECOND variable-length hole (carried on the HoleElement, no marker re-query), diagnostics-only.
+        var variableElements = run.OfType<HoleElement>().Where(element => element.Hole.IsVariableLength).ToList();
+        if (variableElements.Count > 1)
+        {
+            ctx.Diagnostics.Add(MatchDiagnostics.QuantifierPlacementUnsupported(
+                variableElements[1].Location,
+                "a statement run may contain at most one variable-length quantifier (Some/All/Opt)"));
+            ctx.Aborted = true;
+            return;
+        }
 
         // Bound on the FIXED-flank width (sum of the fixed-arity element widths = before + after); the single
         // variable-length element absorbs the slack. A fixed-only run is the special case where there is no

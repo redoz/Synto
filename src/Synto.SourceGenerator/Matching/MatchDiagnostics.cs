@@ -35,6 +35,18 @@ internal static class MatchDiagnostics
     public static DiagnosticInfo ForeachRepetitionNotSupported(Location? location) =>
         new(_foreachRepetitionNotSupported, LocationInfo.CreateFrom(location), EquatableArray<string>.Empty);
 
+    // SY1204 — the quantifier-placement family ({0}-reason-parameterized): a run with >1 variable-length
+    // element, or a variable-length quantifier in an embedded single-statement slot. Located on the offending hole.
+    private static readonly DiagnosticDescriptor _quantifierPlacementUnsupported = new("SY1204",
+        "Unsupported Quantifier Placement",
+        "{0}",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo QuantifierPlacementUnsupported(Location? location, string reason) =>
+        new(_quantifierPlacementUnsupported, LocationInfo.CreateFrom(location), new EquatableArray<string>(ImmutableArray.Create(reason)));
+
     // SY1205 — the option×body-shape misuse family ({0}-reason-parameterized): None/Bare on an expression body,
     // or Single on a multi-statement core. Located on the attribute.
     private static readonly DiagnosticDescriptor _malformedPatternBody = new("SY1205",
