@@ -45,6 +45,15 @@ internal static class MatchEmitter
                 EmitAnchoredRun(body, block.Statements, run, ctx, anchorStart: false, anchorEnd: false);
             }
         }
+        // Bare (block body, a run contained in the candidate block). Root on the candidate block and align the
+        // run at the leftmost contained offset (no anchors). An embedded One hole inside a literal statement is
+        // captured by the generic walk (EmitNodeMatch); direct variable-length run elements land in Task 11.
+        else if (info.Option == MatchOption.Bare && MatchMarkers.TryGetBlockBody(info.PatternSyntax, out var bareBlock))
+        {
+            var run = BuildRun(bareBlock.Statements, ctx);
+            body.Add(ParseStatement("if (node is not BlockSyntax _blk) return null;"));
+            EmitAnchoredRun(body, bareBlock.Statements, run, ctx, anchorStart: false, anchorEnd: false);
+        }
 
         // Every other option/body-shape stays unemitted here (body.Count == 0 -> null), exactly like the
         // former stub; later tasks fill those arms.
@@ -81,6 +90,18 @@ internal static class MatchEmitter
         if (ctx.Markers.IsExpressionWildcard(pattern))
         {
             body.Add(ParseStatement($"if ({accessor} is not ExpressionSyntax) return null;"));
+            return;
+        }
+
+        // Embedded statement hole: a [Capture] Stmt .One() / Statement.One() sitting as a single embedded
+        // statement (e.g. the body of `if (cond) only.One();`) captures / matches that one statement. Only the
+        // fixed single (One) is meaningful in a single embedded slot; a variable-length quantifier there is left
+        // for Task 15's SY1204 (until then it falls through to a dead literal guard, never a crash).
+        if (pattern is StatementSyntax statement
+            && ctx.Markers.TryGetStatementHole(statement, out var statementHole)
+            && statementHole.Quantifier == StatementQuantifier.One)
+        {
+            EmitStatementCapture(body, accessor, statementHole, ctx);
             return;
         }
 
@@ -149,6 +170,26 @@ internal static class MatchEmitter
 
         ctx.BoundCaptureLocals.Add(local);
         ctx.Captures.Add(new Capture(capture.Ordinal, capture.MemberName, capture.MemberType, local));
+    }
+
+    /// <summary>
+    /// Emits a statement-hole guard at <paramref name="accessor"/>, narrowing AT the hole (the accessor-type
+    /// contract: never <c>var {local} = {accessor};</c> into a typed member). Task 10 handles the fixed single
+    /// (<c>One</c>): a wildcard asserts <c>is StatementSyntax</c> (no capture); a capture binds a
+    /// <c>StatementSyntax cap_{name}</c> local and records the member. Tasks 11+ add the variable quantifiers.
+    /// </summary>
+    private static void EmitStatementCapture(List<StatementSyntax> body, string accessor, StatementHole hole, MatchContext ctx)
+    {
+        if (hole.Kind == StatementHoleKind.Wildcard)
+        {
+            body.Add(ParseStatement($"if ({accessor} is not StatementSyntax) return null;"));
+            return;
+        }
+
+        string local = "cap_" + hole.ParameterName;
+        body.Add(ParseStatement($"if ({accessor} is not StatementSyntax {local}) return null;"));
+        ctx.BoundCaptureLocals.Add(local);
+        ctx.Captures.Add(new Capture(hole.Ordinal, hole.MemberName, "StatementSyntax", local));
     }
 
     /// <summary>

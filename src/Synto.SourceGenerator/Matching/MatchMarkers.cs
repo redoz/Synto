@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Matching;
@@ -21,21 +22,30 @@ namespace Synto;
 internal sealed class MatchMarkers
 {
     private const string StmtMetadataName = "Synto.Matching.Stmt";
+    private const string StatementMetadataName = "Synto.Matching.Statement";
     private const string ExprMetadataName = "Synto.Matching.Expr";
 
     private readonly SemanticModel _semanticModel;
     private readonly Dictionary<ISymbol, CaptureParameter> _expressionCaptures;
+    private readonly HashSet<ISymbol> _captureSymbols;
     private readonly INamedTypeSymbol? _exprType;
+    private readonly INamedTypeSymbol? _stmtType;
+    private readonly INamedTypeSymbol? _statementType;
 
     private MatchMarkers(
         SemanticModel semanticModel,
         IReadOnlyList<IParameterSymbol> captureParameters,
         Dictionary<ISymbol, CaptureParameter> expressionCaptures,
-        INamedTypeSymbol? exprType)
+        INamedTypeSymbol? exprType,
+        INamedTypeSymbol? stmtType,
+        INamedTypeSymbol? statementType)
     {
         _semanticModel = semanticModel;
         _expressionCaptures = expressionCaptures;
+        _captureSymbols = new HashSet<ISymbol>(captureParameters, SymbolEqualityComparer.Default);
         _exprType = exprType;
+        _stmtType = stmtType;
+        _statementType = statementType;
         CaptureParameters = captureParameters;
     }
 
@@ -51,6 +61,7 @@ internal sealed class MatchMarkers
             .GetTypeByMetadataName(typeof(CaptureAttribute<>).FullName!)?
             .ConstructUnboundGenericType();
         var stmtType = compilation.GetTypeByMetadataName(StmtMetadataName);
+        var statementType = compilation.GetTypeByMetadataName(StatementMetadataName);
         var exprType = compilation.GetTypeByMetadataName(ExprMetadataName);
 
         var captures = new List<IParameterSymbol>();
@@ -78,7 +89,58 @@ internal sealed class MatchMarkers
                 new CaptureParameter(parameter.Ordinal, parameter.Name, ToMemberName(parameter.Name), memberType));
         }
 
-        return new MatchMarkers(info.SemanticModel, captures, expressionCaptures, exprType);
+        return new MatchMarkers(info.SemanticModel, captures, expressionCaptures, exprType, stmtType, statementType);
+    }
+
+    /// <summary>
+    /// Classifies a statement hole: an <see cref="ExpressionStatementSyntax"/> wrapping a quantifier invocation
+    /// on a <c>[Capture] Stmt</c> param (a capture) or the static <c>Statement</c> holder (a wildcard). The verb
+    /// (<c>One</c>/<c>Opt</c>/<c>Some</c>/<c>All</c>/<c>Exactly</c>) selects the cardinality and member type; the
+    /// receiver (for a capture) must itself bind to a <c>[Capture]</c> param (the §3.1 leak-free invariant).
+    /// </summary>
+    public bool TryGetStatementHole(StatementSyntax statement, out StatementHole hole)
+    {
+        hole = null!;
+
+        if (statement is not ExpressionStatementSyntax { Expression: InvocationExpressionSyntax invocation })
+            return false;
+
+        if (_semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
+            return false;
+
+        if (!TryParseQuantifier(method.Name, out var quantifier))
+            return false;
+
+        int count = 0;
+        if (quantifier == StatementQuantifier.Exactly)
+        {
+            var argument = invocation.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+            if (argument is null || _semanticModel.GetConstantValue(argument).Value is not int parsed)
+                return false;
+            count = parsed;
+        }
+
+        if (_statementType is not null && SymbolEqualityComparer.Default.Equals(method.ContainingType, _statementType))
+        {
+            hole = new StatementHole(StatementHoleKind.Wildcard, quantifier, count, ordinal: -1, memberName: string.Empty, parameterName: string.Empty);
+            return true;
+        }
+
+        if (_stmtType is not null && SymbolEqualityComparer.Default.Equals(method.ContainingType, _stmtType))
+        {
+            // A capture hole — the receiver of the quantifier verb must bind to a [Capture] Stmt param.
+            if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess)
+                return false;
+            if (_semanticModel.GetSymbolInfo(memberAccess.Expression).Symbol is not IParameterSymbol parameter)
+                return false;
+            if (!_captureSymbols.Contains(parameter))
+                return false;
+
+            hole = new StatementHole(StatementHoleKind.Capture, quantifier, count, parameter.Ordinal, ToMemberName(parameter.Name), parameter.Name);
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -174,6 +236,64 @@ internal sealed class MatchMarkers
         parameterName.Length == 0
             ? parameterName
             : char.ToUpperInvariant(parameterName[0]) + parameterName.Substring(1);
+
+    private static bool TryParseQuantifier(string name, out StatementQuantifier quantifier)
+    {
+        switch (name)
+        {
+            case "One": quantifier = StatementQuantifier.One; return true;
+            case "Opt": quantifier = StatementQuantifier.Opt; return true;
+            case "Some": quantifier = StatementQuantifier.Some; return true;
+            case "All": quantifier = StatementQuantifier.All; return true;
+            case "Exactly": quantifier = StatementQuantifier.Exactly; return true;
+            default: quantifier = default; return false;
+        }
+    }
+}
+
+/// <summary>Whether a statement hole captures (an instance verb on a <c>[Capture] Stmt</c>) or merely matches (a static <c>Statement</c> verb).</summary>
+internal enum StatementHoleKind
+{
+    Capture,
+    Wildcard,
+}
+
+/// <summary>The statement-hole cardinality verb. <c>Some</c>/<c>All</c>/<c>Opt</c> are variable-length; <c>One</c>/<c>Exactly</c> are fixed-arity.</summary>
+internal enum StatementQuantifier
+{
+    One,
+    Opt,
+    Some,
+    All,
+    Exactly,
+}
+
+/// <summary>
+/// A classified statement hole: its kind (capture/wildcard), quantifier, the <c>Exactly</c> count, and — for a
+/// capture — the parameter <see cref="Ordinal"/> (record-member order), PascalCased member name, and parameter
+/// name (the <c>cap_{name}</c> local).
+/// </summary>
+internal sealed class StatementHole
+{
+    public StatementHole(StatementHoleKind kind, StatementQuantifier quantifier, int count, int ordinal, string memberName, string parameterName)
+    {
+        Kind = kind;
+        Quantifier = quantifier;
+        Count = count;
+        Ordinal = ordinal;
+        MemberName = memberName;
+        ParameterName = parameterName;
+    }
+
+    public StatementHoleKind Kind { get; }
+    public StatementQuantifier Quantifier { get; }
+    public int Count { get; }
+    public int Ordinal { get; }
+    public string MemberName { get; }
+    public string ParameterName { get; }
+
+    /// <summary><c>Some</c> (1+), <c>All</c> (0+), <c>Opt</c> (0–1) consume a variable number of statements; <c>One</c>/<c>Exactly</c> are fixed.</summary>
+    public bool IsVariableLength => Quantifier is StatementQuantifier.Some or StatementQuantifier.All or StatementQuantifier.Opt;
 }
 
 /// <summary>

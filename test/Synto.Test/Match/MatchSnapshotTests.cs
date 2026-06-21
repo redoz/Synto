@@ -150,4 +150,25 @@ public class MatchSnapshotTests
             }
             """);
     }
+
+    [Fact]
+    public Task Bare_OneGuard()
+    {
+        // Bare run: block-root + leftmost scan over a one-element run (a literal `if`), with an embedded
+        // expression capture (cond) and an embedded statement capture (only.One()).
+        return VerifyMatcher(
+            """
+            using Synto.Matching;
+
+            namespace Demo;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Bare)]
+                static void OneGuard([Capture] bool cond, [Capture] Stmt only) { if (cond) only.One(); }
+            }
+            """);
+    }
 }

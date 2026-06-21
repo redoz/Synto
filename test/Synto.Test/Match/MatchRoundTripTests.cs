@@ -122,4 +122,49 @@ public partial class MatchRoundTripTests
 
         Assert.Null(M.ReturnCapture(ParseStatement("{ Foo(); Bar(); }")));   // no return at all
     }
+
+    [Fact]
+    public void Bare_FixedArity_MatchesContainedIfWithOneStatement()
+    {
+        // Bare "contains" a literal `if` whose condition is a [Capture] and whose single embedded statement is
+        // a [Capture] Stmt .One(). The run is the one `if` (leftmost contained); cond + only surface.
+        [Match<M>(MatchOption.Bare)]
+        static void OneGuard([Capture] bool cond, [Capture] Stmt only)
+        { if (cond) only.One(); }
+
+        var m = M.OneGuard(ParseStatement("{ Pre(); if (ready) Go(); Post(); }"));
+        Assert.NotNull(m);
+        MatchTestHarness.AssertCapture("ready", m!.Cond);
+        MatchTestHarness.AssertCapture("Go();", m.Only);
+
+        Assert.Null(M.OneGuard(ParseStatement("{ Pre(); Post(); }")));   // no `if` to contain
+    }
+
+    [Fact]
+    public void Bare_EmbeddedWildcardOne_MatchesIfWithAnyBody()
+    {
+        // Statement.One() is the embedded WILDCARD: it matches any single-statement `if` body, capturing only cond.
+        [Match<M>(MatchOption.Bare)]
+        static void IfAny([Capture] bool cond)
+        { if (cond) Statement.One(); }
+
+        var m = M.IfAny(ParseStatement("{ if (go) DoThing(); }"));
+        Assert.NotNull(m);
+        MatchTestHarness.AssertCapture("go", m!.Cond);
+
+        Assert.NotNull(M.IfAny(ParseStatement("{ if (go) return; }")));   // any single embedded statement
+    }
+
+    [Fact]
+    public void Bare_IfWithoutElse_RejectsIfWithElse()
+    {
+        // Child-count guard near-miss: the pattern `if (cond) only.One();` (no else, 5 children) must NOT match
+        // an `if ... else ...` (6 children). Without the count guard the extra else is silently ignored.
+        // (Distinct pattern name from Bare_FixedArity's OneGuard — same-named patterns on one target collide.)
+        [Match<M>(MatchOption.Bare)]
+        static void OneGuardNoElse([Capture] bool cond, [Capture] Stmt only)
+        { if (cond) only.One(); }
+
+        Assert.Null(M.OneGuardNoElse(ParseStatement("{ if (ready) Go(); else Stop(); }")));
+    }
 }
