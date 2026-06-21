@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
@@ -102,7 +102,7 @@ public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
             var parameterSyntax = Parameter(Identifier(paramSymbol.Name))
                 .WithType(additionalUsings.GetTypeName(paramSymbol.Type.GetQualifiedNameSyntax()));
 
-            
+
             // identify SyntaxFactory method we should call (this isn't very nice, or robust)
             var syntaxFactorySymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(SyntaxFactory).FullName /* this is technically not correct, but will work for this type */)!;
             var candidateMethods = syntaxFactorySymbol.GetMembers()
@@ -111,7 +111,7 @@ public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
             var factoryMethods = candidateMethods.OrderByDescending(method => method.Parameters.Length).ToArray();
             IMethodSymbol factoryMethod;
 
-                
+
             BlockSyntax? body = null;
             // used to disambiguate factory methods
             if (factoryMethods.Length >= 2 && factoryMethods[0].Parameters.Length == factoryMethods[1].Parameters.Length)
@@ -147,7 +147,7 @@ public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
                 ArgumentList(
                     SingletonSeparatedList(
                         Argument(nameOfExpr))));
-            
+
             var expr = InvocationExpression(identifierOfNameOfExpr);
             //var expr = SF.InvocationExpression(SF.IdentifierName(factoryMethod.Name));
 
@@ -181,7 +181,7 @@ public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
                     SyntaxKind.SimpleMemberAccessExpression,
                     additionalUsings.GetTypeName(paramSymbol.GetQualifiedNameSyntax()),
                     IdentifierName(sourceMemberName));
-                    
+
                 ITypeSymbol argType = parameter.Type;
                 if (sourceMemberSymbol is IMethodSymbol)
                 {
@@ -216,7 +216,7 @@ public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
                 {
                     argExpr = InvocationExpression(
                         MemberAccessExpression(SyntaxKind
-                                .SimpleMemberAccessExpression, 
+                                .SimpleMemberAccessExpression,
                             argExpr,
                             IdentifierName("ToSyntax")));
                 }
@@ -290,7 +290,7 @@ public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
 
         // try to make it a bit more readable
         compilationUnit = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace());
-        
+
         var sourceText = compilationUnit.GetText(Encoding.UTF8);
 
         return ($"{targetClass.Identifier.Text}.cs", sourceText.ToString());

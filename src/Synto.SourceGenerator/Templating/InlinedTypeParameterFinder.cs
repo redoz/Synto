@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -43,7 +43,7 @@ internal sealed class InlinedTypeParameterFinder : CSharpSyntaxWalker
             //typeParameterBySymbol.Value.AttributeLists.SelectMany(al => al.Attributes).Single(attr => )
             if (finder._replacementsBySymbol.TryGetValue(typeParameterBySymbol.Key, out var replacements))
             {
-                yield return new (typeParameterBySymbol.Key, typeParameterBySymbol.Value.TypeParameter, replacements, typeParameterBySymbol.Value.AsSyntax);
+                yield return new(typeParameterBySymbol.Key, typeParameterBySymbol.Value.TypeParameter, replacements, typeParameterBySymbol.Value.AsSyntax);
             }
         }
     }

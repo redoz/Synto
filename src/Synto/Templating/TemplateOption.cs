@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Synto.Templating;
 
@@ -7,7 +7,7 @@ namespace Synto.Templating;
 public enum TemplateOption
 #pragma warning restore CA2217
 {
-    None = 0, 
+    None = 0,
     /// <summary>
     /// Reduces output to only the Body of the templated method.
     /// </summary>
@@ -21,7 +21,7 @@ public enum TemplateOption
 #pragma warning restore CA1720
 
     // should probably add some kind of option to minimize the output
-    
+
     /// <summary>
     /// Preserves Trivia
     /// </summary>

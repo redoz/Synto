@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -13,7 +13,7 @@ internal sealed class BranchPruneIdentifier : CSharpSyntaxWalker
         self.Visit(node);
         return self._prunableNodes;
     }
-    
+
     private readonly HashSet<SyntaxNode> _prunableNodes;
 
     private BranchPruneIdentifier(IEnumerable<SyntaxNode> prunableNodes)
@@ -37,7 +37,7 @@ internal sealed class BranchPruneIdentifier : CSharpSyntaxWalker
         {
             _prunableNodes.Add(node);
             // not strictly necessary, but made it it a bit easier to debug
-            foreach (var childNode in node.ChildNodes()) 
+            foreach (var childNode in node.ChildNodes())
                 _prunableNodes.Remove(childNode);
         }
     }

@@ -137,7 +137,7 @@ public partial class RoundTripTests
     {
 
         [Template(typeof(Factory), Options = TemplateOption.Bare)]
-        static void Loop([Inline]int count)
+        static void Loop([Inline] int count)
         {
             int ret = 0;
             for (int i = 0; i < count; i++)

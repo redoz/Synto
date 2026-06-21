@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
@@ -9,8 +9,8 @@ public static class LiteralSyntaxExtensions
 {
     public static ExpressionSyntax ToSyntax(this string? value)
     {
-        return value is null 
-            ? SF.LiteralExpression(SyntaxKind.NullLiteralExpression) 
+        return value is null
+            ? SF.LiteralExpression(SyntaxKind.NullLiteralExpression)
             : SF.LiteralExpression(SyntaxKind.StringLiteralExpression, SF.Literal(value));
     }
 

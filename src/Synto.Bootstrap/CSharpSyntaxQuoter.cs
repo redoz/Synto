@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -143,13 +143,13 @@ internal sealed partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<Expressio
                 float value => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), value.ToSyntax()),
                 _ => throw new NotImplementedException($"Unable to create literal token of type {token.Value?.GetType().FullName ?? "null"}")
             },
-            CharacterLiteralToken => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), ((char) token.Value!).ToSyntax()),
-            StringLiteralToken => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), ((string) token.Value!).ToSyntax()),
+            CharacterLiteralToken => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), ((char)token.Value!).ToSyntax()),
+            StringLiteralToken => SyntaxFactoryInvocation(nameof(Literal), token.Text.ToSyntax(), ((string)token.Value!).ToSyntax()),
 
             None => SyntaxFactoryInvocation(nameof(Token), Visit(None)),
 
             var tokenKind when TokenKindHasText(tokenKind) => SyntaxFactoryInvocation(nameof(Token), Visit(tokenKind)),
-            var tokenKind => SyntaxFactoryInvocation(nameof(Token), Visit(tokenKind), token.Text.ToSyntax(), ((string) token.Value!).ToSyntax()),
+            var tokenKind => SyntaxFactoryInvocation(nameof(Token), Visit(tokenKind), token.Text.ToSyntax(), ((string)token.Value!).ToSyntax()),
         };
 
     }

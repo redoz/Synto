@@ -1,0 +1,24 @@
+# Synto root EditorConfig.
+#
+# The repo is LF-on-disk by policy (core.autocrlf=false, core.eol=lf; .gitattributes
+# pins snapshots to eol=lf). Pin end_of_line here so `dotnet format whitespace` is
+# deterministic across machines: its Windows default is CRLF (Environment.NewLine),
+# which otherwise reports every LF line as a diff and makes the format gate
+# unsatisfiable on Windows.
+#
+# Scope note: the format gate runs `dotnet format whitespace` (line-endings + layout)
+# ONLY. Full `dotnet format` additionally applies analyzer code-fixes (e.g. CA1515
+# stripping `public` off xUnit test classes, CA1815 injecting throwing operators) that
+# rewrite code and regress the build — those are out of scope for a whitespace gate.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{xml,csproj,props,targets,yml,yaml,json}]
+indent_size = 2

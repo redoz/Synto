@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -20,7 +20,7 @@ internal static class GeneratedSourceFilenameExtensions
         miscellaneousOptions:
         SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers
     );
-    
+
     public static string ToGeneratedFilename(this ISymbol symbol)
     {
         if (symbol is null) throw new ArgumentNullException(nameof(symbol));

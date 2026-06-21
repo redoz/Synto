@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,7 +27,7 @@ internal class UsingDirectiveSet : IEnumerable<UsingDirectiveSyntax>
 
     IEnumerator IEnumerable.GetEnumerator()
     {
-        return ((IEnumerable) this._usings).GetEnumerator();
+        return ((IEnumerable)this._usings).GetEnumerator();
     }
 
     public void AddNamespace(NameSyntax namespaceName)
@@ -49,11 +49,11 @@ internal class UsingDirectiveSet : IEnumerable<UsingDirectiveSyntax>
             case IdentifierNameSyntax identifierName:
                 return identifierName;
             case QualifiedNameSyntax qualifiedName:
-            {
-                NameSyntax namespaceName = qualifiedName.Left;
-                AddNamespace(namespaceName);
-                return qualifiedName.Right;
-            }
+                {
+                    NameSyntax namespaceName = qualifiedName.Left;
+                    AddNamespace(namespaceName);
+                    return qualifiedName.Right;
+                }
             default:
                 throw new NotSupportedException();
         }

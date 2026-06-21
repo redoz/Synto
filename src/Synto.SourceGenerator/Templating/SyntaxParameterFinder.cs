@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -76,7 +76,7 @@ internal sealed class SyntaxParameterFinder : CSharpSyntaxWalker
         if (typeSymbol is null)
             return;
 
-        if (typeSymbol.Type is INamedTypeSymbol {IsGenericType: true} namedTypeSymbol && SymbolEqualityComparer.Default.Equals(namedTypeSymbol.ConstructUnboundGenericType(), _syntaxOfTDelegateSymbol))
+        if (typeSymbol.Type is INamedTypeSymbol { IsGenericType: true } namedTypeSymbol && SymbolEqualityComparer.Default.Equals(namedTypeSymbol.ConstructUnboundGenericType(), _syntaxOfTDelegateSymbol))
         {
             _parameterBySymbol.Add(typeSymbol, node);
             _replacementsBySymbol.Add(typeSymbol, []);

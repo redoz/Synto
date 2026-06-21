@@ -10,11 +10,11 @@ public class SimpleTemplateTest
     private static readonly MetadataReference CorlibReference = MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
     private static readonly MetadataReference NetStandardReference = MetadataReference.CreateFromFile(Assembly.Load("netstandard, Version=2.0.0.0").Location);
     private static readonly MetadataReference SystemRuntimeReference = MetadataReference.CreateFromFile(Assembly.Load("System.Runtime, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location);
-    
+
 
     static CSharpCompilation CreateCompilation()
     {
-        
+
 
         return CSharpCompilation.Create("Test",
             Array.Empty<SyntaxTree>(),

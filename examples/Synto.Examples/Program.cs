@@ -1,4 +1,4 @@
-﻿// See https://aka.ms/new-console-template for more information
+// See https://aka.ms/new-console-template for more information
 
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -8,7 +8,7 @@ using Spectre.Console;
 using static Examples;
 
 
-for (;;)
+for (; ; )
 {
     var choice = AnsiConsole.Prompt(
         new SelectionPrompt<Choice>()
@@ -25,7 +25,7 @@ for (;;)
                 new Choice("Use a parameter to inject a numeric literal into a for-loop", Test5),
                 new Choice("Inline type parameters", Test6),
                 new Choice("Inline type parameters in class declaration", Test7),
-                
+
                 new Choice("Exit", () =>
                 {
                     Environment.Exit(0);
@@ -33,7 +33,7 @@ for (;;)
                 })
             }));
 
-   
+
     AnsiConsole.Write(new Rule(choice.Name).LeftJustified());
     AnsiConsole.WriteLine();
     AnsiConsole.WriteLine(choice.Example());
