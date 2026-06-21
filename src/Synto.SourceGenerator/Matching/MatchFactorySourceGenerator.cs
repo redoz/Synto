@@ -25,8 +25,30 @@ public class MatchFactorySourceGenerator : IIncrementalGenerator
     // generic, which carries the required `1 suffix.
     private static readonly string MatchAttributeMetadataName = typeof(global::Synto.Matching.MatchAttribute<>).FullName!;
 
+    // The init-modreq polyfill (C3). A positional result record lowers its members to { get; init; }, and
+    // `init` requires System.Runtime.CompilerServices.IsExternalInit — ABSENT on netstandard2.0 (a real
+    // consumer build would fail CS0518). Emit it ONCE per consumer assembly, by canonical (non-`file`) name:
+    // a `file` type carries a mangled metadata name the init-modreq lookup never finds, and two `internal`
+    // copies across matcher files would collide (CS0101). RegisterPostInitializationOutput is a deterministic
+    // constant emitted once regardless of how many [Match] methods exist. On a BCL-present consumer (net5.0+)
+    // the corlib already defines IsExternalInit -> at most CS0436 (a warning; the source copy wins).
+    private const string IsExternalInitPolyfillHint = "Synto.Matching.IsExternalInit.g.cs";
+    private const string IsExternalInitPolyfillSource =
+        """
+        #nullable enable
+        namespace System.Runtime.CompilerServices
+        {
+            internal static class IsExternalInit
+            {
+            }
+        }
+        """;
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        context.RegisterPostInitializationOutput(static postInitContext =>
+            postInitContext.AddSource(IsExternalInitPolyfillHint, SourceText.From(IsExternalInitPolyfillSource, Encoding.UTF8)));
+
         var results = context.SyntaxProvider.ForAttributeWithMetadataName(
                 MatchAttributeMetadataName,
                 static (node, cancellationToken) => true,

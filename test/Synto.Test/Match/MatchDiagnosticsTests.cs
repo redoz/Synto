@@ -125,6 +125,33 @@ public class MatchDiagnosticsTests
     }
 
     [Fact]
+    public void WellFormedMatch_EmitsNamedMatcher()
+    {
+        // The emission proof deferred from Task 4: a well-formed expression-Single pattern now lowers to a
+        // real matcher. Exactly one generated tree carries the partial target + the matcher method, and no
+        // diagnostics are reported. (The per-assembly IsExternalInit polyfill is a separate post-init tree,
+        // so filter to the tree that actually contains the target class.)
+        var result = MatchTestHarness.Run(
+            """
+            using Synto.Matching;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object One() => 1;
+            }
+            """);
+
+        Assert.Empty(result.Diagnostics);
+
+        var matcher = Assert.Single(
+            result.GeneratedTrees.Where(t => t.ToString().Contains("partial class M", StringComparison.Ordinal)));
+        Assert.Contains("One(SyntaxNode node)", matcher.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_IsIncremental_OnUnrelatedEdit()
     {
         // Cacheability guard: the pipeline carries only equatable value types (MatchGenerationResult /

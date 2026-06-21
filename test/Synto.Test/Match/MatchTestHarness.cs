@@ -63,4 +63,17 @@ internal static class MatchTestHarness
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new MatchFactorySourceGenerator());
         return driver.RunGenerators(compilation).GetRunResult();
     }
+
+    /// <summary>
+    /// Asserts a captured node's text equals <paramref name="expected"/>, normalized — the single routing
+    /// point for every <c>m.X == "foo()"</c>-style round-trip assertion (mirrors Templating's
+    /// <c>AssertGenerated</c>). A captured node carries the parsed input's trivia, so a raw <c>.ToString()</c>
+    /// <c>==</c> is trivia-fragile; normalize whitespace + trim + canonicalize line endings instead. Used from
+    /// Task 5 on (the first capturing round-trips land at Task 6).
+    /// </summary>
+    public static void AssertCapture(string expected, SyntaxNode captured)
+    {
+        var actual = captured.NormalizeWhitespace().ToString().Trim().Replace("\r\n", "\n", StringComparison.Ordinal);
+        Assert.Equal(expected.Replace("\r\n", "\n", StringComparison.Ordinal), actual);
+    }
 }
