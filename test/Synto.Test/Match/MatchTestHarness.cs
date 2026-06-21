@@ -134,6 +134,61 @@ internal static class MatchTestHarness
     public static string GeneratedPolyfillSource(GeneratorDriverRunResult result) =>
         result.GeneratedTrees.Single(tree => tree.ToString().Contains("IsExternalInit", StringComparison.Ordinal)).ToString();
 
+    /// <summary>
+    /// Runs <see cref="SurfaceInjectionGenerator"/> over an empty compilation and returns the single injected
+    /// (post-init) source whose text contains <paramref name="contentMarker"/> — e.g. <c>"MatchPattern"</c>
+    /// selects the injected <c>ForMatchHelpers.g.cs</c>. This is the same surface a real consumer's generator
+    /// project receives.
+    /// </summary>
+    public static string InjectedSurfaceSource(string contentMarker)
+    {
+        var compilation = CSharpCompilation.Create("SurfaceInjectionProbe",
+            syntaxTrees: Array.Empty<SyntaxTree>(),
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var result = CSharpGeneratorDriver
+            .Create(new SurfaceInjectionGenerator())
+            .RunGenerators(compilation)
+            .GetRunResult();
+
+        return result.GeneratedTrees
+            .Single(tree => tree.ToString().Contains(contentMarker, StringComparison.Ordinal))
+            .ToString();
+    }
+
+    /// <summary>
+    /// The C-FM3 self-containment proof for the injected <c>ForMatch</c> surface: compiles the injected
+    /// <c>ForMatchHelpers</c> source plus the <c>IsExternalInit</c> polyfill on the pinned netstandard2.0
+    /// closure (the closure that LACKS <c>IsExternalInit</c>, so the <c>Matched&lt;T&gt;</c> record struct's
+    /// <c>init</c> members exercise the polyfill). Returns the resulting diagnostics.
+    /// </summary>
+    public static ImmutableArray<Diagnostic> CompileInjectedForMatchSurfaceOnNetStandard20()
+    {
+        var injected = InjectedSurfaceSource("MatchPattern");
+        var polyfill = GeneratedPolyfillSource(Run(
+            """
+            using Synto.Matching;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object Sum([Capture] int a, [Capture] int b) => a + b;
+            }
+            """));
+
+        return CreateNetStandardClosure(injected, polyfill).GetDiagnostics();
+    }
+
     private static CSharpCompilation CreateClosure(string assemblyName, ImmutableArray<MetadataReference> references, string[] sources)
     {
         var parseOptions = new CSharpParseOptions(LanguageVersion.Latest);

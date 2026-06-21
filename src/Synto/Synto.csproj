@@ -29,6 +29,15 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
 
+  <!-- The ForMatch helper surface (Matched<T> / MatchPattern<T> / SyntoMatchProviderExtensions) is
+       authored here but NOT part of Synto.Core: it references the incremental-generator pipeline types
+       (SyntaxValueProvider / IncrementalValuesProvider) and is injected as internal source into the
+       consumer's GENERATOR project by SurfaceInjectionGenerator (see the Synto.Runtime.ForMatchHelpers.cs
+       EmbeddedResource in Synto.SourceGenerator.csproj). It must never be <Compile>d into Synto.Core. -->
+  <ItemGroup>
+    <Compile Remove="Matching\ForMatchHelpers.cs" />
+  </ItemGroup>
+
   <!-- Both shipped generators consume Synto.Core's generator-internal machinery (CSharpSyntaxQuoter,
        SyntaxFormatter, UsingDirectiveSet, the *Extensions helpers) as compiled API at analysis time.
        Those types are internal (only the 5 markers + 3 emitted helpers are public surface), so expose
