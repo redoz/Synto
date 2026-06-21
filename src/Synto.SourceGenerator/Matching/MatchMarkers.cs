@@ -183,6 +183,10 @@ internal sealed class MatchMarkers
             && SymbolEqualityComparer.Default.Equals(method.ContainingType, _exprType);
     }
 
+    /// <summary>Whether <paramref name="node"/> binds (by symbol) to ANY <c>[Capture]</c> parameter (used by the deferred-foreach pre-scan).</summary>
+    public bool IsCapture(SyntaxNode node) =>
+        _semanticModel.GetSymbolInfo(node).Symbol is { } symbol && _captureSymbols.Contains(symbol);
+
     /// <summary>
     /// Recognizes an expression-capture hole: a node that binds (by symbol) to a non-<c>Stmt</c>
     /// <c>[Capture]</c> parameter. Bound by <see cref="SemanticModel.GetSymbolInfo(SyntaxNode, System.Threading.CancellationToken)"/>

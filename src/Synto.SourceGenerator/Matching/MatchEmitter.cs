@@ -26,6 +26,16 @@ internal static class MatchEmitter
         var ctx = new MatchContext(info, markers);
         var body = new List<StatementSyntax>();
 
+        // Pre-scan for the deferred repetition path: a phantom foreach iterating a [Capture] param needs the
+        // v2 backtracking lowering -> SY1203, no tree. Reuses the already-built ctx.Markers (no per-foreach rebuild).
+        ScanForDeferredForeach(info, ctx);
+
+        if (ctx.Aborted)
+        {
+            diagnostics.AddRange(ctx.Diagnostics);
+            return null;
+        }
+
         if (MatchMarkers.IsExpressionBodied(info.PatternSyntax, out var expression))
         {
             // Expression-Single (arrow body). Root the walk on the handed `node`; the walk captures expression
@@ -281,6 +291,24 @@ internal static class MatchEmitter
         }
 
         return (core, anchorStart, anchorEnd, anchorLocations);
+    }
+
+    /// <summary>
+    /// Pre-scans the pattern body for a phantom <c>foreach</c> whose iterated expression binds to a
+    /// <c>[Capture]</c> param — the §3.7 repetition notation whose backtracking lowering is deferred to v2.
+    /// Each such <c>foreach</c> raises SY1203 and aborts (diagnostics-only, no tree). A literal <c>foreach</c>
+    /// over a normal collection (not a capture) is left alone — matched literally by the walk.
+    /// </summary>
+    private static void ScanForDeferredForeach(MatchInfo info, MatchContext ctx)
+    {
+        foreach (var foreachStatement in info.PatternSyntax.DescendantNodes().OfType<ForEachStatementSyntax>())
+        {
+            if (ctx.Markers.IsCapture(foreachStatement.Expression))
+            {
+                ctx.Diagnostics.Add(MatchDiagnostics.ForeachRepetitionNotSupported(foreachStatement.GetLocation()));
+                ctx.Aborted = true;
+            }
+        }
     }
 
     /// <summary>

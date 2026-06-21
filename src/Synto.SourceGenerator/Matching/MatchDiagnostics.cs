@@ -24,6 +24,17 @@ internal static class MatchDiagnostics
     public static DiagnosticInfo AnchorNotAllowed(Location? location) =>
         new(_anchorNotAllowed, LocationInfo.CreateFrom(location), EquatableArray<string>.Empty);
 
+    // SY1203 — a phantom foreach iterating a [Capture] param (the deferred repetition path). Located on the foreach.
+    private static readonly DiagnosticDescriptor _foreachRepetitionNotSupported = new("SY1203",
+        "Unsupported Repetition",
+        "A phantom 'foreach' over a [Capture] parameter (repetition) is not supported in v1",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo ForeachRepetitionNotSupported(Location? location) =>
+        new(_foreachRepetitionNotSupported, LocationInfo.CreateFrom(location), EquatableArray<string>.Empty);
+
     // SY1205 — the option×body-shape misuse family ({0}-reason-parameterized): None/Bare on an expression body,
     // or Single on a multi-statement core. Located on the attribute.
     private static readonly DiagnosticDescriptor _malformedPatternBody = new("SY1205",

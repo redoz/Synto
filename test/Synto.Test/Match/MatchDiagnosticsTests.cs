@@ -313,6 +313,35 @@ public class MatchDiagnosticsTests
         Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("partial class M", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ForeachOverCapture_ReportsSY1203()
+    {
+        // The §3.7 Concat repetition pattern: a phantom foreach over a [Capture] needs the deferred v2
+        // backtracking lowering -> SY1203, no tree.
+        var result = MatchTestHarness.Run(
+            """
+            using Synto.Matching;
+            using System.Text;
+            using System.Collections.Generic;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Bare)]
+                static void Concat([Capture] StringBuilder sb, [Capture] List<object> parts)
+                {
+                    foreach (var part in parts)
+                        sb.Append(part);
+                }
+            }
+            """);
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1203");
+        AssertHasRealSpan(diag);
+        Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("partial class M", StringComparison.Ordinal));
+    }
+
     private static void AssertHasRealSpan(Diagnostic diag)
     {
         // The location is carried cacheably as a serializable LocationInfo and reconstructed at emit time;

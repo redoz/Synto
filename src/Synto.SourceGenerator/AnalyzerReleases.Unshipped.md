@@ -15,4 +15,5 @@ SY1007 | Synto.Usage | Error | Diagnostics
 SY1008 | Synto.Usage | Error | Diagnostics
 SY1009 | Synto.Usage | Error | Diagnostics
 SY1201 | Synto.Matching | Error | MatchDiagnostics
+SY1203 | Synto.Matching | Error | MatchDiagnostics
 SY1205 | Synto.Matching | Error | MatchDiagnostics
