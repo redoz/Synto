@@ -17,6 +17,10 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Synto.Example.ObjectReader.Api\Synto.Example.ObjectReader.Api.csproj" />
+    <!-- Reference the Demo (assembly only) so the smoke test can drive Program.SampleData() through the same
+         intercepted call path the runnable Demo uses. The Demo's generator analyzer has PrivateAssets=all, so it
+         does not flow here — the Tests project keeps its own analyzer reference below. -->
+    <ProjectReference Include="..\Synto.Example.ObjectReader.Demo\Synto.Example.ObjectReader.Demo.csproj" />
     <ProjectReference Include="..\Synto.Example.ObjectReader.Generator\Synto.Example.ObjectReader.Generator.csproj"
                       OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="true" />
   </ItemGroup>

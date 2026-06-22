@@ -1,8 +1,9 @@
 # ObjectReader — a FastMember-equivalent `IDataReader` source generator (dog-food example, design)
 
 - **Date:** 2026-06-22
-- **Status:** Approved — design. To be implemented on a new `experimental/object-reader` bookmark
-  (cut from the current `experimental/matching` tip). Not on main.
+- **Status:** Delivered — implemented on the `experimental/object-reader` bookmark (cut from the
+  `experimental/matching` tip). Not on main. See `examples/Synto.Example.ObjectReader/` and the friction
+  log at `docs/superpowers/notes/2026-06-22-objectreader-synto-friction.md`.
 - **Builds on:** Synto **Templating** (the shipped feature — `[Template]` / `[Inline]` / `Syntax<T>`)
   and the **`Synto.Diagnostics`** `[Diagnostic]` generator. Does **not** depend on Matching, though the
   reader's per-member switch construction *may* optionally exercise `Pattern.Replace`.

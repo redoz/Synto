@@ -4,6 +4,41 @@ Living log of where building the ObjectReader dog-food example against Synto-as-
 Feeds a separate Synto-improvement spec (spec §11). One entry per finding: what hurt, why,
 "Synto could make this easier by …".
 
+## Summary — ranked top findings (seeds for the Synto-improvement spec)
+
+Building a real, type-specialized `IDataReader` generator with Synto worked: the **invariant** skeleton
+templated cleanly and `Synto.Diagnostics` carried the SOR* descriptors. The friction clusters in two places —
+expressing **data-driven** (list-shaped) output, and the **cacheability boilerplate** a generator author must
+hand-roll. Ranked by expected payoff:
+
+1. **A list/repeater hole for data-driven members.** The single biggest wall: a `[Template]` is a fixed shape and
+   a Synto hole splices ONE node, so `FieldCount` + the four `switch` methods (variable arm count, one per column)
+   fell back to raw `SyntaxFactory`. *Synto could* offer a hole that maps a collection to a `SeparatedList`
+   (a data-driven cousin of the `Syntax statement; statement();` repeater), or a `Pattern.Replace`-style splice on
+   a placeholder arm. (Task 4)
+2. **A generator-author "cacheability toolkit."** Every cacheable incremental generator re-authors the same value
+   types. Here that was `EquatableArray<T>`, `DiagnosticInfo`, and `LocationInfo` (and, pre-Synto, an
+   `IsExternalInit` polyfill). Synto owns all of these internally but injects none to a generator author.
+   *Synto could* inject a tiny cacheability surface the way it already injects the templating markers. (Tasks 2–4)
+3. **Template parameters for the emitted shell (name / modifiers / base-list).** A `[Template]` can't carry a
+   `file` modifier or a per-call-site type name, so every quote is followed by `.WithIdentifier` (class AND ctor),
+   `.WithModifiers(file sealed)`, `.WithBaseList(: IDataReader)`. *Synto could* parameterize the emitted shell,
+   distinct from the body. (Task 4)
+4. **A `[TemplateHole]` / reserved-member marker.** Because invariant members call the variable ones, the template
+   carrier must include compiling placeholders for members it intends to replace. A marker that reserves a member
+   to be supplied at quote time would let the skeleton type-check without a dummy body. (Task 4)
+5. **An interceptor-stub helper.** Emitting `[InterceptsLocation]` + the self-contained
+   `InterceptsLocationAttribute` definition, plus the generic-arity `(object)` double-cast to bridge `Create<T>`
+   to the concrete reader, is pure plumbing. *Synto could* emit an interceptor stub from an interceptable-location
+   + a target type. (Task 2, R1/R3)
+
+Lower-impact, documentation-only: consuming `Synto.SourceGenerator` already provides `IsExternalInit` (the
+hand-rolled polyfill becomes a CS0101 collision — delete it); and dog-fooding `Synto.Diagnostics` inside a
+*generator* (not an analyzer) yields a benign RS2002 from release-tracking (the descriptors aren't any analyzer's
+`SupportedDiagnostics`).
+
+---
+
 ## Task 2 — walking-skeleton generator (raw SyntaxFactory)
 
 - **Hand-rolled `EquatableArray<T>` + `IsExternalInit` polyfill (cacheability boilerplate).** A cacheable

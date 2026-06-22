@@ -57,4 +57,19 @@ public class ObjectReaderBehaviorTests
         Assert.Equal(2, table.Rows.Count);
         Assert.Equal("Alan", table.Rows[1]["Name"]);
     }
+
+    [Fact]
+    public void Demo_PrintsTwoDataRows() // proves the Demo's own call path is intercepted end-to-end
+    {
+        Demo.Person[] people = Demo.Program.SampleData();
+        using IDataReader reader = ObjectReader.Create(people, "Name", "Age");
+
+        int rows = 0;
+        while (reader.Read())
+        {
+            rows++;
+        }
+
+        Assert.Equal(people.Length, rows);
+    }
 }

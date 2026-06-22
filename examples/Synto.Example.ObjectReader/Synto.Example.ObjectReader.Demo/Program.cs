@@ -6,7 +6,7 @@ namespace Synto.Example.ObjectReader.Demo;
 // Create call binds to the API class (parent-namespace members outrank compilation-unit usings).
 using ObjectReader = global::Synto.Example.ObjectReader.Api.ObjectReader;
 
-internal static class Program
+public static class Program
 {
     /// <summary>The sample rows the Demo exposes. Public so the test suite can drive the same call path.</summary>
     public static Person[] SampleData() =>
