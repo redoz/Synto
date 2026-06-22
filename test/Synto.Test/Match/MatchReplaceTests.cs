@@ -16,6 +16,10 @@ public partial class MatchReplaceTests
     // Shared matcher target — the generator emits M.Sum / M.SumCouldMatch / M.SumPattern / M.SumMatch into it.
     private partial class M { }
 
+    // Template factory target (mirrors RoundTripTests / examples/Synto.Examples): the generator emits the
+    // Factory.{Name} static factory methods into this partial.
+    private static partial class Factory { }
+
     // Sum matches `a + b` and captures both operands (A, B : ExpressionSyntax).
     [global::Synto.Matching.Match<M>(global::Synto.Matching.MatchOption.Single)]
     private static object Sum([global::Synto.Matching.Capture] int a, [global::Synto.Matching.Capture] int b) => a + b;
@@ -72,6 +76,36 @@ public partial class MatchReplaceTests
         var calls = 0;
         M.SumPattern.Replace(root, m => { calls++; return Mul(m); }, global::Synto.Matching.ReplaceOption.First);
         Assert.Equal(1, calls); // does not rewrite-all-then-take-first
+    }
+
+    [Fact]
+    public void Replace_OverCompilationUnit_UsesNodeAndCaptures() // realistic end-to-end
+    {
+        // Two sibling Sum matches as invocation arguments — neither nested in the other, and the enclosing
+        // invocation is not itself a Sum — so All rewrites both, in leftmost-first document order, using each
+        // match's captures. (The plan's original `g(1+2) + h(3+4)` input was self-inconsistent: its top-level
+        // `+` is itself a Sum, which outermost-wins replaces wholesale — see Replace_All_OutermostWins.)
+        var root = SyntaxFactory.ParseCompilationUnit("class C { int F() => g(1 + 2, 3 + 4); }");
+        var rewritten = M.SumPattern.Replace(root, static m => Mul(m));
+        Assert.Equal("class C { int F() => g(1 * 2, 3 * 4); }",
+            rewritten.NormalizeWhitespace(indentation: "", eol: " ").ToString().Replace("  ", " ").Trim());
+    }
+
+    [Fact]
+    public void Replace_WithTemplateBuiltReplacement_Composes() // Matching + Templating capstone
+    {
+        // The replacement is built by a Synto [Template] factory rather than raw SyntaxFactory — proving the
+        // open Func<Matched<T>, SyntaxNode> lets Templating compose with Matching for free.
+        [global::Synto.Templating.Template(typeof(Factory), Options = global::Synto.Templating.TemplateOption.Single)]
+        static void MulT([global::Synto.Templating.Inline(AsSyntax = true)] int a, [global::Synto.Templating.Inline(AsSyntax = true)] int b)
+        { _ = a * b; }
+
+        var root = SyntaxFactory.ParseExpression("g(1 + 2)");
+        // Factory.MulT(...) returns the `_ = a * b;`-shaped statement; reach its right-hand multiply expression.
+        var rewritten = M.SumPattern.Replace(root, static m =>
+            ((AssignmentExpressionSyntax)((ExpressionStatementSyntax)Factory.MulT(m.Captures.A, m.Captures.B)).Expression).Right);
+
+        Assert.Equal("g(1 * 2)", rewritten.NormalizeWhitespace().ToString());
     }
 
     [Fact]

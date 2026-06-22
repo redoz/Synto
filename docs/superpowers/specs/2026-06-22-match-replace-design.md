@@ -1,7 +1,8 @@
 # Matching DSL — `Pattern.Replace` match-driven rewrite helper (design)
 
 - **Date:** 2026-06-22
-- **Status:** Approved design (pre-plan)
+- **Status:** Delivered — implemented on `experimental/matching` (plan `2026-06-22-match-replace.md`).
+  Surface: `SyntoMatchReplaceExtensions.Replace<TRoot, TMatch>(this MatchPattern<TMatch>, TRoot, Func<Matched<TMatch>, SyntaxNode>, ReplaceOption = All)` + `ReplaceOption { All = 0, First = 1 }`, injected `internal` and self-contained on `netstandard2.0`. Resolved decisions: a root-self match returns the replacement (cast to `TRoot`); `First` rewrites the earliest match in document order and short-circuits (no match-all-then-trim).
 - **Builds on:** Matching DSL v1 + `ForMatch` — `docs/superpowers/specs/2026-06-20-matching-dsl.md`,
   `docs/superpowers/specs/2026-06-21-formatch-design.md` (implemented on `experimental/matching`).
 - **Tracking:** follow-on to the `ForMatch` increment.
