@@ -8,4 +8,15 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Dog-food Synto.Diagnostics: consumed as an analyzer only (it injects the [Diagnostic] attribute and
+         generates the descriptor + factory bodies); not a runtime dependency of this generator. -->
+    <ProjectReference Include="..\..\..\src\Synto.Diagnostics\Synto.Diagnostics.csproj"
+                      OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Analyzer release tracking (RS2008) for the SOR* descriptors emitted into this generator. -->
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
 </Project>

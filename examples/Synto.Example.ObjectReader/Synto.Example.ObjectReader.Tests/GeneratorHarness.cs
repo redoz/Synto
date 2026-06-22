@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -27,6 +29,19 @@ internal static class GeneratorHarness
     {
         GeneratorDriver driver = RunDriver(source);
         return Verifier.Verify(driver).UseDirectory("snapshots");
+    }
+
+    /// <summary>
+    /// Runs <see cref="ObjectReaderGenerator"/> over <paramref name="source"/>; returns the generator
+    /// diagnostics and the concatenated generated text. (Same driver as <see cref="Verify"/>, different
+    /// assertion — used by the diagnostics tests.)
+    /// </summary>
+    public static (ImmutableArray<Diagnostic> Diagnostics, string Generated) Run(string source)
+    {
+        GeneratorDriver driver = RunDriver(source);
+        GeneratorDriverRunResult result = driver.GetRunResult();
+        string generated = string.Join("\n", result.GeneratedTrees.Select(tree => tree.GetText().ToString()));
+        return (result.Diagnostics, generated);
     }
 
     private static GeneratorDriver RunDriver(string source)

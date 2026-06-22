@@ -69,6 +69,41 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
     private static ObjectReaderModel? Transform(GeneratorSyntaxContext ctx, System.Threading.CancellationToken ct)
     {
         var invocation = (InvocationExpressionSyntax)ctx.Node;
+        LocationInfo? invocationLocation = LocationInfo.CreateFrom(invocation.GetLocation());
+
+        try
+        {
+            return TransformCore(ctx, invocation, invocationLocation, ct);
+        }
+        catch (System.OperationCanceledException)
+        {
+            throw;
+        }
+#pragma warning disable CA1031 // any unexpected failure becomes SOR0000 — it is never thrown out of the pipeline (C-5).
+        catch (System.Exception ex)
+#pragma warning restore CA1031
+        {
+            var info = new DiagnosticInfo(
+                DiagnosticKind.InternalError,
+                invocationLocation,
+                new EquatableArray<string>(new[] { ex.GetType().FullName ?? "System.Exception", ex.Message }));
+
+            return new ObjectReaderModel(
+                string.Empty,
+                string.Empty,
+                default,
+                new EquatableArray<DiagnosticInfo>(new[] { info }),
+                string.Empty,
+                Intercept: false);
+        }
+    }
+
+    private static ObjectReaderModel? TransformCore(
+        GeneratorSyntaxContext ctx,
+        InvocationExpressionSyntax invocation,
+        LocationInfo? invocationLocation,
+        System.Threading.CancellationToken ct)
+    {
         SemanticModel semanticModel = ctx.SemanticModel;
 
         if (semanticModel.GetSymbolInfo(invocation, ct).Symbol is not IMethodSymbol method)
@@ -84,26 +119,49 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
         }
 
         ITypeSymbol target = method.TypeArguments[0];
+        string targetQualified = target.ToDisplayString(FullyQualified);
 
         var arguments = invocation.ArgumentList.Arguments;
         var columns = new List<ColumnInfo>();
+        var diagnostics = new List<DiagnosticInfo>();
+        bool allConstant = true;
+
         for (int i = 1; i < arguments.Count; i++)
         {
             Optional<object?> constant = semanticModel.GetConstantValue(arguments[i].Expression, ct);
             if (!constant.HasValue || constant.Value is not string memberName)
             {
-                // Non-constant member list → not a real interception target (Task 3 reports SOR0002).
-                return null;
+                // Non-constant member → the whole call is not a constant target (SOR0002, reported once below).
+                allConstant = false;
+                continue;
             }
 
             string? columnType = ResolveMemberType(target, memberName);
             if (columnType is null)
             {
-                // Unknown member → skipped silently this task (Task 3 reports SOR0001).
+                // Unknown member → record SOR0001 and skip the column (C-2).
+                diagnostics.Add(new DiagnosticInfo(
+                    DiagnosticKind.MemberNotFound,
+                    LocationInfo.CreateFrom(arguments[i].Expression.GetLocation()),
+                    new EquatableArray<string>(new[] { memberName, targetQualified })));
                 continue;
             }
 
             columns.Add(new ColumnInfo(memberName, columnType));
+        }
+
+        if (!allConstant)
+        {
+            // A non-constant member list is never intercepted (C-4 runtime fallback applies); report SOR0002
+            // and flow a diagnostics-only model so nothing is emitted for this call site.
+            diagnostics.Add(new DiagnosticInfo(DiagnosticKind.MembersNotConstant, invocationLocation, default));
+            return new ObjectReaderModel(
+                targetQualified,
+                target.Name,
+                default,
+                new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()),
+                string.Empty,
+                Intercept: false);
         }
 
         var location = semanticModel.GetInterceptableLocation(invocation, ct);
@@ -113,10 +171,12 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
         }
 
         return new ObjectReaderModel(
-            target.ToDisplayString(FullyQualified),
+            targetQualified,
             target.Name,
             new EquatableArray<ColumnInfo>(columns.ToArray()),
-            location.GetInterceptsLocationAttributeSyntax());
+            new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()),
+            location.GetInterceptsLocationAttributeSyntax(),
+            Intercept: true);
     }
 
     private static string? ResolveMemberType(ITypeSymbol target, string memberName)
@@ -150,12 +210,37 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
             return;
         }
 
+        // Replay every model's diagnostics (intercepting or diagnostics-only) — materialized here, never
+        // thrown (C-5), via the Synto.Diagnostics-generated factory methods (D5).
+        foreach (ObjectReaderModel model in models)
+        {
+            foreach (DiagnosticInfo info in model.Diagnostics)
+            {
+                spc.ReportDiagnostic(ToDiagnostic(info));
+            }
+        }
+
+        // Only constant-target calls are intercepted; a diagnostics-only model (e.g. SOR0002) emits nothing.
+        var intercepting = new List<ObjectReaderModel>();
+        foreach (ObjectReaderModel model in models)
+        {
+            if (model.Intercept)
+            {
+                intercepting.Add(model);
+            }
+        }
+
+        if (intercepting.Count == 0)
+        {
+            return;
+        }
+
         var members = new List<MemberDeclarationSyntax>();
         var interceptors = new StringBuilder();
 
-        for (int index = 0; index < models.Length; index++)
+        for (int index = 0; index < intercepting.Count; index++)
         {
-            ObjectReaderModel model = models[index];
+            ObjectReaderModel model = intercepting[index];
             members.Add(SyntaxFactory.ParseMemberDeclaration(BuildReader(model, index))!);
             interceptors.Append(BuildInterceptorMethod(model, index));
         }
@@ -174,6 +259,19 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
 
         spc.AddSource("ObjectReader.g.cs", SourceText.From(unit.ToFullString(), Encoding.UTF8));
         spc.AddSource("InterceptsLocationAttribute.g.cs", SourceText.From(InterceptsLocationAttributeSource, Encoding.UTF8));
+    }
+
+    // Materialize an equatable DiagnosticInfo into a real Diagnostic via the Synto.Diagnostics-generated
+    // factory methods (the dog-food, D5). Runs only in the output stage, off the cached pipeline value.
+    private static Diagnostic ToDiagnostic(DiagnosticInfo info)
+    {
+        Location? location = info.Location?.ToLocation();
+        return info.Kind switch
+        {
+            DiagnosticKind.MemberNotFound => Diagnostics.MemberNotFound(location, info.Arguments[0], info.Arguments[1]),
+            DiagnosticKind.MembersNotConstant => Diagnostics.MembersNotConstant(location),
+            _ => Diagnostics.InternalError(location, info.Arguments[0], info.Arguments[1]),
+        };
     }
 
     // The SDK does not ship System.Runtime.CompilerServices.InterceptsLocationAttribute, so the generator

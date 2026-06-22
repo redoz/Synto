@@ -1,4 +1,6 @@
 using System.Collections;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Synto.Example.ObjectReader.Generator;
 
@@ -6,16 +8,62 @@ namespace Synto.Example.ObjectReader.Generator;
 /// fully-qualified type name (used for <c>GetFieldType</c>). Pure value type — safe to cache (C-5).</summary>
 internal readonly record struct ColumnInfo(string Name, string ColumnTypeName);
 
+/// <summary>Which diagnostic an equatable <see cref="DiagnosticInfo"/> carries; mapped back to a real
+/// <c>Synto.Diagnostics</c>-generated factory call in the output stage.</summary>
+internal enum DiagnosticKind
+{
+    /// <summary>SOR0000 — an unexpected generator exception, converted to a diagnostic (never thrown — C-5).</summary>
+    InternalError,
+
+    /// <summary>SOR0001 — a named member was not found on the target type; the column is skipped (C-2).</summary>
+    MemberNotFound,
+
+    /// <summary>SOR0002 — the member list was not compile-time-constant; the call is not intercepted.</summary>
+    MembersNotConstant,
+}
+
+/// <summary>
+/// A value-equatable representation of a <see cref="Location"/> so diagnostics can flow through the
+/// incremental pipeline without rooting a <see cref="SyntaxTree"/> / <see cref="Compilation"/> (C-5).
+/// (Mirrors <c>Synto.Diagnostics</c>'s own internal <c>LocationInfo</c> — a candidate "Synto could expose a
+/// cacheability toolkit" friction finding: a generator author re-authors this primitive every time.)
+/// </summary>
+internal readonly record struct LocationInfo(string FilePath, TextSpan TextSpan, LinePositionSpan LineSpan)
+{
+    public Location ToLocation() => Location.Create(FilePath, TextSpan, LineSpan);
+
+    public static LocationInfo? CreateFrom(Location? location)
+    {
+        if (location?.SourceTree is null)
+        {
+            return null;
+        }
+
+        return new LocationInfo(location.SourceTree.FilePath, location.SourceSpan, location.GetLineSpan().Span);
+    }
+}
+
+/// <summary>
+/// A value-equatable description of a diagnostic carried out of the transform. The real
+/// <see cref="Diagnostic"/> is materialized only in the output stage (via the <c>Synto.Diagnostics</c>-
+/// generated factory) so the cached pipeline value stays free of non-cacheable Roslyn objects (C-5).
+/// </summary>
+internal readonly record struct DiagnosticInfo(DiagnosticKind Kind, LocationInfo? Location, EquatableArray<string> Arguments);
+
 /// <summary>
 /// The equatable per-call-site model the syntax/semantic transform flows out. Carries NO Roslyn objects
 /// (no Compilation/ISymbol/SemanticModel/SyntaxNode) so the pipeline stays cacheable (C-5); emission in
-/// <c>RegisterSourceOutput</c> runs from this value alone.
+/// <c>RegisterSourceOutput</c> runs from this value alone. <paramref name="Intercept"/> is <c>false</c> for a
+/// diagnostics-only model (e.g. a non-constant member list — SOR0002): its diagnostics are replayed but no
+/// reader/interceptor is emitted for it.
 /// </summary>
 internal readonly record struct ObjectReaderModel(
     string TargetTypeQualifiedName,
     string TargetTypeShortName,
     EquatableArray<ColumnInfo> Columns,
-    string InterceptsLocationAttribute);
+    EquatableArray<DiagnosticInfo> Diagnostics,
+    string InterceptsLocationAttribute,
+    bool Intercept);
 
 /// <summary>
 /// A minimal value-equatable wrapper over an array — structural equality + a stable hash so an
