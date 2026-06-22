@@ -41,6 +41,11 @@
          cannot be <Compile>d into Synto.Core; injected as internal source like the ForMatch extensions.
          ReplaceOption.cs is a pure enum (like MatchOption.cs) and DOES compile into Synto.Core. -->
     <Compile Remove="Matching\MatchReplaceExtensions.cs" />
+    <!-- The interceptor-attribute helper for generator AUTHORS. Authored once here under Synto.Generators,
+         NOT part of the Synto.Core runtime API; injected as internal source into the consumer's GENERATOR
+         project by SurfaceInjectionGenerator (see the Synto.Runtime.Interceptors.cs EmbeddedResource in
+         Synto.SourceGenerator.csproj). Embed-only, so never <Compile>d into Synto.Core. -->
+    <Compile Remove="Generators\Interceptors.cs" />
   </ItemGroup>
 
   <!-- Both shipped generators consume Synto.Core's generator-internal machinery (CSharpSyntaxQuoter,

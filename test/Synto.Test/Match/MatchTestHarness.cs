@@ -310,6 +310,7 @@ internal static class MatchTestHarness
     {
         var equatableArray = InjectedSurfaceSource("struct EquatableArray");
         var diagnostics = InjectedSurfaceSource("record struct DiagnosticInfo"); // DiagnosticInfo.cs carries LocationInfo + DiagnosticInfo
+        var interceptors = InjectedSurfaceSource("class Interceptors");
         var polyfill = GeneratedPolyfillSource(Run(
             """
             using Synto.Matching;
@@ -321,7 +322,7 @@ internal static class MatchTestHarness
             }
             """));
 
-        return CreateNetStandardClosure(equatableArray, diagnostics, polyfill).GetDiagnostics();
+        return CreateNetStandardClosure(equatableArray, diagnostics, interceptors, polyfill).GetDiagnostics();
     }
 
     private static CSharpCompilation CreateClosure(string assemblyName, ImmutableArray<MetadataReference> references, string[] sources)

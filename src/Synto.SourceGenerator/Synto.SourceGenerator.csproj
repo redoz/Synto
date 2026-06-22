@@ -58,6 +58,10 @@
 		 SyntoMatchReplaceExtensions rewriter (Compile-Removed from Synto.Core), injected as internal source. -->
 	<EmbeddedResource Include="..\Synto\Matching\ReplaceOption.cs" LogicalName="Synto.Runtime.ReplaceOption.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\MatchReplaceExtensions.cs" LogicalName="Synto.Runtime.MatchReplaceExtensions.cs" />
+	<!-- The interceptor-attribute helper for generator authors. Authored under Synto.Generators (no shift
+		 needed — it is already in the injected namespace), Compile-Removed from Synto.Core and injected as
+		 internal source via the PLAIN "Synto.Runtime." group. -->
+	<EmbeddedResource Include="..\Synto\Generators\Interceptors.cs" LogicalName="Synto.Runtime.Interceptors.cs" />
   </ItemGroup>
 
   <!-- The cacheability toolkit for generator AUTHORS (EquatableArray<T> / LocationInfo / DiagnosticInfo).

@@ -27,4 +27,13 @@ public class InjectedGeneratorUtilitiesTests
         var diagnostics = MatchTestHarness.CompileInjectedGeneratorUtilitiesOnNetStandard20();
         Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
     }
+
+    [Fact]
+    public void InjectedInterceptorsHelper_DefinesTheCanonicalAttribute() // C-4
+    {
+        var source = MatchTestHarness.InjectedSurfaceSource("class Interceptors");
+        Assert.Contains("namespace System.Runtime.CompilerServices", source);
+        Assert.Contains("class InterceptsLocationAttribute", source);
+        Assert.Contains("InterceptsLocationAttribute(int version, string data)", source);
+    }
 }
