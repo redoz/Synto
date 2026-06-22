@@ -274,6 +274,32 @@ internal static class MatchTestHarness
         return CreateNetStandardClosure(dataSurface, extensions, polyfill).GetDiagnostics();
     }
 
+    /// <summary>
+    /// C-R4 self-containment proof for the injected Replace surface: compiles the injected
+    /// SyntoMatchReplaceExtensions + ReplaceOption alongside the data surface and the IsExternalInit polyfill
+    /// on the FAITHFUL netstandard2.0 closure. Returns the resulting diagnostics (must be error-free).
+    /// </summary>
+    public static ImmutableArray<Diagnostic> CompileInjectedMatchReplaceSurfaceOnNetStandard20()
+    {
+        var dataSurface = InjectedSurfaceSource("readonly struct MatchPattern");
+        var replaceOption = InjectedSurfaceSource("enum ReplaceOption");
+        var replaceExtensions = InjectedSurfaceSource("class SyntoMatchReplaceExtensions");
+        var polyfill = GeneratedPolyfillSource(Run(
+            """
+            using Synto.Matching;
+
+            partial class M { }
+
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object Sum([Capture] int a, [Capture] int b) => a + b;
+            }
+            """));
+
+        return CreateNetStandardClosure(dataSurface, replaceOption, replaceExtensions, polyfill).GetDiagnostics();
+    }
+
     private static CSharpCompilation CreateClosure(string assemblyName, ImmutableArray<MetadataReference> references, string[] sources)
     {
         var parseOptions = new CSharpParseOptions(LanguageVersion.Latest);

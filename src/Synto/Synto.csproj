@@ -37,6 +37,10 @@
   <ItemGroup>
     <Compile Remove="Matching\ForMatchHelpers.cs" />
     <Compile Remove="Matching\ForMatchProviderExtensions.cs" />
+    <!-- MatchReplaceExtensions references the removed MatchPattern<T> / Matched<T> data surface, so it
+         cannot be <Compile>d into Synto.Core; injected as internal source like the ForMatch extensions.
+         ReplaceOption.cs is a pure enum (like MatchOption.cs) and DOES compile into Synto.Core. -->
+    <Compile Remove="Matching\MatchReplaceExtensions.cs" />
   </ItemGroup>
 
   <!-- Both shipped generators consume Synto.Core's generator-internal machinery (CSharpSyntaxQuoter,

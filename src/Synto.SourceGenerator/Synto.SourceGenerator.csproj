@@ -54,6 +54,10 @@
 		 surface (Matched<T> / MatchPattern<T>) and the incremental-pipeline ForMatch extension wrappers. -->
 	<EmbeddedResource Include="..\Synto\Matching\ForMatchHelpers.cs" LogicalName="Synto.Runtime.ForMatchHelpers.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\ForMatchProviderExtensions.cs" LogicalName="Synto.Runtime.ForMatchProviderExtensions.cs" />
+	<!-- The match-driven Replace surface: ReplaceOption (pure enum, also compiled into Synto.Core) and the
+		 SyntoMatchReplaceExtensions rewriter (Compile-Removed from Synto.Core), injected as internal source. -->
+	<EmbeddedResource Include="..\Synto\Matching\ReplaceOption.cs" LogicalName="Synto.Runtime.ReplaceOption.cs" />
+	<EmbeddedResource Include="..\Synto\Matching\MatchReplaceExtensions.cs" LogicalName="Synto.Runtime.MatchReplaceExtensions.cs" />
   </ItemGroup>
 
   <!-- The runtime HELPERS that CAN be emitted into consumer code (ToSyntax / ToTypeSyntax /
