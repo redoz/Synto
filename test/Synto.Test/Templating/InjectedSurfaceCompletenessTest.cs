@@ -124,6 +124,10 @@ public class InjectedSurfaceCompletenessTest
                 // SyntaxFactory, ...) plus the helper bodies (ParseTypeName, etc.).
                 MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+                // The injected Synto.Generators cacheability toolkit (EquatableArray<T>) references
+                // ImmutableArray<T>; a real netstandard2.0 generator project always has System.Collections
+                // .Immutable available (the Roslyn package depends on it), so reference it here too.
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
                 // System.Linq / System.Collections for the consumer template body (List<T>, etc.).
                 MetadataReference.CreateFromFile(Assembly.Load("System.Linq, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
                 MetadataReference.CreateFromFile(Assembly.Load("System.Collections, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
@@ -189,6 +193,10 @@ public class InjectedSurfaceCompletenessTest
                 // SyntaxFactory, ...) plus the helper bodies (ParseTypeName, etc.).
                 MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+                // The injected Synto.Generators cacheability toolkit (EquatableArray<T>) references
+                // ImmutableArray<T>; a real netstandard2.0 generator project always has System.Collections
+                // .Immutable available (the Roslyn package depends on it), so reference it here too.
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
                 // System.Linq / System.Collections for the consumer template body (List<T>, etc.).
                 MetadataReference.CreateFromFile(Assembly.Load("System.Linq, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
                 MetadataReference.CreateFromFile(Assembly.Load("System.Collections, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),

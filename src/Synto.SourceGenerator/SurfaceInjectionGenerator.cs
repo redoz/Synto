@@ -61,6 +61,14 @@ public sealed class SurfaceInjectionGenerator : IIncrementalGenerator
     // The LogicalName prefix shared by every embedded surface resource (see csproj).
     private const string ResourcePrefix = "Synto.Runtime.";
 
+    // The LogicalName prefix for the SHIFT GROUP: resources whose authored `namespace Synto[.*]` is
+    // retargeted to `namespace Synto.Generators[.*]` on injection (in addition to public->internal). This
+    // lets Synto's existing internal cacheability files (EquatableArray.cs / DiagnosticInfo.cs, namespace
+    // `Synto`) be embedded AS-IS and injected downstream under the distinct `Synto.Generators` namespace,
+    // so the single source of truth never drifts and the injected copy never collides with the IVT-visible
+    // internal `Synto.*` copy. Must NOT be a prefix of (or prefixed by) ResourcePrefix.
+    private const string ShiftResourcePrefix = "Synto.RuntimeGenerated.";
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // The rewritten surface is constant for a given generator assembly, so build it once.
@@ -83,8 +91,22 @@ public sealed class SurfaceInjectionGenerator : IIncrementalGenerator
 
         foreach (var resourceName in assembly.GetManifestResourceNames())
         {
-            if (!resourceName.StartsWith(ResourcePrefix, StringComparison.Ordinal))
+            string prefix;
+            bool shiftNamespace;
+            if (resourceName.StartsWith(ShiftResourcePrefix, StringComparison.Ordinal))
+            {
+                prefix = ShiftResourcePrefix;
+                shiftNamespace = true;
+            }
+            else if (resourceName.StartsWith(ResourcePrefix, StringComparison.Ordinal))
+            {
+                prefix = ResourcePrefix;
+                shiftNamespace = false;
+            }
+            else
+            {
                 continue;
+            }
 
             string source = ReadResource(assembly, resourceName);
 
@@ -93,12 +115,17 @@ public sealed class SurfaceInjectionGenerator : IIncrementalGenerator
 
             var rewritten = (CompilationUnitSyntax)new PublicToInternalRewriter().Visit(root);
 
+            // Shift-group resources additionally retarget `namespace Synto[.*]` -> `Synto.Generators[.*]`,
+            // so an embedded internal `Synto.*` file is injected downstream under `Synto.Generators`.
+            if (shiftNamespace)
+                rewritten = (CompilationUnitSyntax)new NamespaceShiftRewriter().Visit(rewritten);
+
             // The surface uses nullable reference annotations; emit it in an explicit `#nullable enable`
             // context so it compiles cleanly regardless of the consumer's project-level nullable setting.
             string text = "#nullable enable\n" + rewritten.GetText(Encoding.UTF8);
 
             // Hint name: drop the prefix so "Synto.Runtime.TemplateAttribute.cs" -> "TemplateAttribute.g.cs".
-            string hintName = resourceName.Substring(ResourcePrefix.Length);
+            string hintName = resourceName.Substring(prefix.Length);
             if (hintName.EndsWith(".cs", StringComparison.Ordinal))
                 hintName = hintName.Substring(0, hintName.Length - ".cs".Length);
 
@@ -174,6 +201,40 @@ public sealed class SurfaceInjectionGenerator : IIncrementalGenerator
                 .WithTriviaFrom(oldToken);
 
             return withModifiers(modifiers.Replace(oldToken, newToken));
+        }
+    }
+
+    /// <summary>
+    /// Retargets a shift-group file's namespace from <c>Synto</c> (or <c>Synto.Foo</c>) to
+    /// <c>Synto.Generators</c> (or <c>Synto.Generators.Foo</c>), leaving any non-<c>Synto</c> namespace
+    /// untouched. Applied only to the designated shift-group resources so the embedded internal
+    /// cacheability files (authored under <c>namespace Synto</c>) inject downstream under the distinct
+    /// <c>Synto.Generators</c> namespace, while the marker surface keeps its authored namespaces.
+    /// </summary>
+    private sealed class NamespaceShiftRewriter : CSharpSyntaxRewriter
+    {
+        private const string FromRoot = "Synto";
+        private const string ToRoot = "Synto.Generators";
+
+        public override SyntaxNode? VisitFileScopedNamespaceDeclaration(FileScopedNamespaceDeclarationSyntax node)
+            => node.WithName(Shift(node.Name));
+
+        public override SyntaxNode? VisitNamespaceDeclaration(NamespaceDeclarationSyntax node)
+            => node.WithName(Shift(node.Name));
+
+        private static NameSyntax Shift(NameSyntax name)
+        {
+            string text = name.ToString();
+
+            string shifted;
+            if (text == FromRoot)
+                shifted = ToRoot;
+            else if (text.StartsWith(FromRoot + ".", StringComparison.Ordinal))
+                shifted = ToRoot + text.Substring(FromRoot.Length);
+            else
+                return name; // not a Synto namespace — leave it untouched.
+
+            return SyntaxFactory.ParseName(shifted).WithTriviaFrom(name);
         }
     }
 }

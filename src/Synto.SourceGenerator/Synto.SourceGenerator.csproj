@@ -60,6 +60,17 @@
 	<EmbeddedResource Include="..\Synto\Matching\MatchReplaceExtensions.cs" LogicalName="Synto.Runtime.MatchReplaceExtensions.cs" />
   </ItemGroup>
 
+  <!-- The cacheability toolkit for generator AUTHORS (EquatableArray<T> / LocationInfo / DiagnosticInfo).
+	   These are Synto's OWN internal pipeline value types, authored under `namespace Synto` and STILL
+	   compiled into this assembly (no <Compile Remove>). They are ALSO embedded here under the
+	   "Synto.RuntimeGenerated." SHIFT-GROUP prefix so SurfaceInjectionGenerator injects them downstream
+	   under `namespace Synto.Generators` (single source of truth; the shift keeps the injected copy distinct
+	   from the IVT-visible internal `Synto.*` copy). A file may be both <Compile> and <EmbeddedResource>. -->
+  <ItemGroup>
+	<EmbeddedResource Include="EquatableArray.cs" LogicalName="Synto.RuntimeGenerated.EquatableArray.cs" />
+	<EmbeddedResource Include="DiagnosticInfo.cs" LogicalName="Synto.RuntimeGenerated.DiagnosticInfo.cs" />
+  </ItemGroup>
+
   <!-- The runtime HELPERS that CAN be emitted into consumer code (ToSyntax / ToTypeSyntax /
 	   OrNullLiteralExpression). TemplateFactorySourceGenerator embeds them under the "Synto.Helper."
 	   prefix and, for each generated factory, SCANS the emitted syntax for real calls to a helper's

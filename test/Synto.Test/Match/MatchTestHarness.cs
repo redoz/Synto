@@ -300,6 +300,30 @@ internal static class MatchTestHarness
         return CreateNetStandardClosure(dataSurface, replaceOption, replaceExtensions, polyfill).GetDiagnostics();
     }
 
+    /// <summary>
+    /// C-2 self-containment proof for the injected generator-author utilities: compiles the injected (and
+    /// namespace-shifted) EquatableArray + LocationInfo + DiagnosticInfo on the FAITHFUL netstandard2.0
+    /// closure, alongside the IsExternalInit polyfill the record structs need. Returns the resulting
+    /// diagnostics (must be error-free). Task 2 extends this to also include Interceptors.
+    /// </summary>
+    public static ImmutableArray<Diagnostic> CompileInjectedGeneratorUtilitiesOnNetStandard20()
+    {
+        var equatableArray = InjectedSurfaceSource("struct EquatableArray");
+        var diagnostics = InjectedSurfaceSource("record struct DiagnosticInfo"); // DiagnosticInfo.cs carries LocationInfo + DiagnosticInfo
+        var polyfill = GeneratedPolyfillSource(Run(
+            """
+            using Synto.Matching;
+            partial class M { }
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object Sum([Capture] int a, [Capture] int b) => a + b;
+            }
+            """));
+
+        return CreateNetStandardClosure(equatableArray, diagnostics, polyfill).GetDiagnostics();
+    }
+
     private static CSharpCompilation CreateClosure(string assemblyName, ImmutableArray<MetadataReference> references, string[] sources)
     {
         var parseOptions = new CSharpParseOptions(LanguageVersion.Latest);
