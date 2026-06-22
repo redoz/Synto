@@ -4,6 +4,8 @@
   </Folder>
   <Folder Name="/examples/">
     <Project Path="examples/Synto.Examples/Synto.Examples.csproj" />
+    <Project Path="examples/Synto.Example.ObjectReader/Synto.Example.ObjectReader.Api/Synto.Example.ObjectReader.Api.csproj" />
+    <Project Path="examples/Synto.Example.ObjectReader/Synto.Example.ObjectReader.Tests/Synto.Example.ObjectReader.Tests.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Synto.Bootstrap/Synto.Bootstrap.csproj" />
