@@ -58,6 +58,23 @@ public partial class MatchReplaceTests
     }
 
     [Fact]
+    public void Replace_First_RewritesOnlyTheFirstMatch() // C-R5
+    {
+        var root = SyntaxFactory.ParseExpression("f(1 + 2, 3 + 4)");
+        var rewritten = M.SumPattern.Replace(root, static m => Mul(m), global::Synto.Matching.ReplaceOption.First);
+        Assert.Equal("f(1 * 2, 3 + 4)", rewritten.NormalizeWhitespace().ToString()); // only the first Sum rewritten
+    }
+
+    [Fact]
+    public void Replace_First_ShortCircuits_EvaluatorInvokedExactlyOnce() // C-R5
+    {
+        var root = SyntaxFactory.ParseExpression("f(1 + 2, 3 + 4)");
+        var calls = 0;
+        M.SumPattern.Replace(root, m => { calls++; return Mul(m); }, global::Synto.Matching.ReplaceOption.First);
+        Assert.Equal(1, calls); // does not rewrite-all-then-take-first
+    }
+
+    [Fact]
     public void InjectedMatchReplaceSurface_CompilesOn_NetStandard20() // C-R4
     {
         var diagnostics = MatchTestHarness.CompileInjectedMatchReplaceSurfaceOnNetStandard20();

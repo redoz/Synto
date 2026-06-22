@@ -35,25 +35,30 @@ internal static class SyntoMatchReplaceExtensions
         where TRoot : SyntaxNode
         where TMatch : class
     {
-        var rewriter = new ReplaceRewriter<TMatch>(pattern, replacement);
+        var rewriter = new ReplaceRewriter<TMatch>(pattern, replacement, option);
         return (TRoot)rewriter.Visit(root)!;
     }
 
     /// <summary>
     /// Outermost-wins, single-pass match-driven rewriter: at each node it runs the matcher and, on a match,
     /// returns the consumer's replacement WITHOUT descending into the matched subtree; non-matching nodes are
-    /// descended into normally.
+    /// descended into normally. Under <see cref="ReplaceOption.First"/> it rewrites the earliest match in
+    /// document order, then short-circuits — every later node is returned unchanged without matching or
+    /// evaluating again (it does not match-all-then-trim).
     /// </summary>
     private sealed class ReplaceRewriter<TMatch> : CSharpSyntaxRewriter
         where TMatch : class
     {
         private readonly MatchPattern<TMatch> _pattern;
         private readonly Func<Matched<TMatch>, SyntaxNode> _replacement;
+        private readonly ReplaceOption _option;
+        private bool _done;
 
-        public ReplaceRewriter(MatchPattern<TMatch> pattern, Func<Matched<TMatch>, SyntaxNode> replacement)
+        public ReplaceRewriter(MatchPattern<TMatch> pattern, Func<Matched<TMatch>, SyntaxNode> replacement, ReplaceOption option)
         {
             _pattern = pattern;
             _replacement = replacement;
+            _option = option;
         }
 
         public override SyntaxNode? Visit(SyntaxNode? node)
@@ -61,9 +66,18 @@ internal static class SyntoMatchReplaceExtensions
             if (node is null)
                 return null;
 
+            // First-mode short-circuit: once the earliest match is rewritten, never match or evaluate again.
+            if (_done)
+                return node;
+
             var captures = _pattern.Match(node);
             if (captures is not null)
+            {
+                if (_option == ReplaceOption.First)
+                    _done = true;
+
                 return _replacement(new Matched<TMatch>(node, captures));
+            }
 
             return base.Visit(node);
         }
