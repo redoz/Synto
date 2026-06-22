@@ -59,6 +59,39 @@ internal static class GeneratorHarness
         return (result.Diagnostics, generated);
     }
 
+    /// <summary>
+    /// Runs <see cref="ObjectReaderGenerator"/> over <paramref name="source"/> with incremental step tracking
+    /// enabled, then re-runs the same driver after adding one UNRELATED syntax tree, and returns the second
+    /// run's single generator result. A cacheability guard (C-5): because the transform flows only an equatable
+    /// <c>ObjectReaderModel</c> (no rooted Compilation/ISymbol/SemanticModel/SyntaxNode), the call site's tree
+    /// is byte-identical across both runs, so the tracked steps must come from cache rather than re-projecting.
+    /// </summary>
+    public static GeneratorRunResult RunIncremental(string source)
+    {
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "ObjectReaderSnapshot",
+            syntaxTrees: new[] { CSharpSyntaxTree.ParseText(source, ParseOptions, path: "Source.cs") },
+            references: References,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new ObjectReaderGenerator().AsSourceGenerator() },
+            additionalTexts: null,
+            parseOptions: ParseOptions,
+            optionsProvider: null,
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation);
+
+        // An edit in a separate, unrelated tree leaves Source.cs untouched, so the equatable model produced
+        // for the Create call site must be reused — Cached (step not re-run) or Unchanged (re-run, equal value).
+        Compilation modified = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", ParseOptions));
+        driver = driver.RunGenerators(modified);
+
+        return driver.GetRunResult().Results.Single();
+    }
+
     private static GeneratorDriver RunDriver(string source)
     {
         var compilation = CSharpCompilation.Create(
