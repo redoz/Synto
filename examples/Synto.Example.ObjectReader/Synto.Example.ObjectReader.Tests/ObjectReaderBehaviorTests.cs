@@ -1,0 +1,60 @@
+using System.Collections.Generic;
+using System.Data;
+using Xunit;
+
+namespace Synto.Example.ObjectReader.Tests;
+
+// Alias the API class past the 'Synto.Example.ObjectReader' namespace collision (see ObjectReaderApiTests).
+using ObjectReader = global::Synto.Example.ObjectReader.Api.ObjectReader;
+
+public class ObjectReaderBehaviorTests
+{
+    // 'internal' (not 'private'): the generated reader lives in a separate file under
+    // Synto.Example.ObjectReader.Generated and names this type by its fully-qualified name, so the target must
+    // be at least assembly-visible. A private nested target is unreachable from the emitted reader (friction).
+    internal sealed record Person(string Name, int Age, string? Nickname);
+
+    private static Person[] Sample() =>
+    [
+        new Person("Ada", 36, "Countess"),
+        new Person("Alan", 41, null),
+    ];
+
+    [Fact]
+    public void Create_IsIntercepted_AndReadsRowsDirectly() // R1 + C-1 + C-3
+    {
+        using IDataReader reader = ObjectReader.Create(Sample(), "Name", "Age", "Nickname");
+
+        Assert.Equal(3, reader.FieldCount);
+        Assert.Equal("Name", reader.GetName(0));
+        Assert.Equal(typeof(int), reader.GetFieldType(1));
+        Assert.Equal(2, reader.GetOrdinal("Nickname"));
+
+        var rows = new List<object[]>();
+        while (reader.Read())
+        {
+            var values = new object[reader.FieldCount];
+            reader.GetValues(values);
+            rows.Add(values);
+        }
+
+        Assert.Equal(2, rows.Count);
+        Assert.Equal("Ada", rows[0][0]);
+        Assert.Equal(36, rows[0][1]);
+        Assert.Equal(DBNull.Value, rows[1][2]); // null member → DBNull.Value (C-3)
+    }
+
+    [Fact]
+    public void Create_FeedsDataTableLoad() // C-3 functional bar via a real ADO.NET sink
+    {
+        using IDataReader reader = ObjectReader.Create(Sample(), "Name", "Age");
+        var table = new DataTable();
+        table.Load(reader);
+
+        Assert.Equal(2, table.Columns.Count);
+        Assert.Equal("Name", table.Columns[0].ColumnName);
+        Assert.Equal(typeof(string), table.Columns[0].DataType);
+        Assert.Equal(2, table.Rows.Count);
+        Assert.Equal("Alan", table.Rows[1]["Name"]);
+    }
+}

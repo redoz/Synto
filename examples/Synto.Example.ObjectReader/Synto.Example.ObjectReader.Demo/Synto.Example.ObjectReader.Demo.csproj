@@ -4,20 +4,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
-    <IsTestProject>true</IsTestProject>
-    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <InterceptorsNamespaces>$(InterceptorsNamespaces);Synto.Example.ObjectReader.Generated</InterceptorsNamespaces>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="xunit.v3.mtp-v2" />
-    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-    <PackageReference Include="Verify.XunitV3" />
-    <PackageReference Include="Verify.SourceGenerators" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\Synto.Example.ObjectReader.Api\Synto.Example.ObjectReader.Api.csproj" />
     <ProjectReference Include="..\Synto.Example.ObjectReader.Generator\Synto.Example.ObjectReader.Generator.csproj"
-                      OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="true" />
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>
