@@ -19,6 +19,21 @@ internal static class GeneratorHarness
 {
     private const string GeneratedNamespace = "Synto.Example.ObjectReader.Generated";
 
+    /// <summary>
+    /// Absolute path of the <c>Synto.Example.ObjectReader.Generator</c> project directory, resolved from this
+    /// source file's compile-time location. Used by the Task 4 dog-food sentinel to assert the Synto
+    /// <c>[Template]</c> skeleton (<c>ReaderTemplate.cs</c>) is present.
+    /// </summary>
+    public static string GeneratorProjectDir { get; } = ResolveGeneratorProjectDir();
+
+    private static string ResolveGeneratorProjectDir([System.Runtime.CompilerServices.CallerFilePath] string thisFile = "")
+    {
+        // thisFile = …/Synto.Example.ObjectReader.Tests/GeneratorHarness.cs
+        string testsDir = System.IO.Path.GetDirectoryName(thisFile)!;
+        string exampleRoot = System.IO.Path.GetDirectoryName(testsDir)!;
+        return System.IO.Path.Combine(exampleRoot, "Synto.Example.ObjectReader.Generator");
+    }
+
     private static readonly CSharpParseOptions ParseOptions = new CSharpParseOptions(LanguageVersion.Preview)
         .WithFeatures(new[] { new KeyValuePair<string, string>("InterceptorsNamespaces", GeneratedNamespace) });
 

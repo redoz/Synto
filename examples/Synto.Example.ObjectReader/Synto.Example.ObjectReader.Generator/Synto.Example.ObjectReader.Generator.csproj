@@ -13,6 +13,11 @@
          generates the descriptor + factory bodies); not a runtime dependency of this generator. -->
     <ProjectReference Include="..\..\..\src\Synto.Diagnostics\Synto.Diagnostics.csproj"
                       OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="false" />
+    <!-- Dog-food Synto templating: consumed as an analyzer only. It injects the internal [Template]/[Inline]/
+         Syntax<T>/Factory surface and generates Factory.ObjectReaderTemplate(...) from ReaderTemplate.cs.
+         No Synto.Core runtime reference — the generator consumes only the source generator (see architecture.md). -->
+    <ProjectReference Include="..\..\..\src\Synto.SourceGenerator\Synto.SourceGenerator.csproj"
+                      OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <!-- Analyzer release tracking (RS2008) for the SOR* descriptors emitted into this generator. -->

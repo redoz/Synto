@@ -241,7 +241,7 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
         for (int index = 0; index < intercepting.Count; index++)
         {
             ObjectReaderModel model = intercepting[index];
-            members.Add(SyntaxFactory.ParseMemberDeclaration(BuildReader(model, index))!);
+            members.Add(BuildReader(model, index));
             interceptors.Append(BuildInterceptorMethod(model, index));
         }
 
@@ -294,11 +294,57 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
         }
         """;
 
-    private static string BuildReader(ObjectReaderModel model, int index)
+    // The dog-food (Task 4 / D3 / R2): quote the INVARIANT IDataReader skeleton from the Synto [Template]
+    // (ReaderTemplate.cs), then specialize it for this call site. The five list-driven members (FieldCount +
+    // the GetName/GetOrdinal/GetFieldType/GetValue switches) depend on the resolved column list and cannot be
+    // expressed as a fixed template, so they are built with raw SyntaxFactory and swapped in over the template's
+    // compiling placeholders — a logged strategy-A->B drop (see the friction log).
+    private static MemberDeclarationSyntax BuildReader(ObjectReaderModel model, int index)
     {
         string reader = $"ObjectReader_{model.TargetTypeShortName}_{index}";
-        string t = model.TargetTypeQualifiedName;
+        TypeSyntax elementType = SyntaxFactory.ParseTypeName(model.TargetTypeQualifiedName);
 
+        // Synto hole: [Inline(AsSyntax = true)] T splices the element type wherever T appears (the _e field +
+        // the ctor's IEnumerable<T> parameter).
+        ClassDeclarationSyntax skeleton = Factory.ObjectReaderTemplate(elementType);
+
+        var variableMembers = BuildVariableMembers(model);
+
+        var specialized = SyntaxFactory.List(
+            skeleton.Members.Select(member => SpecializeMember(member, reader, variableMembers)));
+
+        return skeleton
+            .WithIdentifier(SyntaxFactory.Identifier(reader))
+            .WithModifiers(SyntaxFactory.TokenList(
+                SyntaxFactory.Token(SyntaxKind.FileKeyword),
+                SyntaxFactory.Token(SyntaxKind.SealedKeyword)))
+            .WithBaseList(SyntaxFactory.BaseList(SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(
+                SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("global::System.Data.IDataReader")))))
+            .WithMembers(specialized);
+    }
+
+    // Rename the templated constructor to match the specialized reader, and overwrite each placeholder member
+    // (FieldCount + the four switches) with its raw-SyntaxFactory, column-driven implementation.
+    private static MemberDeclarationSyntax SpecializeMember(
+        MemberDeclarationSyntax member,
+        string reader,
+        Dictionary<string, MemberDeclarationSyntax> variableMembers)
+    {
+        switch (member)
+        {
+            case ConstructorDeclarationSyntax ctor:
+                return ctor.WithIdentifier(SyntaxFactory.Identifier(reader));
+            case PropertyDeclarationSyntax property when variableMembers.TryGetValue(property.Identifier.Text, out var replacement):
+                return replacement;
+            case MethodDeclarationSyntax method when variableMembers.TryGetValue(method.Identifier.Text, out var replacement):
+                return replacement;
+            default:
+                return member;
+        }
+    }
+
+    private static Dictionary<string, MemberDeclarationSyntax> BuildVariableMembers(ObjectReaderModel model)
+    {
         var nameArms = new StringBuilder();
         var ordinalArms = new StringBuilder();
         var fieldTypeArms = new StringBuilder();
@@ -312,33 +358,32 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
             valueArms.Append($"            {i} => (object?)_e.Current.{column.Name} ?? global::System.DBNull.Value,\n");
         }
 
-        return
-            $$"""
-            file sealed class {{reader}} : global::System.Data.IDataReader
-            {
-                private readonly global::System.Collections.Generic.IEnumerator<{{t}}> _e;
-                private bool _closed;
-                private bool _onRow;
-
-                public {{reader}}(global::System.Collections.Generic.IEnumerable<{{t}}> source) => _e = source.GetEnumerator();
-
-                public int FieldCount => {{model.Columns.Count}};
-
+        return new Dictionary<string, MemberDeclarationSyntax>(System.StringComparer.Ordinal)
+        {
+            ["FieldCount"] = Parse($"public int FieldCount => {model.Columns.Count};"),
+            ["GetName"] = Parse(
+                $$"""
                 public string GetName(int i) => i switch
                 {
-            {{nameArms}}        _ => throw OutOfRange(i),
+                {{nameArms}}        _ => throw OutOfRange(i),
                 };
-
+                """),
+            ["GetOrdinal"] = Parse(
+                $$"""
                 public int GetOrdinal(string name) => name switch
                 {
-            {{ordinalArms}}        _ => throw NoColumn(name),
+                {{ordinalArms}}        _ => throw NoColumn(name),
                 };
-
+                """),
+            ["GetFieldType"] = Parse(
+                $$"""
                 public global::System.Type GetFieldType(int i) => i switch
                 {
-            {{fieldTypeArms}}        _ => throw OutOfRange(i),
+                {{fieldTypeArms}}        _ => throw OutOfRange(i),
                 };
-
+                """),
+            ["GetValue"] = Parse(
+                $$"""
                 public object GetValue(int i)
                 {
                     if (!_onRow)
@@ -348,94 +393,14 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
 
                     return i switch
                     {
-            {{valueArms}}            _ => throw OutOfRange(i),
+                {{valueArms}}            _ => throw OutOfRange(i),
                     };
                 }
-
-                public int GetValues(object[] values)
-                {
-                    if (values is null)
-                    {
-                        throw new global::System.ArgumentNullException(nameof(values));
-                    }
-
-                    int count = values.Length < FieldCount ? values.Length : FieldCount;
-                    for (int i = 0; i < count; i++)
-                    {
-                        values[i] = GetValue(i);
-                    }
-
-                    return count;
-                }
-
-                public bool IsDBNull(int i) => GetValue(i) is global::System.DBNull;
-
-                public object this[int i] => GetValue(i);
-
-                public object this[string name] => GetValue(GetOrdinal(name));
-
-                public bool GetBoolean(int i) => (bool)GetValue(i);
-                public byte GetByte(int i) => (byte)GetValue(i);
-                public char GetChar(int i) => (char)GetValue(i);
-                public global::System.DateTime GetDateTime(int i) => (global::System.DateTime)GetValue(i);
-                public decimal GetDecimal(int i) => (decimal)GetValue(i);
-                public double GetDouble(int i) => (double)GetValue(i);
-                public float GetFloat(int i) => (float)GetValue(i);
-                public global::System.Guid GetGuid(int i) => (global::System.Guid)GetValue(i);
-                public short GetInt16(int i) => (short)GetValue(i);
-                public int GetInt32(int i) => (int)GetValue(i);
-                public long GetInt64(int i) => (long)GetValue(i);
-                public string GetString(int i) => (string)GetValue(i);
-                public string GetDataTypeName(int i) => GetFieldType(i).Name;
-
-                public int Depth => 0;
-                public bool IsClosed => _closed;
-                public int RecordsAffected => -1;
-
-                public bool Read()
-                {
-                    if (_closed)
-                    {
-                        throw new global::System.InvalidOperationException("The data reader is closed.");
-                    }
-
-                    _onRow = _e.MoveNext();
-                    return _onRow;
-                }
-
-                public bool NextResult() => false;
-
-                public void Close()
-                {
-                    if (!_closed)
-                    {
-                        _closed = true;
-                        _onRow = false;
-                        _e.Dispose();
-                    }
-                }
-
-                public void Dispose() => Close();
-
-                public global::System.Data.DataTable? GetSchemaTable() => null;
-
-                public long GetBytes(int i, long fieldOffset, byte[]? buffer, int bufferOffset, int length)
-                    => throw new global::System.NotSupportedException("GetBytes is not supported; expose the member as a typed column and use GetValue instead.");
-
-                public long GetChars(int i, long fieldOffset, char[]? buffer, int bufferOffset, int length)
-                    => throw new global::System.NotSupportedException("GetChars is not supported; expose the member as a typed column and use GetValue instead.");
-
-                public global::System.Data.IDataReader GetData(int i)
-                    => throw new global::System.NotSupportedException("GetData (nested data readers) is not supported by the ObjectReader.");
-
-                private static global::System.IndexOutOfRangeException OutOfRange(int i)
-                    => new global::System.IndexOutOfRangeException($"Field index {i} is out of range.");
-
-                private static global::System.IndexOutOfRangeException NoColumn(string name)
-                    => new global::System.IndexOutOfRangeException($"Column '{name}' was not found.");
-            }
-            """;
+                """),
+        };
     }
+
+    private static MemberDeclarationSyntax Parse(string member) => SyntaxFactory.ParseMemberDeclaration(member)!;
 
     private static string BuildInterceptorMethod(ObjectReaderModel model, int index)
     {
