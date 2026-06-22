@@ -4,9 +4,9 @@
 - **Status:** Approved — design. To be implemented on `experimental/object-reader` (the dog-food line where
   the friction was found and the validating example lives). Not on main.
 - **Builds on:** the **surface-injection** mechanism (`SurfaceInjectionGenerator`, which auto-injects every
-  embedded `Synto.Runtime.*` resource as `internal`) and the **shapes** of Synto's existing internal
-  cacheability types (`src/Synto.SourceGenerator/EquatableArray.cs`, `DiagnosticInfo.cs`), which the
-  injectable copies mirror. Validated by the **ObjectReader example** (`examples/Synto.Example.ObjectReader/`).
+  embedded `Synto.Runtime.*` resource as `internal`) and Synto's **existing internal** cacheability types
+  (`src/Synto.SourceGenerator/EquatableArray.cs`, `DiagnosticInfo.cs`), which it embeds + namespace-shifts
+  for injection. Validated by the **ObjectReader example** (`examples/Synto.Example.ObjectReader/`).
 - **Tracking:** First items off the ObjectReader friction log
   (`docs/superpowers/notes/2026-06-22-objectreader-synto-friction.md`) — findings **#2** (cacheability
   toolkit) and **#5** (interceptor helper). Findings **#1/#3/#4** (list/repeater hole, shell parameters,
@@ -36,7 +36,7 @@ author a file + add one `<EmbeddedResource … LogicalName="Synto.Runtime.X.cs">
 **already-`internal`** type injects verbatim — so the existing internal cacheability types can be injected
 as-is.
 
-Synto's existing internal primitives — the canonical **shape** the injectable copies mirror (we author fresh injectable copies rather than relocate these, because relocating collides in `Synto.Test`; see D1):
+Synto's existing internal primitives — **the source we embed and namespace-shift on injection** (no fresh copy is authored; see D1):
 
 ```csharp
 // src/Synto.SourceGenerator/EquatableArray.cs  (namespace Synto)
@@ -53,17 +53,19 @@ internal record struct DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationI
 
 ## 3. Design decisions
 
-- **D1 — Single-sourced injectable surface, authored in `src/Synto`.** Author the injectable
-  `EquatableArray<T>` / `LocationInfo` / `DiagnosticInfo` once in `src/Synto/Generators/` (namespace
-  `Synto.Generators`), `<Compile Remove>`d from `Synto.Core` and embedded — the **same single-source pattern
-  every other injected marker uses** (markers live once in `src/Synto`, embedded). `Synto.SourceGenerator`'s
-  **internal** copies (namespace `Synto`) are **left untouched**: relocating + injecting *them* collides in
-  `Synto.Test`, which both *consumes* the injected surface **and** unit-tests internal pipeline types
-  (`TemplateGenerationResult` / `MatchGenerationResult`) that carry `EquatableArray<DiagnosticInfo>` — making
-  two same-named types from different assemblies that won't bridge (a hard compile error). The **injected**
-  surface is single-sourced; we deliberately do **not** also de-dupe Synto's private pipeline copy (that is
-  the architecture doc's separate deferred smell). The injectable copy mirrors the canonical internal shape
-  (§2/§4).
+- **D1 — One source: embed the internal type, namespace-shift on injection.** `EquatableArray<T>` /
+  `LocationInfo` / `DiagnosticInfo` are **not** re-authored. We **embed `Synto.SourceGenerator`'s existing
+  internal files** (`EquatableArray.cs`, `DiagnosticInfo.cs`) and **extend `SurfaceInjectionGenerator`** to
+  rewrite their `namespace Synto` → `namespace Synto.Generators` as it injects (alongside the existing
+  `public`→`internal` rewrite, and only for this designated resource group — the markers are untouched). The
+  internal files stay the **single source**, used by Synto's own pipeline **unchanged**; the namespace-shift
+  produces the downstream `Synto.Generators.*` copy and is exactly what avoids the `Synto.Test` collision
+  (injected `Synto.Generators.EquatableArray` vs the IVT-visible internal `Synto.EquatableArray` — different
+  names, no clash). No hand-maintained mirror. The new **`Interceptors`** helper has no internal counterpart,
+  so it is authored once in `src/Synto/Generators` (namespace `Synto.Generators`), `<Compile Remove>`d from
+  `Synto.Core`, and embedded as-is (no shift). (`Synto.Test` both *consumes* the injected surface and
+  unit-tests internal pipeline types carrying `EquatableArray<DiagnosticInfo>`, so the injected copy and the
+  internal copy MUST keep different names — hence the shift.)
 - **D2 — Dedicated namespace, unconditional injection.** The injected toolkit lives in a **new namespace
   `Synto.Generators`** and is injected unconditionally as `internal` (like the markers — no
   `SurfaceInjectionGenerator` change). A fresh namespace means it only enters name resolution when an
@@ -88,28 +90,28 @@ internal record struct DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationI
   `PendingDiagnostic`, avoiding a clash with the injected `Synto.Generators.DiagnosticInfo`) and **kept** as
   a stopgap with a pointer to the deferred `Synto.Diagnostics` work. Validation = the example still builds
   green and all its tests pass with the boilerplate gone.
-- **D6 — Internal duplicates all left as-is.** No internal copy is relocated. This adds one dedicated
-  **injectable** copy in `src/Synto/Generators`; `Synto.SourceGenerator` / `Synto.Diagnostics` /
-  `Synto.Bootstrap` keep their own internal copies. Fully collapsing the internal duplication is the
-  architecture doc's separately-deferred smell, **out of scope** here.
+- **D6 — Internal copies untouched; no mirror added.** The cacheability types are injected *from*
+  `Synto.SourceGenerator`'s existing internal files (via the namespace-shift), so **no new copy of them is
+  authored**. `Synto.Diagnostics` / `Synto.Bootstrap` keep their own internal copies; fully collapsing that
+  duplication is the architecture doc's separately-deferred smell, **out of scope** here.
 
 ## 4. Surface — what gets injected (namespace `Synto.Generators`, `internal` in consumers)
 
 ```csharp
 namespace Synto.Generators;
 
-// new in src/Synto/Generators/EquatableArray.cs (mirrors the internal shape), embedded Synto.Runtime.EquatableArray.cs
+// Synto's internal EquatableArray.cs — embedded + namespace-shifted Synto→Synto.Generators on injection
 internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IReadOnlyList<T>
-    where T : IEquatable<T> { public static readonly EquatableArray<T> Empty; /* …mirror of the internal copy… */ }
+    where T : IEquatable<T> { public static readonly EquatableArray<T> Empty; /* …Synto's existing copy, verbatim… */ }
 
-// new in src/Synto/Generators/Diagnostics.cs (mirrors the internal shapes), embedded Synto.Runtime.Diagnostics.cs
+// Synto's internal DiagnosticInfo.cs (LocationInfo + DiagnosticInfo) — embedded + namespace-shifted
 internal record struct LocationInfo(string FilePath, TextSpan TextSpan, LinePositionSpan LineSpan)
 { public Location ToLocation(); public static LocationInfo? CreateFrom(Location? location); }
 
 internal record struct DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationInfo? Location, EquatableArray<string> MessageArgs)
 { public Diagnostic ToDiagnostic(); }
 
-// new in src/Synto/Generators/Interceptors.cs, embedded Synto.Runtime.Interceptors.cs
+// new in src/Synto/Generators/Interceptors.cs (no internal counterpart) — embedded as-is
 internal static class Interceptors
 {
     public const string AttributeHintName = "InterceptsLocationAttribute.g.cs";
@@ -124,27 +126,28 @@ to `internal` on injection. `Interceptors` references `SourceProductionContext` 
 `IncrementalGeneratorPostInitializationContext` — available in any consumer that references the Roslyn
 analyzer surface.)
 
-## 5. The mechanism (mirrors the marker pattern)
+## 5. The mechanism — embed + namespace-shift
 
-- **Author** new files in `src/Synto/Generators/` (namespace `Synto.Generators`), authored `public`:
-  `EquatableArray.cs`, `Diagnostics.cs` (holding `LocationInfo` + `DiagnosticInfo`), `Interceptors.cs`. The
-  injectable `EquatableArray` / `LocationInfo` / `DiagnosticInfo` mirror the canonical internal shapes (§2);
-  `Interceptors` is new.
-- **`<Compile Remove>`** the three files from `src/Synto/Synto.csproj` (embed-only — injected surface, not
-  `Synto.Core` runtime API; mirrors the existing `MatchReplaceExtensions.cs` treatment). They are
-  type-checked when injected, proven by the self-containment test (§9).
-- **Embed** all three as `<EmbeddedResource Include="Generators\…"
-  LogicalName="Synto.Runtime.{EquatableArray,Diagnostics,Interceptors}.cs" />` in
-  `src/Synto.SourceGenerator/Synto.SourceGenerator.csproj` (next to the existing `Synto.Runtime.*` markers;
-  the Include path reaches `..\Synto\Generators\…`). `SurfaceInjectionGenerator` discovers and injects them
-  automatically, rewriting `public`→`internal`.
-- **`Synto.SourceGenerator`'s internal `EquatableArray` / `DiagnosticInfo` are not touched** (no relocation).
+- **Extend `SurfaceInjectionGenerator`** with a **namespace rewrite**: for a designated resource group it
+  retargets the injected file's `namespace Synto` → `namespace Synto.Generators` (in addition to the existing
+  `public`→`internal` rewrite). This is **selective** — only the cacheability group is shifted; the marker
+  resources keep their authored namespaces, so their injected goldens do **not** change. (Convention: a
+  distinct LogicalName prefix marks the shift group; the exact prefix is an implementer choice.)
+- **Cacheability types:** embed `Synto.SourceGenerator`'s **existing internal** `EquatableArray.cs` and
+  `DiagnosticInfo.cs` into the shift group (an `<EmbeddedResource Include="EquatableArray.cs" …>` from the
+  generator project itself). Injected downstream as `Synto.Generators.{EquatableArray,LocationInfo,DiagnosticInfo}`
+  (`internal`). **The internal files are unchanged** and remain Synto's own pipeline source.
+- **`Interceptors`:** author once in `src/Synto/Generators/Interceptors.cs` (namespace `Synto.Generators`),
+  `<Compile Remove>` from `src/Synto/Synto.csproj` (embed-only, like `MatchReplaceExtensions.cs`), and embed
+  as a plain (non-shift) `Synto.Runtime.*` resource — it is already in the target namespace, so no shift.
+- **No mirror, no internal relocation.** The single source for each cacheability type is its existing
+  internal file; the single source for `Interceptors` is its one authored file.
 
 ## 6. Contracts / invariants
 
-- **C-1 — Single-sourced injected surface.** Exactly one authored copy of each *injectable* type, in
-  `src/Synto/Generators`, embed-only + embedded for injection (D1). (Synto's internal pipeline copies are a
-  separate, pre-existing concern, untouched.)
+- **C-1 — Single source.** The cacheability types are injected from their **existing** internal files
+  (embed + namespace-shift) — no second copy authored. `Interceptors` has exactly one authored file. No
+  hand-maintained duplicate (D1).
 - **C-2 — Self-contained on `netstandard2.0`.** The injected toolkit compiles in a consumer's ns2.0
   generator with no `Synto.*` runtime-package reference — only BCL + the Roslyn surface the consumer already
   references. `record struct` `init` requires `IsExternalInit`, which the injected surface already provides
@@ -194,14 +197,17 @@ analyzer surface.)
 - **Self-containment (C-2):** a Synto.Test proof compiling the injected `EquatableArray` + `DiagnosticInfo`
   (+ `LocationInfo`) + `Interceptors` on the faithful `netstandard2.0` closure with zero errors (mirror
   `CompileInjected*OnNetStandard20`).
-- **Injected-surface snapshots (C-4):** new goldens `SurfaceInjectionTest…#EquatableArray.g.verified.cs`,
-  `#DiagnosticInfo.g.verified.cs`, `#Interceptors.g.verified.cs` — each the `internal`-rewritten authored
-  source. Confirm no existing injected golden changes meaning.
-- **Synto core suite stays green (the collision check):** no internal relocation, so the injectable copy
-  (namespace `Synto.Generators`) does **not** collide with the internal copy (namespace `Synto`) in
-  `Synto.Test` — `Synto.Test` resolves `EquatableArray` via its enclosing `Synto` namespace and the injected
-  `Synto.Generators` copy stays dormant. `PipelineEquatabilityTests` (which bridges `EquatableArray` with the
-  internal `TemplateGenerationResult`/`MatchGenerationResult`) must still build and pass unchanged.
+- **Injected-surface snapshots (C-4):** new goldens for the injected `#EquatableArray.g.verified.cs`,
+  `#DiagnosticInfo.g.verified.cs` (LocationInfo + DiagnosticInfo), `#Interceptors.g.verified.cs`. The
+  cacheability goldens show `namespace Synto.Generators` (the shift) + `internal`; `Interceptors` shows
+  `internal`. Confirm **no existing marker golden changes** (the shift is selective).
+- **Namespace-shift unit check:** assert the injected cacheability source declares `namespace Synto.Generators`
+  (proves the new rewrite fired and is scoped to the shift group).
+- **Synto core suite stays green (the collision check):** the namespace-shift keeps the injected copy in
+  `Synto.Generators`, so it does **not** collide with the internal `Synto.EquatableArray` (IVT-visible to
+  `Synto.Test`). `Synto.Test` resolves `EquatableArray` via its enclosing `Synto` namespace; the injected
+  `Synto.Generators` copy stays dormant. `PipelineEquatabilityTests` (bridges `EquatableArray` with internal
+  `TemplateGenerationResult`/`MatchGenerationResult`) must build + pass unchanged.
 - **Example (C-6):** after the §7 refactor, `dotnet build` 0 errors and all example tests pass; the example
   generator output **snapshot is unchanged**.
 - **Green gate:** `dotnet build -c Debug` (0 errors) · `dotnet test --no-build -c Debug` (all green; **no**
@@ -215,10 +221,10 @@ Commits, no AI footer.
 
 ## 11. Resolved decisions
 
-- **Single source (resolved, revised).** Author the injectable `EquatableArray`/`LocationInfo`/
-  `DiagnosticInfo` once in `src/Synto/Generators` (embed-only), mirroring the canonical internal shapes;
-  **leave Synto's internal copies untouched** — relocating them collides in `Synto.Test` (D1). The injected
-  surface is single-sourced; de-duping the internal copy is explicitly out of scope (D6).
+- **Single source (resolved — Option A).** Inject the cacheability types **from their existing internal
+  files** via an embed + a new `SurfaceInjectionGenerator` namespace-shift (`Synto`→`Synto.Generators`); no
+  mirror is authored. The shift keeps the injected copy's name distinct from the IVT-visible internal copy,
+  avoiding the `Synto.Test` collision (D1). `Interceptors` is the one genuinely-new authored file.
 - **Namespace (resolved).** Dedicated `Synto.Generators`, unconditional `internal` injection, accepting the
   mechanical internal rename (D2/D6).
 - **`Synto.Diagnostics` (resolved).** Untouched — no descriptor back door; native cacheable support is a
