@@ -1,8 +1,10 @@
+using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using Synto.Generators;
 
 namespace Synto.Example.ObjectReader.Generator;
 
@@ -83,16 +85,16 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
         catch (System.Exception ex)
 #pragma warning restore CA1031
         {
-            var info = new DiagnosticInfo(
+            var info = new PendingDiagnostic(
                 DiagnosticKind.InternalError,
                 invocationLocation,
-                new EquatableArray<string>(new[] { ex.GetType().FullName ?? "System.Exception", ex.Message }));
+                new EquatableArray<string>(ImmutableArray.Create(ex.GetType().FullName ?? "System.Exception", ex.Message)));
 
             return new ObjectReaderModel(
                 string.Empty,
                 string.Empty,
                 default,
-                new EquatableArray<DiagnosticInfo>(new[] { info }),
+                new EquatableArray<PendingDiagnostic>(ImmutableArray.Create(info)),
                 string.Empty,
                 Intercept: false);
         }
@@ -123,7 +125,7 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
 
         var arguments = invocation.ArgumentList.Arguments;
         var columns = new List<ColumnInfo>();
-        var diagnostics = new List<DiagnosticInfo>();
+        var diagnostics = new List<PendingDiagnostic>();
         bool allConstant = true;
 
         for (int i = 1; i < arguments.Count; i++)
@@ -140,10 +142,10 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
             if (columnType is null)
             {
                 // Unknown member → record SOR0001 and skip the column (C-2).
-                diagnostics.Add(new DiagnosticInfo(
+                diagnostics.Add(new PendingDiagnostic(
                     DiagnosticKind.MemberNotFound,
                     LocationInfo.CreateFrom(arguments[i].Expression.GetLocation()),
-                    new EquatableArray<string>(new[] { memberName, targetQualified })));
+                    new EquatableArray<string>(ImmutableArray.Create(memberName, targetQualified))));
                 continue;
             }
 
@@ -154,12 +156,12 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
         {
             // A non-constant member list is never intercepted (C-4 runtime fallback applies); report SOR0002
             // and flow a diagnostics-only model so nothing is emitted for this call site.
-            diagnostics.Add(new DiagnosticInfo(DiagnosticKind.MembersNotConstant, invocationLocation, default));
+            diagnostics.Add(new PendingDiagnostic(DiagnosticKind.MembersNotConstant, invocationLocation, default));
             return new ObjectReaderModel(
                 targetQualified,
                 target.Name,
                 default,
-                new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()),
+                new EquatableArray<PendingDiagnostic>(diagnostics.ToImmutableArray()),
                 string.Empty,
                 Intercept: false);
         }
@@ -173,8 +175,8 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
         return new ObjectReaderModel(
             targetQualified,
             target.Name,
-            new EquatableArray<ColumnInfo>(columns.ToArray()),
-            new EquatableArray<DiagnosticInfo>(diagnostics.ToArray()),
+            new EquatableArray<ColumnInfo>(columns.ToImmutableArray()),
+            new EquatableArray<PendingDiagnostic>(diagnostics.ToImmutableArray()),
             location.GetInterceptsLocationAttributeSyntax(),
             Intercept: true);
     }
@@ -214,7 +216,7 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
         // thrown (C-5), via the Synto.Diagnostics-generated factory methods (D5).
         foreach (ObjectReaderModel model in models)
         {
-            foreach (DiagnosticInfo info in model.Diagnostics)
+            foreach (PendingDiagnostic info in model.Diagnostics)
             {
                 spc.ReportDiagnostic(ToDiagnostic(info));
             }
@@ -258,12 +260,12 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
             .NormalizeWhitespace();
 
         spc.AddSource("ObjectReader.g.cs", SourceText.From(unit.ToFullString(), Encoding.UTF8));
-        spc.AddSource("InterceptsLocationAttribute.g.cs", SourceText.From(InterceptsLocationAttributeSource, Encoding.UTF8));
+        global::Synto.Generators.Interceptors.AddDefinition(spc);
     }
 
-    // Materialize an equatable DiagnosticInfo into a real Diagnostic via the Synto.Diagnostics-generated
+    // Materialize an equatable PendingDiagnostic into a real Diagnostic via the Synto.Diagnostics-generated
     // factory methods (the dog-food, D5). Runs only in the output stage, off the cached pipeline value.
-    private static Diagnostic ToDiagnostic(DiagnosticInfo info)
+    private static Diagnostic ToDiagnostic(PendingDiagnostic info)
     {
         Location? location = info.Location?.ToLocation();
         return info.Kind switch
@@ -273,26 +275,6 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
             _ => Diagnostics.InternalError(location, info.Arguments[0], info.Arguments[1]),
         };
     }
-
-    // The SDK does not ship System.Runtime.CompilerServices.InterceptsLocationAttribute, so the generator
-    // emits the (BCL-only, self-contained — C-6) definition the version-stamped [InterceptsLocation] usage
-    // binds to. Friction (R3): interceptor plumbing the consumer never sees but the generator must provide.
-    private const string InterceptsLocationAttributeSource =
-        """
-        // <auto-generated/>
-        namespace System.Runtime.CompilerServices
-        {
-            [global::System.AttributeUsage(global::System.AttributeTargets.Method, AllowMultiple = true)]
-            internal sealed class InterceptsLocationAttribute : global::System.Attribute
-            {
-                public InterceptsLocationAttribute(int version, string data)
-                {
-                    _ = version;
-                    _ = data;
-                }
-            }
-        }
-        """;
 
     // The dog-food (Task 4 / D3 / R2): quote the INVARIANT IDataReader skeleton from the Synto [Template]
     // (ReaderTemplate.cs), then specialize it for this call site. The five list-driven members (FieldCount +
