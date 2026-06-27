@@ -17,6 +17,10 @@ SY1009 | Synto.Usage | Error | Diagnostics
 SY1010 | Synto.Usage | Error | Diagnostics
 SY1011 | Synto.Usage | Error | Diagnostics
 SY1012 | Synto.Usage | Error | Diagnostics
+SY1015 | Synto.Usage | Error | Diagnostics
+SY1016 | Synto.Usage | Error | Diagnostics
+SY1017 | Synto.Usage | Error | Diagnostics
+SY1018 | Synto.Usage | Error | Diagnostics
 SY1201 | Synto.Matching | Error | MatchDiagnostics
 SY1202 | Synto.Matching | Error | MatchDiagnostics
 SY1203 | Synto.Matching | Error | MatchDiagnostics

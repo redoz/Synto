@@ -46,6 +46,13 @@
          project by SurfaceInjectionGenerator (see the Synto.Runtime.Interceptors.cs EmbeddedResource in
          Synto.SourceGenerator.csproj). Embed-only, so never <Compile>d into Synto.Core. -->
     <Compile Remove="Generators\Interceptors.cs" />
+    <!-- The built-in syntax builders (SyntoBuilders.Member/TypeOf) reference Roslyn syntax-construction APIs
+         and are meant to be CALLED fully-qualified from generated factory code as the consumer's own injected
+         internal type. Injected as internal source into the consumer's GENERATOR project by
+         SurfaceInjectionGenerator (see the Synto.Runtime.SyntoBuilders.cs EmbeddedResource); never <Compile>d
+         into Synto.Core, so the injected internal copy is the only one and can never collide (CS0121) with a
+         public Synto.Core copy when a consumer references both. -->
+    <Compile Remove="Templating\SyntoBuilders.cs" />
   </ItemGroup>
 
   <!-- Both shipped generators consume Synto.Core's generator-internal machinery (CSharpSyntaxQuoter,

@@ -218,4 +218,60 @@ internal static class Diagnostics
             LocationInfo.CreateFrom(location),
             new EquatableArray<string>(ImmutableArray.Create(name, firstType, secondType)));
     }
+
+    private static readonly DiagnosticDescriptor _facadeSynthesisError = new(IdPrefix + "1015",
+        "Invalid Syntax Builder",
+        "[SyntaxBuilder] method '{0}' cannot synthesize a valid facade: {1}",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo FacadeSynthesisError(Location? location, string builderName, string reason)
+    {
+        return new DiagnosticInfo(_facadeSynthesisError,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(builderName, reason)));
+    }
+
+    private static readonly DiagnosticDescriptor _builderArgBindingMismatch = new(IdPrefix + "1016",
+        "Syntax Builder Argument Mismatch",
+        "Argument for syntax-builder parameter '{0}' cannot satisfy its binding: {1}",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo BuilderArgBindingMismatch(Location? location, string parameterName, string reason)
+    {
+        return new DiagnosticInfo(_builderArgBindingMismatch,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(parameterName, reason)));
+    }
+
+    private static readonly DiagnosticDescriptor _builderBadReturnShape = new(IdPrefix + "1017",
+        "Invalid Syntax Builder Return",
+        "[SyntaxBuilder] method '{0}' returns '{1}', which is not a supported builder return shape (expected ExpressionSyntax or TypeSyntax)",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo BuilderBadReturnShape(Location? location, string builderName, string returnType)
+    {
+        return new DiagnosticInfo(_builderBadReturnShape,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(builderName, returnType)));
+    }
+
+    private static readonly DiagnosticDescriptor _ambiguousBuilder = new(IdPrefix + "1018",
+        "Ambiguous Syntax Builder",
+        "Two [SyntaxBuilder] methods synthesize colliding facade '{0}'; keep exactly one",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo AmbiguousBuilder(Location? location, string facadeName)
+    {
+        return new DiagnosticInfo(_ambiguousBuilder,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(facadeName)));
+    }
 }

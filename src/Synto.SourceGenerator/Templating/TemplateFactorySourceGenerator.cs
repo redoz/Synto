@@ -612,6 +612,53 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             trimNodes.Add(liveParameterRoot.Parameter);
         }
 
+        // Syntax builders (Task 3): built-in Template.Member/TypeOf facade calls (recognized by binding) and
+        // user [SyntaxBuilder] facade calls (recognized structurally) are replaced — keyed at the invocation
+        // node — by a fully-qualified static call of the paired builder over processed arguments. A [Quoted]
+        // builder parameter receives the QUOTE of the call argument (an output-world island); an unmarked
+        // parameter receives the live/computed value verbatim. No copy of the builder is injected into the
+        // generated output (the built-in builders are injected internal; user builders are the consumer's own
+        // code) — both are called fully-qualified, so the output carries no Synto.Core runtime dependency.
+        var builderResult = SyntaxBuilderFinder.FindBuilderCalls(semanticModel, templateInfo.Source.Syntax);
+        diagnostics.AddRange(builderResult.Diagnostics);
+
+        // A builder facade-synthesis / argument-binding / ambiguity error is a usage error: bail with the
+        // diagnostic(s) already reported rather than emit a factory built from an unresolved builder call.
+        if (builderResult.Diagnostics.Count > 0)
+            return null;
+
+        if (builderResult.Calls.Count > 0)
+        {
+            // A fresh quoter for the [Quoted] islands inside builder arguments: it carries the lifts collected
+            // so far (inline/syntax/live parameter replacements) so an island that references a lifted value
+            // quotes correctly. It never descends into a builder invocation (those are not yet in the map).
+            var islandQuoter = new TemplateSyntaxQuoter(semanticModel, unquotedReplacements, new HashSet<SyntaxNode>(), includeTrivia: false);
+
+            foreach (var call in builderResult.Calls)
+            {
+                var args = new List<ArgumentSyntax>();
+                foreach (var binding in call.Args)
+                {
+                    ExpressionSyntax argExpr = binding.Kind switch
+                    {
+                        BuilderArgKind.Quoted => islandQuoter.Visit(binding.ValueArgument!)!,
+                        BuilderArgKind.QuotedTypeArg => islandQuoter.Visit(binding.TypeArgument!)!,
+                        _ => binding.ValueArgument!.WithoutTrivia(),
+                    };
+                    args.Add(Argument(argExpr));
+                }
+
+                var builderInvocation = InvocationExpression(
+                        MemberAccessExpression(
+                            SyntaxKind.SimpleMemberAccessExpression,
+                            ParseName(call.BuilderFullyQualifiedTypeName),
+                            IdentifierName(call.BuilderMethodName)))
+                    .WithArgumentList(ArgumentList(SeparatedList(args)));
+
+                unquotedReplacements[call.Invocation] = builderInvocation;
+            }
+        }
+
         var prunableNodes = BranchPruneIdentifier.FindPrunableNodes(trimNodes, templateInfo.Source.Syntax);
 
         TemplateSyntaxQuoter quoter = new(
