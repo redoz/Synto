@@ -98,4 +98,30 @@ public class StagingDiagnosticsTest
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1014");
         AssertHasRealSpan(diag);
     }
+
+    // A live control region that is an EMBEDDED (non-block) statement of an OUTPUT-world construct is skipped by
+    // region discovery (only block-owned regions unroll in v1); it must degrade to SY1014, not silently fall
+    // through to the normal quoter (which would lift the live driver into the OUTPUT — wrong code, no diagnostic).
+    [Fact]
+    public void LiveControlUnderOutputWorldStatement_ReportsSY1014()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build(int i) {
+                    var cols = Parameter<IReadOnlyList<int>>();
+                    if (i > 0)                      // output-world if (i quoted) -> stays output, not a region
+                        foreach (var c in cols)     // live foreach, parent is the if statement (not a block)
+                            System.Console.WriteLine(c);
+                }
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1014");
+        AssertHasRealSpan(diag);
+    }
 }

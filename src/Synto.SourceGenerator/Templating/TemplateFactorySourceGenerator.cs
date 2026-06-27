@@ -550,6 +550,21 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         var regionConsumedNodes = LiveRegionEmitter.ComputeConsumedNodes(liveRegions);
         int liveRegionCounter = 0;
 
+        // A live control statement that region discovery did not pick up (it is an embedded, non-block statement
+        // of an output-world construct, so it owns no container to key the replacement at) and that no other
+        // region consumes would otherwise fall through to the normal quoter — lifting its live driver into the
+        // OUTPUT (wrong code, no signal). Degrade to SY1014 instead of a silent mis-expansion.
+        var unhandledLiveControl = templateInfo.Source.Syntax.DescendantNodes()
+            .OfType<StatementSyntax>()
+            .Where(statement => partition.IsLiveControl(statement) && !regionConsumedNodes.Contains(statement))
+            .ToList();
+        if (unhandledLiveControl.Count > 0)
+        {
+            foreach (var statement in unhandledLiveControl)
+                diagnostics.Add(Diagnostics.UnsupportedLiveShape(statement.GetLocation(), "a live control region must be a direct statement of a block to unroll in v1"));
+            return null;
+        }
+
         // F2 usings transplant (spec §5.2): a live control region runs VERBATIM in the factory, so the carrier's
         // own `using` directives that its live scaffold relies on (e.g. `System.Linq` for `.Where(...)`) must be
         // merged into the generated factory file — otherwise the verbatim code does not resolve. Only simple
