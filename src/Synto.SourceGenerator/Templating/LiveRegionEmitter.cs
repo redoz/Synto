@@ -57,8 +57,16 @@ internal sealed class LiveRegionEmission
 /// </summary>
 internal static class LiveRegionEmitter
 {
-    /// <summary>The file-local collection helper class name (emitted by the scan-based injection, Task 5).</summary>
-    private const string CollectionHelper = "CollectionSyntaxExtensions";
+    /// <summary>
+    /// Emitted helper names, taken from the Synto.Core symbols via <c>nameof</c> so a rename of a helper fails at
+    /// generator compile time instead of silently producing a non-compiling factory (the runtime helpers are
+    /// authored in Synto.Core and injected <c>file static</c> by the scan-based injection, Task 5).
+    /// </summary>
+    private const string CollectionHelper = nameof(CollectionSyntaxExtensions);
+    private const string BuildListMethod = nameof(CollectionSyntaxExtensions.BuildList);
+    private const string ListSegmentType = nameof(CollectionSyntaxExtensions.ListSegment<StatementSyntax>);
+    private const string RunMethod = nameof(CollectionSyntaxExtensions.ListSegment<StatementSyntax>.Run);
+    private const string ToSyntaxMethod = nameof(LiteralSyntaxExtensions.ToSyntax);
 
     /// <summary>Discovers the live control regions in <paramref name="body"/> using the classifier partition.</summary>
     public static IReadOnlyList<LiveRegion> FindRegions(SemanticModel semanticModel, SyntaxNode body, BindingTimePartition partition)
@@ -475,9 +483,9 @@ internal static class LiveRegionEmitter
                 MemberAccessExpression(
                     SyntaxKind.SimpleMemberAccessExpression,
                     IdentifierName(CollectionHelper),
-                    GenericName(Identifier("ListSegment"))
+                    GenericName(Identifier(ListSegmentType))
                         .WithTypeArgumentList(TypeArgumentList(SingletonSeparatedList<TypeSyntax>(IdentifierName("StatementSyntax"))))),
-                IdentifierName("Run")))
+                IdentifierName(RunMethod)))
             .AddArgumentListArguments(Argument(IdentifierName(runName)));
 
     /// <summary><c>Block(CollectionSyntaxExtensions.BuildList&lt;StatementSyntax&gt;(seg0, seg1, ...))</c>.</summary>
@@ -487,7 +495,7 @@ internal static class LiveRegionEmitter
                 MemberAccessExpression(
                     SyntaxKind.SimpleMemberAccessExpression,
                     IdentifierName(CollectionHelper),
-                    GenericName(Identifier("BuildList"))
+                    GenericName(Identifier(BuildListMethod))
                         .WithTypeArgumentList(TypeArgumentList(SingletonSeparatedList<TypeSyntax>(IdentifierName("StatementSyntax"))))))
             .WithArgumentList(ArgumentList(SeparatedList(segments.Select(Argument))));
 
@@ -553,7 +561,7 @@ internal static class LiveRegionEmitter
             MemberAccessExpression(
                 SyntaxKind.SimpleMemberAccessExpression,
                 target,
-                IdentifierName("ToSyntax")));
+                IdentifierName(ToSyntaxMethod)));
     }
 
     private static bool NeedsParentheses(ExpressionSyntax expression) =>

@@ -55,10 +55,12 @@ internal static class FileLocalHelpers
     /// </summary>
     public static readonly ImmutableArray<HelperEntry> Entries =
     [
-        new HelperEntry("ToSyntax", Load(LiteralResource)),
-        new HelperEntry("ToTypeSyntax", Load(RuntimeTypeResource)),
-        new HelperEntry("OrNullLiteralExpression", Load(QuoteResource)),
-        new HelperEntry("BuildList", Load(CollectionResource)),
+        // Scan keys taken from the Synto.Core helper symbols via nameof so a rename stays in lock-step with the
+        // emit-sites (renaming a helper then becomes a generator compile error, not a silent injection miss).
+        new HelperEntry(nameof(LiteralSyntaxExtensions.ToSyntax), Load(LiteralResource)),
+        new HelperEntry(nameof(RuntimeTypeExtensions.ToTypeSyntax), Load(RuntimeTypeResource)),
+        new HelperEntry(nameof(QuoteSyntaxExtensions.OrNullLiteralExpression), Load(QuoteResource)),
+        new HelperEntry(nameof(CollectionSyntaxExtensions.BuildList), Load(CollectionResource)),
     ];
 
     /// <summary>An injectable helper: the public method name that triggers it plus its rewritten class.</summary>

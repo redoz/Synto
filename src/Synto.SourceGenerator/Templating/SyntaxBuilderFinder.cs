@@ -74,8 +74,6 @@ internal sealed class BuilderCallResult
 
     public IReadOnlyList<BuilderCall> Calls { get; }
     public IReadOnlyList<DiagnosticInfo> Diagnostics { get; }
-
-    public static readonly BuilderCallResult Empty = new(System.Array.Empty<BuilderCall>(), System.Array.Empty<DiagnosticInfo>());
 }
 
 /// <summary>
