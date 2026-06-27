@@ -3,9 +3,11 @@ using Synto.Generators;
 
 namespace Synto.Example.ObjectReader.Generator;
 
-/// <summary>One resolved column: the member name (also the direct accessor on <c>_e.Current</c>) and its
-/// fully-qualified type name (used for <c>GetFieldType</c>). Pure value type — safe to cache (C-5).</summary>
-internal readonly record struct ColumnInfo(string Name, string ColumnTypeName);
+/// <summary>One resolved column: its ordinal (position in the member list), the member name (also the direct
+/// accessor on <c>_e.Current</c>), and its fully-qualified type name (used for <c>GetFieldType</c>). Pure value
+/// type — safe to cache (C-5). The <c>Ordinal</c> lets the live-staged template read it uniformly as
+/// <c>c.Ordinal</c> rather than the emit-time loop index.</summary>
+internal readonly record struct ColumnInfo(int Ordinal, string Name, string ColumnTypeName);
 
 /// <summary>Which diagnostic an equatable <see cref="PendingDiagnostic"/> carries; mapped back to a real
 /// <c>Synto.Diagnostics</c>-generated factory call in the output stage.</summary>

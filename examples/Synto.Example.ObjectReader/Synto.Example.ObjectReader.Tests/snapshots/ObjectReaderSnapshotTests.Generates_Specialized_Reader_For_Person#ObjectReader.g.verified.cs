@@ -6,26 +6,41 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
     private bool _closed;
     private bool _onRow;
     public ObjectReader_Person_0(global::System.Collections.Generic.IEnumerable<global::Person> source) => _e = source.GetEnumerator();
-    public int FieldCount => 2;
+    public int FieldCount
+    {
+        get
+        {
+            return 2;
+        }
+    }
 
-    public string GetName(int i) => i switch
+    public string GetName(int i)
     {
-        0 => "Name",
-        1 => "Age",
-        _ => throw OutOfRange(i),
-    };
-    public int GetOrdinal(string name) => name switch
+        if (i == 0)
+            return "Name";
+        if (i == 1)
+            return "Age";
+        throw OutOfRange(i);
+    }
+
+    public int GetOrdinal(string name)
     {
-        "Name" => 0,
-        "Age" => 1,
-        _ => throw NoColumn(name),
-    };
-    public global::System.Type GetFieldType(int i) => i switch
+        if (name == "Name")
+            return 0;
+        if (name == "Age")
+            return 1;
+        throw NoColumn(name);
+    }
+
+    public global::System.Type GetFieldType(int i)
     {
-        0 => typeof(global::System.String),
-        1 => typeof(global::System.Int32),
-        _ => throw OutOfRange(i),
-    };
+        if (i == 0)
+            return typeof(global::System.String);
+        if (i == 1)
+            return typeof(global::System.Int32);
+        throw OutOfRange(i);
+    }
+
     public object GetValue(int i)
     {
         if (!_onRow)
@@ -33,12 +48,75 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
             throw new global::System.InvalidOperationException("No current row. Call Read() and ensure it returned true before reading values.");
         }
 
-        return i switch
-        {
-            0 => (object? )_e.Current.Name ?? global::System.DBNull.Value,
-            1 => (object? )_e.Current.Age ?? global::System.DBNull.Value,
-            _ => throw OutOfRange(i),
-        };
+        if (i == 0)
+            return (object? )_e.Current.Name ?? global::System.DBNull.Value;
+        if (i == 1)
+            return (object? )_e.Current.Age ?? global::System.DBNull.Value;
+        throw OutOfRange(i);
+    }
+
+    public bool GetBoolean(int i)
+    {
+        throw new global::System.InvalidCastException($"Field {i} is not a Boolean column.");
+    }
+
+    public byte GetByte(int i)
+    {
+        throw new global::System.InvalidCastException($"Field {i} is not a Byte column.");
+    }
+
+    public char GetChar(int i)
+    {
+        throw new global::System.InvalidCastException($"Field {i} is not a Char column.");
+    }
+
+    public global::System.DateTime GetDateTime(int i)
+    {
+        throw new global::System.InvalidCastException($"Field {i} is not a DateTime column.");
+    }
+
+    public decimal GetDecimal(int i)
+    {
+        throw new global::System.InvalidCastException($"Field {i} is not a Decimal column.");
+    }
+
+    public double GetDouble(int i)
+    {
+        throw new global::System.InvalidCastException($"Field {i} is not a Double column.");
+    }
+
+    public float GetFloat(int i)
+    {
+        throw new global::System.InvalidCastException($"Field {i} is not a Single column.");
+    }
+
+    public global::System.Guid GetGuid(int i)
+    {
+        throw new global::System.InvalidCastException($"Field {i} is not a Guid column.");
+    }
+
+    public short GetInt16(int i)
+    {
+        throw new global::System.InvalidCastException($"Field {i} is not an Int16 column.");
+    }
+
+    public int GetInt32(int i)
+    {
+        if (i == 1)
+            return _e.Current.Age;
+        throw new global::System.InvalidCastException($"Field {i} is not an Int32 column.");
+    }
+
+    public long GetInt64(int i)
+    {
+        throw new global::System.InvalidCastException($"Field {i} is not an Int64 column.");
+    }
+
+    public string GetString(int i)
+    {
+        if (i == 0)
+            return _e.Current.Name;
+        throw new global::System.InvalidCastException($"Field {i} is not a String column.");
     }
 
     public int GetValues(object[] values)
@@ -60,18 +138,6 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
     public bool IsDBNull(int i) => GetValue(i) is global::System.DBNull;
     public object this[int i] => GetValue(i);
     public object this[string name] => GetValue(GetOrdinal(name));
-    public bool GetBoolean(int i) => (bool)GetValue(i);
-    public byte GetByte(int i) => (byte)GetValue(i);
-    public char GetChar(int i) => (char)GetValue(i);
-    public global::System.DateTime GetDateTime(int i) => (global::System.DateTime)GetValue(i);
-    public decimal GetDecimal(int i) => (decimal)GetValue(i);
-    public double GetDouble(int i) => (double)GetValue(i);
-    public float GetFloat(int i) => (float)GetValue(i);
-    public global::System.Guid GetGuid(int i) => (global::System.Guid)GetValue(i);
-    public short GetInt16(int i) => (short)GetValue(i);
-    public int GetInt32(int i) => (int)GetValue(i);
-    public long GetInt64(int i) => (long)GetValue(i);
-    public string GetString(int i) => (string)GetValue(i);
     public string GetDataTypeName(int i) => GetFieldType(i).Name;
     public int Depth => 0;
     public bool IsClosed => _closed;

@@ -12,11 +12,12 @@ namespace Synto;
 /// </summary>
 internal sealed class LiveParameter
 {
-    public LiveParameter(string name, ITypeSymbol type, ISymbol? symbol, IReadOnlyList<SyntaxNode> references, IReadOnlyList<SyntaxNode> trimNodes)
+    public LiveParameter(string name, ITypeSymbol type, ISymbol? symbol, IReadOnlyList<ISymbol> symbols, IReadOnlyList<SyntaxNode> references, IReadOnlyList<SyntaxNode> trimNodes)
     {
         Name = name;
         Type = type;
         Symbol = symbol;
+        Symbols = symbols;
         References = references;
         TrimNodes = trimNodes;
     }
@@ -28,11 +29,20 @@ internal sealed class LiveParameter
     public ITypeSymbol Type { get; }
 
     /// <summary>
-    /// The declared local symbol for a declaration-position site (<c>var columns = Parameter&lt;T&gt;();</c>),
+    /// The declared local symbol for the FIRST declaration-position site (<c>var columns = Parameter&lt;T&gt;();</c>),
     /// used as a live root the binding-time classifier seeds liveness from. <c>null</c> for inline-only sites
-    /// (which cannot drive control flow).
+    /// (which cannot drive control flow). See <see cref="Symbols"/> for the full set when the same identity is
+    /// declared in more than one member body.
     /// </summary>
     public ISymbol? Symbol { get; }
+
+    /// <summary>
+    /// EVERY declaration-site local symbol sharing this <c>(name, T)</c> identity. The same live parameter may be
+    /// re-declared (<c>var columns = Parameter&lt;T&gt;();</c>) in several member bodies of a class template (the
+    /// ObjectReader dog-food, plan Task 9); each distinct local must be seeded as a live root and renamed to the
+    /// shared factory parameter, so EVERY member's live control region unrolls — not just the first.
+    /// </summary>
+    public IReadOnlyList<ISymbol> Symbols { get; }
 
     /// <summary>Nodes replaced by the value lift (identifier uses for a declaration; the call itself when inline).</summary>
     public IReadOnlyList<SyntaxNode> References { get; }
@@ -206,9 +216,10 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
 
             var references = groupSites.SelectMany(s => s.References).ToList();
             var trimNodes = groupSites.Where(s => s.Declaration is not null).Select(s => (SyntaxNode)s.Declaration!).ToList();
-            var symbol = groupSites.Select(s => s.Local).FirstOrDefault(s => s is not null);
+            var symbols = groupSites.Select(s => s.Local).Where(s => s is not null).Select(s => s!).ToList();
+            var symbol = symbols.FirstOrDefault();
 
-            parameters.Add(new LiveParameter(group.Key!, groupSites[0].Type, symbol, references, trimNodes));
+            parameters.Add(new LiveParameter(group.Key!, groupSites[0].Type, symbol, symbols, references, trimNodes));
         }
 
         return new LiveParameterResult(parameters, diagnostics);

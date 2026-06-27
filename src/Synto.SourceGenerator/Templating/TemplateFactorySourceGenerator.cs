@@ -512,8 +512,14 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
         foreach (var liveParameter in liveParameterResult.Parameters)
         {
-            if (liveParameter.Symbol is { } symbol && liveRootSymbols.Add(symbol))
-                classifierRoots.Add(new LiveRoot(symbol));
+            // Seed EVERY declaration-site local (the same (name, T) may be re-declared across several member
+            // bodies of a class template — plan Task 9), so each member's live control region is recognized,
+            // not only the first declaration's.
+            foreach (var symbol in liveParameter.Symbols)
+            {
+                if (liveRootSymbols.Add(symbol))
+                    classifierRoots.Add(new LiveRoot(symbol));
+            }
         }
 
         foreach (var liveLocal in liveRootResult.Locals)
@@ -544,13 +550,36 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         var regionConsumedNodes = LiveRegionEmitter.ComputeConsumedNodes(liveRegions);
         int liveRegionCounter = 0;
 
+        // F2 usings transplant (spec §5.2): a live control region runs VERBATIM in the factory, so the carrier's
+        // own `using` directives that its live scaffold relies on (e.g. `System.Linq` for `.Where(...)`) must be
+        // merged into the generated factory file — otherwise the verbatim code does not resolve. Only simple
+        // namespace usings are transplanted (deduped against the quoter's RequiredUsings); `using static …` and
+        // alias usings are skipped (UsingDirectiveSet ignores them anyway), and Synto.* usings are excluded so
+        // the inert facade/marker surface (e.g. `using static Synto.Templating.Template;`, `using Synto.Templating;`)
+        // is never pulled into the factory scope where it could collide with the injected internal surface.
+        if (liveRegions.Count > 0
+            && templateInfo.Source.Syntax.SyntaxTree.GetRoot() is CompilationUnitSyntax carrierUnit)
+        {
+            foreach (var carrierUsing in carrierUnit.Usings)
+            {
+                if (!carrierUsing.StaticKeyword.IsKind(SyntaxKind.None) || carrierUsing.Alias is not null)
+                    continue;
+                if (carrierUsing.Name is not { } usingName || usingName.ToString().StartsWith("Synto", StringComparison.Ordinal))
+                    continue;
+
+                additionalUsings.AddNamespace(usingName);
+            }
+        }
+
         foreach (var liveParameter in liveParameterResult.Parameters)
         {
             string paramName = liveParameter.Name;
             while (!paramNames.Add(paramName))
                 paramName += '_';
 
-            if (liveParameter.Symbol is { } rootSymbol)
+            // Map EVERY declaration-site symbol to the shared factory parameter name so the live-region renamer
+            // rewrites each member's local reference (the foreach driver) to the one factory parameter.
+            foreach (var rootSymbol in liveParameter.Symbols)
                 rootNames[rootSymbol] = paramName;
 
             var parameterType = ParseTypeName(liveParameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));

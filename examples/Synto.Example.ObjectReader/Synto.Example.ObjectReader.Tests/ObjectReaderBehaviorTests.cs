@@ -45,6 +45,17 @@ public class ObjectReaderBehaviorTests
     }
 
     [Fact]
+    public void CastlessGetters_ReadMemberDirectly() // the new capability the live-staged migration unlocks (Task 9)
+    {
+        using IDataReader reader = ObjectReader.Create(Sample(), "Name", "Age");
+        Assert.True(reader.Read());
+        Assert.Equal("Ada", reader.GetString(0));   // direct _e.Current.Name, no (string)GetValue boxing
+        Assert.Equal(36, reader.GetInt32(1));        // direct _e.Current.Age, no (int)GetValue boxing
+        // Person has no DateTime column → the where-filter yields zero arms → InvalidCastException.
+        Assert.Throws<InvalidCastException>(() => reader.GetDateTime(0));
+    }
+
+    [Fact]
     public void Create_FeedsDataTableLoad() // C-3 functional bar via a real ADO.NET sink
     {
         using IDataReader reader = ObjectReader.Create(Sample(), "Name", "Age");

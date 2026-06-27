@@ -47,6 +47,43 @@ builder/usings sharp edges, deliberately deferred scope). Empty findings are not
 - **Quoter NOT touched.** All staging rides `unquotedReplacements` (container key) + fresh per-island
   `TemplateSyntaxQuoter` instances; `CSharpSyntaxQuoter*`/bootstrap unchanged.
 
+## ObjectReader dog-food migration (Task 9)
+
+- **A single live `Parameter<T>()` identity shared across MANY member bodies needs ALL declaration-site symbols
+  seeded as roots.** The ObjectReader template re-declares `var columns = Parameter<EquatableArray<ColumnInfo>>();`
+  in ~16 members (one per data-driven member). `LiveParameterFinder` already deduped them to ONE factory parameter
+  by `(name, T)`, but `LiveParameter.Symbol` exposed only the FIRST declaration's local — so only the first
+  member's `foreach` was classified `LiveControl` and every other member's loop was quoted VERBATIM into the
+  output (a literal `foreach` referencing a nonexistent `columns`). Fix: `LiveParameter.Symbols` now carries every
+  declaration-site local; the generator seeds the classifier AND `rootNames` from all of them, so every member
+  unrolls and each member's `columns` reference renames to the one factory parameter. (`SharedLiveParameterTest`
+  pins this.)
+- **F2 usings transplant landed here (it was deferred from Task 6).** The cast-less getters filter columns by type
+  with `columns.Where(c => c.ColumnTypeName == "global::System.Int32")` — a LINQ call in the live driver that runs
+  at factory time (so the type filter never reaches the output; non-matching columns simply emit zero arms). The
+  verbatim scaffold therefore needs `System.Linq` in the factory file. The transplant merges the carrier's simple
+  namespace usings into `additionalUsings` (deduped vs `RequiredUsings`), excluding `using static …` / alias usings
+  (UsingDirectiveSet drops them anyway) and any `Synto.*` using (so the inert facade/marker surface is never pulled
+  into factory scope). Only fires when the template has ≥1 live region. Side effect: two pre-existing staged
+  snapshots (`RunCollectTest`, `MutableAccumulationAcrossIterations`) re-baselined for a benign using-ORDER change
+  (`System.Collections.Generic` now transplanted early instead of arriving via the helper-usings merge).
+- **`SyntoBuilders.TypeOf` had to emit a `typeof(...)` EXPRESSION, not a bare type reference.** The `TypeOf(string)
+  : System.Type` facade is consumed in expression position (`GetFieldType` returns `typeof(global::System.Int32)`),
+  so a bare `IdentifierName(name)` (a `TypeSyntax`) would emit `return global::System.Int32;` (CS0119). Changed the
+  built-in builder to `TypeOfExpression(ParseTypeName(name))` (returns `ExpressionSyntax`). Task 3 only had a
+  `Member` functional snapshot; `TypeOf` was first exercised end-to-end here.
+- **FieldCount is a degenerate value hole → a separate live `int` parameter.** `columns.Count` cannot lift at
+  depth-0 (the bare `columns` reference would bind to the throwing generic `ToSyntax<T>` fallback — an
+  `EquatableArray` is not a literal type). Rather than add depth-0 live-VALUE-subexpression lifting, FieldCount
+  reads `var fieldCount = Parameter<int>();` and the generator passes `model.Columns.Count` — an `int` lifts via the
+  built-in `LiteralSyntaxExtensions`. (Logged as a candidate generalization: lift a maximal purely-live value
+  subexpression like `columns.Count` directly, mirroring the island `CollectLiftPoints`.)
+- **`Member` inside a live-region island works because builder calls are registered BEFORE region emit.** The
+  builder scan rewrites every `Member<…>(_e.Current, c.Name)` facade call into `unquotedReplacements` (keyed at the
+  invocation) before `LiveRegionEmitter.Emit` runs, so the per-island quoter (whose lift map is seeded from those
+  replacements) returns the precomputed `SyntoBuilders.Member(<quote of _e.Current>, c.Name)` and never descends to
+  re-lift `c.Name`. Output carries zero `Synto.*` and zero reflection.
+
 ## Builder mechanism (Task 3)
 
 - **`[Inline(AsSyntax = true)]` in PARAMETER-TYPE position** (`Build<[Inline(AsSyntax=true)] T>(T instance)`) emits

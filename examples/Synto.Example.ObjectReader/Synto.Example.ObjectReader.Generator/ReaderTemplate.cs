@@ -1,18 +1,21 @@
+using System.Linq;
+using Synto.Generators;
 using Synto.Templating;
+using static Synto.Templating.Template;
 
 namespace Synto.Example.ObjectReader.Generator;
 
-// The dog-food (Task 4 / D3 / R2): the INVARIANT IDataReader skeleton is authored ONCE as real C# and quoted
-// by a Synto [Template]. ObjectReaderGenerator calls Factory.ObjectReaderTemplate(elementType) to get the
-// reader's ClassDeclarationSyntax, then renames it, makes it `file sealed`, adds the `: IDataReader` base list,
-// and replaces the five list-driven members (FieldCount + the GetName/GetOrdinal/GetFieldType/GetValue switches)
-// with raw SyntaxFactory — those depend on the resolved column list, so they cannot be expressed as a fixed
-// [Template] (logged A->B drop). The element type flows in as a syntax hole via [Inline(AsSyntax = true)] T.
+// The dog-food (plan Task 9): the WHOLE IDataReader skeleton is authored once as real C# and quoted by a Synto
+// [Template]. The data-driven members are now expressed with the LIVE-STAGED surface — a live `foreach` over the
+// resolved column list (lifted to the factory via `Parameter<EquatableArray<ColumnInfo>>()`), with `Member`/`TypeOf`
+// builders splicing the per-column member access / type — so the generator no longer glues text with
+// `StringBuilder`/`ParseMemberDeclaration`. ObjectReaderGenerator calls Factory.ObjectReaderTemplate(elementType,
+// columns, fieldCount), renames the class + ctor, makes it `file sealed`, and adds the `: IDataReader` base list.
 //
-// NOTE: every member must compile here (this is real source in the netstandard2.0 generator assembly); the five
-// list-driven members carry compiling placeholder bodies that the generator overwrites.
+// Every member compiles here (this is real source in the netstandard2.0 generator assembly): the live surface is
+// inert at carrier-compile time (Parameter/Member/TypeOf return default!), and the `foreach`/`.Where(...)` shapes
+// are ordinary C# — the generator unrolls them at factory-build time.
 #pragma warning disable CA1812 // ObjectReaderTemplate is a template carrier, only ever quoted — never instantiated.
-#pragma warning disable CA1822 // placeholder members need not be static; their real (instance) bodies are injected.
 #pragma warning disable CA1024 // GetSchemaTable etc. mirror the IDataReader signatures verbatim.
 
 [Template(typeof(Factory))]
@@ -24,24 +27,168 @@ internal sealed class ObjectReaderTemplate<[Inline(AsSyntax = true)] T>
 
     public ObjectReaderTemplate(global::System.Collections.Generic.IEnumerable<T> source) => _e = source.GetEnumerator();
 
-    // ---- list-driven placeholders (overwritten by ObjectReaderGenerator with raw SyntaxFactory) ----
+    // ---- data-driven members: each repeats over the live column list (unrolled at factory time) -------------
 
-    public int FieldCount => 0;
+    // Degenerate value hole: the column count → an int literal (lifted via a live int parameter).
+    public int FieldCount
+    {
+        get
+        {
+            var fieldCount = Parameter<int>();
+            return fieldCount;
+        }
+    }
 
-    public string GetName(int i) => throw OutOfRange(i);
+    public string GetName(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns)            // live control → unrolls in the factory
+            if (i == c.Ordinal)               // c.Ordinal → int literal
+                return c.Name;                // c.Name    → string literal
+        throw OutOfRange(i);
+    }
 
-    public int GetOrdinal(string name) => throw NoColumn(name);
+    public int GetOrdinal(string name)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns)
+            if (name == c.Name)               // c.Name → string literal
+                return c.Ordinal;             // c.Ordinal → int literal
+        throw NoColumn(name);
+    }
 
-    public global::System.Type GetFieldType(int i) => throw OutOfRange(i);
+    public global::System.Type GetFieldType(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns)
+            if (i == c.Ordinal)
+                return TypeOf(c.ColumnTypeName);   // type-name hole → typeof(<that type>)
+        throw OutOfRange(i);
+    }
 
     public object GetValue(int i)
     {
-        if (!_onRow)
+        if (!_onRow)                          // invariant guard — literal, precedes the repeater
         {
             throw new global::System.InvalidOperationException("No current row. Call Read() and ensure it returned true before reading values.");
         }
 
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns)
+            if (i == c.Ordinal)
+                // Member<object>(_e.Current, c.Name) → `_e.Current.<Name>` (identifier hole), then box + DBNull.
+                return (object?)Member<object>(_e.Current, c.Name) ?? global::System.DBNull.Value;
         throw OutOfRange(i);
+    }
+
+    // ---- cast-less typed getters: filtered by the column's CLR type, read the member DIRECTLY (no box) -------
+
+    public bool GetBoolean(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Boolean"))
+            if (i == c.Ordinal)
+                return Member<bool>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not a Boolean column.");
+    }
+
+    public byte GetByte(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Byte"))
+            if (i == c.Ordinal)
+                return Member<byte>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not a Byte column.");
+    }
+
+    public char GetChar(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Char"))
+            if (i == c.Ordinal)
+                return Member<char>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not a Char column.");
+    }
+
+    public global::System.DateTime GetDateTime(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.DateTime"))
+            if (i == c.Ordinal)
+                return Member<global::System.DateTime>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not a DateTime column.");
+    }
+
+    public decimal GetDecimal(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Decimal"))
+            if (i == c.Ordinal)
+                return Member<decimal>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not a Decimal column.");
+    }
+
+    public double GetDouble(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Double"))
+            if (i == c.Ordinal)
+                return Member<double>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not a Double column.");
+    }
+
+    public float GetFloat(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Single"))
+            if (i == c.Ordinal)
+                return Member<float>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not a Single column.");
+    }
+
+    public global::System.Guid GetGuid(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Guid"))
+            if (i == c.Ordinal)
+                return Member<global::System.Guid>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not a Guid column.");
+    }
+
+    public short GetInt16(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Int16"))
+            if (i == c.Ordinal)
+                return Member<short>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not an Int16 column.");
+    }
+
+    public int GetInt32(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Int32"))
+            if (i == c.Ordinal)
+                return Member<int>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not an Int32 column.");
+    }
+
+    public long GetInt64(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Int64"))
+            if (i == c.Ordinal)
+                return Member<long>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not an Int64 column.");
+    }
+
+    public string GetString(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.String"))
+            if (i == c.Ordinal)
+                return Member<string>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not a String column.");
     }
 
     // ---- invariant members (the [Template] payload) ----
@@ -68,18 +215,6 @@ internal sealed class ObjectReaderTemplate<[Inline(AsSyntax = true)] T>
 
     public object this[string name] => GetValue(GetOrdinal(name));
 
-    public bool GetBoolean(int i) => (bool)GetValue(i);
-    public byte GetByte(int i) => (byte)GetValue(i);
-    public char GetChar(int i) => (char)GetValue(i);
-    public global::System.DateTime GetDateTime(int i) => (global::System.DateTime)GetValue(i);
-    public decimal GetDecimal(int i) => (decimal)GetValue(i);
-    public double GetDouble(int i) => (double)GetValue(i);
-    public float GetFloat(int i) => (float)GetValue(i);
-    public global::System.Guid GetGuid(int i) => (global::System.Guid)GetValue(i);
-    public short GetInt16(int i) => (short)GetValue(i);
-    public int GetInt32(int i) => (int)GetValue(i);
-    public long GetInt64(int i) => (long)GetValue(i);
-    public string GetString(int i) => (string)GetValue(i);
     public string GetDataTypeName(int i) => GetFieldType(i).Name;
 
     public int Depth => 0;
@@ -130,11 +265,11 @@ internal sealed class ObjectReaderTemplate<[Inline(AsSyntax = true)] T>
 }
 
 #pragma warning restore CA1024
-#pragma warning restore CA1822
 #pragma warning restore CA1812
 
 /// <summary>Synto template factory target. The injected <c>TemplateFactorySourceGenerator</c> fills the other
-/// partial with <c>ObjectReaderTemplate(ExpressionSyntax T)</c> returning the skeleton's <c>ClassDeclarationSyntax</c>.</summary>
+/// partial with <c>ObjectReaderTemplate(ExpressionSyntax T, EquatableArray&lt;ColumnInfo&gt; columns, int fieldCount)</c>
+/// returning the skeleton's <c>ClassDeclarationSyntax</c>.</summary>
 internal static partial class Factory
 {
 }

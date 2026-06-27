@@ -1,4 +1,4 @@
-﻿//HintName: Factory.Build.g.cs
+﻿//HintName: Factory.Reader.g.cs
 #nullable enable
 using System;
 using Microsoft.CodeAnalysis;
@@ -11,52 +11,143 @@ using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 partial class Factory
 {
-    public static MethodDeclarationSyntax Build(global::System.Collections.Generic.IReadOnlyList<global::Col> columns)
+    public static ClassDeclarationSyntax Reader(global::System.Collections.Generic.IReadOnlyList<global::Col> columns)
     {
-        int sum = 0;
         var __run_0 = new global::System.Collections.Generic.List<global::Microsoft.CodeAnalysis.CSharp.Syntax.StatementSyntax>();
         foreach (var c in columns)
         {
             __run_0.Add(
-            ExpressionStatement(
+            IfStatement(
             List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
-            InvocationExpression(
-            MemberAccessExpression(
-            SimpleMemberAccessExpression, 
-            MemberAccessExpression(
-            SimpleMemberAccessExpression, 
-            IdentifierName("System"), 
-            Token(DotToken), 
-            IdentifierName("Console")), 
-            Token(DotToken), 
-            IdentifierName("WriteLine")), 
-            ArgumentList(
+            Token(IfKeyword), 
             Token(OpenParenToken), 
-            SeparatedList<ArgumentSyntax>(
-            new SyntaxNodeOrToken[] { 
-            Argument(
-            null, 
-            Token(None), 
-            sum.ToSyntax()) }), 
-            Token(CloseParenToken))), 
-            Token(SemicolonToken)));
-            sum += c.Ordinal;
+            BinaryExpression(
+            EqualsExpression, 
+            IdentifierName("i"), 
+            Token(EqualsEqualsToken), 
+            c.Ordinal.ToSyntax()), 
+            Token(CloseParenToken), 
+            ReturnStatement(
+            List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
+            Token(ReturnKeyword), 
+            c.Name.ToSyntax(), 
+            Token(SemicolonToken)), 
+            null));
         }
 
-        return MethodDeclaration(
+        var __run_1 = new global::System.Collections.Generic.List<global::Microsoft.CodeAnalysis.CSharp.Syntax.StatementSyntax>();
+        foreach (var c in columns)
+        {
+            __run_1.Add(
+            IfStatement(
+            List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
+            Token(IfKeyword), 
+            Token(OpenParenToken), 
+            BinaryExpression(
+            EqualsExpression, 
+            IdentifierName("name"), 
+            Token(EqualsEqualsToken), 
+            c.Name.ToSyntax()), 
+            Token(CloseParenToken), 
+            ReturnStatement(
+            List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
+            Token(ReturnKeyword), 
+            c.Ordinal.ToSyntax(), 
+            Token(SemicolonToken)), 
+            null));
+        }
+
+        return ClassDeclaration(
                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
-                   TokenList(), 
-                   PredefinedType(Token(VoidKeyword)), 
+                   TokenList(Token(PublicKeyword)), 
+                   Token(ClassKeyword), 
+                   Identifier("Reader"), 
                    null, 
-                   Identifier("Build"), 
                    null, 
-                   ParameterList(
-                       Token(OpenParenToken), 
-                       SeparatedList<ParameterSyntax>(Array.Empty<SyntaxNodeOrToken>()), 
-                       Token(CloseParenToken)), 
+                   null, 
                    List<TypeParameterConstraintClauseSyntax>(Array.Empty<TypeParameterConstraintClauseSyntax>()), 
-                   Block(CollectionSyntaxExtensions.BuildList<StatementSyntax>(CollectionSyntaxExtensions.ListSegment<StatementSyntax>.Run(__run_0))), 
-                   null, 
+                   Token(OpenBraceToken), 
+                   List<MemberDeclarationSyntax>(
+                       new MemberDeclarationSyntax[] { 
+                           MethodDeclaration(
+                               List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
+                               TokenList(Token(PublicKeyword)), 
+                               PredefinedType(Token(StringKeyword)), 
+                               null, 
+                               Identifier("GetName"), 
+                               null, 
+                               ParameterList(
+                                   Token(OpenParenToken), 
+                                   SeparatedList<ParameterSyntax>(
+                                       new SyntaxNodeOrToken[] { 
+                                           Parameter(
+                                               List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
+                                               TokenList(), 
+                                               PredefinedType(Token(IntKeyword)), 
+                                               Identifier("i"), 
+                                               null) }), 
+                                   Token(CloseParenToken)), 
+                               List<TypeParameterConstraintClauseSyntax>(Array.Empty<TypeParameterConstraintClauseSyntax>()), 
+                               Block(
+                                   CollectionSyntaxExtensions.BuildList<StatementSyntax>(
+                                       CollectionSyntaxExtensions.ListSegment<StatementSyntax>.Run(__run_0), 
+                                       ThrowStatement(
+                                           List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
+                                           Token(ThrowKeyword), 
+                                           ObjectCreationExpression(
+                                               Token(NewKeyword), 
+                                               QualifiedName(
+                                                   IdentifierName("System"), 
+                                                   Token(DotToken), 
+                                                   IdentifierName("IndexOutOfRangeException")), 
+                                               ArgumentList(
+                                                   Token(OpenParenToken), 
+                                                   SeparatedList<ArgumentSyntax>(Array.Empty<SyntaxNodeOrToken>()), 
+                                                   Token(CloseParenToken)), 
+                                               null), 
+                                           Token(SemicolonToken)))), 
+                               null, 
+                               Token(None)), 
+                           MethodDeclaration(
+                               List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
+                               TokenList(Token(PublicKeyword)), 
+                               PredefinedType(Token(IntKeyword)), 
+                               null, 
+                               Identifier("GetOrdinal"), 
+                               null, 
+                               ParameterList(
+                                   Token(OpenParenToken), 
+                                   SeparatedList<ParameterSyntax>(
+                                       new SyntaxNodeOrToken[] { 
+                                           Parameter(
+                                               List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
+                                               TokenList(), 
+                                               PredefinedType(Token(StringKeyword)), 
+                                               Identifier("name"), 
+                                               null) }), 
+                                   Token(CloseParenToken)), 
+                               List<TypeParameterConstraintClauseSyntax>(Array.Empty<TypeParameterConstraintClauseSyntax>()), 
+                               Block(
+                                   CollectionSyntaxExtensions.BuildList<StatementSyntax>(
+                                       CollectionSyntaxExtensions.ListSegment<StatementSyntax>.Run(__run_1), 
+                                       ThrowStatement(
+                                           List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
+                                           Token(ThrowKeyword), 
+                                           ObjectCreationExpression(
+                                               Token(NewKeyword), 
+                                               QualifiedName(
+                                                   IdentifierName("System"), 
+                                                   Token(DotToken), 
+                                                   IdentifierName("IndexOutOfRangeException")), 
+                                               ArgumentList(
+                                                   Token(OpenParenToken), 
+                                                   SeparatedList<ArgumentSyntax>(Array.Empty<SyntaxNodeOrToken>()), 
+                                                   Token(CloseParenToken)), 
+                                               null), 
+                                           Token(SemicolonToken)))), 
+                               null, 
+                               Token(None)) }), 
+                   Token(CloseBraceToken), 
                    Token(None));
     }
 }

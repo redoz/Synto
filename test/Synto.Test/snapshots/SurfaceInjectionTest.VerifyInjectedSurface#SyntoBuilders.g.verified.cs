@@ -21,6 +21,6 @@ internal static class SyntoBuilders
     public static ExpressionSyntax Member([Quoted] ExpressionSyntax instance, string name) =>
         MemberAccessExpression(SimpleMemberAccessExpression, instance, Token(DotToken), IdentifierName(name));
 
-    /// <summary>Builds the type reference <c>name</c> (a <c>TypeSyntax</c>) from a type name.</summary>
-    public static TypeSyntax TypeOf(string name) => IdentifierName(name);
+    /// <summary>Builds the <c>typeof(name)</c> expression from a type name (the facade returns <c>System.Type</c>).</summary>
+    public static ExpressionSyntax TypeOf(string name) => TypeOfExpression(ParseTypeName(name));
 }

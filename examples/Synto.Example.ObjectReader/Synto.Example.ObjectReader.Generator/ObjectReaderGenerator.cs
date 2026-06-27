@@ -149,7 +149,7 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
                 continue;
             }
 
-            columns.Add(new ColumnInfo(memberName, columnType));
+            columns.Add(new ColumnInfo(columns.Count, memberName, columnType));
         }
 
         if (!allConstant)
@@ -276,24 +276,22 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
         };
     }
 
-    // The dog-food (Task 4 / D3 / R2): quote the INVARIANT IDataReader skeleton from the Synto [Template]
-    // (ReaderTemplate.cs), then specialize it for this call site. The five list-driven members (FieldCount +
-    // the GetName/GetOrdinal/GetFieldType/GetValue switches) depend on the resolved column list and cannot be
-    // expressed as a fixed template, so they are built with raw SyntaxFactory and swapped in over the template's
-    // compiling placeholders — a logged strategy-A->B drop (see the friction log).
+    // The dog-food (plan Task 9): quote the FULLY data-driven IDataReader from the Synto live-staged [Template]
+    // (ReaderTemplate.cs). The template lifts the resolved column list to the factory (`EquatableArray<ColumnInfo>
+    // columns` + the degenerate `int fieldCount`), and its live `foreach`/`Member`/`TypeOf` shapes are unrolled at
+    // factory time — so there is no raw-SyntaxFactory text-gluing here any more. We only rename the class + ctor to
+    // the call-site reader name, make it `file sealed`, and add the `: IDataReader` base list.
     private static MemberDeclarationSyntax BuildReader(ObjectReaderModel model, int index)
     {
         string reader = $"ObjectReader_{model.TargetTypeShortName}_{index}";
         TypeSyntax elementType = SyntaxFactory.ParseTypeName(model.TargetTypeQualifiedName);
 
-        // Synto hole: [Inline(AsSyntax = true)] T splices the element type wherever T appears (the _e field +
-        // the ctor's IEnumerable<T> parameter).
-        ClassDeclarationSyntax skeleton = Factory.ObjectReaderTemplate(elementType);
-
-        var variableMembers = BuildVariableMembers(model);
+        // Synto holes: [Inline(AsSyntax = true)] T splices the element type wherever T appears (the _e field + the
+        // ctor's IEnumerable<T> parameter); the live `columns`/`fieldCount` parameters drive the unrolled members.
+        ClassDeclarationSyntax skeleton = Factory.ObjectReaderTemplate(elementType, model.Columns.Count, model.Columns);
 
         var specialized = SyntaxFactory.List(
-            skeleton.Members.Select(member => SpecializeMember(member, reader, variableMembers)));
+            skeleton.Members.Select(member => RenameConstructor(member, reader)));
 
         return skeleton
             .WithIdentifier(SyntaxFactory.Identifier(reader))
@@ -305,84 +303,11 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
             .WithMembers(specialized);
     }
 
-    // Rename the templated constructor to match the specialized reader, and overwrite each placeholder member
-    // (FieldCount + the four switches) with its raw-SyntaxFactory, column-driven implementation.
-    private static MemberDeclarationSyntax SpecializeMember(
-        MemberDeclarationSyntax member,
-        string reader,
-        Dictionary<string, MemberDeclarationSyntax> variableMembers)
-    {
-        switch (member)
-        {
-            case ConstructorDeclarationSyntax ctor:
-                return ctor.WithIdentifier(SyntaxFactory.Identifier(reader));
-            case PropertyDeclarationSyntax property when variableMembers.TryGetValue(property.Identifier.Text, out var replacement):
-                return replacement;
-            case MethodDeclarationSyntax method when variableMembers.TryGetValue(method.Identifier.Text, out var replacement):
-                return replacement;
-            default:
-                return member;
-        }
-    }
-
-    private static Dictionary<string, MemberDeclarationSyntax> BuildVariableMembers(ObjectReaderModel model)
-    {
-        var nameArms = new StringBuilder();
-        var ordinalArms = new StringBuilder();
-        var fieldTypeArms = new StringBuilder();
-        var valueArms = new StringBuilder();
-        for (int i = 0; i < model.Columns.Count; i++)
-        {
-            ColumnInfo column = model.Columns[i];
-            nameArms.Append($"            {i} => \"{column.Name}\",\n");
-            ordinalArms.Append($"            \"{column.Name}\" => {i},\n");
-            fieldTypeArms.Append($"            {i} => typeof({column.ColumnTypeName}),\n");
-            valueArms.Append($"            {i} => (object?)_e.Current.{column.Name} ?? global::System.DBNull.Value,\n");
-        }
-
-        return new Dictionary<string, MemberDeclarationSyntax>(System.StringComparer.Ordinal)
-        {
-            ["FieldCount"] = Parse($"public int FieldCount => {model.Columns.Count};"),
-            ["GetName"] = Parse(
-                $$"""
-                public string GetName(int i) => i switch
-                {
-                {{nameArms}}        _ => throw OutOfRange(i),
-                };
-                """),
-            ["GetOrdinal"] = Parse(
-                $$"""
-                public int GetOrdinal(string name) => name switch
-                {
-                {{ordinalArms}}        _ => throw NoColumn(name),
-                };
-                """),
-            ["GetFieldType"] = Parse(
-                $$"""
-                public global::System.Type GetFieldType(int i) => i switch
-                {
-                {{fieldTypeArms}}        _ => throw OutOfRange(i),
-                };
-                """),
-            ["GetValue"] = Parse(
-                $$"""
-                public object GetValue(int i)
-                {
-                    if (!_onRow)
-                    {
-                        throw new global::System.InvalidOperationException("No current row. Call Read() and ensure it returned true before reading values.");
-                    }
-
-                    return i switch
-                    {
-                {{valueArms}}            _ => throw OutOfRange(i),
-                    };
-                }
-                """),
-        };
-    }
-
-    private static MemberDeclarationSyntax Parse(string member) => SyntaxFactory.ParseMemberDeclaration(member)!;
+    // Rename the templated constructor to match the specialized reader; every other member is emitted verbatim.
+    private static MemberDeclarationSyntax RenameConstructor(MemberDeclarationSyntax member, string reader) =>
+        member is ConstructorDeclarationSyntax ctor
+            ? ctor.WithIdentifier(SyntaxFactory.Identifier(reader))
+            : member;
 
     private static string BuildInterceptorMethod(ObjectReaderModel model, int index)
     {
