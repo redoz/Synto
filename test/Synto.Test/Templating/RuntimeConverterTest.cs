@@ -105,6 +105,65 @@ public class RuntimeConverterTest
         Assert.NotEmpty(ret.Files);
     }
 
+    // A consumer that QUOTES a custom type (Color) — the value-lift goes through the SAME [Runtime] converter
+    // discovery as [Unquote], so a [Quote] of a custom type emits the fully-qualified converter call, NOT a
+    // literal. This guards the "[Literal] would be a misnomer" rationale (spec §7): [Quote] lifts ANY value
+    // through its converter, it is not literal-only.
+    private const string QuoteConverterTemplate =
+        """
+        using System;
+        using Microsoft.CodeAnalysis;
+        using Microsoft.CodeAnalysis.CSharp;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using Synto.Templating;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+
+        partial class Factory {}
+
+        public readonly struct Color
+        {
+            public Color(int argb) { Argb = argb; }
+            public int Argb { get; }
+        }
+
+        [Runtime]
+        public static class ColorConverter
+        {
+            public static ExpressionSyntax ToSyntax(this Color color) =>
+                ObjectCreationExpression(IdentifierName("Color"))
+                    .AddArgumentListArguments(
+                        Argument(LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(color.Argb))));
+        }
+
+        public class TestClass {
+            [Template(typeof(Factory))]
+            void Build([Quote] Color color) {
+                Console.WriteLine(color);
+            }
+        }
+        """;
+
+    [Fact]
+    public async Task QuoteCustomType_EmitsRuntimeConverterCall()
+    {
+        var compilation = CompilationWithSource(QuoteConverterTemplate);
+
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator())
+            .RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        var generated = driver.GetRunResult().GeneratedTrees
+            .Single(t => t.FilePath.Contains("Factory.Build"))
+            .ToString();
+
+        // The quoted custom-type value is lifted via the discovered converter (called fully-qualified), NOT as a
+        // literal and NOT with a file-local copy of the converter.
+        Assert.Contains("global::ColorConverter.ToSyntax(color)", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("class ColorConverter", generated, StringComparison.Ordinal);
+
+        var ret = await Verify(driver).UseDirectory("snapshots");
+        Assert.NotEmpty(ret.Files);
+    }
+
     [Fact]
     public void GeneratedConverterFactoryCompiles()
     {

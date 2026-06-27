@@ -716,6 +716,60 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             trimNodes.Add(stagedParameterRoot.Parameter);
         }
 
+        // [Quote] value parameters: the SAME value-lift as an [Unquote] value (via TryEmitValueLift), but the
+        // parameter is NEVER seeded into BindingTimeClassifier (it is not in stagedRootResult), so a control
+        // construct referencing only a quoted value stays Quoted and is emitted as a runtime construct rather than
+        // unrolled (spec §3). Value-axis only ([Quote] is AttributeTargets.Parameter), so there is no
+        // generic-type-parameter branch here.
+        foreach (var quoteParameter in QuoteParameterFinder.FindQuoteParameters(semanticModel, templateInfo.Source.Syntax))
+        {
+            string paramName = quoteParameter.Parameter.Identifier.Text;
+            while (!paramNames.Add(paramName))
+                paramName += '_';
+
+            TypeSyntax parameterType = quoteParameter.Parameter.Type!;
+            var paramType = semanticModel.GetDeclaredSymbol(quoteParameter.Parameter)?.Type;
+
+            if (paramType is null)
+            {
+                // Unbound parameter type: cannot lift. Bail (the consumer's own CS error already covers this).
+                converterError = true;
+                continue;
+            }
+
+            if (!TryEmitValueLift(paramType, IdentifierName(paramName), quoteParameter.Parameter.Type!.GetLocation(), semanticModel, runtimeAttribute, expressionSyntaxSymbol, ref runtimeClasses, out ExpressionSyntax conversion, out var liftDiagnostic))
+            {
+                diagnostics.Add(liftDiagnostic!.Value);
+                converterError = true;
+                continue;
+            }
+
+            if (paramType is not ITypeParameterSymbol && !IsBuiltInLiteralType(paramType))
+            {
+                // Emit the parameter with its fully-qualified declared type so it resolves in the generated file
+                // regardless of which usings the template's file happened to carry.
+                parameterType = ParseTypeName(paramType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            }
+
+            var syntaxForQuoteIdentifier = Identifier("syntaxForQuote_" + paramName);
+            preamble.Add(
+                LocalDeclarationStatement(
+                    VariableDeclaration(
+                        additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
+                        SingletonSeparatedList(
+                            VariableDeclarator(
+                                syntaxForQuoteIdentifier,
+                                null,
+                                EqualsValueClause(conversion))))));
+
+            parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
+
+            foreach (var reference in quoteParameter.References)
+                unquotedReplacements.Add(reference, IdentifierName(syntaxForQuoteIdentifier));
+
+            trimNodes.Add(quoteParameter.Parameter);
+        }
+
         // A missing/ambiguous converter is a usage error: bail with the diagnostic(s) already reported rather
         // than emit a factory that would fail to compile or throw at the author's runtime.
         if (converterError)

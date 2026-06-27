@@ -117,6 +117,35 @@ public class BindingTimeClassifierTest
     }
 
     [Fact]
+    public void QuoteParam_DrivingControl_StaysQuoted()
+    {
+        // [Quote] parameters are deliberately NEVER seeded as live roots (unlike [Unquote]), so a control
+        // construct whose driver references only a quoted value stays Quoted (a real runtime loop) instead of
+        // StagedControl (unrolled) — spec §3. Modeled by classifying with the quoted `count` NOT among the roots;
+        // the contrast run (count AS a root, i.e. an [Unquote]) shows the SAME loop WOULD unroll, proving the
+        // not-a-root decision is what keeps the loop.
+        var (model, method) = Compile(
+            """
+            class C {
+                void M(int count) {
+                    int ret = 0;
+                    for (int i = 0; i < count; i++) ret++;
+                }
+            }
+            """);
+
+        var loop = method.Body!.DescendantNodes().OfType<ForStatementSyntax>().Single();
+
+        // [Quote]: count is not a root -> the loop stays a runtime construct.
+        var quotedPartition = BindingTimeClassifier.Classify(model, method.Body!, System.Array.Empty<StagedRoot>());
+        Assert.False(quotedPartition.IsStagedControl(loop));
+
+        // Contrast: were count live (an [Unquote] root), the same loop unrolls (StagedControl).
+        var stagedPartition = BindingTimeClassifier.Classify(model, method.Body!, new[] { new StagedRoot(Parameter(model, method, "count")) });
+        Assert.True(stagedPartition.IsStagedControl(loop));
+    }
+
+    [Fact]
     public void ForeachOverQuotedSource_StaysQuoted()
     {
         var (model, method) = Compile(

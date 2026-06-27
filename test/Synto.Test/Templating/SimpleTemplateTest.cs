@@ -403,6 +403,72 @@ public class SimpleTemplateTest
         );
     }
 
+    [Fact]
+    public async Task QuoteValue_InValuePosition_EmitsSameLiteralAsUnquote()
+    {
+        // A [Quote] int value used purely in value position lifts via `value.ToSyntax()` exactly like an
+        // [Unquote] int (the value-lift is shared through TryEmitValueLift). The only difference from [Unquote]
+        // is in CONTROL position (a quoted value never drives unrolling); in value position the emitted literal
+        // lift is identical (spec §3 value-position equivalence). The snapshot pins the `count.ToSyntax()` lift.
+        await VerifyTemplate(
+            """
+            using System;
+            using Synto.Templating;
+
+            partial class Factory {}
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void LocalFunction([Quote] int count) {
+                    Console.WriteLine($"Hello world {count}");
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public void QuoteParamTemplate_IsIncrementalOnUnrelatedEdit()
+    {
+        // Cacheability guard for the [Quote] parameter path: discovery (QuoteParameterFinder), the value-lift,
+        // and the factory-parameter wiring all run INSIDE the ForAttributeWithMetadataName transform and capture
+        // no Compilation/SemanticModel/SyntaxNode into pipeline state, so an unrelated edit must leave EVERY
+        // tracked step Cached/Unchanged.
+        const string source =
+            """
+            using System;
+            using Synto.Templating;
+
+            partial class Factory {}
+
+            public class TestClass {
+                [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                static void Loop([Quote] int count) {
+                    int ret = 0;
+                    for (int i = 0; i < count; i++) ret++;
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation);
+
+        var modified = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
+        driver = driver.RunGenerators(modified);
+
+        var result = driver.GetRunResult().Results.Single();
+
+        CacheabilityAssert.AllStepsCachedOrUnchanged(
+            result,
+            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+    }
+
     // ----- diagnostics / error paths (T2) -----------------------------------------------------------
     // Each feeds deliberately-malformed Synto usage and asserts the diagnostic Id directly off the
     // driver's diagnostics collection, plus (for usage errors) a real, non-empty source span.

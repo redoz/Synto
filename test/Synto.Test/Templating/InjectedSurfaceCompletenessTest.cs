@@ -286,6 +286,80 @@ public class InjectedSurfaceCompletenessTest
             + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
     }
 
+    /// <summary>
+    /// A <c>[Quote] int count</c> value parameter driving a <c>for</c> loop bound. The headline
+    /// <c>[Quote]</c> guarantee (spec §3): the loop stays a <b>runtime</b> construct bounded by the lifted value
+    /// (a single <c>ForStatement</c> whose bound is <c>count.ToSyntax()</c>) rather than being unrolled into
+    /// <c>count</c> copies of <c>ret++</c> the way an <c>[Unquote] count</c> would. Compiled against ONLY the
+    /// injected surface so an unrecognized <c>[Quote]</c> (no factory parameter, <c>count</c> emitted as a free
+    /// identifier) is a hard CS0103 here.
+    /// </summary>
+    private const string QuoteLoopTemplate =
+        """
+        using System;
+        using Synto.Templating;
+
+        partial class Factory {}
+
+        public class TestClass {
+            [Template(typeof(Factory), Options = TemplateOption.Bare)]
+            static void Loop([Quote] int count) {
+                int ret = 0;
+                for (int i = 0; i < count; i++) ret++;
+            }
+        }
+        """;
+
+    [Fact]
+    public void QuoteParam_InLoopCondition_KeepsRuntimeLoop_Compiles()
+    {
+        var compilation = CSharpCompilation.Create("QuoteLoopCompileTest",
+            [CSharpSyntaxTree.ParseText(QuoteLoopTemplate)],
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Linq, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Collections, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime.Extensions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new TemplateFactorySourceGenerator());
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Loop"));
+        Assert.NotNull(factoryTree);
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation of a [Quote] loop-bound parameter reported errors "
+            + "([Quote] was not recognized -> `count` left as a free identifier / no factory parameter): "
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+
+        var factorySource = factoryTree.ToString();
+
+        // The factory must take the value parameter `int count` ...
+        Assert.Contains("int count", factorySource, StringComparison.Ordinal);
+        // ... lift it (the [Quote] value-lift preamble local) ...
+        Assert.Contains("syntaxForQuote_count", factorySource, StringComparison.Ordinal);
+        // ... and emit a SINGLE runtime ForStatement node bounded by the lift (the loop is NOT unrolled).
+        Assert.Contains("ForStatement", factorySource, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void InjectedSurfaceIsCompleteForStagedTemplate()
     {
