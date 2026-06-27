@@ -537,6 +537,81 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 trimNodes.Add(trimNode);
         }
 
+        // Live bound roots (Template.Live<T>() locals + [Live] parameters): the bound expression runs at
+        // factory-build time and the resulting runtime value is lifted into the quoted output. Depth-0, a
+        // live LOCAL hoists its `var n = <expr>;` verbatim into the factory body (a real runtime local) and
+        // each use lifts via `n.ToSyntax()`; a [Live] PARAMETER becomes a caller-supplied factory parameter
+        // lifted the same way (like an [Inline] value, but classified live for later staging).
+        var liveRootResult = LiveRootFinder.FindLiveRoots(semanticModel, templateInfo.Source.Syntax);
+
+        foreach (var liveLocal in liveRootResult.Locals)
+        {
+            // Hoist the runtime local: `var n = <expr>;` (the Live(...) carrier is unwrapped to its argument,
+            // which is evaluated at factory-build time). Build it fresh so source comments/trivia don't leak.
+            preamble.Add(
+                LocalDeclarationStatement(
+                    VariableDeclaration(
+                        IdentifierName("var"),
+                        SingletonSeparatedList(
+                            VariableDeclarator(Identifier(liveLocal.Name))
+                                .WithInitializer(EqualsValueClause(liveLocal.ValueExpression.WithoutTrivia()))))));
+
+            // value.ToSyntax() — lift the runtime value into the produced syntax, exactly like an [Inline] value.
+            var syntaxForLiveIdentifier = Identifier("syntaxForLive_" + liveLocal.Name);
+            preamble.Add(
+                LocalDeclarationStatement(
+                    VariableDeclaration(
+                        additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
+                        SingletonSeparatedList(
+                            VariableDeclarator(
+                                syntaxForLiveIdentifier,
+                                null,
+                                EqualsValueClause(
+                                    InvocationExpression(
+                                        MemberAccessExpression(
+                                            SyntaxKind.SimpleMemberAccessExpression,
+                                            IdentifierName(liveLocal.Name),
+                                            IdentifierName("ToSyntax")))))))));
+
+            foreach (var reference in liveLocal.References)
+                unquotedReplacements.Add(reference, IdentifierName(syntaxForLiveIdentifier));
+
+            trimNodes.Add(liveLocal.Declaration);
+        }
+
+        foreach (var liveParameterRoot in liveRootResult.Parameters)
+        {
+            string paramName = liveParameterRoot.Parameter.Identifier.Text;
+            while (!paramNames.Add(paramName))
+                paramName += '_';
+
+            var parameterType = ParseTypeName(liveParameterRoot.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+
+            ExpressionSyntax conversion = InvocationExpression(
+                MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    IdentifierName(paramName),
+                    IdentifierName("ToSyntax")));
+
+            var syntaxForParamIdentifier = Identifier("syntaxForParam_" + paramName);
+            preamble.Add(
+                LocalDeclarationStatement(
+                    VariableDeclaration(
+                        additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
+                        SingletonSeparatedList(
+                            VariableDeclarator(
+                                syntaxForParamIdentifier,
+                                null,
+                                EqualsValueClause(conversion))))));
+
+            parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
+
+            foreach (var reference in liveParameterRoot.References)
+                unquotedReplacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
+
+            trimNodes.Add(liveParameterRoot.Parameter);
+        }
+
         var prunableNodes = BranchPruneIdentifier.FindPrunableNodes(trimNodes, templateInfo.Source.Syntax);
 
         TemplateSyntaxQuoter quoter = new(

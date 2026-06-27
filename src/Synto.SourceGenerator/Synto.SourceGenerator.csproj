@@ -46,6 +46,7 @@
 	<EmbeddedResource Include="..\Synto\Templating\TemplateOption.cs" LogicalName="Synto.Runtime.TemplateOption.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Syntax.cs" LogicalName="Synto.Runtime.Syntax.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Template.Parameter.cs" LogicalName="Synto.Runtime.Template.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\LiveAttribute.cs" LogicalName="Synto.Runtime.LiveAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\MatchOption.cs" LogicalName="Synto.Runtime.MatchOption.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\MatchAttribute.cs" LogicalName="Synto.Runtime.MatchAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\CaptureAttribute.cs" LogicalName="Synto.Runtime.CaptureAttribute.cs" />

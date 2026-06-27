@@ -20,4 +20,16 @@ public static class Template
     /// <typeparam name="T">The live value's type; becomes the factory parameter's type.</typeparam>
     /// <param name="parameterName">The factory parameter name; required in inline position.</param>
     public static T Parameter<T>(string? parameterName = null) => default!;
+
+    /// <summary>
+    /// Declares a <em>live</em> local: <c>var n = Live(expr);</c> runs <paramref name="value"/> at
+    /// template-build time inside the generated factory (so <c>n</c> is a real runtime local), and any
+    /// consumption of <c>n</c> is lifted into the produced syntax. This is the local-position counterpart
+    /// to a <c>[Live]</c> parameter (C# forbids attributes on local declarations). The method itself is the
+    /// inert identity <c>=&gt; value</c> so the template body type-checks; the generator recognizes the call
+    /// by binding and rewrites it at factory-build time.
+    /// </summary>
+    /// <typeparam name="T">The live value's type; inferred as the local's type.</typeparam>
+    /// <param name="value">The expression evaluated at factory-build time.</param>
+    public static T Live<T>(T value) => value;
 }
