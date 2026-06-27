@@ -219,6 +219,20 @@ internal static class Diagnostics
             new EquatableArray<string>(ImmutableArray.Create(name, firstType, secondType)));
     }
 
+    private static readonly DiagnosticDescriptor _unsupportedLiveShape = new(IdPrefix + "1014",
+        "Unsupported Live Shape",
+        "Live control-flow shape is not supported by the staging emitter: {0}",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo UnsupportedLiveShape(Location? location, string reason)
+    {
+        return new DiagnosticInfo(_unsupportedLiveShape,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(reason)));
+    }
+
     private static readonly DiagnosticDescriptor _facadeSynthesisError = new(IdPrefix + "1015",
         "Invalid Syntax Builder",
         "[SyntaxBuilder] method '{0}' cannot synthesize a valid facade: {1}",

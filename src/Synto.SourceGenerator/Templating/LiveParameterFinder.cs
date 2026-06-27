@@ -12,10 +12,11 @@ namespace Synto;
 /// </summary>
 internal sealed class LiveParameter
 {
-    public LiveParameter(string name, ITypeSymbol type, IReadOnlyList<SyntaxNode> references, IReadOnlyList<SyntaxNode> trimNodes)
+    public LiveParameter(string name, ITypeSymbol type, ISymbol? symbol, IReadOnlyList<SyntaxNode> references, IReadOnlyList<SyntaxNode> trimNodes)
     {
         Name = name;
         Type = type;
+        Symbol = symbol;
         References = references;
         TrimNodes = trimNodes;
     }
@@ -25,6 +26,13 @@ internal sealed class LiveParameter
 
     /// <summary>The live value's type <c>T</c> (becomes the factory parameter's type).</summary>
     public ITypeSymbol Type { get; }
+
+    /// <summary>
+    /// The declared local symbol for a declaration-position site (<c>var columns = Parameter&lt;T&gt;();</c>),
+    /// used as a live root the binding-time classifier seeds liveness from. <c>null</c> for inline-only sites
+    /// (which cannot drive control flow).
+    /// </summary>
+    public ISymbol? Symbol { get; }
 
     /// <summary>Nodes replaced by the value lift (identifier uses for a declaration; the call itself when inline).</summary>
     public IReadOnlyList<SyntaxNode> References { get; }
@@ -50,13 +58,14 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
 {
     private sealed class Site
     {
-        public Site(InvocationExpressionSyntax invocation, ITypeSymbol type, string? explicitName, string? implicitName, LocalDeclarationStatementSyntax? declaration)
+        public Site(InvocationExpressionSyntax invocation, ITypeSymbol type, string? explicitName, string? implicitName, LocalDeclarationStatementSyntax? declaration, ISymbol? local)
         {
             Invocation = invocation;
             Type = type;
             ExplicitName = explicitName;
             ImplicitName = implicitName;
             Declaration = declaration;
+            Local = local;
         }
 
         public InvocationExpressionSyntax Invocation { get; }
@@ -64,6 +73,7 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
         public string? ExplicitName { get; }
         public string? ImplicitName { get; }
         public LocalDeclarationStatementSyntax? Declaration { get; }
+        public ISymbol? Local { get; }
         public List<SyntaxNode> References { get; } = new();
 
         public bool IsDeclaration => Declaration is not null;
@@ -134,14 +144,14 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
             && variableDeclaration.Variables.Count == 1
             && _semanticModel.GetDeclaredSymbol(declarator) is { } local)
         {
-            var site = new Site(node, type, explicitName, declarator.Identifier.Text, localDecl);
+            var site = new Site(node, type, explicitName, declarator.Identifier.Text, localDecl, local);
             _sites.Add(site);
             _siteByLocal[local] = site;
             return;
         }
 
         // Inline position: the call itself is the single lift site.
-        var inlineSite = new Site(node, type, explicitName, implicitName: null, declaration: null);
+        var inlineSite = new Site(node, type, explicitName, implicitName: null, declaration: null, local: null);
         inlineSite.References.Add(node);
         _sites.Add(inlineSite);
     }
@@ -196,8 +206,9 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
 
             var references = groupSites.SelectMany(s => s.References).ToList();
             var trimNodes = groupSites.Where(s => s.Declaration is not null).Select(s => (SyntaxNode)s.Declaration!).ToList();
+            var symbol = groupSites.Select(s => s.Local).FirstOrDefault(s => s is not null);
 
-            parameters.Add(new LiveParameter(group.Key!, groupSites[0].Type, references, trimNodes));
+            parameters.Add(new LiveParameter(group.Key!, groupSites[0].Type, symbol, references, trimNodes));
         }
 
         return new LiveParameterResult(parameters, diagnostics);

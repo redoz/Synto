@@ -490,9 +490,10 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         }
 
 
-        // Live parameters (Template.Parameter<T>()): a value supplied to the generated factory at
-        // invocation time rather than quoted. Depth-0, this lifts exactly like an [Inline] value
-        // (value.ToSyntax()), but the value originates as a caller-supplied factory parameter.
+        // Live roots (Template.Parameter<T>() live parameters, Template.Live<T>() locals, [Live] parameters):
+        // discover them, then classify the body's binding-time partition so the staging emitter can unroll
+        // live control regions (plan Task 6). All of this is semantic work inside the transform; nothing here
+        // is captured into pipeline state.
         var liveParameterResult = LiveParameterFinder.FindLiveParameters(semanticModel, templateInfo.Source.Syntax);
         diagnostics.AddRange(liveParameterResult.Diagnostics);
 
@@ -501,37 +502,75 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         if (liveParameterResult.Diagnostics.Count > 0)
             return null;
 
+        var liveRootResult = LiveRootFinder.FindLiveRoots(semanticModel, templateInfo.Source.Syntax);
+
+        // Seed the binding-time classifier from every live root symbol (parameters + bound locals), then find
+        // the live control regions (a foreach driven by a live root) to unroll.
+        var liveRootSymbols = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        var rootNames = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
+        var classifierRoots = new List<LiveRoot>();
+
+        foreach (var liveParameter in liveParameterResult.Parameters)
+        {
+            if (liveParameter.Symbol is { } symbol && liveRootSymbols.Add(symbol))
+                classifierRoots.Add(new LiveRoot(symbol));
+        }
+
+        foreach (var liveLocal in liveRootResult.Locals)
+        {
+            if (semanticModel.GetDeclaredSymbol(liveLocal.Declaration.Declaration.Variables[0]) is { } symbol && liveRootSymbols.Add(symbol))
+                classifierRoots.Add(new LiveRoot(symbol, liveLocal.ValueExpression));
+        }
+
+        foreach (var liveParameterRoot in liveRootResult.Parameters)
+        {
+            if (semanticModel.GetDeclaredSymbol(liveParameterRoot.Parameter) is { } symbol && liveRootSymbols.Add(symbol))
+                classifierRoots.Add(new LiveRoot(symbol));
+        }
+
+        var partition = BindingTimeClassifier.Classify(semanticModel, templateInfo.Source.Syntax, classifierRoots);
+        var liveRegions = LiveRegionEmitter.FindForeachRegions(semanticModel, templateInfo.Source.Syntax, partition);
+        var regionConsumedNodes = LiveRegionEmitter.ComputeConsumedNodes(liveRegions);
+        int liveRegionCounter = 0;
+
         foreach (var liveParameter in liveParameterResult.Parameters)
         {
             string paramName = liveParameter.Name;
             while (!paramNames.Add(paramName))
                 paramName += '_';
 
+            if (liveParameter.Symbol is { } rootSymbol)
+                rootNames[rootSymbol] = paramName;
+
             var parameterType = ParseTypeName(liveParameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-
-            // value.ToSyntax() — binds to the file-local LiteralSyntaxExtensions (built-in types) or the
-            // generic ToSyntax<T> fallback, injected by the method-name scan, exactly like an [Inline] value.
-            ExpressionSyntax conversion = InvocationExpression(
-                MemberAccessExpression(
-                    SyntaxKind.SimpleMemberAccessExpression,
-                    IdentifierName(paramName),
-                    IdentifierName("ToSyntax")));
-
-            var syntaxForParamIdentifier = Identifier("syntaxForParam_" + paramName);
-            preamble.Add(
-                LocalDeclarationStatement(
-                    VariableDeclaration(
-                        additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
-                        SingletonSeparatedList(
-                            VariableDeclarator(
-                                syntaxForParamIdentifier,
-                                null,
-                                EqualsValueClause(conversion))))));
-
             parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
-            foreach (var reference in liveParameter.References)
-                unquotedReplacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
+            // References consumed by a live region are handled by the verbatim scaffold (which uses the factory
+            // parameter directly as a runtime value); only depth-0 references lift via value.ToSyntax() — binds
+            // to the file-local LiteralSyntaxExtensions (built-in types) or the generic ToSyntax<T> fallback.
+            var depthZeroReferences = liveParameter.References.Where(reference => !regionConsumedNodes.Contains(reference)).ToList();
+            if (depthZeroReferences.Count > 0)
+            {
+                ExpressionSyntax conversion = InvocationExpression(
+                    MemberAccessExpression(
+                        SyntaxKind.SimpleMemberAccessExpression,
+                        IdentifierName(paramName),
+                        IdentifierName("ToSyntax")));
+
+                var syntaxForParamIdentifier = Identifier("syntaxForParam_" + paramName);
+                preamble.Add(
+                    LocalDeclarationStatement(
+                        VariableDeclaration(
+                            additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
+                            SingletonSeparatedList(
+                                VariableDeclarator(
+                                    syntaxForParamIdentifier,
+                                    null,
+                                    EqualsValueClause(conversion))))));
+
+                foreach (var reference in depthZeroReferences)
+                    unquotedReplacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
+            }
 
             foreach (var trimNode in liveParameter.TrimNodes)
                 trimNodes.Add(trimNode);
@@ -542,8 +581,6 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // live LOCAL hoists its `var n = <expr>;` verbatim into the factory body (a real runtime local) and
         // each use lifts via `n.ToSyntax()`; a [Live] PARAMETER becomes a caller-supplied factory parameter
         // lifted the same way (like an [Inline] value, but classified live for later staging).
-        var liveRootResult = LiveRootFinder.FindLiveRoots(semanticModel, templateInfo.Source.Syntax);
-
         foreach (var liveLocal in liveRootResult.Locals)
         {
             // Hoist the runtime local: `var n = <expr>;` (the Live(...) carrier is unwrapped to its argument,
@@ -658,6 +695,31 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 unquotedReplacements[call.Invocation] = builderInvocation;
             }
         }
+
+        // Unroll the live control regions: each foreach over a live root becomes a verbatim scaffold in the
+        // factory preamble (collecting quoted islands into a run) plus a single replacement keyed at the
+        // region's owning container block (spec §5.3). The fixed-sibling quoter and island quoters carry the
+        // lifts collected so far; the container replacement is added LAST so neither sees it.
+        var liveRegionEmission = LiveRegionEmitter.Emit(
+            semanticModel,
+            liveRegions,
+            liveRootSymbols,
+            rootNames,
+            unquotedReplacements,
+            trimNodes,
+            ref liveRegionCounter);
+
+        diagnostics.AddRange(liveRegionEmission.Diagnostics);
+
+        // An unsupported live shape is a usage error: bail with the diagnostic(s) already reported rather than
+        // emit a mis-expanded factory.
+        if (liveRegionEmission.Diagnostics.Count > 0)
+            return null;
+
+        preamble.AddRange(liveRegionEmission.Preamble);
+
+        foreach (var containerReplacement in liveRegionEmission.ContainerReplacements)
+            unquotedReplacements[containerReplacement.Key] = containerReplacement.Value;
 
         var prunableNodes = BranchPruneIdentifier.FindPrunableNodes(trimNodes, templateInfo.Source.Syntax);
 
