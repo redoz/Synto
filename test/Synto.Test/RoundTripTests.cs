@@ -166,6 +166,38 @@ public partial class RoundTripTests
     }
 
     [Fact]
+    public void QuoteLoop()
+    {
+
+        [Template(typeof(Factory), Options = TemplateOption.Bare)]
+        static void QuoteLoop([Quote] int count)
+        {
+            int ret = 0;
+            for (int i = 0; i < count; i++)
+            {
+                ret++;
+            }
+        }
+
+        BlockSyntax node = Factory.QuoteLoop(4);
+
+        // Deliberate counterpoint to Test5 (the [Unquote] Loop that unrolls): a [Quote] parameter is a value
+        // lift but NEVER a staging root (spec §3), so the `for` driven by the quoted `count` stays a real,
+        // literal-bounded runtime loop (`for (int i = 0; i < 4; i++)`) instead of unrolling into four `ret++`.
+        string expected = """
+                              {
+                                  int ret = 0;
+                                  for (int i = 0; i < 4; i++)
+                                  {
+                                      ret++;
+                                  }
+                              }
+                              """;
+
+        AssertGenerated(expected, node);
+    }
+
+    [Fact]
     public void InlinedGenericTypeArgument()
     {
         [Template(typeof(Factory), Options = TemplateOption.Single)]

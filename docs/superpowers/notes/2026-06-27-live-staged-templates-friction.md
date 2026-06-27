@@ -160,3 +160,19 @@ builder/usings sharp edges, deliberately deferred scope). Empty findings are not
   binding-time classifier, region unrolling, the `Member` builder rewrite — runs inside the
   `ForAttributeWithMetadataName` transform and captures no `Compilation`/`SemanticModel`/`SyntaxNode`: every
   tracked step stays `Cached`/`Unchanged` on an unrelated edit. No new seam strain surfaced here.
+
+## `[Quote]` value-marker (quote-value-marker plan)
+
+- **The custom-type FQ parameter-type resolution stayed at the call site, not in `TryEmitValueLift`.** The Task 2
+  shared value->syntax helper returns only the lifted expression + an optional diagnostic; it does NOT resolve the
+  factory-parameter's *fully-qualified type name*. So both the `[Unquote]` value-param loop and the new `[Quote]`
+  param loop independently recompute the FQ type for a custom-type parameter before declaring the factory parameter.
+  A minor DRY seam - the helper could grow an `out string parameterType` (or return a small struct) so the lift and
+  the parameter-type rendering share one resolution. Left as-is: the value lift and the parameter declaration are
+  two distinct concerns and folding them risked widening the behavior-preserving Task 2 refactor.
+- **`[Quote]` needed NO `BindingTimeClassifier` change for the parameter form.** Because a `[Quote]` parameter is
+  simply never seeded into the classifier's root set (it stays out of `StagedParameterFinder`), a `for`/`foreach`
+  driven only by a quoted value classifies `Quoted` automatically - the loop survives with a literal bound. The only
+  classifier touch the whole plan needed was the inline `Quote(...)` output-world boundary (Task 4), and even that
+  is purely additive (shield a recognized `Quote(...)` invocation's argument from liveness propagation), confirming
+  the spec §5 "purely additive, `[Unquote]` unchanged" contract held.

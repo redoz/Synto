@@ -22,7 +22,8 @@ for (; ; )
                 new Choice("Use syntax placeholders to compose syntax trees", Test2),
                 new Choice("Expand a syntax placeholder multiple times within a template", Test3),
                 new Choice("Create a syntax tree representing the whole template method", Test4),
-                new Choice("Use a parameter to inject a numeric literal into a for-loop", Test5),
+                new Choice("Use an [Unquote] parameter to unroll a for-loop", Test5),
+                new Choice("Use a [Quote] parameter to keep a literal-bounded runtime loop", TestQuoteLoop),
                 new Choice("Inline type parameters", Test6),
                 new Choice("Inline type parameters in class declaration", Test7),
 
@@ -166,6 +167,28 @@ internal class Examples
 
         BlockSyntax node = Factory.Loop(4);
 
+
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+
+        return source;
+    }
+
+    public static string TestQuoteLoop()
+    {
+        // Sibling of Test5: same `for` driven by `count`, but `count` is a [Quote] parameter — a value lift that
+        // is NEVER a staging root (spec §3). So instead of unrolling at factory-build time (Test5's four `ret++`),
+        // the loop is emitted verbatim with a literal bound: `for (int i = 0; i < 4; i++) { ret++; }`.
+        [Template(typeof(Factory), Options = TemplateOption.Bare)]
+        static void QuoteLoop([Quote] int count)
+        {
+            int ret = 0;
+            for (int i = 0; i < count; i++)
+            {
+                ret++;
+            }
+        }
+
+        BlockSyntax node = Factory.QuoteLoop(4);
 
         var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
 
