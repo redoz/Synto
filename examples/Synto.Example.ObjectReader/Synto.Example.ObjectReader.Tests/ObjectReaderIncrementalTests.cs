@@ -24,14 +24,8 @@ public class ObjectReaderIncrementalTests
         GeneratorRunResult result = GeneratorHarness.RunIncremental(source);
 
         // Mirrors TrackingNames.Transform (= nameof(Transform)); that type is internal to the Generator project.
-        const string transform = "Transform";
-        Assert.True(result.TrackedSteps.ContainsKey(transform), $"no tracked step '{transform}'");
-
-        var outputs = result.TrackedSteps[transform].SelectMany(step => step.Outputs).ToList();
-        Assert.NotEmpty(outputs);
-        Assert.All(outputs, output =>
-            Assert.True(
-                output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
-                $"step '{transform}' had reason {output.Reason}, expected Cached/Unchanged"));
+        // Iterate ALL tracked steps (not just the terminal Transform) so the whole upstream chain — including
+        // the Collect() feeding RegisterSourceOutput — is guarded, not only the single named step.
+        CacheabilityAssert.AllStepsCachedOrUnchanged(result, new[] { "Transform" });
     }
 }

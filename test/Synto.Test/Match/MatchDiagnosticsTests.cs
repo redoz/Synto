@@ -187,16 +187,9 @@ public class MatchDiagnosticsTests
 
         var result = driver.GetRunResult().Results.Single();
 
-        foreach (var trackingName in new[] { MatchTrackingNames.Transform, MatchTrackingNames.Result })
-        {
-            Assert.True(result.TrackedSteps.ContainsKey(trackingName), $"no tracked step '{trackingName}'");
-
-            var outputs = result.TrackedSteps[trackingName].SelectMany(step => step.Outputs);
-            Assert.All(outputs, output =>
-                Assert.True(
-                    output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
-                    $"step '{trackingName}' had reason {output.Reason}, expected Cached/Unchanged"));
-        }
+        CacheabilityAssert.AllStepsCachedOrUnchanged(
+            result,
+            new[] { MatchTrackingNames.Transform, MatchTrackingNames.Result });
     }
 
     [Fact]

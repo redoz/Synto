@@ -594,16 +594,9 @@ public class SimpleTemplateTest
 
         var result = driver.GetRunResult().Results.Single();
 
-        foreach (var trackingName in new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result })
-        {
-            Assert.True(result.TrackedSteps.ContainsKey(trackingName), $"no tracked step '{trackingName}'");
-
-            var outputs = result.TrackedSteps[trackingName].SelectMany(step => step.Outputs);
-            Assert.All(outputs, output =>
-                Assert.True(
-                    output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
-                    $"step '{trackingName}' had reason {output.Reason}, expected Cached/Unchanged"));
-        }
+        CacheabilityAssert.AllStepsCachedOrUnchanged(
+            result,
+            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
     }
 
     [Fact]
@@ -650,16 +643,9 @@ public class SimpleTemplateTest
 
         var result = driver.GetRunResult().Results.Single();
 
-        foreach (var trackingName in new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result })
-        {
-            Assert.True(result.TrackedSteps.ContainsKey(trackingName), $"no tracked step '{trackingName}'");
-
-            var outputs = result.TrackedSteps[trackingName].SelectMany(step => step.Outputs);
-            Assert.All(outputs, output =>
-                Assert.True(
-                    output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
-                    $"step '{trackingName}' had reason {output.Reason}, expected Cached/Unchanged"));
-        }
+        CacheabilityAssert.AllStepsCachedOrUnchanged(
+            result,
+            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
     }
 
     private static void AssertHasRealSpan(Diagnostic diag)

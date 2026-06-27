@@ -129,12 +129,7 @@ public partial class ForMatchTests
             "namespace Other { internal sealed class Unrelated { } }");
 
         var result = second.Results.Single();
-        Assert.True(result.TrackedSteps.ContainsKey("consumer"), "no tracked step 'consumer'");
-
-        var reasons = result.TrackedSteps["consumer"].SelectMany(step => step.Outputs).Select(output => output.Reason);
-        Assert.All(reasons, reason => Assert.True(
-            reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
-            $"consumer step had reason {reason}, expected Cached/Unchanged"));
+        CacheabilityAssert.AllStepsCachedOrUnchanged(result, new[] { "consumer" });
     }
 
     /// <summary>Consumer generator that hooks the PROJECTING <c>ForMatch</c> overload, projecting to an equatable string.</summary>
