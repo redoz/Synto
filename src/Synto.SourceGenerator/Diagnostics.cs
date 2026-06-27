@@ -176,4 +176,46 @@ internal static class Diagnostics
                 typeName,
                 count.ToString(System.Globalization.CultureInfo.InvariantCulture))));
     }
+
+    private static readonly DiagnosticDescriptor _liveParameterMissingName = new(IdPrefix + "1010",
+        "Missing Parameter Name",
+        "Parameter<T>() used outside a variable declaration must specify an explicit parameterName",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo LiveParameterMissingName(Location? location)
+    {
+        return new DiagnosticInfo(_liveParameterMissingName,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray<string>.Empty));
+    }
+
+    private static readonly DiagnosticDescriptor _liveParameterNameCollision = new(IdPrefix + "1011",
+        "Live Parameter Name Collision",
+        "Two Parameter<T>() sites declare the same explicit name '{0}'; reference one declared parameter instead of naming it twice",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo LiveParameterNameCollision(Location? location, string name)
+    {
+        return new DiagnosticInfo(_liveParameterNameCollision,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(name)));
+    }
+
+    private static readonly DiagnosticDescriptor _liveParameterTypeConflict = new(IdPrefix + "1012",
+        "Conflicting Live Parameter Type",
+        "Parameter name '{0}' is declared with conflicting types '{1}' and '{2}'",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo LiveParameterTypeConflict(Location? location, string name, string firstType, string secondType)
+    {
+        return new DiagnosticInfo(_liveParameterTypeConflict,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(name, firstType, secondType)));
+    }
 }
