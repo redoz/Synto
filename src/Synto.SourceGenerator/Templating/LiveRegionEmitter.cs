@@ -8,28 +8,33 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 namespace Synto;
 
 /// <summary>
-/// A live control region to unroll at factory-build time (plan Task 6 / spec §5.2–5.3): a <c>foreach</c>
-/// whose iteration source is a live root. The region runs verbatim in the factory body and each iteration
-/// collects the quote of its body islands; the region's owning <see cref="Container"/> block is replaced by a
+/// A live control region to unroll at factory-build time (plan Task 6–7 / spec §5.2–5.3): a control statement
+/// (<c>foreach</c>/<c>for</c>/<c>while</c>/<c>if</c>) whose driving expression is live. The region runs verbatim
+/// in the factory body — keeping live locals/accumulators as real runtime state — while each body island
+/// collects the quote of its statements; the region's owning <see cref="Container"/> block is replaced by a
 /// <c>BuildList</c> of that run plus the quoted fixed siblings.
 /// </summary>
 internal sealed class LiveRegion
 {
-    public LiveRegion(ForEachStatementSyntax forEach, BlockSyntax container, ISymbol? loopVariable)
+    public LiveRegion(StatementSyntax control, BlockSyntax container, IReadOnlyList<ISymbol> loopVariables)
     {
-        ForEach = forEach;
+        Control = control;
         Container = container;
-        LoopVariable = loopVariable;
+        LoopVariables = loopVariables;
     }
 
-    /// <summary>The live <c>foreach</c> statement (its driver is a live root).</summary>
-    public ForEachStatementSyntax ForEach { get; }
+    /// <summary>The live control statement (its driver — iteration source / condition — is a live expression).</summary>
+    public StatementSyntax Control { get; }
 
-    /// <summary>The block that directly owns <see cref="ForEach"/> — the replacement key (spec §5.3).</summary>
+    /// <summary>The block that directly owns <see cref="Control"/> — the replacement key (spec §5.3).</summary>
     public BlockSyntax Container { get; }
 
-    /// <summary>The loop variable symbol (live within the scaffold; ranges over live values at factory time).</summary>
-    public ISymbol? LoopVariable { get; }
+    /// <summary>
+    /// The loop variables introduced by the control statement (the <c>foreach</c> variable, the <c>for</c>
+    /// declarators) — live within the scaffold (they range over live values at factory time). Empty for
+    /// <c>while</c>/<c>if</c>.
+    /// </summary>
+    public IReadOnlyList<ISymbol> LoopVariables { get; }
 }
 
 /// <summary>The product of unrolling the live regions: scaffold preamble + per-container replacements.</summary>
@@ -41,9 +46,10 @@ internal sealed class LiveRegionEmission
 }
 
 /// <summary>
-/// Precomputes the run+collect replacement for each live control region (plan Task 6). The verbatim loop
-/// scaffold is hoisted into the factory <c>preamble</c> (collecting quoted islands into a <c>List&lt;StatementSyntax&gt;</c>
-/// run), and the region's owning container block is keyed in <c>unquotedReplacements</c> to a
+/// Precomputes the run+collect replacement for each live control region (plan Task 6–7). The verbatim control
+/// scaffold is hoisted into the factory <c>preamble</c> (collecting quoted islands into a
+/// <c>List&lt;StatementSyntax&gt;</c> run, and keeping live locals/accumulators as runtime state), and the
+/// region's owning container block is keyed in <c>unquotedReplacements</c> to a
 /// <c>Block(BuildList(Run(run), &lt;fixed siblings&gt;...))</c> — so the quoter never descends into the region
 /// (the map hit returns the precomputed expression). Each quoted island is produced by a fresh
 /// <see cref="TemplateSyntaxQuoter"/> whose map lifts every maximal purely-live subexpression via
@@ -54,25 +60,41 @@ internal static class LiveRegionEmitter
     /// <summary>The file-local collection helper class name (emitted by the scan-based injection, Task 5).</summary>
     private const string CollectionHelper = "CollectionSyntaxExtensions";
 
-    /// <summary>Discovers the live <c>foreach</c> regions in <paramref name="body"/> using the classifier partition.</summary>
-    public static IReadOnlyList<LiveRegion> FindForeachRegions(SemanticModel semanticModel, SyntaxNode body, BindingTimePartition partition)
+    /// <summary>Discovers the live control regions in <paramref name="body"/> using the classifier partition.</summary>
+    public static IReadOnlyList<LiveRegion> FindRegions(SemanticModel semanticModel, SyntaxNode body, BindingTimePartition partition)
     {
         var regions = new List<LiveRegion>();
         foreach (var node in body.DescendantNodes())
         {
-            if (node is ForEachStatementSyntax forEach
-                && partition.IsLiveControl(forEach)
-                && forEach.Parent is BlockSyntax container)
+            if (node is not StatementSyntax statement)
+                continue;
+            if (!partition.IsLiveControl(statement))
+                continue;
+            if (statement.Parent is not BlockSyntax container)
+                continue; // only block-owned regions are unrolled in v1 (else-if chains handled within the if)
+
+            var loopVariables = new List<ISymbol>();
+            switch (statement)
             {
-                regions.Add(new LiveRegion(forEach, container, semanticModel.GetDeclaredSymbol(forEach)));
+                case ForEachStatementSyntax forEach:
+                    if (semanticModel.GetDeclaredSymbol(forEach) is { } v)
+                        loopVariables.Add(v);
+                    break;
+                case ForStatementSyntax forStatement when forStatement.Declaration is { } declaration:
+                    foreach (var declarator in declaration.Variables)
+                        if (semanticModel.GetDeclaredSymbol(declarator) is { } fv)
+                            loopVariables.Add(fv);
+                    break;
             }
+
+            regions.Add(new LiveRegion(statement, container, loopVariables));
         }
 
         return regions;
     }
 
     /// <summary>
-    /// The set of nodes consumed by a live region (every node inside the region's <c>foreach</c>). A live-root
+    /// The set of nodes consumed by a live region (every node inside the region's control statement). A live-root
     /// reference in this set is handled by the verbatim scaffold (which uses the factory parameter directly),
     /// so the caller must NOT also emit a depth-0 <c>.ToSyntax()</c> lift for it.
     /// </summary>
@@ -81,30 +103,83 @@ internal static class LiveRegionEmitter
         var consumed = new HashSet<SyntaxNode>();
         foreach (var region in regions)
         {
-            foreach (var node in region.ForEach.DescendantNodesAndSelf())
+            foreach (var node in region.Control.DescendantNodesAndSelf())
                 consumed.Add(node);
         }
 
         return consumed;
     }
 
+    /// <summary>
+    /// The region-local live set: the classifier's live symbols, plus every region loop variable, plus
+    /// accumulators (locals whose initializer or an assignment within the region references a live value). The
+    /// classifier tracks neither loop variables nor mutation-defined accumulators, so the emitter recovers them
+    /// here by a fixpoint over the region bodies.
+    /// </summary>
+    public static HashSet<ISymbol> ComputeLiveSet(SemanticModel semanticModel, IReadOnlyList<LiveRegion> regions, IReadOnlyCollection<ISymbol> baseLive)
+    {
+        var live = new HashSet<ISymbol>(baseLive, SymbolEqualityComparer.Default);
+        foreach (var region in regions)
+            foreach (var loopVariable in region.LoopVariables)
+                live.Add(loopVariable);
+
+        bool changed = true;
+        while (changed)
+        {
+            changed = false;
+            foreach (var region in regions)
+            {
+                foreach (var node in region.Control.DescendantNodes())
+                {
+                    switch (node)
+                    {
+                        case VariableDeclaratorSyntax declarator when declarator.Initializer is { } initializer:
+                            if (semanticModel.GetDeclaredSymbol(declarator) is { } local
+                                && !live.Contains(local)
+                                && ReferencesLive(semanticModel, initializer.Value, live))
+                            {
+                                live.Add(local);
+                                changed = true;
+                            }
+                            break;
+
+                        case AssignmentExpressionSyntax assignment:
+                            if (semanticModel.GetSymbolInfo(assignment.Left).Symbol is ILocalSymbol target
+                                && !live.Contains(target)
+                                && ReferencesLive(semanticModel, assignment.Right, live))
+                            {
+                                live.Add(target);
+                                changed = true;
+                            }
+                            break;
+                    }
+                }
+            }
+        }
+
+        return live;
+    }
+
     public static LiveRegionEmission Emit(
         SemanticModel semanticModel,
+        BindingTimePartition partition,
         IReadOnlyList<LiveRegion> regions,
-        IReadOnlyCollection<ISymbol> liveRoots,
+        IReadOnlyCollection<ISymbol> baseLive,
         IReadOnlyDictionary<ISymbol, string> rootNames,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
         HashSet<SyntaxNode> trimNodes,
         ref int counter)
     {
         var emission = new LiveRegionEmission();
+        var liveSet = ComputeLiveSet(semanticModel, regions, baseLive);
+        var renamer = new RootRenameRewriter(semanticModel, rootNames);
 
         foreach (var group in regions.GroupBy(r => r.Container))
         {
             var container = group.Key;
-            var regionByForEach = new Dictionary<SyntaxNode, LiveRegion>();
+            var regionByControl = new Dictionary<SyntaxNode, LiveRegion>();
             foreach (var region in group)
-                regionByForEach[region.ForEach] = region;
+                regionByControl[region.Control] = region;
 
             var segments = new List<ExpressionSyntax>();
 
@@ -113,12 +188,18 @@ internal static class LiveRegionEmitter
                 if (trimNodes.Contains(statement))
                     continue;
 
-                if (regionByForEach.TryGetValue(statement, out var region))
+                if (regionByControl.TryGetValue(statement, out var region))
                 {
                     string runName = "__run_" + counter++;
-                    if (!TryBuildScaffold(semanticModel, region, liveRoots, rootNames, baseReplacements, runName, emission))
+                    if (!TryBuildScaffold(semanticModel, partition, region, liveSet, renamer, baseReplacements, runName, emission))
                         return emission; // a diagnostic was recorded
                     segments.Add(RunSegment(runName));
+                }
+                else if (IsLiveStatement(semanticModel, statement, liveSet))
+                {
+                    // A live sibling of the region (e.g. an accumulator declaration `int sum = 0;`): hoist it
+                    // verbatim (root-renamed) into the factory body as real runtime state, not a quoted island.
+                    emission.Preamble.Add((StatementSyntax)renamer.Visit(statement)!.WithoutTrivia());
                 }
                 else
                 {
@@ -138,9 +219,10 @@ internal static class LiveRegionEmitter
 
     private static bool TryBuildScaffold(
         SemanticModel semanticModel,
+        BindingTimePartition partition,
         LiveRegion region,
-        IReadOnlyCollection<ISymbol> liveRoots,
-        IReadOnlyDictionary<ISymbol, string> rootNames,
+        HashSet<ISymbol> liveSet,
+        RootRenameRewriter renamer,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
         string runName,
         LiveRegionEmission emission)
@@ -159,18 +241,151 @@ internal static class LiveRegionEmitter
                                     ParseTypeName("global::System.Collections.Generic.List<global::Microsoft.CodeAnalysis.CSharp.Syntax.StatementSyntax>"))
                                     .WithArgumentList(ArgumentList())))))));
 
-        // The loop variable is live within the scaffold (it ranges over live values at factory time).
-        var liveSet = new HashSet<ISymbol>(liveRoots, SymbolEqualityComparer.Default);
-        if (region.LoopVariable is not null)
-            liveSet.Add(region.LoopVariable);
+        if (!TryBuildControl(semanticModel, partition, region.Control, liveSet, renamer, baseReplacements, runIdentifier, emission, out var scaffold))
+            return false;
 
-        var bodyStatements = region.ForEach.Statement is BlockSyntax block
-            ? (IReadOnlyList<StatementSyntax>)block.Statements
-            : new[] { region.ForEach.Statement };
+        emission.Preamble.Add(scaffold!);
+        return true;
+    }
 
-        var addStatements = new List<StatementSyntax>();
-        foreach (var statement in bodyStatements)
+    /// <summary>
+    /// Builds the verbatim control scaffold: the control statement with its live-root references renamed to
+    /// factory parameters and its body replaced by the island-collecting / live-verbatim block. An <c>if</c> is
+    /// branch-specialized (both branches append to the SAME run; exactly one runs at factory time).
+    /// </summary>
+    private static bool TryBuildControl(
+        SemanticModel semanticModel,
+        BindingTimePartition partition,
+        StatementSyntax control,
+        HashSet<ISymbol> liveSet,
+        RootRenameRewriter renamer,
+        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
+        SyntaxToken runIdentifier,
+        LiveRegionEmission emission,
+        out StatementSyntax? scaffold)
+    {
+        scaffold = null;
+
+        switch (control)
         {
+            case ForEachStatementSyntax forEach:
+                {
+                    if (!TryBuildRegionBody(semanticModel, partition, forEach.Statement, liveSet, renamer, baseReplacements, runIdentifier, emission, out var body))
+                        return false;
+                    var source = (ExpressionSyntax)renamer.Visit(forEach.Expression)!;
+                    scaffold = ForEachStatement(forEach.Type.WithoutTrivia(), forEach.Identifier.WithoutTrivia(), source.WithoutTrivia(), body!);
+                    return true;
+                }
+
+            case ForStatementSyntax forStatement:
+                {
+                    if (!TryBuildRegionBody(semanticModel, partition, forStatement.Statement, liveSet, renamer, baseReplacements, runIdentifier, emission, out var body))
+                        return false;
+
+                    var result = ForStatement(body!)
+                        .WithInitializers(SeparatedList(forStatement.Initializers.Select(i => (ExpressionSyntax)renamer.Visit(i)!.WithoutTrivia())))
+                        .WithCondition(forStatement.Condition is { } condition ? (ExpressionSyntax)renamer.Visit(condition)!.WithoutTrivia() : null)
+                        .WithIncrementors(SeparatedList(forStatement.Incrementors.Select(i => (ExpressionSyntax)renamer.Visit(i)!.WithoutTrivia())));
+                    if (forStatement.Declaration is { } declaration)
+                        result = result.WithDeclaration((VariableDeclarationSyntax)renamer.Visit(declaration)!.WithoutTrivia());
+                    scaffold = result;
+                    return true;
+                }
+
+            case WhileStatementSyntax whileStatement:
+                {
+                    if (!TryBuildRegionBody(semanticModel, partition, whileStatement.Statement, liveSet, renamer, baseReplacements, runIdentifier, emission, out var body))
+                        return false;
+                    scaffold = WhileStatement((ExpressionSyntax)renamer.Visit(whileStatement.Condition)!.WithoutTrivia(), body!);
+                    return true;
+                }
+
+            case IfStatementSyntax ifStatement:
+                return TryBuildIf(semanticModel, partition, ifStatement, liveSet, renamer, baseReplacements, runIdentifier, emission, out scaffold);
+        }
+
+        emission.Diagnostics.Add(Diagnostics.UnsupportedLiveShape(control.GetLocation(), "unsupported live control shape"));
+        return false;
+    }
+
+    private static bool TryBuildIf(
+        SemanticModel semanticModel,
+        BindingTimePartition partition,
+        IfStatementSyntax ifStatement,
+        HashSet<ISymbol> liveSet,
+        RootRenameRewriter renamer,
+        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
+        SyntaxToken runIdentifier,
+        LiveRegionEmission emission,
+        out StatementSyntax? scaffold)
+    {
+        scaffold = null;
+
+        if (!TryBuildRegionBody(semanticModel, partition, ifStatement.Statement, liveSet, renamer, baseReplacements, runIdentifier, emission, out var thenBody))
+            return false;
+
+        var condition = (ExpressionSyntax)renamer.Visit(ifStatement.Condition)!.WithoutTrivia();
+        var result = IfStatement(condition, thenBody!);
+
+        if (ifStatement.Else is { } elseClause)
+        {
+            // `else if` chains recurse so the whole chain specializes at factory time onto the same run.
+            if (elseClause.Statement is IfStatementSyntax elseIf)
+            {
+                if (!TryBuildIf(semanticModel, partition, elseIf, liveSet, renamer, baseReplacements, runIdentifier, emission, out var elseIfScaffold))
+                    return false;
+                result = result.WithElse(ElseClause(elseIfScaffold!));
+            }
+            else
+            {
+                if (!TryBuildRegionBody(semanticModel, partition, elseClause.Statement, liveSet, renamer, baseReplacements, runIdentifier, emission, out var elseBody))
+                    return false;
+                result = result.WithElse(ElseClause(elseBody!));
+            }
+        }
+
+        scaffold = result;
+        return true;
+    }
+
+    /// <summary>
+    /// Partitions a region body into live code (verbatim, root-renamed runtime statements — declarations of live
+    /// locals and mutations of live accumulators) and quoted islands (each becomes <c>__run.Add(&lt;quote&gt;)</c>).
+    /// A nested live-control statement is not supported in v1 → <c>SY1014</c> (rather than a silent mis-expansion).
+    /// </summary>
+    private static bool TryBuildRegionBody(
+        SemanticModel semanticModel,
+        BindingTimePartition partition,
+        StatementSyntax body,
+        HashSet<ISymbol> liveSet,
+        RootRenameRewriter renamer,
+        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
+        SyntaxToken runIdentifier,
+        LiveRegionEmission emission,
+        out BlockSyntax? block)
+    {
+        block = null;
+        var statements = body is BlockSyntax blockBody
+            ? (IReadOnlyList<StatementSyntax>)blockBody.Statements
+            : new[] { body };
+
+        var result = new List<StatementSyntax>();
+        foreach (var statement in statements)
+        {
+            // A nested live-control region inside this body would be mis-expanded (quoted verbatim instead of
+            // unrolled) — degrade to a diagnostic instead.
+            if (partition.IsLiveControl(statement) || statement.DescendantNodes().Any(partition.IsLiveControl))
+            {
+                emission.Diagnostics.Add(Diagnostics.UnsupportedLiveShape(statement.GetLocation(), "nested live control region is not supported in v1"));
+                return false;
+            }
+
+            if (IsLiveStatement(semanticModel, statement, liveSet))
+            {
+                result.Add((StatementSyntax)renamer.Visit(statement)!.WithoutTrivia());
+                continue;
+            }
+
             var liftMap = new Dictionary<SyntaxNode, ExpressionSyntax>();
             foreach (var pair in baseReplacements)
                 liftMap[pair.Key] = pair.Value;
@@ -179,12 +394,12 @@ internal static class LiveRegionEmitter
             var islandQuoter = new TemplateSyntaxQuoter(semanticModel, liftMap, new HashSet<SyntaxNode>(), includeTrivia: false);
             if (islandQuoter.Visit(statement) is not { } island)
             {
-                emission.Diagnostics.Add(Diagnostics.UnsupportedLiveShape(region.ForEach.GetLocation(), "live loop body could not be quoted"));
+                emission.Diagnostics.Add(Diagnostics.UnsupportedLiveShape(body.GetLocation(), "live region body could not be quoted"));
                 return false;
             }
 
             // __run_N.Add(<island quote>);
-            addStatements.Add(
+            result.Add(
                 ExpressionStatement(
                     InvocationExpression(
                         MemberAccessExpression(
@@ -194,17 +409,62 @@ internal static class LiveRegionEmitter
                         .AddArgumentListArguments(Argument(island))));
         }
 
-        // The verbatim foreach, with live-root references rewritten to factory parameter names and the body
-        // replaced by the island-collecting adds.
-        var source = (ExpressionSyntax)new RootRenameRewriter(semanticModel, rootNames).Visit(region.ForEach.Expression)!;
-        emission.Preamble.Add(
-            ForEachStatement(
-                region.ForEach.Type.WithoutTrivia(),
-                region.ForEach.Identifier.WithoutTrivia(),
-                source.WithoutTrivia(),
-                Block(addStatements)));
-
+        block = Block(result);
         return true;
+    }
+
+    /// <summary>
+    /// True if <paramref name="statement"/> is live runtime code that must stay verbatim in the scaffold — a
+    /// declaration of a live local, or a mutation (assignment / increment / decrement) of a live local — rather
+    /// than a quoted output-world island.
+    /// </summary>
+    private static bool IsLiveStatement(SemanticModel semanticModel, StatementSyntax statement, HashSet<ISymbol> liveSet)
+    {
+        switch (statement)
+        {
+            case LocalDeclarationStatementSyntax local:
+                foreach (var declarator in local.Declaration.Variables)
+                    if (semanticModel.GetDeclaredSymbol(declarator) is { } symbol && liveSet.Contains(symbol))
+                        return true;
+                return false;
+
+            case ExpressionStatementSyntax expressionStatement:
+                return IsLiveMutation(semanticModel, expressionStatement.Expression, liveSet);
+        }
+
+        return false;
+    }
+
+    private static bool IsLiveMutation(SemanticModel semanticModel, ExpressionSyntax expression, HashSet<ISymbol> liveSet)
+    {
+        ExpressionSyntax? target = expression switch
+        {
+            AssignmentExpressionSyntax assignment => assignment.Left,
+            PostfixUnaryExpressionSyntax postfix => postfix.Operand,
+            PrefixUnaryExpressionSyntax prefix when prefix.IsKind(SyntaxKind.PreIncrementExpression) || prefix.IsKind(SyntaxKind.PreDecrementExpression) => prefix.Operand,
+            _ => null,
+        };
+
+        if (target is null)
+            return false;
+
+        var symbol = semanticModel.GetSymbolInfo(target).Symbol;
+        return symbol is not null && liveSet.Contains(symbol);
+    }
+
+    private static bool ReferencesLive(SemanticModel semanticModel, SyntaxNode node, HashSet<ISymbol> liveSet)
+    {
+        foreach (var identifier in node.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
+        {
+            if (identifier.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == identifier)
+                continue;
+
+            var symbol = semanticModel.GetSymbolInfo(identifier).Symbol;
+            if (symbol is not null && liveSet.Contains(symbol))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary><c>CollectionSyntaxExtensions.ListSegment&lt;StatementSyntax&gt;.Run(runName)</c>.</summary>
@@ -255,6 +515,12 @@ internal static class LiveRegionEmitter
 
     private static bool IsPurelyLive(SemanticModel semanticModel, ExpressionSyntax expression, HashSet<ISymbol> liveSet)
     {
+        // An invocation / object creation is output-world CODE that must be emitted as syntax (e.g.
+        // `System.Console.WriteLine(k)` is quoted, with only its live operand `k` lifted) — never collapsed
+        // to a literal — even when all its operands are live. Force descent so the live operands lift instead.
+        if (expression.DescendantNodesAndSelf().Any(n => n is InvocationExpressionSyntax or BaseObjectCreationExpressionSyntax))
+            return false;
+
         bool hasLive = false;
         foreach (var identifier in expression.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
         {

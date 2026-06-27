@@ -53,3 +53,34 @@ builder/usings sharp edges, deliberately deferred scope). Empty findings are not
   `Parameter(..., <ExpressionSyntax>, ...)` into a `TypeSyntax` slot → CS1503. The plan's `Member` snapshot uses
   that form but only snapshots it (latent, never compiled); the zero-collision compile test uses the param form
   `[Inline(AsSyntax = true)] object instance` instead. Quoter/bootstrap untouched.
+
+## Additional control shapes + accumulation (Task 7)
+
+- **`IsPurelyLive` mis-classified output-world calls as liftable.** The depth-0 lift heuristic (lift the maximal
+  subexpression that references a live symbol and no output-world local) silently broke on an island like
+  `System.Console.WriteLine(k)` where `k` is the only value and it is live: with no output-world *local* to
+  disqualify it, the whole invocation was lifted as `System.Console.WriteLine(k).ToSyntax()` (nonsense — a void
+  call collapsed to a literal). Task 6's canonical island only worked because it carried an output-world `i`
+  (`i == c.Ordinal`) that forced descent. Fix: an `InvocationExpression`/`BaseObjectCreationExpression` in the
+  subtree is output-world code that must be QUOTED (its live operands lift), never collapsed — `IsPurelyLive`
+  now returns false for those so the walker descends to the live operands. Conservative default: `c.Name.ToUpper()`
+  stays output-world (wrap in `Live(...)` to force factory-time).
+- **Loop vars + accumulators live outside the classifier.** The classifier's live set covers neither loop
+  variables (no `VariableDeclarator` for a `foreach` var; a `for` declarator's `int k = 0` initializer isn't
+  live) nor mutation-defined accumulators (`int sum = 0; sum += c.Ordinal;` — the init `0` isn't live). The
+  emitter recovers both via `ComputeLiveSet`: seed from `partition.LiveSymbols`, add every region loop var, then
+  fixpoint over the region bodies adding any local whose initializer OR an assignment's RHS references the
+  current live set. An accumulator declared as a *container sibling* (before the loop) is then recognized live
+  and hoisted verbatim into the factory body, not quoted.
+- **Region-body statement partition.** Within a scaffold body a statement is kept VERBATIM (root-renamed runtime
+  code) iff it is a live-local declaration or a mutation (`=`/`+=`/`++`/`--`) of a live local; otherwise it is a
+  quoted island (`__run.Add(<quote>)`). `if` branch-specializes onto the SAME run (both branches append; exactly
+  one runs at factory time); `else if` chains recurse.
+- **`while` driver via `Live<T>()`.** A `while` needs a mutable live driver — `var k = Live(0); while (k < n) { …; k++; }`.
+  The live-local hoist (`var k = 0;`) is the runtime driver; its region-consumed refs (`k < n`, `k++`, and the
+  island `k`) skip the depth-0 `syntaxForLive_k` lift entirely (it would be dead), so the live-local loop now
+  filters region-consumed refs exactly like the live-param loop.
+- **Nested live regions guarded, not handled.** A live-control statement nested inside another region's body
+  (only reachable when both drivers are roots — a loop-var-driven inner control is NOT classifier-live, so
+  Task 6's inner `if (i == c.Ordinal)` stays a quoted island) would be mis-expanded; the emitter degrades it to
+  `SY1014`. True nested-container recursion is deferred.

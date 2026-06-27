@@ -59,11 +59,19 @@ internal sealed class BindingTimePartition
 {
     private readonly Dictionary<SyntaxNode, BindingTime> _classification;
 
-    public BindingTimePartition(Dictionary<SyntaxNode, BindingTime> classification, IReadOnlyList<(SyntaxNode Node, string Reason)> impossibleCuts)
+    public BindingTimePartition(Dictionary<SyntaxNode, BindingTime> classification, IReadOnlyList<(SyntaxNode Node, string Reason)> impossibleCuts, IReadOnlyCollection<ISymbol> liveSymbols)
     {
         _classification = classification;
         ImpossibleCuts = impossibleCuts;
+        LiveSymbols = liveSymbols;
     }
+
+    /// <summary>
+    /// Every symbol liveness reached (the seed roots plus locals whose definition transitively depends on a
+    /// root). The staging emitter seeds its region-local live set from this (then augments with loop variables
+    /// and accumulators it discovers, which the classifier does not track — plan Task 7).
+    /// </summary>
+    public IReadOnlyCollection<ISymbol> LiveSymbols { get; }
 
     /// <summary>The binding-time of <paramref name="node"/>; <see cref="BindingTime.Quoted"/> when unclassified.</summary>
     public BindingTime Classify(SyntaxNode node) =>
@@ -117,7 +125,7 @@ internal sealed class BindingTimeClassifier
         classifier.PropagateLiveness();
         var classification = classifier.ClassifyNodes();
         var impossibleCuts = classifier.FindImpossibleCuts();
-        return new BindingTimePartition(classification, impossibleCuts);
+        return new BindingTimePartition(classification, impossibleCuts, classifier._live);
     }
 
     /// <summary>True if any identifier inside <paramref name="node"/> binds to a live symbol.</summary>

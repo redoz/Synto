@@ -529,7 +529,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         }
 
         var partition = BindingTimeClassifier.Classify(semanticModel, templateInfo.Source.Syntax, classifierRoots);
-        var liveRegions = LiveRegionEmitter.FindForeachRegions(semanticModel, templateInfo.Source.Syntax, partition);
+        var liveRegions = LiveRegionEmitter.FindRegions(semanticModel, templateInfo.Source.Syntax, partition);
         var regionConsumedNodes = LiveRegionEmitter.ComputeConsumedNodes(liveRegions);
         int liveRegionCounter = 0;
 
@@ -593,25 +593,32 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                             VariableDeclarator(Identifier(liveLocal.Name))
                                 .WithInitializer(EqualsValueClause(liveLocal.ValueExpression.WithoutTrivia()))))));
 
-            // value.ToSyntax() — lift the runtime value into the produced syntax, exactly like an [Inline] value.
-            var syntaxForLiveIdentifier = Identifier("syntaxForLive_" + liveLocal.Name);
-            preamble.Add(
-                LocalDeclarationStatement(
-                    VariableDeclaration(
-                        additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
-                        SingletonSeparatedList(
-                            VariableDeclarator(
-                                syntaxForLiveIdentifier,
-                                null,
-                                EqualsValueClause(
-                                    InvocationExpression(
-                                        MemberAccessExpression(
-                                            SyntaxKind.SimpleMemberAccessExpression,
-                                            IdentifierName(liveLocal.Name),
-                                            IdentifierName("ToSyntax")))))))));
+            // References consumed by a live region are handled by the verbatim scaffold (the live local is a
+            // real runtime driver/accumulator there — e.g. a `while` driver, `k++`); only depth-0 references
+            // lift via value.ToSyntax(), exactly like an [Inline] value. When every reference is region-consumed
+            // the ToSyntax lift is dead, so it is not emitted at all.
+            var liveLocalDepthZeroReferences = liveLocal.References.Where(reference => !regionConsumedNodes.Contains(reference)).ToList();
+            if (liveLocalDepthZeroReferences.Count > 0)
+            {
+                var syntaxForLiveIdentifier = Identifier("syntaxForLive_" + liveLocal.Name);
+                preamble.Add(
+                    LocalDeclarationStatement(
+                        VariableDeclaration(
+                            additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
+                            SingletonSeparatedList(
+                                VariableDeclarator(
+                                    syntaxForLiveIdentifier,
+                                    null,
+                                    EqualsValueClause(
+                                        InvocationExpression(
+                                            MemberAccessExpression(
+                                                SyntaxKind.SimpleMemberAccessExpression,
+                                                IdentifierName(liveLocal.Name),
+                                                IdentifierName("ToSyntax")))))))));
 
-            foreach (var reference in liveLocal.References)
-                unquotedReplacements.Add(reference, IdentifierName(syntaxForLiveIdentifier));
+                foreach (var reference in liveLocalDepthZeroReferences)
+                    unquotedReplacements.Add(reference, IdentifierName(syntaxForLiveIdentifier));
+            }
 
             trimNodes.Add(liveLocal.Declaration);
         }
@@ -702,8 +709,9 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // lifts collected so far; the container replacement is added LAST so neither sees it.
         var liveRegionEmission = LiveRegionEmitter.Emit(
             semanticModel,
+            partition,
             liveRegions,
-            liveRootSymbols,
+            partition.LiveSymbols,
             rootNames,
             unquotedReplacements,
             trimNodes,
