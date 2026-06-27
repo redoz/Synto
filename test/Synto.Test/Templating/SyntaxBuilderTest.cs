@@ -218,6 +218,58 @@ public class SyntaxBuilderTest
         AssertHasRealSpan(diag);
     }
 
+    // Diagnostic: a [SyntaxBuilder] whose return type is neither ExpressionSyntax nor TypeSyntax.
+    [Fact]
+    public void BuilderBadReturnShape_ReportsSY1017()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                // returns int -> not a supported builder return shape.
+                [SyntaxBuilder]
+                public static int Nope([Quoted] ExpressionSyntax x) => 0;
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Inline(AsSyntax = true)] object x) => System.Console.WriteLine(Bad.Nope(x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1017");
+        AssertHasRealSpan(diag);
+    }
+
+    // Diagnostic: two [SyntaxBuilder] methods synthesize a colliding facade (same simple name).
+    [Fact]
+    public void AmbiguousBuilder_ReportsSY1018()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Builders {
+                // two builders with the SAME facade name `Wrap` -> ambiguous once a call matches.
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x, [Quoted] ExpressionSyntax y) => x;
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Inline(AsSyntax = true)] object x) => System.Console.WriteLine(Builders.Wrap(x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1018");
+        AssertHasRealSpan(diag);
+    }
+
     // Zero-collision: the built-in Member builder is injected internal and called fully-qualified, so the
     // generated output compiles alongside the PUBLIC Synto.Core in the default scope with no CS0121 ambiguity
     // and no Synto.Core runtime dependency (the injected SyntoBuilders is the consumer's own internal copy).
