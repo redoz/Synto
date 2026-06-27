@@ -219,6 +219,20 @@ internal static class Diagnostics
             new EquatableArray<string>(ImmutableArray.Create(name, firstType, secondType)));
     }
 
+    private static readonly DiagnosticDescriptor _impossibleCut = new(IdPrefix + "1013",
+        "Impossible Cut",
+        "Live binding cannot run at factory time: {0}",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo ImpossibleCut(Location? location, string reason)
+    {
+        return new DiagnosticInfo(_impossibleCut,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(reason)));
+    }
+
     private static readonly DiagnosticDescriptor _unsupportedLiveShape = new(IdPrefix + "1014",
         "Unsupported Live Shape",
         "Live control-flow shape is not supported by the staging emitter: {0}",

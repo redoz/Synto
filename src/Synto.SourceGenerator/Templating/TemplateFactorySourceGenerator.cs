@@ -529,6 +529,17 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         }
 
         var partition = BindingTimeClassifier.Classify(semanticModel, templateInfo.Source.Syntax, classifierRoots);
+
+        // An impossible cut (a live binding that transitively depends on an output-world/quoted value) cannot be
+        // evaluated at factory time: report it (SY1013) with the offending span and bail rather than emit a
+        // factory that would not compile.
+        if (partition.ImpossibleCuts.Count > 0)
+        {
+            foreach (var cut in partition.ImpossibleCuts)
+                diagnostics.Add(Diagnostics.ImpossibleCut(cut.Node.GetLocation(), cut.Reason));
+            return null;
+        }
+
         var liveRegions = LiveRegionEmitter.FindRegions(semanticModel, templateInfo.Source.Syntax, partition);
         var regionConsumedNodes = LiveRegionEmitter.ComputeConsumedNodes(liveRegions);
         int liveRegionCounter = 0;
