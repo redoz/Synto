@@ -10,9 +10,9 @@ namespace Synto;
 /// A resolved live template parameter (plan Task 1): one factory parameter lifted from one or more
 /// <c>Template.Parameter&lt;T&gt;()</c> sites sharing an identity of <c>(name, T)</c>.
 /// </summary>
-internal sealed class LiveParameter
+internal sealed class StagedParameter
 {
-    public LiveParameter(string name, ITypeSymbol type, ISymbol? symbol, IReadOnlyList<ISymbol> symbols, IReadOnlyList<SyntaxNode> references, IReadOnlyList<SyntaxNode> trimNodes)
+    public StagedParameter(string name, ITypeSymbol type, ISymbol? symbol, IReadOnlyList<ISymbol> symbols, IReadOnlyList<SyntaxNode> references, IReadOnlyList<SyntaxNode> trimNodes)
     {
         Name = name;
         Type = type;
@@ -52,19 +52,19 @@ internal sealed class LiveParameter
 }
 
 /// <summary>The result of discovering live parameters: the resolved parameters plus any naming diagnostics.</summary>
-internal sealed class LiveParameterResult
+internal sealed class StagedParameterResult
 {
-    public LiveParameterResult(IReadOnlyList<LiveParameter> parameters, IReadOnlyList<DiagnosticInfo> diagnostics)
+    public StagedParameterResult(IReadOnlyList<StagedParameter> parameters, IReadOnlyList<DiagnosticInfo> diagnostics)
     {
         Parameters = parameters;
         Diagnostics = diagnostics;
     }
 
-    public IReadOnlyList<LiveParameter> Parameters { get; }
+    public IReadOnlyList<StagedParameter> Parameters { get; }
     public IReadOnlyList<DiagnosticInfo> Diagnostics { get; }
 }
 
-internal sealed class LiveParameterFinder : CSharpSyntaxWalker
+internal sealed class StagedParameterFinder : CSharpSyntaxWalker
 {
     private sealed class Site
     {
@@ -92,9 +92,9 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
 
     private static readonly SymbolDisplayFormat TypeFormat = SymbolDisplayFormat.FullyQualifiedFormat;
 
-    public static LiveParameterResult FindLiveParameters(SemanticModel semanticModel, SyntaxNode node)
+    public static StagedParameterResult FindStagedParameters(SemanticModel semanticModel, SyntaxNode node)
     {
-        var finder = new LiveParameterFinder(semanticModel);
+        var finder = new StagedParameterFinder(semanticModel);
         finder.Visit(node);
         return finder.Resolve();
     }
@@ -104,7 +104,7 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
     private readonly List<Site> _sites = new();
     private readonly Dictionary<ISymbol, Site> _siteByLocal = new(SymbolEqualityComparer.Default);
 
-    private LiveParameterFinder(SemanticModel semanticModel)
+    private StagedParameterFinder(SemanticModel semanticModel)
     {
         _semanticModel = semanticModel;
         _templateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);
@@ -166,7 +166,7 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
         _sites.Add(inlineSite);
     }
 
-    private LiveParameterResult Resolve()
+    private StagedParameterResult Resolve()
     {
         var diagnostics = new List<DiagnosticInfo>();
         var valid = new List<Site>();
@@ -176,14 +176,14 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
         {
             if (site.ResolvedName is null)
             {
-                diagnostics.Add(Diagnostics.LiveParameterMissingName(site.Invocation.GetLocation()));
+                diagnostics.Add(Diagnostics.UnquoteParameterMissingName(site.Invocation.GetLocation()));
                 continue;
             }
 
             valid.Add(site);
         }
 
-        var parameters = new List<LiveParameter>();
+        var parameters = new List<StagedParameter>();
 
         foreach (var group in valid.GroupBy(s => s.ResolvedName, System.StringComparer.Ordinal))
         {
@@ -198,7 +198,7 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
             if (distinctTypes.Count > 1)
             {
                 var conflicting = groupSites.First(s => s.Type.ToDisplayString(TypeFormat) != distinctTypes[0]);
-                diagnostics.Add(Diagnostics.LiveParameterTypeConflict(
+                diagnostics.Add(Diagnostics.UnquoteParameterTypeConflict(
                     conflicting.Invocation.GetLocation(),
                     group.Key!,
                     distinctTypes[0],
@@ -210,7 +210,7 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
             if (groupSites.Count > 1 && groupSites.Count(s => s.ExplicitName is not null) > 1)
             {
                 var second = groupSites.Where(s => s.ExplicitName is not null).Skip(1).First();
-                diagnostics.Add(Diagnostics.LiveParameterNameCollision(second.Invocation.GetLocation(), group.Key!));
+                diagnostics.Add(Diagnostics.UnquoteParameterNameCollision(second.Invocation.GetLocation(), group.Key!));
                 continue;
             }
 
@@ -219,9 +219,9 @@ internal sealed class LiveParameterFinder : CSharpSyntaxWalker
             var symbols = groupSites.Select(s => s.Local).Where(s => s is not null).Select(s => s!).ToList();
             var symbol = symbols.FirstOrDefault();
 
-            parameters.Add(new LiveParameter(group.Key!, groupSites[0].Type, symbol, symbols, references, trimNodes));
+            parameters.Add(new StagedParameter(group.Key!, groupSites[0].Type, symbol, symbols, references, trimNodes));
         }
 
-        return new LiveParameterResult(parameters, diagnostics);
+        return new StagedParameterResult(parameters, diagnostics);
     }
 }

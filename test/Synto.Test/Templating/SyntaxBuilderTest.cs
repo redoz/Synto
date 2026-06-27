@@ -144,7 +144,7 @@ public class SyntaxBuilderTest
     // META: an UNMARKED ExpressionSyntax builder parameter receives a LIVE ExpressionSyntax passed through
     // UNQUOTED (the case the parameter TYPE cannot disambiguate; Locked Names §6).
     [Fact]
-    public async Task UnmarkedExpressionSyntaxParam_PassesLiveSyntaxThroughUnquoted()
+    public async Task UnmarkedExpressionSyntaxParam_PassesStagedSyntaxThroughUnquoted()
     {
         await VerifyBuilderTemplate(
             """

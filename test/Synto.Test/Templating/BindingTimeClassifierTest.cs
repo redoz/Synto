@@ -54,7 +54,7 @@ public class BindingTimeClassifierTest
     }
 
     [Fact]
-    public void ValueDependingOnRoot_IsLiveValue()
+    public void ValueDependingOnRoot_IsUnquote()
     {
         var (model, method) = Compile(
             """
@@ -66,16 +66,16 @@ public class BindingTimeClassifierTest
             }
             """);
 
-        var roots = new[] { new LiveRoot(Parameter(model, method, "root")) };
+        var roots = new[] { new StagedRoot(Parameter(model, method, "root")) };
         var partition = BindingTimeClassifier.Classify(model, method.Body!, roots);
 
         var sum = method.Body!.DescendantNodes().OfType<BinaryExpressionSyntax>().Single();
-        Assert.True(partition.IsLiveValue(sum));
+        Assert.True(partition.IsUnquote(sum));
         Assert.Empty(partition.ImpossibleCuts);
     }
 
     [Fact]
-    public void ForeachOverRoot_IsLiveControl()
+    public void ForeachOverRoot_IsStagedControl()
     {
         var (model, method) = Compile(
             """
@@ -88,11 +88,11 @@ public class BindingTimeClassifierTest
             }
             """);
 
-        var roots = new[] { new LiveRoot(Parameter(model, method, "root")) };
+        var roots = new[] { new StagedRoot(Parameter(model, method, "root")) };
         var partition = BindingTimeClassifier.Classify(model, method.Body!, roots);
 
         var loop = method.Body!.DescendantNodes().OfType<ForEachStatementSyntax>().Single();
-        Assert.True(partition.IsLiveControl(loop));
+        Assert.True(partition.IsStagedControl(loop));
     }
 
     [Fact]
@@ -107,13 +107,13 @@ public class BindingTimeClassifierTest
             }
             """);
 
-        var roots = new[] { new LiveRoot(Parameter(model, method, "root")) };
+        var roots = new[] { new StagedRoot(Parameter(model, method, "root")) };
         var partition = BindingTimeClassifier.Classify(model, method.Body!, roots);
 
         var call = method.Body!.DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
         Assert.Equal(BindingTime.Quoted, partition.Classify(call));
-        Assert.False(partition.IsLiveValue(call));
-        Assert.False(partition.IsLiveControl(call));
+        Assert.False(partition.IsUnquote(call));
+        Assert.False(partition.IsStagedControl(call));
     }
 
     [Fact]
@@ -130,18 +130,18 @@ public class BindingTimeClassifierTest
             }
             """);
 
-        var roots = new[] { new LiveRoot(Parameter(model, method, "root")) };
+        var roots = new[] { new StagedRoot(Parameter(model, method, "root")) };
         var partition = BindingTimeClassifier.Classify(model, method.Body!, roots);
 
         var loop = method.Body!.DescendantNodes().OfType<ForEachStatementSyntax>().Single();
-        Assert.False(partition.IsLiveControl(loop));
+        Assert.False(partition.IsStagedControl(loop));
         Assert.Equal(BindingTime.Quoted, partition.Classify(loop));
     }
 
     [Fact]
-    public void LiveDependingOnGeneratedWorld_IsImpossibleCut()
+    public void StagedDependingOnGeneratedWorld_IsImpossibleCut()
     {
-        // A bound root `bad` (modelling `var bad = Live(generatedWorld + 1);`) whose binding expression depends
+        // A bound root `bad` (modelling `var bad = Unquote(generatedWorld + 1);`) whose binding expression depends
         // on the output-world parameter `generatedWorld` (not a live root) cannot be evaluated at factory time.
         var (model, method) = Compile(
             """
@@ -154,7 +154,7 @@ public class BindingTimeClassifierTest
             """);
 
         var bindingExpression = method.Body!.DescendantNodes().OfType<BinaryExpressionSyntax>().Single();
-        var roots = new[] { new LiveRoot(Local(model, method, "bad"), bindingExpression) };
+        var roots = new[] { new StagedRoot(Local(model, method, "bad"), bindingExpression) };
         var partition = BindingTimeClassifier.Classify(model, method.Body!, roots);
 
         var cut = Assert.Single(partition.ImpossibleCuts);

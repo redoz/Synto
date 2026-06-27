@@ -11,7 +11,7 @@ namespace Synto.Test.Templating;
 /// parameter (caller-supplied) rather than quoting it, mirroring an <c>[Inline]</c> value but with the
 /// value originating as a factory parameter. Identity is <c>(name, T)</c>; naming errors are diagnostics.
 /// </summary>
-public class LiveParameterTest
+public class StagedParameterTest
 {
     private static readonly MetadataReference CorlibReference = MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
     private static readonly MetadataReference NetStandardReference = MetadataReference.CreateFromFile(Assembly.Load("netstandard, Version=2.0.0.0").Location);

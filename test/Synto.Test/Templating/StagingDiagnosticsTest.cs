@@ -53,7 +53,7 @@ public class StagingDiagnosticsTest
         Assert.False(diag.Location.SourceSpan.IsEmpty);
     }
 
-    // A Live<T>() binding that depends on an output-world (quoted) parameter cannot run at factory time.
+    // A Unquote<T>() binding that depends on an output-world (quoted) parameter cannot run at factory time.
     [Fact]
     public void ImpossibleCut_ReportsSY1013()
     {
@@ -65,7 +65,7 @@ public class StagingDiagnosticsTest
             public class TestClass {
                 [Template(typeof(Factory))]
                 void Build(int generatedWorld) {
-                    var bad = Live(generatedWorld + 1);  // live fragment needs a value that exists only in OUTPUT
+                    var bad = Unquote(generatedWorld + 1);  // live fragment needs a value that exists only in OUTPUT
                     System.Console.WriteLine(bad);
                 }
             }
@@ -76,7 +76,7 @@ public class StagingDiagnosticsTest
 
     // A live region nested inside another live region's body is not unrolled in v1.
     [Fact]
-    public void UnsupportedLiveShape_ReportsSY1014()
+    public void UnsupportedStagedShape_ReportsSY1014()
     {
         var diagnostics = RunAndGetDiagnostics(
             """
@@ -103,7 +103,7 @@ public class StagingDiagnosticsTest
     // region discovery (only block-owned regions unroll in v1); it must degrade to SY1014, not silently fall
     // through to the normal quoter (which would lift the live driver into the OUTPUT — wrong code, no diagnostic).
     [Fact]
-    public void LiveControlUnderOutputWorldStatement_ReportsSY1014()
+    public void StagedControlUnderOutputWorldStatement_ReportsSY1014()
     {
         var diagnostics = RunAndGetDiagnostics(
             """

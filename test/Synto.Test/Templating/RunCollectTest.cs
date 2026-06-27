@@ -51,7 +51,7 @@ public class RunCollectTest
 
     // Snapshot: foreach over a live Parameter<T>() root unrolls to a per-column if-chain (the canonical case).
     [Fact]
-    public async Task ForeachOverLiveParameter_UnrollsToIfChain()
+    public async Task ForeachOverStagedParameter_UnrollsToIfChain()
     {
         await VerifyTemplate(
             """

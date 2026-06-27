@@ -6,13 +6,13 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace Synto.Test.Templating;
 
 /// <summary>
-/// Exercises the live bound roots of the live-staged surface (plan Task 2): a <c>Template.Live&lt;T&gt;()</c>
+/// Exercises the live bound roots of the live-staged surface (plan Task 2): a <c>Template.Unquote&lt;T&gt;()</c>
 /// local runs its bound expression at factory-build time (a real runtime local hoisted into the factory) and
-/// lifts the resulting value into the produced syntax; a <c>[Live]</c> method parameter is supplied to the
+/// lifts the resulting value into the produced syntax; a <c>[Unquote]</c> method parameter is supplied to the
 /// factory at invocation time and lifted the same way. Both are depth-0 here; staging over control flow
 /// arrives in later tasks.
 /// </summary>
-public class LiveRootTest
+public class StagedRootTest
 {
     private static readonly MetadataReference CorlibReference = MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
     private static readonly MetadataReference NetStandardReference = MetadataReference.CreateFromFile(Assembly.Load("netstandard, Version=2.0.0.0").Location);
@@ -52,7 +52,7 @@ public class LiveRootTest
 
     // Snapshot: a live local runs in the factory and its value lifts into the output.
     [Fact]
-    public async Task LiveLocal_RunsInFactory_AndLiftsValue()
+    public async Task StagedLocal_RunsInFactory_AndLiftsValue()
     {
         await VerifyTemplate(
             """
@@ -62,16 +62,16 @@ public class LiveRootTest
             public class TestClass {
                 [Template(typeof(Factory))]
                 void Build() {
-                    var n = Live(2 + 3);           // runs at factory time -> 5
+                    var n = Unquote(2 + 3);           // runs at factory time -> 5
                     System.Console.WriteLine(n);   // lifts to literal 5 in the OUTPUT
                 }
             }
             """);
     }
 
-    // Snapshot: a [Live] parameter lifts to a caller-supplied factory parameter (depth-0 == an [Inline] value).
+    // Snapshot: a [Unquote] parameter lifts to a caller-supplied factory parameter (depth-0 == an [Inline] value).
     [Fact]
-    public async Task LiveParameter_LiftsToFactoryParameter()
+    public async Task StagedParameter_LiftsToFactoryParameter()
     {
         await VerifyTemplate(
             """
@@ -79,7 +79,7 @@ public class LiveRootTest
             partial class Factory {}
             public class TestClass {
                 [Template(typeof(Factory))]
-                void Build([Live] int count) {
+                void Build([Unquote] int count) {
                     System.Console.WriteLine(count);
                 }
             }

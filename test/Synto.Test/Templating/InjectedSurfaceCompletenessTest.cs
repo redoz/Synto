@@ -115,7 +115,7 @@ public class InjectedSurfaceCompletenessTest
     /// builder is a hard compile error:
     /// <list type="bullet">
     /// <item>a <c>Parameter&lt;T&gt;()</c> live root (the column list) lifted to a factory parameter;</item>
-    /// <item>a <c>Live&lt;T&gt;()</c> local (computed at factory time) fed by a <c>[Live]</c> method parameter;</item>
+    /// <item>a <c>Unquote&lt;T&gt;()</c> local (computed at factory time) fed by a <c>[Unquote]</c> method parameter;</item>
     /// <item>a live <c>foreach</c> that unrolls at factory time and emits the file-local <c>BuildList</c>
     /// collection helper;</item>
     /// <item>the built-in <c>Member</c> builder (member access over an <c>[Inline(AsSyntax)]</c> instance with a
@@ -138,9 +138,9 @@ public class InjectedSurfaceCompletenessTest
 
         public class TestClass {
             [Template(typeof(Factory))]
-            object StagedKitchenSink([Inline(AsSyntax = true)] object row, int i, [Live] int bump) {
+            object StagedKitchenSink([Inline(AsSyntax = true)] object row, int i, [Unquote] int bump) {
                 var columns = Parameter<IReadOnlyList<Col>>();   // live Parameter root -> factory parameter
-                var offset = Live(bump + 1);                      // live local fed by the [Live] parameter
+                var offset = Unquote(bump + 1);                      // live local fed by the [Unquote] parameter
                 Console.WriteLine(offset);                        // offset live -> lifts to an int literal (island)
                 foreach (var c in columns)                        // live foreach -> unrolls -> BuildList run
                     if (i == c.Ordinal)                           // i quoted; c.Ordinal (loop var) -> int literal
@@ -156,7 +156,7 @@ public class InjectedSurfaceCompletenessTest
     /// Regression guard (deep end-review, correctness): a live <c>Parameter&lt;T&gt;()</c> whose FACTORY-parameter
     /// name differs from the source local — here an explicit <c>Parameter&lt;…&gt;("columns")</c> bound to local
     /// <c>cols</c> — referenced BY VALUE <b>inside</b> a live region island. The island lift
-    /// (<c>LiveRegionEmitter.CollectLiftPoints</c>) must rename the live-root reference to the factory parameter
+    /// (<c>StagedRegionEmitter.CollectLiftPoints</c>) must rename the live-root reference to the factory parameter
     /// just like every other staging path; if it lifts the original identifier (<c>cols.Count.ToSyntax()</c>) the
     /// trimmed local is gone and the generated factory fails with CS0103. The foreach-driver and depth-0 paths
     /// already rename; this pins the island path.
@@ -185,9 +185,9 @@ public class InjectedSurfaceCompletenessTest
         """;
 
     [Fact]
-    public void RenamedLiveRoot_ReferencedByValueInRegion_Compiles()
+    public void RenamedStagedRoot_ReferencedByValueInRegion_Compiles()
     {
-        var compilation = CSharpCompilation.Create("RenamedLiveRootInRegionTest",
+        var compilation = CSharpCompilation.Create("RenamedStagedRootInRegionTest",
             [CSharpSyntaxTree.ParseText(RenamedRootInRegionTemplate)],
             references:
             [

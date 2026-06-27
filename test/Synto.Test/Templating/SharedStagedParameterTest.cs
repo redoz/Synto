@@ -10,7 +10,7 @@ namespace Synto.Test.Templating;
 /// <c>var columns = Parameter&lt;…&gt;();</c> with the SAME inferred (name, T), so they dedup to ONE factory
 /// parameter — and EVERY member's live <c>foreach</c> must unroll, not just the first declaration site.
 /// </summary>
-public class SharedLiveParameterTest
+public class SharedStagedParameterTest
 {
     private static readonly MetadataReference CorlibReference = MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
     private static readonly MetadataReference NetStandardReference = MetadataReference.CreateFromFile(Assembly.Load("netstandard, Version=2.0.0.0").Location);

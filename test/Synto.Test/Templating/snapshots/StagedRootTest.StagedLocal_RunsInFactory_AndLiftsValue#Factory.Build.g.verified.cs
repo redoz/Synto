@@ -13,7 +13,7 @@ partial class Factory
     public static MethodDeclarationSyntax Build()
     {
         var n = 2 + 3;
-        ExpressionSyntax syntaxForLive_n = n.ToSyntax();
+        ExpressionSyntax syntaxForStaged_n = n.ToSyntax();
         return MethodDeclaration(
                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
                    TokenList(), 
@@ -50,7 +50,7 @@ partial class Factory
                                                    Argument(
                                                        null, 
                                                        Token(None), 
-                                                       syntaxForLive_n) }), 
+                                                       syntaxForStaged_n) }), 
                                            Token(CloseParenToken))), 
                                    Token(SemicolonToken)) }), 
                        Token(CloseBraceToken)), 

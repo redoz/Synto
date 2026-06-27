@@ -8,8 +8,8 @@ namespace Synto;
 /// <summary>
 /// The binding-time of a node inside a <c>[Template]</c> body (plan Task 4 / spec §4). A node is either
 /// <see cref="Quoted"/> (independent of every live root — emitted as output-world syntax, the default/unchanged
-/// behaviour), <see cref="LiveValue"/> (an expression whose value depends on a live root, consumed in value
-/// position — lifted at factory time), or <see cref="LiveControl"/> (a control-flow construct whose driving
+/// behaviour), <see cref="Unquote"/> (an expression whose value depends on a live root, consumed in value
+/// position — lifted at factory time), or <see cref="StagedControl"/> (a control-flow construct whose driving
 /// expression — iteration source / condition — is live, so it runs at factory time and unrolls/specializes).
 /// </summary>
 internal enum BindingTime
@@ -18,21 +18,21 @@ internal enum BindingTime
     Quoted,
 
     /// <summary>An expression whose value transitively depends on a live root; lifted at factory time.</summary>
-    LiveValue,
+    Unquote,
 
     /// <summary>A control-flow construct whose driving expression is live; runs at factory time.</summary>
-    LiveControl,
+    StagedControl,
 }
 
 /// <summary>
 /// A live root the classifier seeds liveness from (plan Task 4). Discovered upstream by the live finders:
-/// a <c>Parameter&lt;T&gt;()</c> parameter, a <c>[Live]</c> method parameter, or a <c>Live&lt;T&gt;(expr)</c>
+/// a <c>Parameter&lt;T&gt;()</c> parameter, a <c>[Unquote]</c> method parameter, or a <c>Unquote&lt;T&gt;(expr)</c>
 /// bound local. A <em>bound</em> root carries the factory-time <see cref="BindingExpression"/> that defines it;
 /// a bound root whose expression transitively depends on an output-world (quoted) value is an impossible cut.
 /// </summary>
-internal readonly struct LiveRoot
+internal readonly struct StagedRoot
 {
-    public LiveRoot(ISymbol symbol, ExpressionSyntax? bindingExpression = null)
+    public StagedRoot(ISymbol symbol, ExpressionSyntax? bindingExpression = null)
     {
         Symbol = symbol;
         BindingExpression = bindingExpression;
@@ -42,9 +42,9 @@ internal readonly struct LiveRoot
     public ISymbol Symbol { get; }
 
     /// <summary>
-    /// For a bound root (<c>var n = Live&lt;T&gt;(expr);</c>), the factory-time expression that defines it —
+    /// For a bound root (<c>var n = Unquote&lt;T&gt;(expr);</c>), the factory-time expression that defines it —
     /// it must be evaluable at factory time (depend only on live/constant values). <c>null</c> for a root
-    /// supplied by the caller (a <c>Parameter&lt;T&gt;()</c> / <c>[Live]</c> parameter), which can never be an
+    /// supplied by the caller (a <c>Parameter&lt;T&gt;()</c> / <c>[Unquote]</c> parameter), which can never be an
     /// impossible cut.
     /// </summary>
     public ExpressionSyntax? BindingExpression { get; }
@@ -63,7 +63,7 @@ internal sealed class BindingTimePartition
     {
         _classification = classification;
         ImpossibleCuts = impossibleCuts;
-        LiveSymbols = liveSymbols;
+        StagedSymbols = liveSymbols;
     }
 
     /// <summary>
@@ -71,15 +71,15 @@ internal sealed class BindingTimePartition
     /// root). The staging emitter seeds its region-local live set from this (then augments with loop variables
     /// and accumulators it discovers, which the classifier does not track — plan Task 7).
     /// </summary>
-    public IReadOnlyCollection<ISymbol> LiveSymbols { get; }
+    public IReadOnlyCollection<ISymbol> StagedSymbols { get; }
 
     /// <summary>The binding-time of <paramref name="node"/>; <see cref="BindingTime.Quoted"/> when unclassified.</summary>
     public BindingTime Classify(SyntaxNode node) =>
         _classification.TryGetValue(node, out var bindingTime) ? bindingTime : BindingTime.Quoted;
 
-    public bool IsLiveValue(SyntaxNode node) => Classify(node) == BindingTime.LiveValue;
+    public bool IsUnquote(SyntaxNode node) => Classify(node) == BindingTime.Unquote;
 
-    public bool IsLiveControl(SyntaxNode node) => Classify(node) == BindingTime.LiveControl;
+    public bool IsStagedControl(SyntaxNode node) => Classify(node) == BindingTime.StagedControl;
 
     /// <summary>
     /// Nodes forced live (a bound root's binding expression) that transitively depend on a quoted/generated-world
@@ -92,7 +92,7 @@ internal sealed class BindingTimePartition
 /// Partitions a <c>[Template]</c> body into quoted / live-value / live-control nodes given its live roots
 /// (plan Task 4 / spec §4). Liveness propagates from the roots by def-use over local declarations; control flow
 /// whose driver is quoted stays quoted (emitted as real output control flow). Conservatism is expected — the
-/// classifier under-approximates through opaque boundaries (<c>[Live]</c> is the manual escape hatch).
+/// classifier under-approximates through opaque boundaries (<c>[Unquote]</c> is the manual escape hatch).
 /// <para>
 /// Runs entirely inside the <see cref="TemplateFactorySourceGenerator"/> transform; captures no
 /// <see cref="Compilation"/>/<see cref="ISymbol"/>/<see cref="SemanticModel"/>/<see cref="SyntaxNode"/> into
@@ -103,10 +103,10 @@ internal sealed class BindingTimeClassifier
 {
     private readonly SemanticModel _semanticModel;
     private readonly SyntaxNode _body;
-    private readonly IReadOnlyCollection<LiveRoot> _roots;
+    private readonly IReadOnlyCollection<StagedRoot> _roots;
     private readonly HashSet<ISymbol> _live = new(SymbolEqualityComparer.Default);
 
-    private BindingTimeClassifier(SemanticModel semanticModel, SyntaxNode body, IReadOnlyCollection<LiveRoot> roots)
+    private BindingTimeClassifier(SemanticModel semanticModel, SyntaxNode body, IReadOnlyCollection<StagedRoot> roots)
     {
         _semanticModel = semanticModel;
         _body = body;
@@ -119,17 +119,17 @@ internal sealed class BindingTimeClassifier
     /// Classifies every node in <paramref name="body"/> relative to <paramref name="roots"/>, returning the
     /// dataflow partition (per-node binding-time + impossible cuts).
     /// </summary>
-    public static BindingTimePartition Classify(SemanticModel semanticModel, SyntaxNode body, IReadOnlyCollection<LiveRoot> roots)
+    public static BindingTimePartition Classify(SemanticModel semanticModel, SyntaxNode body, IReadOnlyCollection<StagedRoot> roots)
     {
         var classifier = new BindingTimeClassifier(semanticModel, body, roots);
-        classifier.PropagateLiveness();
+        classifier.PropagateStaging();
         var classification = classifier.ClassifyNodes();
         var impossibleCuts = classifier.FindImpossibleCuts();
         return new BindingTimePartition(classification, impossibleCuts, classifier._live);
     }
 
     /// <summary>True if any identifier inside <paramref name="node"/> binds to a live symbol.</summary>
-    private bool ReferencesLive(SyntaxNode node)
+    private bool ReferencesStaged(SyntaxNode node)
     {
         foreach (var identifier in node.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
         {
@@ -145,7 +145,7 @@ internal sealed class BindingTimeClassifier
     /// Seeds liveness from the roots, then propagates to a fixpoint over local declarations: a local whose
     /// initializer references a live value is itself live (its computed value depends on a root).
     /// </summary>
-    private void PropagateLiveness()
+    private void PropagateStaging()
     {
         bool changed = true;
         while (changed)
@@ -159,7 +159,7 @@ internal sealed class BindingTimeClassifier
                     continue;
                 if (_live.Contains(local))
                     continue;
-                if (ReferencesLive(initializer.Value))
+                if (ReferencesStaged(initializer.Value))
                 {
                     _live.Add(local);
                     changed = true;
@@ -177,17 +177,17 @@ internal sealed class BindingTimeClassifier
             switch (node)
             {
                 // Control flow whose DRIVER (iteration source / condition) is live runs at factory time.
-                case ForEachStatementSyntax forEach when ReferencesLive(forEach.Expression):
-                case ForEachVariableStatementSyntax forEachVar when ReferencesLive(forEachVar.Expression):
-                case WhileStatementSyntax whileStatement when ReferencesLive(whileStatement.Condition):
-                case ForStatementSyntax forStatement when forStatement.Condition is { } condition && ReferencesLive(condition):
-                case IfStatementSyntax ifStatement when ReferencesLive(ifStatement.Condition):
-                    classification[node] = BindingTime.LiveControl;
+                case ForEachStatementSyntax forEach when ReferencesStaged(forEach.Expression):
+                case ForEachVariableStatementSyntax forEachVar when ReferencesStaged(forEachVar.Expression):
+                case WhileStatementSyntax whileStatement when ReferencesStaged(whileStatement.Condition):
+                case ForStatementSyntax forStatement when forStatement.Condition is { } condition && ReferencesStaged(condition):
+                case IfStatementSyntax ifStatement when ReferencesStaged(ifStatement.Condition):
+                    classification[node] = BindingTime.StagedControl;
                     break;
 
                 // Any other expression whose value depends on a live root is a lifted live value.
-                case ExpressionSyntax expression when ReferencesLive(expression):
-                    classification[node] = BindingTime.LiveValue;
+                case ExpressionSyntax expression when ReferencesStaged(expression):
+                    classification[node] = BindingTime.Unquote;
                     break;
             }
         }
@@ -213,7 +213,7 @@ internal sealed class BindingTimeClassifier
                 var symbol = _semanticModel.GetSymbolInfo(identifier).Symbol;
                 if (symbol is ILocalSymbol or IParameterSymbol && !_live.Contains(symbol))
                 {
-                    cuts.Add((expression, $"live binding depends on output-world value '{symbol.Name}'"));
+                    cuts.Add((expression, $"staged binding depends on output-world value '{symbol.Name}'"));
                     break;
                 }
             }

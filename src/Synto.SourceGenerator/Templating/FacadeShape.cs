@@ -22,7 +22,7 @@ internal sealed class FacadeParam
     /// <summary>The synthesized facade generic type-parameter name (for <see cref="BuilderArgKind.QuotedTypeArg"/>).</summary>
     public string? GenericParameterName { get; }
 
-    /// <summary>The synthesized facade value-parameter type (for <see cref="BuilderArgKind.Quoted"/>/<see cref="BuilderArgKind.Live"/>).</summary>
+    /// <summary>The synthesized facade value-parameter type (for <see cref="BuilderArgKind.Quoted"/>/<see cref="BuilderArgKind.Staged"/>).</summary>
     public string? ValueTypeDisplay { get; }
 }
 
@@ -97,8 +97,8 @@ internal sealed class FacadeShape
                     return null;
                 }
 
-                // Unmarked (live): facade value param, same type as the builder param.
-                parameters.Add(new FacadeParam(p.Name, BuilderArgKind.Live, null, p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                // Unmarked (staged): facade value param, same type as the builder param.
+                parameters.Add(new FacadeParam(p.Name, BuilderArgKind.Staged, null, p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
                 continue;
             }
 

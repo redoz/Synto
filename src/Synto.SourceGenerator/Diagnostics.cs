@@ -177,51 +177,51 @@ internal static class Diagnostics
                 count.ToString(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
-    private static readonly DiagnosticDescriptor _liveParameterMissingName = new(IdPrefix + "1010",
+    private static readonly DiagnosticDescriptor _unquoteParameterMissingName = new(IdPrefix + "1010",
         "Missing Parameter Name",
         "Parameter<T>() used outside a variable declaration must specify an explicit parameterName",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static DiagnosticInfo LiveParameterMissingName(Location? location)
+    public static DiagnosticInfo UnquoteParameterMissingName(Location? location)
     {
-        return new DiagnosticInfo(_liveParameterMissingName,
+        return new DiagnosticInfo(_unquoteParameterMissingName,
             LocationInfo.CreateFrom(location),
             new EquatableArray<string>(ImmutableArray<string>.Empty));
     }
 
-    private static readonly DiagnosticDescriptor _liveParameterNameCollision = new(IdPrefix + "1011",
-        "Live Parameter Name Collision",
+    private static readonly DiagnosticDescriptor _unquoteParameterNameCollision = new(IdPrefix + "1011",
+        "Unquote Parameter Name Collision",
         "Two Parameter<T>() sites declare the same explicit name '{0}'; reference one declared parameter instead of naming it twice",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static DiagnosticInfo LiveParameterNameCollision(Location? location, string name)
+    public static DiagnosticInfo UnquoteParameterNameCollision(Location? location, string name)
     {
-        return new DiagnosticInfo(_liveParameterNameCollision,
+        return new DiagnosticInfo(_unquoteParameterNameCollision,
             LocationInfo.CreateFrom(location),
             new EquatableArray<string>(ImmutableArray.Create(name)));
     }
 
-    private static readonly DiagnosticDescriptor _liveParameterTypeConflict = new(IdPrefix + "1012",
-        "Conflicting Live Parameter Type",
+    private static readonly DiagnosticDescriptor _unquoteParameterTypeConflict = new(IdPrefix + "1012",
+        "Conflicting Unquote Parameter Type",
         "Parameter name '{0}' is declared with conflicting types '{1}' and '{2}'",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static DiagnosticInfo LiveParameterTypeConflict(Location? location, string name, string firstType, string secondType)
+    public static DiagnosticInfo UnquoteParameterTypeConflict(Location? location, string name, string firstType, string secondType)
     {
-        return new DiagnosticInfo(_liveParameterTypeConflict,
+        return new DiagnosticInfo(_unquoteParameterTypeConflict,
             LocationInfo.CreateFrom(location),
             new EquatableArray<string>(ImmutableArray.Create(name, firstType, secondType)));
     }
 
     private static readonly DiagnosticDescriptor _impossibleCut = new(IdPrefix + "1013",
         "Impossible Cut",
-        "Live binding cannot run at factory time: {0}",
+        "Staged binding cannot run at factory time: {0}",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -233,16 +233,16 @@ internal static class Diagnostics
             new EquatableArray<string>(ImmutableArray.Create(reason)));
     }
 
-    private static readonly DiagnosticDescriptor _unsupportedLiveShape = new(IdPrefix + "1014",
-        "Unsupported Live Shape",
-        "Live control-flow shape is not supported by the staging emitter: {0}",
+    private static readonly DiagnosticDescriptor _unsupportedStagedShape = new(IdPrefix + "1014",
+        "Unsupported Staged Shape",
+        "Staged control-flow shape is not supported by the staging emitter: {0}",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    public static DiagnosticInfo UnsupportedLiveShape(Location? location, string reason)
+    public static DiagnosticInfo UnsupportedStagedShape(Location? location, string reason)
     {
-        return new DiagnosticInfo(_unsupportedLiveShape,
+        return new DiagnosticInfo(_unsupportedStagedShape,
             LocationInfo.CreateFrom(location),
             new EquatableArray<string>(ImmutableArray.Create(reason)));
     }

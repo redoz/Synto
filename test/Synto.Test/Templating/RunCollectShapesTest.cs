@@ -51,7 +51,7 @@ public class RunCollectShapesTest
 
     // for over a live Parameter<T>() bound: unrolls in the factory, the loop variable lifting to a literal.
     [Fact]
-    public async Task LiveFor_Unrolls()
+    public async Task StagedFor_Unrolls()
     {
         await VerifyTemplate(
             """
@@ -72,7 +72,7 @@ public class RunCollectShapesTest
     // while over a live driver: the live local `k` is the runtime driver/accumulator (k++ stays verbatim),
     // each iteration's island collects with `k` lifted to a literal.
     [Fact]
-    public async Task LiveWhile_Unrolls()
+    public async Task StagedWhile_Unrolls()
     {
         await VerifyTemplate(
             """
@@ -83,7 +83,7 @@ public class RunCollectShapesTest
                 [Template(typeof(Factory))]
                 void Build() {
                     var n = Parameter<int>();
-                    var k = Live(0);
+                    var k = Unquote(0);
                     while (k < n) {                    // live while -> unrolls in the factory
                         System.Console.WriteLine(k);   // k -> int literal per iteration
                         k++;                            // live mutation, stays verbatim
@@ -95,7 +95,7 @@ public class RunCollectShapesTest
 
     // if on a live condition: branch specialization — exactly one branch's islands reach the output.
     [Fact]
-    public async Task LiveIf_Specializes()
+    public async Task StagedIf_Specializes()
     {
         await VerifyTemplate(
             """

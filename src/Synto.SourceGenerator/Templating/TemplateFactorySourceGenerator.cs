@@ -490,48 +490,48 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         }
 
 
-        // Live roots (Template.Parameter<T>() live parameters, Template.Live<T>() locals, [Live] parameters):
+        // Staged roots (Template.Parameter<T>() live parameters, Template.Unquote<T>() locals, [Unquote] parameters):
         // discover them, then classify the body's binding-time partition so the staging emitter can unroll
         // live control regions (plan Task 6). All of this is semantic work inside the transform; nothing here
         // is captured into pipeline state.
-        var liveParameterResult = LiveParameterFinder.FindLiveParameters(semanticModel, templateInfo.Source.Syntax);
-        diagnostics.AddRange(liveParameterResult.Diagnostics);
+        var stagedParameterResult = StagedParameterFinder.FindStagedParameters(semanticModel, templateInfo.Source.Syntax);
+        diagnostics.AddRange(stagedParameterResult.Diagnostics);
 
         // A live-parameter naming error is a usage error: bail with the diagnostic(s) already reported
         // rather than emit a factory built from an unresolved/ambiguous parameter set.
-        if (liveParameterResult.Diagnostics.Count > 0)
+        if (stagedParameterResult.Diagnostics.Count > 0)
             return null;
 
-        var liveRootResult = LiveRootFinder.FindLiveRoots(semanticModel, templateInfo.Source.Syntax);
+        var stagedRootResult = StagedRootFinder.FindStagedRoots(semanticModel, templateInfo.Source.Syntax);
 
         // Seed the binding-time classifier from every live root symbol (parameters + bound locals), then find
         // the live control regions (a foreach driven by a live root) to unroll.
-        var liveRootSymbols = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        var stagedRootSymbols = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
         var rootNames = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
-        var classifierRoots = new List<LiveRoot>();
+        var classifierRoots = new List<StagedRoot>();
 
-        foreach (var liveParameter in liveParameterResult.Parameters)
+        foreach (var stagedParameter in stagedParameterResult.Parameters)
         {
             // Seed EVERY declaration-site local (the same (name, T) may be re-declared across several member
             // bodies of a class template — plan Task 9), so each member's live control region is recognized,
             // not only the first declaration's.
-            foreach (var symbol in liveParameter.Symbols)
+            foreach (var symbol in stagedParameter.Symbols)
             {
-                if (liveRootSymbols.Add(symbol))
-                    classifierRoots.Add(new LiveRoot(symbol));
+                if (stagedRootSymbols.Add(symbol))
+                    classifierRoots.Add(new StagedRoot(symbol));
             }
         }
 
-        foreach (var liveLocal in liveRootResult.Locals)
+        foreach (var stagedLocal in stagedRootResult.Locals)
         {
-            if (semanticModel.GetDeclaredSymbol(liveLocal.Declaration.Declaration.Variables[0]) is { } symbol && liveRootSymbols.Add(symbol))
-                classifierRoots.Add(new LiveRoot(symbol, liveLocal.ValueExpression));
+            if (semanticModel.GetDeclaredSymbol(stagedLocal.Declaration.Declaration.Variables[0]) is { } symbol && stagedRootSymbols.Add(symbol))
+                classifierRoots.Add(new StagedRoot(symbol, stagedLocal.ValueExpression));
         }
 
-        foreach (var liveParameterRoot in liveRootResult.Parameters)
+        foreach (var stagedParameterRoot in stagedRootResult.Parameters)
         {
-            if (semanticModel.GetDeclaredSymbol(liveParameterRoot.Parameter) is { } symbol && liveRootSymbols.Add(symbol))
-                classifierRoots.Add(new LiveRoot(symbol));
+            if (semanticModel.GetDeclaredSymbol(stagedParameterRoot.Parameter) is { } symbol && stagedRootSymbols.Add(symbol))
+                classifierRoots.Add(new StagedRoot(symbol));
         }
 
         var partition = BindingTimeClassifier.Classify(semanticModel, templateInfo.Source.Syntax, classifierRoots);
@@ -546,22 +546,22 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             return null;
         }
 
-        var liveRegions = LiveRegionEmitter.FindRegions(semanticModel, templateInfo.Source.Syntax, partition);
-        var regionConsumedNodes = LiveRegionEmitter.ComputeConsumedNodes(liveRegions);
-        int liveRegionCounter = 0;
+        var stagedRegions = StagedRegionEmitter.FindRegions(semanticModel, templateInfo.Source.Syntax, partition);
+        var regionConsumedNodes = StagedRegionEmitter.ComputeConsumedNodes(stagedRegions);
+        int stagedRegionCounter = 0;
 
         // A live control statement that region discovery did not pick up (it is an embedded, non-block statement
         // of an output-world construct, so it owns no container to key the replacement at) and that no other
         // region consumes would otherwise fall through to the normal quoter — lifting its live driver into the
         // OUTPUT (wrong code, no signal). Degrade to SY1014 instead of a silent mis-expansion.
-        var unhandledLiveControl = templateInfo.Source.Syntax.DescendantNodes()
+        var unhandledStagedControl = templateInfo.Source.Syntax.DescendantNodes()
             .OfType<StatementSyntax>()
-            .Where(statement => partition.IsLiveControl(statement) && !regionConsumedNodes.Contains(statement))
+            .Where(statement => partition.IsStagedControl(statement) && !regionConsumedNodes.Contains(statement))
             .ToList();
-        if (unhandledLiveControl.Count > 0)
+        if (unhandledStagedControl.Count > 0)
         {
-            foreach (var statement in unhandledLiveControl)
-                diagnostics.Add(Diagnostics.UnsupportedLiveShape(statement.GetLocation(), "a live control region must be a direct statement of a block to unroll in v1"));
+            foreach (var statement in unhandledStagedControl)
+                diagnostics.Add(Diagnostics.UnsupportedStagedShape(statement.GetLocation(), "a staged control region must be a direct statement of a block to unroll in v1"));
             return null;
         }
 
@@ -572,7 +572,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // alias usings are skipped (UsingDirectiveSet ignores them anyway), and Synto.* usings are excluded so
         // the inert facade/marker surface (e.g. `using static Synto.Templating.Template;`, `using Synto.Templating;`)
         // is never pulled into the factory scope where it could collide with the injected internal surface.
-        if (liveRegions.Count > 0
+        if (stagedRegions.Count > 0
             && templateInfo.Source.Syntax.SyntaxTree.GetRoot() is CompilationUnitSyntax carrierUnit)
         {
             foreach (var carrierUsing in carrierUnit.Usings)
@@ -586,24 +586,24 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             }
         }
 
-        foreach (var liveParameter in liveParameterResult.Parameters)
+        foreach (var stagedParameter in stagedParameterResult.Parameters)
         {
-            string paramName = liveParameter.Name;
+            string paramName = stagedParameter.Name;
             while (!paramNames.Add(paramName))
                 paramName += '_';
 
             // Map EVERY declaration-site symbol to the shared factory parameter name so the live-region renamer
             // rewrites each member's local reference (the foreach driver) to the one factory parameter.
-            foreach (var rootSymbol in liveParameter.Symbols)
+            foreach (var rootSymbol in stagedParameter.Symbols)
                 rootNames[rootSymbol] = paramName;
 
-            var parameterType = ParseTypeName(liveParameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            var parameterType = ParseTypeName(stagedParameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
             parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
             // References consumed by a live region are handled by the verbatim scaffold (which uses the factory
             // parameter directly as a runtime value); only depth-0 references lift via value.ToSyntax() — binds
             // to the file-local LiteralSyntaxExtensions (built-in types) or the generic ToSyntax<T> fallback.
-            var depthZeroReferences = liveParameter.References.Where(reference => !regionConsumedNodes.Contains(reference)).ToList();
+            var depthZeroReferences = stagedParameter.References.Where(reference => !regionConsumedNodes.Contains(reference)).ToList();
             if (depthZeroReferences.Count > 0)
             {
                 ExpressionSyntax conversion = InvocationExpression(
@@ -627,64 +627,64 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                     unquotedReplacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
             }
 
-            foreach (var trimNode in liveParameter.TrimNodes)
+            foreach (var trimNode in stagedParameter.TrimNodes)
                 trimNodes.Add(trimNode);
         }
 
-        // Live bound roots (Template.Live<T>() locals + [Live] parameters): the bound expression runs at
+        // Staged bound roots (Template.Unquote<T>() locals + [Unquote] parameters): the bound expression runs at
         // factory-build time and the resulting runtime value is lifted into the quoted output. Depth-0, a
         // live LOCAL hoists its `var n = <expr>;` verbatim into the factory body (a real runtime local) and
-        // each use lifts via `n.ToSyntax()`; a [Live] PARAMETER becomes a caller-supplied factory parameter
+        // each use lifts via `n.ToSyntax()`; a [Unquote] PARAMETER becomes a caller-supplied factory parameter
         // lifted the same way (like an [Inline] value, but classified live for later staging).
-        foreach (var liveLocal in liveRootResult.Locals)
+        foreach (var stagedLocal in stagedRootResult.Locals)
         {
-            // Hoist the runtime local: `var n = <expr>;` (the Live(...) carrier is unwrapped to its argument,
+            // Hoist the runtime local: `var n = <expr>;` (the Unquote(...) carrier is unwrapped to its argument,
             // which is evaluated at factory-build time). Build it fresh so source comments/trivia don't leak.
             preamble.Add(
                 LocalDeclarationStatement(
                     VariableDeclaration(
                         IdentifierName("var"),
                         SingletonSeparatedList(
-                            VariableDeclarator(Identifier(liveLocal.Name))
-                                .WithInitializer(EqualsValueClause(liveLocal.ValueExpression.WithoutTrivia()))))));
+                            VariableDeclarator(Identifier(stagedLocal.Name))
+                                .WithInitializer(EqualsValueClause(stagedLocal.ValueExpression.WithoutTrivia()))))));
 
             // References consumed by a live region are handled by the verbatim scaffold (the live local is a
             // real runtime driver/accumulator there — e.g. a `while` driver, `k++`); only depth-0 references
             // lift via value.ToSyntax(), exactly like an [Inline] value. When every reference is region-consumed
             // the ToSyntax lift is dead, so it is not emitted at all.
-            var liveLocalDepthZeroReferences = liveLocal.References.Where(reference => !regionConsumedNodes.Contains(reference)).ToList();
+            var liveLocalDepthZeroReferences = stagedLocal.References.Where(reference => !regionConsumedNodes.Contains(reference)).ToList();
             if (liveLocalDepthZeroReferences.Count > 0)
             {
-                var syntaxForLiveIdentifier = Identifier("syntaxForLive_" + liveLocal.Name);
+                var syntaxForStagedIdentifier = Identifier("syntaxForStaged_" + stagedLocal.Name);
                 preamble.Add(
                     LocalDeclarationStatement(
                         VariableDeclaration(
                             additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
                             SingletonSeparatedList(
                                 VariableDeclarator(
-                                    syntaxForLiveIdentifier,
+                                    syntaxForStagedIdentifier,
                                     null,
                                     EqualsValueClause(
                                         InvocationExpression(
                                             MemberAccessExpression(
                                                 SyntaxKind.SimpleMemberAccessExpression,
-                                                IdentifierName(liveLocal.Name),
+                                                IdentifierName(stagedLocal.Name),
                                                 IdentifierName("ToSyntax")))))))));
 
                 foreach (var reference in liveLocalDepthZeroReferences)
-                    unquotedReplacements.Add(reference, IdentifierName(syntaxForLiveIdentifier));
+                    unquotedReplacements.Add(reference, IdentifierName(syntaxForStagedIdentifier));
             }
 
-            trimNodes.Add(liveLocal.Declaration);
+            trimNodes.Add(stagedLocal.Declaration);
         }
 
-        foreach (var liveParameterRoot in liveRootResult.Parameters)
+        foreach (var stagedParameterRoot in stagedRootResult.Parameters)
         {
-            string paramName = liveParameterRoot.Parameter.Identifier.Text;
+            string paramName = stagedParameterRoot.Parameter.Identifier.Text;
             while (!paramNames.Add(paramName))
                 paramName += '_';
 
-            var parameterType = ParseTypeName(liveParameterRoot.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            var parameterType = ParseTypeName(stagedParameterRoot.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
 
             ExpressionSyntax conversion = InvocationExpression(
                 MemberAccessExpression(
@@ -705,10 +705,10 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
             parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
-            foreach (var reference in liveParameterRoot.References)
+            foreach (var reference in stagedParameterRoot.References)
                 unquotedReplacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
 
-            trimNodes.Add(liveParameterRoot.Parameter);
+            trimNodes.Add(stagedParameterRoot.Parameter);
         }
 
         // Syntax builders (Task 3): built-in Template.Member/TypeOf facade calls (recognized by binding) and
@@ -762,15 +762,15 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // factory preamble (collecting quoted islands into a run) plus a single replacement keyed at the
         // region's owning container block (spec §5.3). The fixed-sibling quoter and island quoters carry the
         // lifts collected so far; the container replacement is added LAST so neither sees it.
-        var liveRegionEmission = LiveRegionEmitter.Emit(
+        var liveRegionEmission = StagedRegionEmitter.Emit(
             semanticModel,
             partition,
-            liveRegions,
-            partition.LiveSymbols,
+            stagedRegions,
+            partition.StagedSymbols,
             rootNames,
             unquotedReplacements,
             trimNodes,
-            ref liveRegionCounter);
+            ref stagedRegionCounter);
 
         diagnostics.AddRange(liveRegionEmission.Diagnostics);
 

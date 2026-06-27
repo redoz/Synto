@@ -15,7 +15,7 @@ namespace Synto;
 /// </summary>
 internal enum BuilderArgKind
 {
-    Live,
+    Staged,
     Quoted,
     QuotedTypeArg,
 }
@@ -34,7 +34,7 @@ internal sealed class BuilderArgBinding
     public BuilderArgKind Kind { get; }
     public string ParameterName { get; }
 
-    /// <summary>The call argument expression (for <see cref="BuilderArgKind.Quoted"/> / <see cref="BuilderArgKind.Live"/>).</summary>
+    /// <summary>The call argument expression (for <see cref="BuilderArgKind.Quoted"/> / <see cref="BuilderArgKind.Staged"/>).</summary>
     public ExpressionSyntax? ValueArgument { get; }
 
     /// <summary>The facade type argument (for <see cref="BuilderArgKind.QuotedTypeArg"/>).</summary>
@@ -178,14 +178,14 @@ internal static class SyntaxBuilderFinder
                 calls.Add(new BuilderCall(invocation, BuiltInBuilderType, "Member", new[]
                 {
                     new BuilderArgBinding(BuilderArgKind.Quoted, "instance", args[0].Expression, null),
-                    new BuilderArgBinding(BuilderArgKind.Live, "name", args[1].Expression, null),
+                    new BuilderArgBinding(BuilderArgKind.Staged, "name", args[1].Expression, null),
                 }));
                 return true;
 
             case nameof(global::Synto.Templating.Template.TypeOf) when args.Count == 1:
                 calls.Add(new BuilderCall(invocation, BuiltInBuilderType, "TypeOf", new[]
                 {
-                    new BuilderArgBinding(BuilderArgKind.Live, "name", args[0].Expression, null),
+                    new BuilderArgBinding(BuilderArgKind.Staged, "name", args[0].Expression, null),
                 }));
                 return true;
         }
