@@ -281,7 +281,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                [Template(typeof(Factory))]
-                void LocalFunction<T>([Inline]T value) {
+                void LocalFunction<T>([Unquote]T value) {
                     Console.WriteLine($"Hello world {value}");
                 }
             }
@@ -290,7 +290,7 @@ public class SimpleTemplateTest
     }
 
     [Fact]
-    public async Task InlineGenericValueAsSyntax()
+    public async Task SpliceGenericValue()
     {
         await VerifyTemplate(
             """
@@ -302,7 +302,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                [Template(typeof(Factory))]
-                void LocalFunction<T>([Inline(AsSyntax = true)]T value) {
+                void LocalFunction<T>([Splice]T value) {
                     Console.WriteLine($"Hello world {value}");
                 }
             }
@@ -324,7 +324,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                [Template(typeof(Factory))]
-                void LocalFunction<[Inline]T>() {
+                void LocalFunction<[Unquote]T>() {
                     List<T> list = new();
                 }
             }
@@ -333,7 +333,7 @@ public class SimpleTemplateTest
     }
 
     [Fact]
-    public async Task InlineGenericTypeAsSyntax()
+    public async Task SpliceGenericType()
     {
         await VerifyTemplate(
             """
@@ -345,7 +345,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                [Template(typeof(Factory))]
-                void LocalFunction<[Inline(AsSyntax = true)]T>(T value) {
+                void LocalFunction<[Splice]T>(T value) {
                     Console.WriteLine($"Hello world {value}");
                 }
             }
@@ -619,7 +619,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 [Template(typeof(Factory))]
-                object GetMember<[Inline(AsSyntax = true)] TRow>(TRow row, int i) {
+                object GetMember<[Splice] TRow>(TRow row, int i) {
                     var columns = Parameter<IReadOnlyList<Col>>();
                     foreach (var c in columns)            // live foreach -> unrolls in the factory
                         if (i == c.Ordinal)               // c.Ordinal -> int literal

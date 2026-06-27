@@ -286,7 +286,7 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
         string reader = $"ObjectReader_{model.TargetTypeShortName}_{index}";
         TypeSyntax elementType = SyntaxFactory.ParseTypeName(model.TargetTypeQualifiedName);
 
-        // Synto holes: [Inline(AsSyntax = true)] T splices the element type wherever T appears (the _e field + the
+        // Synto holes: [Splice] T splices the element type wherever T appears (the _e field + the
         // ctor's IEnumerable<T> parameter); the live `columns`/`fieldCount` parameters drive the unrolled members.
         ClassDeclarationSyntax skeleton = Factory.ObjectReaderTemplate(elementType, model.Columns.Count, model.Columns);
 

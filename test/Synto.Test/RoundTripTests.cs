@@ -47,7 +47,7 @@ public partial class RoundTripTests
     public void Test1()
     {
         [Template(typeof(Factory), Options = TemplateOption.Single)]
-        static void Hello([Inline] string message)
+        static void Hello([Unquote] string message)
         {
             Console.WriteLine("Hello " + message);
         }
@@ -88,7 +88,7 @@ public partial class RoundTripTests
         // Bare-block repeater: a scalar Syntax splice point (item()) used twice in a Bare (multi-statement)
         // body, each replaced by the same spliced expression, round-tripping to the repeated block.
         [Template(typeof(Factory), Options = TemplateOption.Single)]
-        static void Greeting([Inline] string message)
+        static void Greeting([Unquote] string message)
         {
             Console.WriteLine("Hello " + message);
         }
@@ -137,7 +137,7 @@ public partial class RoundTripTests
     {
 
         [Template(typeof(Factory), Options = TemplateOption.Bare)]
-        static void Loop([Inline] int count)
+        static void Loop([Unquote] int count)
         {
             int ret = 0;
             for (int i = 0; i < count; i++)
@@ -148,13 +148,17 @@ public partial class RoundTripTests
 
         BlockSyntax node = Factory.Loop(4);
 
+        // An [Unquote] parameter is a STAGING root: the `for` driven by `count` unrolls at factory-build time
+        // (count == 4) into four `ret++` statements, rather than being emitted as a literal-bounded loop. This
+        // is the designed unquote/staged-control behavior (spec §3-4), distinct from a plain value lift that
+        // would preserve the loop with a literal bound.
         string expected = """
                               {
                                   int ret = 0;
-                                  for (int i = 0; i < 4; i++)
-                                  {
-                                      ret++;
-                                  }
+                                  ret++;
+                                  ret++;
+                                  ret++;
+                                  ret++;
                               }
                               """;
 
@@ -165,7 +169,7 @@ public partial class RoundTripTests
     public void InlinedGenericTypeArgument()
     {
         [Template(typeof(Factory), Options = TemplateOption.Single)]
-        static void Make<[Inline] T>()
+        static void Make<[Unquote] T>()
         {
             List<T> list = new List<T>();
         }
@@ -186,7 +190,7 @@ public partial class RoundTripTests
         // discovers RgbConverter from the inlined parameter's type and emits a direct call to it, so the
         // built factory actually converts the custom Rgb value to `new Rgb(255)` syntax at runtime.
         [Template(typeof(Factory), Options = TemplateOption.Single)]
-        static void Use([Inline] Rgb color)
+        static void Use([Unquote] Rgb color)
         {
             Console.WriteLine(color);
         }

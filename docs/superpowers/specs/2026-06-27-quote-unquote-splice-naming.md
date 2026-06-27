@@ -135,10 +135,23 @@ void Wrap([Splice] ExpressionSyntax body) {
 - No change to *what* the generator emits — this is a **naming/surface** refactor; emitted
   output and snapshots change only where they literally embed the old words.
 
-## 9. Timing
+## 9. Timing / status
 
-`Live`/`Parameter` are mid-implementation on `experimental`. `Parameter<T>()` has **landed**
-(commit `0d7d6fc8`); `Unquote` (née `Live`, Task 2) has **not** yet frozen snapshots. Renaming
-`Live → Unquote` now is a cheap §1 re-baseline (same move already used once); after Task 2 lands
-it costs a snapshot re-baseline. `Inline → Splice` is independent of the in-flight plan (Inline
-is untouched by it) and can be a separate follow-up refactor.
+**RESOLVED / IMPLEMENTED (2026-06-27).** The Unquote-vs-Splice split (§3) is done:
+
+- `Live → Unquote` landed in Phase 1 (`Unquote<T>()`, `[Unquote]`, `Staged*` machinery).
+- Phase 2 deleted `InlineAttribute` and the `AsSyntax` boolean entirely. Plain `[Inline]`
+  (value lift) folded into `[Unquote]` — extended to `AttributeTargets.GenericParameter` so
+  `<[Unquote] T>` lifts a type via `typeof(T).ToTypeSyntax()`, and the `[Unquote]` parameter path
+  now subsumes the full value-lift surface ([Runtime] converters + generic-type-param value lift).
+- `[Inline(AsSyntax = true)]` became `[Splice]` (`SpliceAttribute`,
+  `Parameter | GenericParameter`). The **type-axis miscompile** (§6 open question 2) is **fixed**:
+  a spliced generic type parameter is emitted as a `TypeSyntax` factory parameter (not
+  `ExpressionSyntax`), so a spliced type in type position compiles. A compile-asserting test
+  (`InjectedSurfaceCompletenessTest.SpliceGenericTypeArg_InTypePosition_Compiles`) now guards it.
+- `Template.Splice(node)` body form (§7 open question 3) shipped alongside the `[Splice]`
+  attribute, mirroring `Unquote(value)`.
+
+Open questions 1 (keep a parameter-position lift marker — yes, `[Unquote]`) and 2 (type-axis
+split — yes, both `[Unquote]` and `[Splice]` apply on the type axis) are resolved by this work.
+Open question 4 (`,@` sequence splicing over a collection) remains future scope.

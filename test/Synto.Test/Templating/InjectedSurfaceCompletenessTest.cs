@@ -15,9 +15,9 @@ namespace Synto.Test.Templating;
 /// the emitted helpers do not COLLIDE with it), this test references NO <c>Synto.Core</c> at all. The only
 /// Synto types available to the generated factory are therefore exactly what the generators inject:
 /// <list type="bullet">
-/// <item>the <c>internal</c> marker surface (<c>TemplateAttribute</c>, <c>InlineAttribute</c>,
+/// <item>the <c>internal</c> marker surface (<c>TemplateAttribute</c>, <c>UnquoteAttribute</c>, <c>SpliceAttribute</c>,
 /// <c>Syntax&lt;T&gt;</c>, ...) from <see cref="SurfaceInjectionGenerator"/>, needed so the consumer
-/// template's <c>[Template]</c>/<c>[Inline]</c>/<c>Syntax&lt;&gt;</c> usage binds; and</item>
+/// template's <c>[Template]</c>/<c>[Unquote]</c>/<c>Syntax&lt;&gt;</c> usage binds; and</item>
 /// <item>the file-local helper class(es) (<c>ToSyntax</c>/<c>ToTypeSyntax</c>/<c>OrNullLiteralExpression</c>)
 /// the scan-based injection appends into the generated factory file.</item>
 /// </list>
@@ -41,8 +41,8 @@ public class InjectedSurfaceCompletenessTest
     /// the generator emits into the factory:
     /// <list type="bullet">
     /// <item>multiple statements;</item>
-    /// <item>an <c>[Inline]</c> value parameter -> <c>value.ToSyntax()</c>;</item>
-    /// <item>an <c>[Inline]</c> type parameter -> <c>typeof(T).ToTypeSyntax()</c>;</item>
+    /// <item>an <c>[Unquote]</c> value parameter -> <c>value.ToSyntax()</c>;</item>
+    /// <item>an <c>[Unquote]</c> type parameter -> <c>typeof(T).ToTypeSyntax()</c>;</item>
     /// <item>a <c>Syntax&lt;T&gt;</c> parameter (spliced syntax);</item>
     /// <item>string interpolation;</item>
     /// <item>a <c>for</c> loop and a <c>foreach</c> loop;</item>
@@ -63,7 +63,7 @@ public class InjectedSurfaceCompletenessTest
 
         public class TestClass {
             [Template(typeof(Factory))]
-            void KitchenSink<[Inline] T>([Inline] int count, Syntax<int> spliced) {
+            void KitchenSink<[Unquote] T>([Unquote] int count, Syntax<int> spliced) {
                 List<T> list = new List<T>();
                 var span = (1..count);
                 for (int i = 0; i < count; i++) {
@@ -82,7 +82,7 @@ public class InjectedSurfaceCompletenessTest
 
     /// <summary>
     /// A template declared inside a <b>namespace AND a nested class</b>, deliberately using both
-    /// <c>[Inline] T</c> (triggers <c>ToTypeSyntax</c>) and <c>[Inline] int count</c> (triggers
+    /// <c>[Unquote] T</c> (triggers <c>ToTypeSyntax</c>) and <c>[Unquote] int count</c> (triggers
     /// <c>ToSyntax</c>), plus a <c>Syntax&lt;int&gt;</c> splice parameter. This exercises the
     /// generator's namespaced/nested-class code path for placing the file-local helpers inside the
     /// enclosing namespace rather than at the global compilation-unit level.
@@ -100,7 +100,7 @@ public class InjectedSurfaceCompletenessTest
                 public partial class Factory { }
 
                 [Template(typeof(Factory))]
-                static void Build<[Inline] T>([Inline] int count, Syntax<int> extra)
+                static void Build<[Unquote] T>([Unquote] int count, Syntax<int> extra)
                 {
                     List<T> list = new List<T>();
                     Console.WriteLine($"count={count} extra={extra()}");
@@ -118,7 +118,7 @@ public class InjectedSurfaceCompletenessTest
     /// <item>a <c>Unquote&lt;T&gt;()</c> local (computed at factory time) fed by a <c>[Unquote]</c> method parameter;</item>
     /// <item>a live <c>foreach</c> that unrolls at factory time and emits the file-local <c>BuildList</c>
     /// collection helper;</item>
-    /// <item>the built-in <c>Member</c> builder (member access over an <c>[Inline(AsSyntax)]</c> instance with a
+    /// <item>the built-in <c>Member</c> builder (member access over a <c>[Splice]</c> instance with a
     /// live member name) and the built-in <c>TypeOf</c> builder (a <c>typeof(...)</c> from a constant name).</item>
     /// </list>
     /// Every piece must resolve against the injected surface alone — the internal markers/facades from
@@ -138,7 +138,7 @@ public class InjectedSurfaceCompletenessTest
 
         public class TestClass {
             [Template(typeof(Factory))]
-            object StagedKitchenSink([Inline(AsSyntax = true)] object row, int i, [Unquote] int bump) {
+            object StagedKitchenSink([Splice] object row, int i, [Unquote] int bump) {
                 var columns = Parameter<IReadOnlyList<Col>>();   // live Parameter root -> factory parameter
                 var offset = Unquote(bump + 1);                      // live local fed by the [Unquote] parameter
                 Console.WriteLine(offset);                        // offset live -> lifts to an int literal (island)
@@ -220,6 +220,69 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a renamed live root referenced by value inside a region reported errors "
             + "(the island lift did not rename the live root to its factory parameter): "
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+    }
+
+    /// <summary>
+    /// A <c>&lt;[Splice] T&gt;</c> generic type parameter referenced in TYPE position (the type of the output
+    /// method's <c>instance</c> parameter). This is the type-axis miscompile: before the fix the spliced type
+    /// landed as an <c>ExpressionSyntax</c> factory parameter and the generated factory emitted
+    /// <c>Parameter(..., T, ...)</c> into a <c>TypeSyntax</c> slot, failing post-generation compilation with
+    /// CS1503 (ExpressionSyntax -&gt; TypeSyntax). The fix types the splice factory parameter as
+    /// <c>TypeSyntax</c>. This test COMPILES the generated output (not just snapshots it), so the miscompile
+    /// is caught.
+    /// </summary>
+    private const string SpliceTypeArgTemplate =
+        """
+        using System;
+        using Synto.Templating;
+
+        partial class Factory {}
+
+        public class TestClass {
+            [Template(typeof(Factory))]
+            void Build<[Splice] T>(T instance) {
+                System.Console.WriteLine(instance);
+            }
+        }
+        """;
+
+    [Fact]
+    public void SpliceGenericTypeArg_InTypePosition_Compiles()
+    {
+        var compilation = CSharpCompilation.Create("SpliceTypeArgCompileTest",
+            [CSharpSyntaxTree.ParseText(SpliceTypeArgTemplate)],
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Linq, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Collections, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime.Extensions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new TemplateFactorySourceGenerator());
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build"));
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation of a [Splice] generic type parameter used in type position reported errors "
+            + "(the spliced type was not emitted as TypeSyntax): "
             + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
     }
 
@@ -333,7 +396,7 @@ public class InjectedSurfaceCompletenessTest
     /// file-local helpers <em>inside</em> the enclosing namespace member rather than at the global
     /// compilation-unit level (the branch taken when <c>targetSyntax</c> is a
     /// <c>FileScopedNamespaceDeclarationSyntax</c>). The template deliberately uses both
-    /// <c>[Inline] T</c> (emits <c>ToTypeSyntax</c>) and <c>[Inline] int count</c> (emits
+    /// <c>[Unquote] T</c> (emits <c>ToTypeSyntax</c>) and <c>[Unquote] int count</c> (emits
     /// <c>ToSyntax</c>) so BOTH helpers must be placed correctly inside the namespace scope.
     /// </summary>
     [Fact]

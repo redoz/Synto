@@ -41,7 +41,7 @@ internal sealed class StagedLocal
 /// <summary>
 /// A live method parameter discovered from a <c>[Unquote]</c> attribute (plan Task 2). The value is supplied to
 /// the generated factory at invocation time and lifted into the produced syntax, exactly like an
-/// <c>[Inline]</c> value at depth-0; the live capability (driving factory-time control flow) is exercised in
+/// value at depth-0; the live capability (driving factory-time control flow) is exercised in
 /// later staging tasks.
 /// </summary>
 internal sealed class StagedParameterRoot
@@ -80,7 +80,7 @@ internal sealed class StagedRootResult
 /// Discovers live bound roots in a <c>[Template]</c> body (plan Task 2): both
 /// <c>Template.Unquote&lt;T&gt;()</c>-initialized locals (call-form, recognized by binding — mirrors
 /// <see cref="StagedParameterFinder"/>) and <c>[Unquote]</c> method parameters (recognized by attribute symbol —
-/// mirrors <see cref="InlinedParameterFinder"/>). Depth-0 only: a live local that is part of a control-flow
+/// mirrors <see cref="SpliceParameterFinder"/>). Depth-0 only: a live local that is part of a control-flow
 /// region is left for the staging emitter (plan Task 6), not hoisted here.
 /// </summary>
 internal sealed class StagedRootFinder : CSharpSyntaxWalker

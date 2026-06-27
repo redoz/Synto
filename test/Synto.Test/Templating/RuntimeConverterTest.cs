@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace Synto.Test.Templating;
 
 /// <summary>
-/// Exercises the <c>[Runtime]</c> value-to-syntax converter pluggability: an <c>[Inline]</c> parameter of a
+/// Exercises the <c>[Runtime]</c> value-to-syntax converter pluggability: an <c>[Unquote]</c> parameter of a
 /// user's own (non-built-in) type is converted to syntax by a user-authored static class marked
 /// <c>[Runtime]</c> exposing <c>ExpressionSyntax ToSyntax(this T)</c>. The generator discovers that converter
 /// from the inlined parameter's TYPE and injects it as a <c>file static class</c> into the generated factory
@@ -31,7 +31,7 @@ public class RuntimeConverterTest
         MetadataReference.CreateFromFile(Assembly.Load("System.Linq, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
         MetadataReference.CreateFromFile(Assembly.Load("System.Collections, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
         MetadataReference.CreateFromFile(Assembly.Load("System.Runtime.Extensions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
-        // The PUBLIC Synto.Core surface (markers) the consumer binds [Template]/[Inline]/[Runtime] against.
+        // The PUBLIC Synto.Core surface (markers) the consumer binds [Template]/[Unquote]/[Runtime] against.
         MetadataReference.CreateFromFile(SyntoCoreAssembly.Location),
     ];
 
@@ -79,7 +79,7 @@ public class RuntimeConverterTest
 
         public class TestClass {
             [Template(typeof(Factory))]
-            void Build([Inline] Color color, [Inline] int count) {
+            void Build([Unquote] Color color, [Unquote] int count) {
                 Console.WriteLine(color);
                 Console.WriteLine(count);
             }
@@ -145,7 +145,7 @@ public class RuntimeConverterTest
 
             public class TestClass {
                 [Template(typeof(Factory))]
-                void Build([Inline] Color color) {
+                void Build([Unquote] Color color) {
                     Console.WriteLine(color);
                 }
             }
@@ -185,7 +185,7 @@ public class RuntimeConverterTest
 
             public class TestClass {
                 [Template(typeof(Factory))]
-                void Build([Inline] Color color) {
+                void Build([Unquote] Color color) {
                     Console.WriteLine(color);
                 }
             }

@@ -8,7 +8,7 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 
 partial class Factory
 {
-    public static MethodDeclarationSyntax LocalFunction(ExpressionSyntax T)
+    public static MethodDeclarationSyntax LocalFunction(TypeSyntax T)
     {
         return MethodDeclaration(
                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 

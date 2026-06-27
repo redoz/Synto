@@ -27,8 +27,8 @@ public class ZeroCollisionTest
     public void GeneratedOutputCompilesAlongsidePublicSyntoCore()
     {
         // A template that forces BOTH emitted helpers into a single generated file:
-        //   [Inline] T        -> typeof(T).ToTypeSyntax()
-        //   [Inline] int value -> value.ToSyntax()
+        //   [Unquote] T        -> typeof(T).ToTypeSyntax()
+        //   [Unquote] int value -> value.ToSyntax()
         const string source =
             """
             using System;
@@ -39,7 +39,7 @@ public class ZeroCollisionTest
 
             public class TestClass {
                [Template(typeof(Factory))]
-                void LocalFunction<[Inline] T>([Inline] int value) {
+                void LocalFunction<[Unquote] T>([Unquote] int value) {
                     List<T> list = new();
                     Console.WriteLine($"Hello world {value}");
                 }

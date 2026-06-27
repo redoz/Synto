@@ -17,7 +17,7 @@ internal static class Template
     /// (<c>var count = Parameter&lt;int&gt;();</c>) the bound variable name supplies the factory
     /// parameter name; in any other (inline) position an explicit <paramref name="parameterName"/> is
     /// required. Consuming the value lifts it into the generated syntax exactly like an
-    /// <c>[Inline]</c> value.
+    /// <c>[Unquote]</c> value.
     /// </summary>
     /// <typeparam name="T">The unquoted value's type; becomes the factory parameter's type.</typeparam>
     /// <param name="parameterName">The factory parameter name; required in inline position.</param>
@@ -34,6 +34,17 @@ internal static class Template
     /// <typeparam name="T">The unquoted value's type; inferred as the local's type.</typeparam>
     /// <param name="value">The expression evaluated at factory-build time.</param>
     public static T Unquote<T>(T value) => value;
+
+    /// <summary>
+    /// Declares a <em>splice</em>: <c>Splice(node)</c> inserts a pre-built <c>ExpressionSyntax</c> verbatim
+    /// into the produced syntax at the call position, with no factory-time evaluation and no value lift. This
+    /// is the inline/mid-expression counterpart to a <c>[Splice]</c> parameter, mirroring how
+    /// <c>Unquote(value)</c> is the inline counterpart to an <c>[Unquote]</c> parameter. Inert
+    /// (<c>=&gt; node</c>) so the template body type-checks; the generator recognizes the call by binding and
+    /// splices the argument verbatim at factory-build time.
+    /// </summary>
+    /// <param name="node">The pre-built expression syntax to splice verbatim.</param>
+    public static Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax Splice(Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax node) => node;
 
     /// <summary>
     /// Built-in syntax-builder <em>facade</em>: in a <c>[Template]</c> body, <c>Member&lt;TValue&gt;(instance,

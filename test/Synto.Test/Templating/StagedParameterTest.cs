@@ -8,7 +8,7 @@ namespace Synto.Test.Templating;
 /// <summary>
 /// Exercises the <c>Synto.Templating.Template.Parameter&lt;T&gt;()</c> live-parameter marker (plan Task 1):
 /// a <c>Parameter&lt;T&gt;()</c> call in a <c>[Template]</c> body lifts a depth-0 value to a factory
-/// parameter (caller-supplied) rather than quoting it, mirroring an <c>[Inline]</c> value but with the
+/// parameter (caller-supplied) rather than quoting it, mirroring an <c>[Unquote]</c> value but with the
 /// value originating as a factory parameter. Identity is <c>(name, T)</c>; naming errors are diagnostics.
 /// </summary>
 public class StagedParameterTest

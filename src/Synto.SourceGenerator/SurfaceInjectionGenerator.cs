@@ -11,7 +11,7 @@ namespace Synto;
 
 /// <summary>
 /// Injects the small consumer-facing Synto marker surface (the marker types: <c>TemplateAttribute</c>,
-/// <c>InlineAttribute</c>, <c>RuntimeAttribute</c>, <c>TemplateOption</c>, <c>Syntax</c>/<c>Syntax&lt;T&gt;</c>)
+/// <c>UnquoteAttribute</c>, <c>SpliceAttribute</c>, <c>RuntimeAttribute</c>, <c>TemplateOption</c>, <c>Syntax</c>/<c>Syntax&lt;T&gt;</c>)
 /// as <c>internal</c> source into the consumer's compilation. This lets a consumer depend on the
 /// <c>Synto</c> generator package alone, with no reference to the <c>Synto.Core</c> runtime assembly.
 /// </summary>

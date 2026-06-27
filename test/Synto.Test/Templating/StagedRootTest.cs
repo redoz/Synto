@@ -69,7 +69,7 @@ public class StagedRootTest
             """);
     }
 
-    // Snapshot: a [Unquote] parameter lifts to a caller-supplied factory parameter (depth-0 == an [Inline] value).
+    // Snapshot: a [Unquote] parameter lifts to a caller-supplied factory parameter (a depth-0 value lift).
     [Fact]
     public async Task StagedParameter_LiftsToFactoryParameter()
     {

@@ -41,7 +41,7 @@
 	   generator looks up at runtime. -->
   <ItemGroup>
 	<EmbeddedResource Include="..\Synto\Templating\TemplateAttribute.cs" LogicalName="Synto.Runtime.TemplateAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\InlineAttribute.cs" LogicalName="Synto.Runtime.InlineAttribute.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\SpliceAttribute.cs" LogicalName="Synto.Runtime.SpliceAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\RuntimeAttribute.cs" LogicalName="Synto.Runtime.RuntimeAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\TemplateOption.cs" LogicalName="Synto.Runtime.TemplateOption.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Syntax.cs" LogicalName="Synto.Runtime.Syntax.cs" />

@@ -8,7 +8,7 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 
 partial class Factory
 {
-    public static MethodDeclarationSyntax Build(TypeSyntax T)
+    public static MethodDeclarationSyntax Build(ExpressionSyntax node)
     {
         return MethodDeclaration(
                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
@@ -19,14 +19,7 @@ partial class Factory
                    null, 
                    ParameterList(
                        Token(OpenParenToken), 
-                       SeparatedList<ParameterSyntax>(
-                           new SyntaxNodeOrToken[] { 
-                               Parameter(
-                                   List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
-                                   TokenList(), 
-                                   T, 
-                                   Identifier("instance"), 
-                                   null) }), 
+                       SeparatedList<ParameterSyntax>(Array.Empty<SyntaxNodeOrToken>()), 
                        Token(CloseParenToken)), 
                    List<TypeParameterConstraintClauseSyntax>(Array.Empty<TypeParameterConstraintClauseSyntax>()), 
                    Block(
@@ -34,24 +27,6 @@ partial class Factory
                        Token(OpenBraceToken), 
                        List<StatementSyntax>(
                            new StatementSyntax[] { 
-                               LocalDeclarationStatement(
-                                   List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
-                                   Token(None), 
-                                   Token(None), 
-                                   TokenList(), 
-                                   VariableDeclaration(
-                                       IdentifierName("var"), 
-                                       SeparatedList<VariableDeclaratorSyntax>(
-                                           new SyntaxNodeOrToken[] { 
-                                               VariableDeclarator(
-                                                   Identifier("x"), 
-                                                   null, 
-                                                   EqualsValueClause(
-                                                       Token(EqualsToken), 
-                                                       global::Synto.Templating.SyntoBuilders.Member(
-                                                           IdentifierName("instance"), 
-                                                           "Name"))) })), 
-                                   Token(SemicolonToken)), 
                                ExpressionStatement(
                                    List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
                                    InvocationExpression(
@@ -71,7 +46,7 @@ partial class Factory
                                                    Argument(
                                                        null, 
                                                        Token(None), 
-                                                       IdentifierName("x")) }), 
+                                                       node) }), 
                                            Token(CloseParenToken))), 
                                    Token(SemicolonToken)) }), 
                        Token(CloseBraceToken)), 

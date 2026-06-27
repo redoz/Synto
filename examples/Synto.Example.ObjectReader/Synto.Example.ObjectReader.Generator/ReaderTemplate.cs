@@ -19,7 +19,7 @@ namespace Synto.Example.ObjectReader.Generator;
 #pragma warning disable CA1024 // GetSchemaTable etc. mirror the IDataReader signatures verbatim.
 
 [Template(typeof(Factory))]
-internal sealed class ObjectReaderTemplate<[Inline(AsSyntax = true)] T>
+internal sealed class ObjectReaderTemplate<[Splice] T>
 {
     private readonly global::System.Collections.Generic.IEnumerator<T> _e;
     private bool _closed;
@@ -268,7 +268,7 @@ internal sealed class ObjectReaderTemplate<[Inline(AsSyntax = true)] T>
 #pragma warning restore CA1812
 
 /// <summary>Synto template factory target. The injected <c>TemplateFactorySourceGenerator</c> fills the other
-/// partial with <c>ObjectReaderTemplate(ExpressionSyntax T, EquatableArray&lt;ColumnInfo&gt; columns, int fieldCount)</c>
+/// partial with <c>ObjectReaderTemplate(TypeSyntax T, int fieldCount, EquatableArray&lt;ColumnInfo&gt; columns)</c>
 /// returning the skeleton's <c>ClassDeclarationSyntax</c>.</summary>
 internal static partial class Factory
 {

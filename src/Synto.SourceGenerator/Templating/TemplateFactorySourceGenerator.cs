@@ -292,20 +292,24 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         List<TypeParameterSyntax> typeParams = new List<TypeParameterSyntax>();
 
         HashSet<ITypeParameterSymbol> inlinedTypeParams = new HashSet<ITypeParameterSymbol>(SymbolEqualityComparer.Default);
-        foreach (var replacements in InlinedTypeParameterFinder.FindInlinedTypeParameters(semanticModel, templateInfo.Source!.Syntax))
+        foreach (var replacements in StagedTypeParameterFinder.FindStagedTypeParameters(semanticModel, templateInfo.Source!.Syntax))
         {
             string typeParamName = replacements.TypeParameterSyntax.Identifier.Text;
 
             ExpressionSyntax typeSyntaxForTypeParam;
-            if (replacements.AsSyntax)
+            if (replacements.IsSplice)
             {
+                // [Splice] type parameter: splice a pre-built TypeSyntax verbatim. The factory parameter is typed
+                // TypeSyntax (NOT ExpressionSyntax) so every TYPE-position use of the parameter lands in a
+                // TypeSyntax slot and the generated factory compiles — the fix for the type-axis miscompile where
+                // a spliced type was previously emitted as ExpressionSyntax (CS1503 ExpressionSyntax -> TypeSyntax).
                 // TODO make a little utility for this
                 while (!paramNames.Add(typeParamName))
                     typeParamName += '_';
 
                 typeSyntaxForTypeParam = IdentifierName(typeParamName);
 
-                parameters.Add(Parameter(Identifier(typeParamName)).WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!))));
+                parameters.Add(Parameter(Identifier(typeParamName)).WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(TypeSyntax).FullName!))));
             }
             else
             {
@@ -347,130 +351,23 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             trimNodes.Add(replacements.TypeParameterSyntax);
         }
 
-        // Lazily-resolved state for [Runtime] converter discovery — only walked when an inlined parameter of
-        // a concrete, non-built-in type is actually encountered. All of this is semantic work done INSIDE the
-        // transform; nothing here is captured into pipeline state (only the resulting source text flows out).
-        var runtimeAttribute = semanticModel.Compilation.GetTypeByMetadataName(typeof(RuntimeAttribute).FullName!);
-        var expressionSyntaxSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(ExpressionSyntax).FullName!);
-        ImmutableArray<INamedTypeSymbol>? runtimeClasses = null;
-        bool converterError = false;
-
-        foreach (var replacements in InlinedParameterFinder.FindInlinedParameters(semanticModel, templateInfo.Source.Syntax))
+        // [Splice] value parameters: a pre-built ExpressionSyntax supplied to the factory and spliced VERBATIM
+        // (no evaluation, no value lift). The factory parameter is typed ExpressionSyntax and every use of it is
+        // replaced by the parameter as-is.
+        foreach (var replacements in SpliceParameterFinder.FindSpliceParameters(semanticModel, templateInfo.Source.Syntax))
         {
             string paramName = replacements.Parameter.Identifier.Text;
             while (!paramNames.Add(paramName))
                 paramName += '_';
 
-            // TODO check if there is a static <type>.ToSyntax() to call, if so call it, otherwise convert this parameter type to ExpressionSyntax
-            TypeSyntax parameterType;
-
-            IdentifierNameSyntax identifierSyntaxForParam;
-
-            if (replacements.AsSyntax)
-            {
-                parameterType = additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!));
-                identifierSyntaxForParam = IdentifierName(paramName);
-            }
-            else
-            {
-                parameterType = replacements.Parameter.Type!;
-
-                var paramTypeSymbolInfo = semanticModel.GetTypeInfo(parameterType);
-
-                // How `value` is converted to an ExpressionSyntax. By default `value.ToSyntax()`, which binds
-                // to the file-local LiteralSyntaxExtensions (for built-in types) or to the generic ToSyntax<T>
-                // fallback (for inlined generic type parameters, resolved at the author's runtime). A custom
-                // type instead binds to a discovered [Runtime] converter, called directly below.
-                ExpressionSyntax conversion = InvocationExpression(
-                    MemberAccessExpression(
-                        SyntaxKind.SimpleMemberAccessExpression,
-                        IdentifierName(paramName),
-                        IdentifierName("ToSyntax")));
-
-                // if this is a generic type reference we need to include it in our factory method declaration if it's not already been inlined
-                if (paramTypeSymbolInfo.Type is ITypeParameterSymbol typeParam && !inlinedTypeParams.Contains(typeParam))
-                {
-                    string typeParamName = typeParam.Name;
-
-                    while (!inlinedTypeParamNames.Add(typeParamName))
-                        typeParamName += '_';
-
-                    parameterType = IdentifierName(typeParamName);
-
-                    typeParams.Add(TypeParameter(typeParamName));
-                }
-                else if (paramTypeSymbolInfo.Type is { } paramType
-                         && paramType is not ITypeParameterSymbol
-                         && !IsBuiltInLiteralType(paramType))
-                {
-                    // A concrete, non-built-in inlined type needs a user-provided [Runtime] converter exposing
-                    // ToSyntax(this ThatType). It is discovered from the TYPE (not by scanning emitted call
-                    // names); with no converter (or more than one) a diagnostic is emitted at generation time,
-                    // rather than letting the generic ToSyntax<T> fallback throw NotImplementedException at the
-                    // author's runtime.
-                    runtimeClasses ??= RuntimeConverterFinder.FindRuntimeClasses(semanticModel.Compilation, runtimeAttribute);
-                    var converters = RuntimeConverterFinder.FindConvertersFor(runtimeClasses.Value, paramType, expressionSyntaxSymbol);
-
-                    if (converters.Length == 0)
-                    {
-                        diagnostics.Add(Diagnostics.NoRuntimeConverter(replacements.Parameter.Type!.GetLocation(), paramType.ToDisplayString()));
-                        converterError = true;
-                    }
-                    else if (converters.Length > 1)
-                    {
-                        diagnostics.Add(Diagnostics.AmbiguousRuntimeConverter(replacements.Parameter.Type!.GetLocation(), paramType.ToDisplayString(), converters.Length));
-                        converterError = true;
-                    }
-                    else
-                    {
-                        // Call the user's converter DIRECTLY by its fully-qualified name as a static method —
-                        // `global::Ns.Converter.ToSyntax(value)`. We deliberately do NOT inject a file-local
-                        // COPY of the converter (as is done for Synto's own embedded helpers): the user's
-                        // converter already lives in this compilation, so a copy would be a second
-                        // `ToSyntax(this ThatType)` in scope and collide with the original (CS0121). A
-                        // fully-qualified static call binds to exactly the discovered converter, needs no
-                        // `using`, and keeps the generated output free of any Synto runtime dependency.
-                        var converter = converters[0];
-                        conversion = InvocationExpression(
-                                MemberAccessExpression(
-                                    SyntaxKind.SimpleMemberAccessExpression,
-                                    ParseName(converter.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
-                                    IdentifierName("ToSyntax")))
-                            .AddArgumentListArguments(Argument(IdentifierName(paramName)));
-
-                        // Emit the parameter with its fully-qualified declared type so it resolves in the
-                        // generated file regardless of which usings the template's file happened to carry.
-                        parameterType = ParseTypeName(paramType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-                    }
-                }
-
-                var syntaxForTypeParamIdentifier = Identifier("syntaxForParam_" + paramName);
-                identifierSyntaxForParam = IdentifierName(syntaxForTypeParamIdentifier);
-                preamble.Add(
-                    LocalDeclarationStatement(
-                        VariableDeclaration(
-                            additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
-                            SingletonSeparatedList(
-                                VariableDeclarator(
-                                    syntaxForTypeParamIdentifier,
-                                    null,
-                                    EqualsValueClause(conversion))))));
-            }
-
-
-
+            var parameterType = additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!));
             parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
             foreach (var identifierNameSyntax in replacements.References)
-                unquotedReplacements.Add(identifierNameSyntax, identifierSyntaxForParam);
+                unquotedReplacements.Add(identifierNameSyntax, IdentifierName(paramName));
 
             trimNodes.Add(replacements.Parameter);
         }
-
-        // A missing/ambiguous converter is a usage error: bail with the diagnostic(s) already reported rather
-        // than emit a factory that would fail to compile or throw at the author's runtime.
-        if (converterError)
-            return null;
 
 
         foreach (var replacements in SyntaxParameterFinder.FindSyntaxParameters(semanticModel, templateInfo.Source.Syntax))
@@ -635,7 +532,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // factory-build time and the resulting runtime value is lifted into the quoted output. Depth-0, a
         // live LOCAL hoists its `var n = <expr>;` verbatim into the factory body (a real runtime local) and
         // each use lifts via `n.ToSyntax()`; a [Unquote] PARAMETER becomes a caller-supplied factory parameter
-        // lifted the same way (like an [Inline] value, but classified live for later staging).
+        // lifted the same way (an [Unquote] value, classified live for later staging).
         foreach (var stagedLocal in stagedRootResult.Locals)
         {
             // Hoist the runtime local: `var n = <expr>;` (the Unquote(...) carrier is unwrapped to its argument,
@@ -650,7 +547,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
             // References consumed by a live region are handled by the verbatim scaffold (the live local is a
             // real runtime driver/accumulator there — e.g. a `while` driver, `k++`); only depth-0 references
-            // lift via value.ToSyntax(), exactly like an [Inline] value. When every reference is region-consumed
+            // lift via value.ToSyntax(), exactly like an [Unquote] value. When every reference is region-consumed
             // the ToSyntax lift is dead, so it is not emitted at all.
             var liveLocalDepthZeroReferences = stagedLocal.References.Where(reference => !regionConsumedNodes.Contains(reference)).ToList();
             if (liveLocalDepthZeroReferences.Count > 0)
@@ -678,19 +575,82 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             trimNodes.Add(stagedLocal.Declaration);
         }
 
+        // Lazily-resolved state for [Runtime] converter discovery — only walked when an [Unquote] parameter of
+        // a concrete, non-built-in type is actually encountered. All of this is semantic work done INSIDE the
+        // transform; nothing here is captured into pipeline state (only the resulting source text flows out).
+        var runtimeAttribute = semanticModel.Compilation.GetTypeByMetadataName(typeof(RuntimeAttribute).FullName!);
+        var expressionSyntaxSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(ExpressionSyntax).FullName!);
+        ImmutableArray<INamedTypeSymbol>? runtimeClasses = null;
+        bool converterError = false;
+
         foreach (var stagedParameterRoot in stagedRootResult.Parameters)
         {
             string paramName = stagedParameterRoot.Parameter.Identifier.Text;
             while (!paramNames.Add(paramName))
                 paramName += '_';
 
-            var parameterType = ParseTypeName(stagedParameterRoot.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            // The [Unquote] value lift: the supplied value is converted to syntax at factory time and the result
+            // spliced into the output (subsumes the old value-lift behavior). By default `value.ToSyntax()`,
+            // which binds to the file-local LiteralSyntaxExtensions (built-in types) or the generic ToSyntax<T>
+            // fallback (inlined generic type parameters); a custom type instead binds to a discovered [Runtime]
+            // converter, called fully-qualified below.
+            TypeSyntax parameterType = stagedParameterRoot.Parameter.Type!;
+            var paramType = stagedParameterRoot.Type;
 
             ExpressionSyntax conversion = InvocationExpression(
                 MemberAccessExpression(
                     SyntaxKind.SimpleMemberAccessExpression,
                     IdentifierName(paramName),
                     IdentifierName("ToSyntax")));
+
+            // A generic type reference must be declared on the factory method (unless already inlined as a type param).
+            if (paramType is ITypeParameterSymbol typeParam && !inlinedTypeParams.Contains(typeParam))
+            {
+                string typeParamName = typeParam.Name;
+                while (!inlinedTypeParamNames.Add(typeParamName))
+                    typeParamName += '_';
+
+                parameterType = IdentifierName(typeParamName);
+                typeParams.Add(TypeParameter(typeParamName));
+            }
+            else if (paramType is not ITypeParameterSymbol && !IsBuiltInLiteralType(paramType))
+            {
+                // A concrete, non-built-in [Unquote] type needs a user-provided [Runtime] converter exposing
+                // ToSyntax(this ThatType). It is discovered from the TYPE; with no converter (or more than one) a
+                // diagnostic is emitted at generation time, rather than letting the generic ToSyntax<T> fallback
+                // throw NotImplementedException at the author's runtime.
+                runtimeClasses ??= RuntimeConverterFinder.FindRuntimeClasses(semanticModel.Compilation, runtimeAttribute);
+                var converters = RuntimeConverterFinder.FindConvertersFor(runtimeClasses.Value, paramType, expressionSyntaxSymbol);
+
+                if (converters.Length == 0)
+                {
+                    diagnostics.Add(Diagnostics.NoRuntimeConverter(stagedParameterRoot.Parameter.Type!.GetLocation(), paramType.ToDisplayString()));
+                    converterError = true;
+                }
+                else if (converters.Length > 1)
+                {
+                    diagnostics.Add(Diagnostics.AmbiguousRuntimeConverter(stagedParameterRoot.Parameter.Type!.GetLocation(), paramType.ToDisplayString(), converters.Length));
+                    converterError = true;
+                }
+                else
+                {
+                    // Call the user's converter DIRECTLY by its fully-qualified name as a static method —
+                    // `global::Ns.Converter.ToSyntax(value)`. A fully-qualified static call binds to exactly the
+                    // discovered converter, needs no `using`, and keeps the generated output free of any Synto
+                    // runtime dependency.
+                    var converter = converters[0];
+                    conversion = InvocationExpression(
+                            MemberAccessExpression(
+                                SyntaxKind.SimpleMemberAccessExpression,
+                                ParseName(converter.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
+                                IdentifierName("ToSyntax")))
+                        .AddArgumentListArguments(Argument(IdentifierName(paramName)));
+
+                    // Emit the parameter with its fully-qualified declared type so it resolves in the generated
+                    // file regardless of which usings the template's file happened to carry.
+                    parameterType = ParseTypeName(paramType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                }
+            }
 
             var syntaxForParamIdentifier = Identifier("syntaxForParam_" + paramName);
             preamble.Add(
@@ -710,6 +670,11 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
             trimNodes.Add(stagedParameterRoot.Parameter);
         }
+
+        // A missing/ambiguous converter is a usage error: bail with the diagnostic(s) already reported rather
+        // than emit a factory that would fail to compile or throw at the author's runtime.
+        if (converterError)
+            return null;
 
         // Syntax builders (Task 3): built-in Template.Member/TypeOf facade calls (recognized by binding) and
         // user [SyntaxBuilder] facade calls (recognized structurally) are replaced — keyed at the invocation
@@ -757,6 +722,12 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 unquotedReplacements[call.Invocation] = builderInvocation;
             }
         }
+
+        // Template.Splice(node) body calls (recognized by binding): splice the pre-built ExpressionSyntax
+        // argument VERBATIM into the output at the call position — the inline counterpart to a [Splice]
+        // parameter. Keyed at the invocation so the quoter substitutes the argument expression as-is.
+        foreach (var spliceCall in SpliceCallFinder.FindSpliceCalls(semanticModel, templateInfo.Source.Syntax))
+            unquotedReplacements[spliceCall.Invocation] = (ExpressionSyntax)spliceCall.Argument.WithoutTrivia();
 
         // Unroll the live control regions: each foreach over a live root becomes a verbatim scaffold in the
         // factory preamble (collecting quoted islands into a run) plus a single replacement keyed at the

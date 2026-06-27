@@ -5,10 +5,10 @@ using Microsoft.CodeAnalysis;
 namespace Synto;
 
 /// <summary>
-/// Discovers user-authored value-to-syntax converters for an <c>[Inline]</c> parameter whose declared type is
+/// Discovers user-authored value-to-syntax converters for an <c>[Unquote]</c> parameter whose declared type is
 /// not one of the built-in literal types <see cref="LiteralSyntaxExtensions"/> handles. A converter is a
 /// <c>static class</c> in the current compilation marked with <c>[Runtime]</c> that exposes an extension
-/// method <c>ExpressionSyntax ToSyntax(this T)</c> for the inlined type <c>T</c>.
+/// method <c>ExpressionSyntax ToSyntax(this T)</c> for the unquoted type <c>T</c>.
 /// </summary>
 /// <remarks>
 /// All discovery runs inside the <c>ForAttributeWithMetadataName</c> transform of

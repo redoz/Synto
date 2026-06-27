@@ -107,9 +107,29 @@ public class SyntaxBuilderTest
             partial class Factory {}
             public class TestClass {
                 [Template(typeof(Factory))]
-                void Build<[Inline(AsSyntax = true)] T>(T instance) {
+                void Build<[Splice] T>(T instance) {
                     var x = Member<object>(instance, "Name");   // -> instance.Name in OUTPUT (identifier, not "Name")
                     System.Console.WriteLine(x);
+                }
+            }
+            """);
+    }
+
+    // Template.Splice(node) body form: a pre-built ExpressionSyntax is spliced VERBATIM mid-expression at the
+    // call position (the inline counterpart to a [Splice] parameter), so the output is `Console.WriteLine(node)`.
+    [Fact]
+    public async Task TemplateSplice_SplicesNodeVerbatim()
+    {
+        await VerifyTemplate(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] ExpressionSyntax node) {
+                    System.Console.WriteLine(Splice(node));   // -> Console.WriteLine(node) in OUTPUT
                 }
             }
             """);
@@ -134,7 +154,7 @@ public class SyntaxBuilderTest
 
             public class TestClass {
                 [Template(typeof(Factory))]
-                void Build([Inline(AsSyntax = true)] object x) {
+                void Build([Splice] object x) {
                     System.Console.WriteLine(MyBuilders.Cast<int>(x));
                 }
             }
@@ -187,7 +207,7 @@ public class SyntaxBuilderTest
 
             public class TestClass {
                 [Template(typeof(Factory))]
-                void Build([Inline(AsSyntax = true)] object x) => System.Console.WriteLine(Bad.Foo(x));
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Foo(x));
             }
             """);
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
@@ -211,7 +231,7 @@ public class SyntaxBuilderTest
 
             public class TestClass {
                 [Template(typeof(Factory))]
-                void Build([Inline(AsSyntax = true)] object x) => System.Console.WriteLine(Builders.Cast(x)); // no <int> type arg
+                void Build([Splice] object x) => System.Console.WriteLine(Builders.Cast(x)); // no <int> type arg
             }
             """);
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1016");
@@ -236,7 +256,7 @@ public class SyntaxBuilderTest
 
             public class TestClass {
                 [Template(typeof(Factory))]
-                void Build([Inline(AsSyntax = true)] object x) => System.Console.WriteLine(Bad.Nope(x));
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Nope(x));
             }
             """);
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1017");
@@ -263,7 +283,7 @@ public class SyntaxBuilderTest
 
             public class TestClass {
                 [Template(typeof(Factory))]
-                void Build([Inline(AsSyntax = true)] object x) => System.Console.WriteLine(Builders.Wrap(x));
+                void Build([Splice] object x) => System.Console.WriteLine(Builders.Wrap(x));
             }
             """);
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1018");
@@ -283,7 +303,7 @@ public class SyntaxBuilderTest
             partial class Factory {}
             public class TestClass {
                 [Template(typeof(Factory))]
-                void Build([Inline(AsSyntax = true)] object instance) {
+                void Build([Splice] object instance) {
                     var x = Member<object>(instance, "Name");
                     System.Console.WriteLine(x);
                 }
