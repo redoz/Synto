@@ -267,6 +267,80 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             _ => false,
         };
 
+    /// <summary>
+    /// The shared value→syntax lift used by both the <c>[Unquote]</c> value-parameter path and the new
+    /// <c>[Quote]</c> paths (parameter + inline <c>Quote(value)</c>). Produces the factory-time conversion
+    /// expression that lifts <paramref name="valueAccess"/> to <c>ExpressionSyntax</c>:
+    /// <c>valueAccess.ToSyntax()</c> for a built-in literal type (binds to the file-local
+    /// <c>LiteralSyntaxExtensions</c> / generic <c>ToSyntax&lt;T&gt;</c> fallback, also used for an inlined
+    /// generic type parameter), or a fully-qualified <c>global::Ns.Converter.ToSyntax(valueAccess)</c> call for a
+    /// concrete non-built-in type carrying exactly one <c>[Runtime]</c> converter. A concrete type with no
+    /// converter yields <c>SY1011</c>; with more than one yields <c>SY1012</c> — returned via
+    /// <paramref name="diagnostic"/> with a <c>false</c> result so the caller can bail. The generic-type-parameter
+    /// <c>typeof(T).ToTypeSyntax()</c> lift is <c>[Unquote]</c>-only and stays out of this helper (<c>[Quote]</c>
+    /// is value-axis only). <paramref name="runtimeClasses"/> is the lazily-resolved converter-class cache, walked
+    /// only on the first concrete non-built-in type encountered. All work is semantic and done inside the
+    /// transform; nothing is captured into pipeline state.
+    /// </summary>
+    private static bool TryEmitValueLift(
+        ITypeSymbol valueType,
+        ExpressionSyntax valueAccess,
+        Location? diagnosticLocation,
+        SemanticModel semanticModel,
+        INamedTypeSymbol? runtimeAttribute,
+        INamedTypeSymbol? expressionSyntaxSymbol,
+        ref ImmutableArray<INamedTypeSymbol>? runtimeClasses,
+        out ExpressionSyntax liftedSyntax,
+        out DiagnosticInfo? diagnostic)
+    {
+        diagnostic = null;
+
+        // Built-in literal type (or an inlined generic type parameter): value.ToSyntax(), binding to the
+        // file-local LiteralSyntaxExtensions / generic ToSyntax<T> fallback.
+        if (valueType is ITypeParameterSymbol || IsBuiltInLiteralType(valueType))
+        {
+            liftedSyntax = InvocationExpression(
+                MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    valueAccess,
+                    IdentifierName("ToSyntax")));
+            return true;
+        }
+
+        // A concrete, non-built-in type needs a user-provided [Runtime] converter exposing
+        // ToSyntax(this ThatType). It is discovered from the TYPE; with no converter (or more than one) a
+        // diagnostic is emitted at generation time, rather than letting the generic ToSyntax<T> fallback throw
+        // NotImplementedException at the author's runtime.
+        runtimeClasses ??= RuntimeConverterFinder.FindRuntimeClasses(semanticModel.Compilation, runtimeAttribute);
+        var converters = RuntimeConverterFinder.FindConvertersFor(runtimeClasses.Value, valueType, expressionSyntaxSymbol);
+
+        if (converters.Length == 0)
+        {
+            diagnostic = Diagnostics.NoRuntimeConverter(diagnosticLocation, valueType.ToDisplayString());
+            liftedSyntax = valueAccess;
+            return false;
+        }
+
+        if (converters.Length > 1)
+        {
+            diagnostic = Diagnostics.AmbiguousRuntimeConverter(diagnosticLocation, valueType.ToDisplayString(), converters.Length);
+            liftedSyntax = valueAccess;
+            return false;
+        }
+
+        // Call the user's converter DIRECTLY by its fully-qualified name as a static method —
+        // `global::Ns.Converter.ToSyntax(value)`. A fully-qualified static call binds to exactly the discovered
+        // converter, needs no `using`, and keeps the generated output free of any Synto runtime dependency.
+        var converter = converters[0];
+        liftedSyntax = InvocationExpression(
+                MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    ParseName(converter.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
+                    IdentifierName("ToSyntax")))
+            .AddArgumentListArguments(Argument(valueAccess));
+        return true;
+    }
+
     private static MethodDeclarationSyntax? CreateSyntaxFactoryMethod(
         List<DiagnosticInfo> diagnostics,
         SemanticModel semanticModel,
@@ -597,12 +671,6 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             TypeSyntax parameterType = stagedParameterRoot.Parameter.Type!;
             var paramType = stagedParameterRoot.Type;
 
-            ExpressionSyntax conversion = InvocationExpression(
-                MemberAccessExpression(
-                    SyntaxKind.SimpleMemberAccessExpression,
-                    IdentifierName(paramName),
-                    IdentifierName("ToSyntax")));
-
             // A generic type reference must be declared on the factory method (unless already inlined as a type param).
             if (paramType is ITypeParameterSymbol typeParam && !inlinedTypeParams.Contains(typeParam))
             {
@@ -613,43 +681,20 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 parameterType = IdentifierName(typeParamName);
                 typeParams.Add(TypeParameter(typeParamName));
             }
+
+            // The [Unquote] value lift: the supplied value is converted to syntax at factory time and the result
+            // spliced into the output. Shared with the [Quote] paths via TryEmitValueLift (the generic-type-param
+            // declaration above stays [Unquote]-only; [Quote] is value-axis only).
+            if (!TryEmitValueLift(paramType, IdentifierName(paramName), stagedParameterRoot.Parameter.Type!.GetLocation(), semanticModel, runtimeAttribute, expressionSyntaxSymbol, ref runtimeClasses, out ExpressionSyntax conversion, out var liftDiagnostic))
+            {
+                diagnostics.Add(liftDiagnostic!.Value);
+                converterError = true;
+            }
             else if (paramType is not ITypeParameterSymbol && !IsBuiltInLiteralType(paramType))
             {
-                // A concrete, non-built-in [Unquote] type needs a user-provided [Runtime] converter exposing
-                // ToSyntax(this ThatType). It is discovered from the TYPE; with no converter (or more than one) a
-                // diagnostic is emitted at generation time, rather than letting the generic ToSyntax<T> fallback
-                // throw NotImplementedException at the author's runtime.
-                runtimeClasses ??= RuntimeConverterFinder.FindRuntimeClasses(semanticModel.Compilation, runtimeAttribute);
-                var converters = RuntimeConverterFinder.FindConvertersFor(runtimeClasses.Value, paramType, expressionSyntaxSymbol);
-
-                if (converters.Length == 0)
-                {
-                    diagnostics.Add(Diagnostics.NoRuntimeConverter(stagedParameterRoot.Parameter.Type!.GetLocation(), paramType.ToDisplayString()));
-                    converterError = true;
-                }
-                else if (converters.Length > 1)
-                {
-                    diagnostics.Add(Diagnostics.AmbiguousRuntimeConverter(stagedParameterRoot.Parameter.Type!.GetLocation(), paramType.ToDisplayString(), converters.Length));
-                    converterError = true;
-                }
-                else
-                {
-                    // Call the user's converter DIRECTLY by its fully-qualified name as a static method —
-                    // `global::Ns.Converter.ToSyntax(value)`. A fully-qualified static call binds to exactly the
-                    // discovered converter, needs no `using`, and keeps the generated output free of any Synto
-                    // runtime dependency.
-                    var converter = converters[0];
-                    conversion = InvocationExpression(
-                            MemberAccessExpression(
-                                SyntaxKind.SimpleMemberAccessExpression,
-                                ParseName(converter.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
-                                IdentifierName("ToSyntax")))
-                        .AddArgumentListArguments(Argument(IdentifierName(paramName)));
-
-                    // Emit the parameter with its fully-qualified declared type so it resolves in the generated
-                    // file regardless of which usings the template's file happened to carry.
-                    parameterType = ParseTypeName(paramType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-                }
+                // Emit the parameter with its fully-qualified declared type so it resolves in the generated file
+                // regardless of which usings the template's file happened to carry.
+                parameterType = ParseTypeName(paramType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
             }
 
             var syntaxForParamIdentifier = Identifier("syntaxForParam_" + paramName);
