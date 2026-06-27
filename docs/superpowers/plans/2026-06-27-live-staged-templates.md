@@ -31,8 +31,8 @@ Every task implicitly includes these (copied from the spec + `principles.md` + `
 ## File Structure
 
 **Create (runtime surface, `src/Synto/Templating/`):**
-- `LiveAttribute.cs` — the `[Live]` capability marker (spec §3.2). Authored `public`, injected `internal`.
-- `Template.Parameter.cs` (or fold into a `Template.cs`) — the `Template` static class hosting `Parameter<T>(string? parameterName = null)` and the built-in builder **facades** `Member<TValue>(object instance, string name)` / `TypeOf(string name)` (spec §3.1, §5.1). Inert (`=> default!`). Exact spelling per **Task 0**.
+- `LiveAttribute.cs` — the `[Live]` capability marker for live **method parameters** (spec §3.2), `[AttributeUsage(AttributeTargets.Parameter)]`. Authored `public`, injected `internal`. (Live **locals** use `Template.Live<T>()`, not this attribute — see §1 re-baseline.)
+- `Template.Parameter.cs` (or fold into a `Template.cs`) — the `Template` static class hosting `Parameter<T>(string? parameterName = null)`, the live-local carrier `Live<T>(T value)` (inert identity `=> value`), and the built-in builder **facades** `Member<TValue>(object instance, string name)` / `TypeOf(string name)` (spec §3.1, §5.1). Inert. Exact spelling per **Task 0 / §1**.
 - `SyntaxBuilderAttribute.cs` — marks an individual `public static` method as a factory-time syntax builder (the public extensibility contract; mirrors `[Runtime]`), `[AttributeUsage(AttributeTargets.Method)]`, no ctor arg. Spelling locked in §4.
 - `QuotedAttribute.cs` — marks a `[SyntaxBuilder]` method parameter whose corresponding call argument is **quoted** (output-world island) rather than passed as a live value. Required because the parameter *type* cannot disambiguate "quote this island into an `ExpressionSyntax`" from "pass a live `ExpressionSyntax` through unquoted" (deliberate metaprogramming). Authored `public`, injected `internal`. Spelling locked in §6.
 - `ReturnTypeAttribute.cs` — marks the `[Quoted(AsTypeArg = true)]` builder param whose synthesized generic type parameter is the facade's **return type** (§5). Authored `public`, injected `internal`, `[AttributeUsage(AttributeTargets.Parameter)]`, no properties.
@@ -45,7 +45,7 @@ Every task implicitly includes these (copied from the spec + `principles.md` + `
 
 **Create (generator, `src/Synto.SourceGenerator/Templating/`):**
 - `LiveParameterFinder.cs` — discovers `Parameter<T>()` roots (both positions), resolves identity `(name, T)`, dedup, naming diagnostics.
-- `LiveRootFinder.cs` — discovers `[Live]` declarations + `[Live]` method parameters.
+- `LiveRootFinder.cs` — discovers `Live<T>()` local declarations (call-form, mirrors `LiveParameterFinder`) + `[Live]` method parameters.
 - `SyntaxBuilderFinder.cs` — discovers `[SyntaxBuilder]` classes + matches carrier facade calls to builders (mirror `RuntimeConverterFinder`).
 - `BindingTimeClassifier.cs` — the dataflow partition (quoted / live-value / live-control) given the roots; impossible-cut detection.
 - `LiveRegionEmitter.cs` — precomputes the run+collect replacement expression for a live control region (verbatim scaffold + collected islands), keyed at the container.
@@ -189,17 +189,17 @@ public void ConflictingParameterType_ReportsDiagnostic()
 
 ---
 
-### Task 2: `[Live]` capability marker — bound roots and live method parameters (depth-0)
+### Task 2: live bound roots — `Live<T>()` locals and `[Live]` method parameters (depth-0)
 
 **Files:**
-- Create: `src/Synto/Templating/LiveAttribute.cs`
+- Create: `src/Synto/Templating/LiveAttribute.cs` (+ the `Live<T>(T value)` carrier on `Template` per §1)
 - Create: `src/Synto.SourceGenerator/Templating/LiveRootFinder.cs`
-- Modify: `Synto.SourceGenerator.csproj` (embed `Synto.Runtime.LiveAttribute.cs`), `TemplateFactorySourceGenerator.cs` (treat `[Live]` roots; route depth-0 bound locals to the `preamble`), `LiveAttribute` AttributeUsage
+- Modify: `Synto.SourceGenerator.csproj` (embed `Synto.Runtime.LiveAttribute.cs` + the `Live<T>` carrier source), `TemplateFactorySourceGenerator.cs` (treat live bound roots; route depth-0 bound locals to the `preamble`)
 - Test: `test/Synto.Test/Templating/LiveRootTest.cs` (+ snapshots)
 
 **Interfaces:**
-- Produces: `Synto.Templating.LiveAttribute` (`[AttributeUsage(AttributeTargets.Local | AttributeTargets.Parameter)]` — confirm targets in Task 0), injected `internal`. `LiveRootFinder.FindLiveRoots(SemanticModel, SyntaxNode) : IEnumerable<LiveRoot>` carrying the marked declaration/parameter symbol + node, classified as a live root (origin = bound).
-- Consumes: Task 1's parameter/preamble plumbing. Behavior (depth-0): a `[Live] var n = <expr>;` whose `n` is consumed as a **value** runs `<expr>` at factory time (hoisted into the factory body / `preamble`), with `n` a real runtime local, and the use site lifts `n` to syntax. `[Live]` on a method parameter gives that parameter **live capability** (vs `[Inline]`'s splice). The depth-0 win of staging-by-intent over control flow lands in Tasks 6–7.
+- Produces: `Synto.Templating.LiveAttribute` (`[AttributeUsage(AttributeTargets.Parameter)]` — §1), injected `internal`, and the `Template.Live<T>(T value)` local carrier (inert identity `=> value`, injected `internal`). `LiveRootFinder.FindLiveRoots(SemanticModel, SyntaxNode) : IEnumerable<LiveRoot>` carrying the marked declaration/parameter symbol + node, classified as a live root (origin = bound) — discovering both `Live<T>()`-initialized locals (call-form, mirrors `LiveParameterFinder`) and `[Live]` method parameters.
+- Consumes: Task 1's parameter/preamble plumbing. Behavior (depth-0): a `var n = Live(<expr>);` whose `n` is consumed as a **value** runs `<expr>` at factory time (hoisted into the factory body / `preamble`), with `n` a real runtime local, and the use site lifts `n` to syntax. `[Live]` on a method parameter gives that parameter **live capability** (vs `[Inline]`'s splice). The depth-0 win of staging-by-intent over control flow lands in Tasks 6–7.
 
 - [ ] **Step 1: Write the failing test:**
 
@@ -210,24 +210,25 @@ public async Task LiveLocal_RunsInFactory_AndLiftsValue()
     await VerifyTemplate(
         """
         using Synto.Templating;
+        using static Synto.Templating.Template;
         partial class Factory {}
         public class TestClass {
             [Template(typeof(Factory))]
             void Build() {
-                [Live] var n = 2 + 3;          // runs at factory time -> 5
+                var n = Live(2 + 3);           // runs at factory time -> 5
                 System.Console.WriteLine(n);   // lifts to literal 5 in the OUTPUT
             }
         }
         """);
     // Expected golden: the factory body computes n at runtime; the emitted Console.WriteLine arg is the literal 5
-    // (the `[Live] var n` declaration is trimmed from the quoted output).
+    // (the `var n = Live(...)` declaration is rewritten/trimmed from the quoted output).
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails** — RED (`[Live]` unresolved).
+- [ ] **Step 2: Run to verify it fails** — RED (`Live` unresolved).
 - [ ] **Step 3: Implement (by contract)** — author + embed `LiveAttribute`; `LiveRootFinder` recognizes it by attribute symbol (mirror `InlinedParameterFinder.VisitParameter`); for a depth-0 bound local, hoist the (verbatim) declaration into the factory `preamble` and register the use-site lift + trim. (Live locals that are part of a control-flow region are handled in Task 6, not hoisted to preamble — pin the partition rule here in the finder's contract.)
 - [ ] **Step 4: Run tests + gate** — accept the snapshot; prior snapshots unchanged.
-- [ ] **Step 5: Commit** — `jj commit -m "feat(templating): [Live] capability marker for bound roots and live parameters"`
+- [ ] **Step 5: Commit** — `jj commit -m "feat(templating): live bound roots — Live<T>() locals and [Live] parameters"`
 
 ---
 
@@ -385,7 +386,7 @@ public void BuilderArgBindingMismatch_ReportsDiagnostic()
 [Fact] public void ForeachOverRoot_IsLiveControl() { /* foreach(var c in root) -> the foreach is LiveControl */ }
 [Fact] public void IndependentNode_IsQuoted()      { /* throw OutOfRange(i); -> Quoted */ }
 [Fact] public void ForeachOverQuotedSource_StaysQuoted() { /* foreach over a non-root -> NOT live control */ }
-[Fact] public void LiveDependingOnGeneratedWorld_IsImpossibleCut() { /* [Live] x = <quoted-only value> -> ImpossibleCut */ }
+[Fact] public void LiveDependingOnGeneratedWorld_IsImpossibleCut() { /* var x = Live(<quoted-only value>) -> ImpossibleCut */ }
 ```
 
 (Construct `SemanticModel` via the existing `SimpleTemplateTest` compilation helper; expose `BindingTimeClassifier` to the test via the already-present `InternalsVisibleTo`.)
@@ -526,7 +527,7 @@ public void ImpossibleCut_ReportsSY1013()
         public class TestClass {
             [Template(typeof(Factory))]
             void Build(int generatedWorld /* quoted */) {
-                [Live] var bad = generatedWorld + 1;  // live fragment needs a value that exists only in OUTPUT
+                var bad = Live(generatedWorld + 1);  // live fragment needs a value that exists only in OUTPUT
                 System.Console.WriteLine(bad);
             }
         }
@@ -574,7 +575,7 @@ public void CastlessGetters_ReadMemberDirectly() // the new capability the featu
 (The existing `Create_IsIntercepted_AndReadsRowsDirectly` and `Create_FeedsDataTableLoad` stay as the regression guard.)
 
 - [ ] **Step 2: Run to verify it fails** — RED (carrier still placeholder-based; cast-less getters delegate to `GetValue`).
-- [ ] **Step 3: Implement (by contract)** — rewrite the carrier's data-driven members per the walkthrough §3.1 using `Parameter<EquatableArray<ColumnInfo>>()` (or `[Live]`), live `foreach`, `Member`/`TypeOf`; delete the generator's text-gluing; pass `model.Columns` to `Factory.ObjectReaderTemplate`. Append substantive friction findings.
+- [ ] **Step 3: Implement (by contract)** — rewrite the carrier's data-driven members per the walkthrough §3.1 using `Parameter<EquatableArray<ColumnInfo>>()` (or `Live<T>()`), live `foreach`, `Member`/`TypeOf`; delete the generator's text-gluing; pass `model.Columns` to `Factory.ObjectReaderTemplate`. Append substantive friction findings.
 - [ ] **Step 4: Run tests + gate** — re-baseline the ObjectReader snapshot after confirming the if-chain + cast-less shape (spec walkthrough §5.2) and **zero `Synto.*` / zero reflection** in output; behavioral + DataTable tests green; Synto core snapshots unchanged.
 - [ ] **Step 5: Commit** — `jj commit -m "refactor(objectreader): data-driven members via live-staged templates (dog-food)"`
 
@@ -601,7 +602,7 @@ public void StagedTemplate_IsIncrementalOnUnrelatedEdit()
 [Fact]
 public void InjectedSurfaceIsCompleteForStagedTemplate()
 {
-    // A rich template exercising Parameter<T>() + [Live] + Member/TypeOf + live foreach + the collection
+    // A rich template exercising Parameter<T>() + Live<T>() + [Live] + Member/TypeOf + live foreach + the collection
     // helper, compiled against ONLY the injected surface (no Synto.Core) -> zero error diagnostics.
 }
 ```
@@ -616,8 +617,8 @@ public void InjectedSurfaceIsCompleteForStagedTemplate()
 ## Self-Review (against the spec)
 
 - **§3.1 `Parameter<T>()` (both positions, identity/dedup/diagnostics)** → Task 1. ✓
-- **§3.2 `[Live]` (bound roots + live method parameters)** → Task 2. ✓
-- **§3.3 coexist with `[Inline]` (two named surfaces, no unification)** → honored: `[Inline]` untouched; `Parameter`/`[Live]` are new (Tasks 1–2). ✓
+- **§3.2 live bound roots (`Live<T>()` locals + `[Live]` method parameters)** → Task 2. ✓
+- **§3.3 coexist with `[Inline]` (two named surfaces, no unification)** → honored: `[Inline]` untouched; `Parameter`/`Live`/`[Live]` are new (Tasks 1–2). ✓
 - **§4 propagation (live set; quoted/live-value/live-control; lift/collect/impossible-cut)** → Task 4 (classifier) + Tasks 6–7 (emit) + Task 8 (impossible cut). ✓
 - **§5.1 lift (value → literal/`ToSyntax`/identifier/type) — absorbs P0** → Task 3 (`Member`/`TypeOf` builders give the carrier surface the spec §3 omitted; raised and resolved with the owner: generic builder mechanism, public v1). ✓
 - **§5.2 run-verbatim with island collection** → Task 6 (+ Task 7 shapes). ✓
@@ -648,9 +649,12 @@ public void InjectedSurfaceIsCompleteForStagedTemplate()
 | Concern | Locked spelling |
 |---|---|
 | Live parameter carrier | `Synto.Templating.Template.Parameter<T>(string? parameterName = null) : T` — inert `=> default!`, injected `internal` |
-| Live capability marker | `Synto.Templating.LiveAttribute` → `[Live]`, `[AttributeUsage(AttributeTargets.Local \| AttributeTargets.Parameter)]`, injected `internal` |
+| Live local carrier | `Synto.Templating.Template.Live<T>(T value) : T` — inert identity `=> value`, injected `internal`. Usage `var n = Live(2 + 3);` (mirrors `Parameter<T>()`; the live-**local** surface is a **method**, not an attribute — see re-baseline note below) |
+| Live capability marker | `Synto.Templating.LiveAttribute` → `[Live]`, `[AttributeUsage(AttributeTargets.Parameter)]`, injected `internal` (parameter-only escape-hatch; live **locals** use `Live<T>()` above) |
 | Built-in facade home | `Member`/`TypeOf` are **hand-authored** static methods on `Synto.Templating.Template` (NOT synthesized — synthesis is the user-extensibility path only), injected `internal`, so `using static Synto.Templating.Template;` exposes `Parameter`/`Member`/`TypeOf` together |
 | Built-in facade signatures | `Member<TValue>(object instance, string name) : TValue` · `TypeOf(string name) : System.Type` (both inert `=> default!`) |
+
+> **§1 re-baseline (owner-signed 2026-06-27, after Task 1 landed).** The original spelling routed live **locals** through `[Live] var n = …`. That is impossible in valid C#: `AttributeTargets.Local` is not a real enum member (CS0117), and C# forbids attributes on local-variable declarations outright (CS7014) — so no `[Live] var …` template can ever parse/compile, and Task 2's harness asserts zero-error compilation. Resolution: live **locals** use a new `Template.Live<T>(T value)` method (mirrors `Parameter<T>()`), and `[Live]` is scoped to `AttributeTargets.Parameter` only (still the live-param escape-hatch). Each surface uses the only mechanism C# allows in that position. Task 1 (`Parameter<T>()`, commit `0d7d6fc8`) is unaffected and stays landed.
 
 ### §2 — `Parameter<T>()` carrier form (CONFIRMED)
 
