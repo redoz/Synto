@@ -45,6 +45,7 @@ internal static class FileLocalHelpers
     private const string LiteralResource = ResourcePrefix + "LiteralSyntaxExtensions.cs";
     private const string RuntimeTypeResource = ResourcePrefix + "RuntimeTypeExtensions.cs";
     private const string QuoteResource = ResourcePrefix + "QuoteSyntaxExtensions.cs";
+    private const string CollectionResource = ResourcePrefix + "CollectionSyntaxExtensions.cs";
 
     /// <summary>
     /// Every injectable helper, paired with the public extension-method name that, when found as a real
@@ -57,6 +58,7 @@ internal static class FileLocalHelpers
         new HelperEntry("ToSyntax", Load(LiteralResource)),
         new HelperEntry("ToTypeSyntax", Load(RuntimeTypeResource)),
         new HelperEntry("OrNullLiteralExpression", Load(QuoteResource)),
+        new HelperEntry("BuildList", Load(CollectionResource)),
     ];
 
     /// <summary>An injectable helper: the public method name that triggers it plus its rewritten class.</summary>

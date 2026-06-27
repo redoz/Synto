@@ -93,6 +93,7 @@
 	<EmbeddedResource Include="..\Synto\RuntimeTypeExtensions.cs" LogicalName="Synto.Helper.RuntimeTypeExtensions.cs" />
 	<EmbeddedResource Include="..\Synto\LiteralSyntaxExtensions.cs" LogicalName="Synto.Helper.LiteralSyntaxExtensions.cs" />
 	<EmbeddedResource Include="..\Synto\QuoteSyntaxExtensions.cs" LogicalName="Synto.Helper.QuoteSyntaxExtensions.cs" />
+	<EmbeddedResource Include="..\Synto\CollectionSyntaxExtensions.cs" LogicalName="Synto.Helper.CollectionSyntaxExtensions.cs" />
   </ItemGroup>
 
   <ItemGroup>
