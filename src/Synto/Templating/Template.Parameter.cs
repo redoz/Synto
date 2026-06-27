@@ -34,6 +34,20 @@ public static class Template
     public static T Unquote<T>(T value) => value;
 
     /// <summary>
+    /// Declares an inline <em>quote</em>: <c>Quote(value)</c> emits the quoted syntax of the factory-time
+    /// <paramref name="value"/> at this call position — the same value-lift as <c>Unquote(value)</c> in value
+    /// position — but is the inline stage-0 → stage-1 boundary that <em>stops</em> liveness here, so an
+    /// enclosing loop/condition driven through this call stays a runtime construct (no unroll). This is the only
+    /// way to keep a loop whose bound is a <em>computed</em> factory-time value. The inline counterpart to a
+    /// <c>[Quote]</c> parameter (mirroring how <c>Unquote(value)</c> is the inline counterpart to an
+    /// <c>[Unquote]</c> parameter). Inert (<c>=&gt; value</c>) so the template body type-checks; the generator
+    /// recognizes the call by binding and lifts the argument at factory-build time.
+    /// </summary>
+    /// <typeparam name="T">The quoted value's type; inferred from the argument.</typeparam>
+    /// <param name="value">The factory-time value lifted to syntax at this site.</param>
+    public static T Quote<T>(T value) => value;
+
+    /// <summary>
     /// Declares a <em>splice</em>: <c>Splice(node)</c> inserts a pre-built <c>ExpressionSyntax</c> verbatim
     /// into the produced syntax at the call position, with no factory-time evaluation and no value lift. This
     /// is the inline/mid-expression counterpart to a <c>[Splice]</c> parameter, mirroring how
