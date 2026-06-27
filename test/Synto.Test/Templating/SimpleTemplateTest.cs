@@ -606,6 +606,62 @@ public class SimpleTemplateTest
         }
     }
 
+    [Fact]
+    public void StagedTemplate_IsIncrementalOnUnrelatedEdit()
+    {
+        // The SAME cacheability guard as GeneratorIsIncrementalOnUnrelatedEdit, but for a LIVE-STAGED template
+        // (plan Task 10 / spec §8). All staging — live-root discovery, the binding-time classifier, region
+        // unrolling, and the Member builder rewrite — runs INSIDE the ForAttributeWithMetadataName transform and
+        // captures no Compilation/SemanticModel/SyntaxNode into pipeline state, so an unrelated edit must leave
+        // every tracked step Cached/Unchanged.
+        const string source =
+            """
+            using System.Collections.Generic;
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+
+            partial class Factory {}
+
+            public readonly record struct Col(int Ordinal, string Name);
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                object GetMember<[Inline(AsSyntax = true)] TRow>(TRow row, int i) {
+                    var columns = Parameter<IReadOnlyList<Col>>();
+                    foreach (var c in columns)            // live foreach -> unrolls in the factory
+                        if (i == c.Ordinal)               // c.Ordinal -> int literal
+                            return Member<object>(row, c.Name); // Member builder -> row.<Name>
+                    throw new System.IndexOutOfRangeException();
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation);
+
+        var modified = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
+        driver = driver.RunGenerators(modified);
+
+        var result = driver.GetRunResult().Results.Single();
+
+        foreach (var trackingName in new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result })
+        {
+            Assert.True(result.TrackedSteps.ContainsKey(trackingName), $"no tracked step '{trackingName}'");
+
+            var outputs = result.TrackedSteps[trackingName].SelectMany(step => step.Outputs);
+            Assert.All(outputs, output =>
+                Assert.True(
+                    output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                    $"step '{trackingName}' had reason {output.Reason}, expected Cached/Unchanged"));
+        }
+    }
+
     private static void AssertHasRealSpan(Diagnostic diag)
     {
         // The location is carried cacheably as a serializable LocationInfo and reconstructed at emit time;

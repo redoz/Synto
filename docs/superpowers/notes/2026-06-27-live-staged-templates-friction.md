@@ -121,3 +121,30 @@ builder/usings sharp edges, deliberately deferred scope). Empty findings are not
   (only reachable when both drivers are roots — a loop-var-driven inner control is NOT classifier-live, so
   Task 6's inner `if (i == c.Ordinal)` stays a quoted island) would be mis-expanded; the emitter degrades it to
   `SY1014`. True nested-container recursion is deferred.
+
+## Guards + completeness (Task 10)
+
+- **A live *root* in a region's `if` condition trips the nested-region guard.** Writing the injected-surface
+  rich template's loop body as `if (i == c.Ordinal + offset)` — where `offset` is a `Live<T>()` local (a real
+  classifier root) — reclassifies the `if` from a quoted island into a *live-control* `if` nested inside the
+  live `foreach`, which is exactly the deferred nested-region shape → `SY1014`. The fix in the guard test was
+  not in the emitter: keep a region's inner `if` driven by a *quoted* value plus the *loop variable* (`i ==
+  c.Ordinal`, the ObjectReader shape), and exercise the `Live`/`[Live]` root at depth-0 instead
+  (`Console.WriteLine(offset)` before the loop, lifting `offset` to a literal). Worth a future ergonomics pass:
+  the diagnostic message could hint that a live local used in a region condition is the trigger.
+- **`[Inline(AsSyntax)]` on a generic type parameter does not survive a post-generation *compile*.** A carrier
+  shaped `void M<[Inline(AsSyntax=true)] T>(T instance)` lifts `T` to an `ExpressionSyntax T` factory parameter,
+  but the same `T` is then emitted as the *type* of the `instance` parameter — `Parameter(..., T, ...)` — where
+  the slot wants a `TypeSyntax`, so the generated factory fails to compile (`CS1503: ExpressionSyntax ->
+  TypeSyntax`). The existing `SyntaxBuilderTest` only *snapshots* that shape (never compiles it), so it was
+  latent. For a body that must reach a value-position syntax splice (a `Member` instance), use a plain
+  `[Inline(AsSyntax=true)] object instance` parameter (lifts to `ExpressionSyntax`, used only in value position,
+  parameter type emitted as `object`) — the form the compile-asserting guard uses. Candidate generator
+  hardening: when an `AsSyntax` generic-type-param symbol is referenced in *type position* (a parameter/local
+  declared type), lift a `TypeSyntax` for that use rather than reusing the `ExpressionSyntax` binding (or emit a
+  diagnostic), so the two carrier shapes are not silently different at compile time.
+- **Caching holds for a staged template.** `StagedTemplate_IsIncrementalOnUnrelatedEdit` (mirror of the depth-0
+  `GeneratorIsIncrementalOnUnrelatedEdit`) confirms the whole staging path — live-root discovery, the
+  binding-time classifier, region unrolling, the `Member` builder rewrite — runs inside the
+  `ForAttributeWithMetadataName` transform and captures no `Compilation`/`SemanticModel`/`SyntaxNode`: every
+  tracked step stays `Cached`/`Unchanged` on an unrelated edit. No new seam strain surfaced here.

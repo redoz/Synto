@@ -1,6 +1,10 @@
 # Live (staged) templates — binding-time analysis for Synto templates
 
-> **STATUS: DRAFT — design for owner review; NOT an approved plan, no source touched.**
+> **STATUS: DELIVERED (2026-06-27).** Implemented by plan `docs/superpowers/plans/2026-06-27-live-staged-templates.md`
+> (Tasks 0–10). The surface spellings here were frozen in the plan's "Locked Names (resolved Task 0)" section —
+> consult that table for the as-shipped names; any "ILLUSTRATIVE" spelling below is superseded by it. The
+> ObjectReader dog-food (`examples/Synto.Example.ObjectReader/`) rides the shipped surface, and cacheability +
+> injected-surface guards for a staged template are pinned in `test/Synto.Test/Templating/`.
 >
 > - **Date:** 2026-06-27
 > - **Reads on:** the shipped Templating surface (`src/Synto/Templating/`,

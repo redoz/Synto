@@ -109,6 +109,93 @@ public class InjectedSurfaceCompletenessTest
         }
         """;
 
+    /// <summary>
+    /// A deliberately RICH <b>live-staged</b> template (plan Task 10) that exercises the full staging surface in
+    /// one body — compiled against ONLY the injected surface, so a dropped/uninjected staging helper or built-in
+    /// builder is a hard compile error:
+    /// <list type="bullet">
+    /// <item>a <c>Parameter&lt;T&gt;()</c> live root (the column list) lifted to a factory parameter;</item>
+    /// <item>a <c>Live&lt;T&gt;()</c> local (computed at factory time) fed by a <c>[Live]</c> method parameter;</item>
+    /// <item>a live <c>foreach</c> that unrolls at factory time and emits the file-local <c>BuildList</c>
+    /// collection helper;</item>
+    /// <item>the built-in <c>Member</c> builder (member access over an <c>[Inline(AsSyntax)]</c> instance with a
+    /// live member name) and the built-in <c>TypeOf</c> builder (a <c>typeof(...)</c> from a constant name).</item>
+    /// </list>
+    /// Every piece must resolve against the injected surface alone — the internal markers/facades from
+    /// <see cref="SurfaceInjectionGenerator"/> (incl. the internal <c>SyntoBuilders.Member</c>/<c>TypeOf</c>) and
+    /// the scan-injected <c>file static</c> helpers (<c>BuildList</c>/<c>ToSyntax</c>) — with NO <c>Synto.Core</c>.
+    /// </summary>
+    private const string StagedRichTemplate =
+        """
+        using System;
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+
+        partial class Factory {}
+
+        public readonly record struct Col(int Ordinal, string Name);
+
+        public class TestClass {
+            [Template(typeof(Factory))]
+            object StagedKitchenSink([Inline(AsSyntax = true)] object row, int i, [Live] int bump) {
+                var columns = Parameter<IReadOnlyList<Col>>();   // live Parameter root -> factory parameter
+                var offset = Live(bump + 1);                      // live local fed by the [Live] parameter
+                Console.WriteLine(offset);                        // offset live -> lifts to an int literal (island)
+                foreach (var c in columns)                        // live foreach -> unrolls -> BuildList run
+                    if (i == c.Ordinal)                           // i quoted; c.Ordinal (loop var) -> int literal
+                        return Member<object>(row, c.Name);       // Member builder -> row.<Name>
+                var t = TypeOf("System.Int32");                   // TypeOf builder -> typeof(System.Int32)
+                Console.WriteLine(t);
+                throw new System.IndexOutOfRangeException();      // quoted island, verbatim
+            }
+        }
+        """;
+
+    [Fact]
+    public void InjectedSurfaceIsCompleteForStagedTemplate()
+    {
+        var compilation = CSharpCompilation.Create("InjectedSurfaceCompletenessStagedTest",
+            [CSharpSyntaxTree.ParseText(StagedRichTemplate)],
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
+                // The Roslyn assemblies the GENERATED factory body uses (the staged surface emits
+                // MemberAccessExpression / TypeOfExpression / SyntaxList runs via the injected builders + helpers).
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Linq, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Collections, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime.Extensions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                // DELIBERATELY NO reference to Synto.Core: the staging surface (markers + internal SyntoBuilders +
+                // file-local BuildList/ToSyntax) must all come from the generators, or this fails to compile.
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new TemplateFactorySourceGenerator());
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.StagedKitchenSink"));
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation of a STAGED template against ONLY the injected surface reported errors "
+            + "(the injected staging surface — markers, SyntoBuilders, BuildList/ToSyntax helpers — is incomplete): "
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+    }
+
     [Fact]
     public void InjectedSurfaceIsCompleteForRichTemplate()
     {
