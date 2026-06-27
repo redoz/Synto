@@ -146,6 +146,38 @@ public class BindingTimeClassifierTest
     }
 
     [Fact]
+    public void QuoteCall_ShieldsLiveArg_FromStagingContainer()
+    {
+        // An inline Quote(...) is an output-world boundary: a live argument inside it does NOT make the enclosing
+        // construct staged (spec §4). A `for` whose condition is `Quote(<live>)` therefore classifies Quoted; the
+        // SAME live argument unshielded makes the loop StagedControl. (A local function named `Quote` stands in
+        // for the recognized facade so the body binds; the classifier consumes only the shielded node set.)
+        var (model, method) = Compile(
+            """
+            class C {
+                void M(int count) {
+                    int Quote(int v) => v;
+                    int ret = 0;
+                    for (int i = 0; i < Quote(count); i++) ret++;
+                }
+            }
+            """);
+
+        var loop = method.Body!.DescendantNodes().OfType<ForStatementSyntax>().Single();
+        var quoteCall = method.Body!.DescendantNodes().OfType<InvocationExpressionSyntax>().Single();
+        var roots = new[] { new StagedRoot(Parameter(model, method, "count")) };
+
+        // Shielded: Quote(count) is a boundary -> the loop stays a runtime construct even though count is live.
+        var shielded = BindingTimeClassifier.Classify(model, method.Body!, roots, new SyntaxNode[] { quoteCall });
+        Assert.False(shielded.IsStagedControl(loop));
+        Assert.Equal(BindingTime.Quoted, shielded.Classify(quoteCall));
+
+        // Contrast: the SAME condition WITHOUT the shield references the live count -> StagedControl (unrolls).
+        var unshielded = BindingTimeClassifier.Classify(model, method.Body!, roots);
+        Assert.True(unshielded.IsStagedControl(loop));
+    }
+
+    [Fact]
     public void ForeachOverQuotedSource_StaysQuoted()
     {
         var (model, method) = Compile(

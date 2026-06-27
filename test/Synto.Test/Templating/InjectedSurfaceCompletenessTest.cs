@@ -360,6 +360,79 @@ public class InjectedSurfaceCompletenessTest
         Assert.Contains("ForStatement", factorySource, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The inline <c>Quote(value)</c> liveness boundary (spec §4): a <b>computed</b> factory-time value
+    /// (<c>bound = Unquote(count)</c>, live) used as a loop bound through <c>Quote(bound)</c> keeps the loop a
+    /// runtime construct (a single <c>ForStatement</c> bounded by <c>bound.ToSyntax()</c>) instead of unrolling.
+    /// Without the <c>Quote(...)</c> shield the same live <c>bound</c> in the condition makes the <c>for</c>
+    /// StagedControl and it unrolls — so <c>Quote(...)</c> is the ONLY way to keep a loop over a computed bound.
+    /// </summary>
+    private const string QuoteCallLoopTemplate =
+        """
+        using System;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+
+        partial class Factory {}
+
+        public class TestClass {
+            [Template(typeof(Factory), Options = TemplateOption.Bare)]
+            static void Loop([Unquote] int count) {
+                int ret = 0;
+                var bound = Unquote(count);
+                for (int i = 0; i < Quote(bound); i++)
+                    ret++;
+            }
+        }
+        """;
+
+    [Fact]
+    public void QuoteCall_OverComputedBound_KeepsRuntimeLoop_Compiles()
+    {
+        var compilation = CSharpCompilation.Create("QuoteCallLoopCompileTest",
+            [CSharpSyntaxTree.ParseText(QuoteCallLoopTemplate)],
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Linq, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Collections, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime.Extensions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new TemplateFactorySourceGenerator());
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Loop"));
+        Assert.NotNull(factoryTree);
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation of an inline Quote(computed-bound) loop reported errors "
+            + "(Quote(...) was not recognized / not shielded -> the loop unrolled or `Quote` left unbound): "
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+
+        var factorySource = factoryTree.ToString();
+
+        // The loop is KEPT: the factory builds a single runtime ForStatement node (shielded by Quote), it is not
+        // unrolled into a runtime loop that appends `ret++` statements.
+        Assert.Contains("ForStatement", factorySource, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void InjectedSurfaceIsCompleteForStagedTemplate()
     {

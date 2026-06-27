@@ -469,6 +469,51 @@ public class SimpleTemplateTest
             new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
     }
 
+    [Fact]
+    public void QuoteCallTemplate_IsIncrementalOnUnrelatedEdit()
+    {
+        // Cacheability guard for the inline Quote(value) path: QuoteCallFinder discovery, the classifier shield,
+        // and the value-lift all run INSIDE the ForAttributeWithMetadataName transform and capture no
+        // Compilation/SemanticModel/SyntaxNode into pipeline state, so an unrelated edit must leave EVERY tracked
+        // step Cached/Unchanged.
+        const string source =
+            """
+            using System;
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+
+            partial class Factory {}
+
+            public class TestClass {
+                [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                static void Loop([Unquote] int count) {
+                    int ret = 0;
+                    var bound = Unquote(count);
+                    for (int i = 0; i < Quote(bound); i++)
+                        ret++;
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation);
+
+        var modified = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
+        driver = driver.RunGenerators(modified);
+
+        var result = driver.GetRunResult().Results.Single();
+
+        CacheabilityAssert.AllStepsCachedOrUnchanged(
+            result,
+            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+    }
+
     // ----- diagnostics / error paths (T2) -----------------------------------------------------------
     // Each feeds deliberately-malformed Synto usage and asserts the diagnostic Id directly off the
     // driver's diagnostics collection, plus (for usage errors) a real, non-empty source span.

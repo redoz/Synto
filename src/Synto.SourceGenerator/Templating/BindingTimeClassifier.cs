@@ -106,11 +106,17 @@ internal sealed class BindingTimeClassifier
     private readonly IReadOnlyCollection<StagedRoot> _roots;
     private readonly HashSet<ISymbol> _live = new(SymbolEqualityComparer.Default);
 
-    private BindingTimeClassifier(SemanticModel semanticModel, SyntaxNode body, IReadOnlyCollection<StagedRoot> roots)
+    // The recognized inline Quote(...) invocation nodes: output-world liveness boundaries. An identifier nested
+    // inside one of these does NOT count as a live reference, so an enclosing control construct whose driver only
+    // flows through a Quote(...) stays Quoted (a runtime construct) rather than StagedControl (unrolled).
+    private readonly HashSet<SyntaxNode> _quoteCalls;
+
+    private BindingTimeClassifier(SemanticModel semanticModel, SyntaxNode body, IReadOnlyCollection<StagedRoot> roots, IReadOnlyCollection<SyntaxNode>? quoteCalls)
     {
         _semanticModel = semanticModel;
         _body = body;
         _roots = roots;
+        _quoteCalls = quoteCalls is null ? new HashSet<SyntaxNode>() : new HashSet<SyntaxNode>(quoteCalls);
         foreach (var root in roots)
             _live.Add(root.Symbol);
     }
@@ -119,22 +125,44 @@ internal sealed class BindingTimeClassifier
     /// Classifies every node in <paramref name="body"/> relative to <paramref name="roots"/>, returning the
     /// dataflow partition (per-node binding-time + impossible cuts).
     /// </summary>
-    public static BindingTimePartition Classify(SemanticModel semanticModel, SyntaxNode body, IReadOnlyCollection<StagedRoot> roots)
+    public static BindingTimePartition Classify(SemanticModel semanticModel, SyntaxNode body, IReadOnlyCollection<StagedRoot> roots, IReadOnlyCollection<SyntaxNode>? quoteCalls = null)
     {
-        var classifier = new BindingTimeClassifier(semanticModel, body, roots);
+        var classifier = new BindingTimeClassifier(semanticModel, body, roots, quoteCalls);
         classifier.PropagateStaging();
         var classification = classifier.ClassifyNodes();
         var impossibleCuts = classifier.FindImpossibleCuts();
         return new BindingTimePartition(classification, impossibleCuts, classifier._live);
     }
 
-    /// <summary>True if any identifier inside <paramref name="node"/> binds to a live symbol.</summary>
+    /// <summary>
+    /// True if any identifier inside <paramref name="node"/> binds to a live symbol. Identifiers nested inside a
+    /// recognized inline <c>Quote(...)</c> invocation are an output-world boundary and do NOT count — so a control
+    /// construct whose driver flows only through a <c>Quote(...)</c> stays Quoted.
+    /// </summary>
     private bool ReferencesStaged(SyntaxNode node)
     {
         foreach (var identifier in node.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
         {
+            if (IsInsideQuoteCall(identifier))
+                continue;
+
             var symbol = _semanticModel.GetSymbolInfo(identifier).Symbol;
             if (symbol is not null && _live.Contains(symbol))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>True if <paramref name="node"/> is nested within a recognized inline <c>Quote(...)</c> invocation.</summary>
+    private bool IsInsideQuoteCall(SyntaxNode node)
+    {
+        if (_quoteCalls.Count == 0)
+            return false;
+
+        for (SyntaxNode? current = node; current is not null; current = current.Parent)
+        {
+            if (_quoteCalls.Contains(current))
                 return true;
         }
 

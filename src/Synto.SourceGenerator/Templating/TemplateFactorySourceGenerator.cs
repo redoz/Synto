@@ -505,7 +505,13 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 classifierRoots.Add(new StagedRoot(symbol));
         }
 
-        var partition = BindingTimeClassifier.Classify(semanticModel, templateInfo.Source.Syntax, classifierRoots);
+        // Inline Quote(value) calls: discovered up front so the classifier can SHIELD their live arguments
+        // (output-world boundary). The actual value-lift + replacement is wired below, alongside the other
+        // value lifts, once the [Runtime] converter state is resolved.
+        var quoteCalls = QuoteCallFinder.FindQuoteCalls(semanticModel, templateInfo.Source.Syntax);
+        var quoteCallNodes = new HashSet<SyntaxNode>(quoteCalls.Select(call => (SyntaxNode)call.Invocation));
+
+        var partition = BindingTimeClassifier.Classify(semanticModel, templateInfo.Source.Syntax, classifierRoots, quoteCallNodes);
 
         // An impossible cut (a live binding that transitively depends on an output-world/quoted value) cannot be
         // evaluated at factory time: report it (SY1013) with the offending span and bail rather than emit a
@@ -768,6 +774,35 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 unquotedReplacements.Add(reference, IdentifierName(syntaxForQuoteIdentifier));
 
             trimNodes.Add(quoteParameter.Parameter);
+        }
+
+        // Inline Quote(value) calls: lift the value argument at the call position (the same value→syntax lift as
+        // an [Unquote]/[Quote] value) and key the replacement at the INVOCATION node, so the quoter splices the
+        // lifted syntax in place of the Quote(...) call. The classifier already shielded these as output-world
+        // boundaries (so an enclosing loop/condition stayed Quoted).
+        foreach (var quoteCall in quoteCalls)
+        {
+            var valueType = semanticModel.GetTypeInfo(quoteCall.ValueArgument).Type;
+            if (valueType is null)
+            {
+                converterError = true;
+                continue;
+            }
+
+            // Use the argument as-is for primary expressions; parenthesize anything else so the lifted
+            // member-access form (`value.ToSyntax()`) binds to the whole value, not just its trailing operand.
+            ExpressionSyntax valueAccess = quoteCall.ValueArgument is IdentifierNameSyntax or LiteralExpressionSyntax or MemberAccessExpressionSyntax or InvocationExpressionSyntax or ElementAccessExpressionSyntax or ParenthesizedExpressionSyntax
+                ? quoteCall.ValueArgument.WithoutTrivia()
+                : ParenthesizedExpression(quoteCall.ValueArgument.WithoutTrivia());
+
+            if (!TryEmitValueLift(valueType, valueAccess, quoteCall.ValueArgument.GetLocation(), semanticModel, runtimeAttribute, expressionSyntaxSymbol, ref runtimeClasses, out ExpressionSyntax quoteCallConversion, out var quoteCallDiagnostic))
+            {
+                diagnostics.Add(quoteCallDiagnostic!.Value);
+                converterError = true;
+                continue;
+            }
+
+            unquotedReplacements[quoteCall.Invocation] = quoteCallConversion;
         }
 
         // A missing/ambiguous converter is a usage error: bail with the diagnostic(s) already reported rather
