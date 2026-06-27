@@ -389,7 +389,7 @@ internal static class LiveRegionEmitter
             var liftMap = new Dictionary<SyntaxNode, ExpressionSyntax>();
             foreach (var pair in baseReplacements)
                 liftMap[pair.Key] = pair.Value;
-            CollectLiftPoints(semanticModel, statement, liveSet, liftMap);
+            CollectLiftPoints(semanticModel, statement, liveSet, renamer, liftMap);
 
             var islandQuoter = new TemplateSyntaxQuoter(semanticModel, liftMap, new HashSet<SyntaxNode>(), includeTrivia: false);
             if (islandQuoter.Visit(statement) is not { } island)
@@ -499,18 +499,20 @@ internal static class LiveRegionEmitter
     /// Records every maximal purely-live subexpression of <paramref name="node"/> as a <c>.ToSyntax()</c> lift
     /// in <paramref name="map"/>. An expression is purely live when it references at least one live symbol and
     /// no output-world local/parameter — so <c>c.Ordinal</c> lifts but <c>i == c.Ordinal</c> (mixing the
-    /// output-world <c>i</c>) does not; only its live operand does.
+    /// output-world <c>i</c>) does not; only its live operand does. The lift VALUE is root-renamed (the map key
+    /// stays the original node so the quoter still matches it) so a live root referenced by value inside the
+    /// island resolves to its factory parameter, not the trimmed source local.
     /// </summary>
-    private static void CollectLiftPoints(SemanticModel semanticModel, SyntaxNode node, HashSet<ISymbol> liveSet, Dictionary<SyntaxNode, ExpressionSyntax> map)
+    private static void CollectLiftPoints(SemanticModel semanticModel, SyntaxNode node, HashSet<ISymbol> liveSet, RootRenameRewriter renamer, Dictionary<SyntaxNode, ExpressionSyntax> map)
     {
         if (node is ExpressionSyntax expression && IsPurelyLive(semanticModel, expression, liveSet))
         {
-            map[expression] = ToSyntaxCall(expression);
+            map[expression] = ToSyntaxCall((ExpressionSyntax)renamer.Visit(expression)!);
             return; // maximal — do not descend
         }
 
         foreach (var child in node.ChildNodes())
-            CollectLiftPoints(semanticModel, child, liveSet, map);
+            CollectLiftPoints(semanticModel, child, liveSet, renamer, map);
     }
 
     private static bool IsPurelyLive(SemanticModel semanticModel, ExpressionSyntax expression, HashSet<ISymbol> liveSet)

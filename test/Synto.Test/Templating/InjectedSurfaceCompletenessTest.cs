@@ -152,6 +152,77 @@ public class InjectedSurfaceCompletenessTest
         }
         """;
 
+    /// <summary>
+    /// Regression guard (deep end-review, correctness): a live <c>Parameter&lt;T&gt;()</c> whose FACTORY-parameter
+    /// name differs from the source local — here an explicit <c>Parameter&lt;…&gt;("columns")</c> bound to local
+    /// <c>cols</c> — referenced BY VALUE <b>inside</b> a live region island. The island lift
+    /// (<c>LiveRegionEmitter.CollectLiftPoints</c>) must rename the live-root reference to the factory parameter
+    /// just like every other staging path; if it lifts the original identifier (<c>cols.Count.ToSyntax()</c>) the
+    /// trimmed local is gone and the generated factory fails with CS0103. The foreach-driver and depth-0 paths
+    /// already rename; this pins the island path.
+    /// </summary>
+    private const string RenamedRootInRegionTemplate =
+        """
+        using System;
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+
+        partial class Factory {}
+
+        public readonly record struct Col(int Ordinal, string Name);
+
+        public class TestClass {
+            [Template(typeof(Factory))]
+            object RenamedRoot(int i) {
+                var cols = Parameter<IReadOnlyList<Col>>("columns");  // factory param `columns` != local `cols`
+                foreach (var c in cols)
+                    if (i == c.Ordinal)
+                        Console.WriteLine(cols.Count);                // live root by VALUE inside the island
+                throw new System.IndexOutOfRangeException();
+            }
+        }
+        """;
+
+    [Fact]
+    public void RenamedLiveRoot_ReferencedByValueInRegion_Compiles()
+    {
+        var compilation = CSharpCompilation.Create("RenamedLiveRootInRegionTest",
+            [CSharpSyntaxTree.ParseText(RenamedRootInRegionTemplate)],
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Linq, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Collections, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime.Extensions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new TemplateFactorySourceGenerator());
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.RenamedRoot"));
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation of a renamed live root referenced by value inside a region reported errors "
+            + "(the island lift did not rename the live root to its factory parameter): "
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+    }
+
     [Fact]
     public void InjectedSurfaceIsCompleteForStagedTemplate()
     {

@@ -122,6 +122,18 @@ builder/usings sharp edges, deliberately deferred scope). Empty findings are not
   Task 6's inner `if (i == c.Ordinal)` stays a quoted island) would be mis-expanded; the emitter degrades it to
   `SY1014`. True nested-container recursion is deferred.
 
+## Deep end-review fixes (post-landing)
+
+- **Island lift ignored factory-parameter renaming (CS0103).** `LiveRegionEmitter.CollectLiftPoints` wrapped the
+  ORIGINAL purely-live subexpression in `.ToSyntax()` without running the `RootRenameRewriter` that every other
+  staging path uses. So a live root whose factory-parameter name differs from the source local — an explicit
+  `Parameter<T>("columns")` bound to a local `cols`, or a name uniquified after a collision — referenced BY VALUE
+  inside a region island lifted the trimmed source identifier (`cols.Count.ToSyntax()`), and the generated factory
+  failed to compile with `CS0103`. The dog-food dodged it (implicit, collision-free names; value refs were the loop
+  var `c`, which is in scaffold scope). Fix: rename the lift VALUE (`renamer.Visit(expression)`) while keeping the
+  map KEY the original node so the quoter still matches. Pinned by
+  `InjectedSurfaceCompletenessTest.RenamedLiveRoot_ReferencedByValueInRegion_Compiles` (post-generation compile).
+
 ## Guards + completeness (Task 10)
 
 - **A live *root* in a region's `if` condition trips the nested-region guard.** Writing the injected-surface
