@@ -433,6 +433,91 @@ public class InjectedSurfaceCompletenessTest
         Assert.Contains("ForStatement", factorySource, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The headline <c>[Splice]</c> member-generator guarantee (spec §3–§4): a static method returning
+    /// <c>IEnumerable&lt;MemberDeclarationSyntax&gt;</c> runs at factory-build time (its <c>foreach</c> is a real
+    /// loop, NOT unrolled), its <c>Parameter&lt;…&gt;()</c> folds into the factory signature, and the members it
+    /// yields are spliced into the produced type's member list via <c>BuildList&lt;MemberDeclarationSyntax&gt;</c>.
+    /// Compiled against ONLY the injected surface + Roslyn, so a dropped helper / unrecognized generator is a hard
+    /// compile error.
+    /// </summary>
+    private const string SpliceMemberGeneratorTemplate =
+        """
+        using System;
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+
+        partial class Factory {}
+
+        public readonly record struct Col(int Ordinal, string Name);
+
+        [Template(typeof(Factory))]
+        public class Reader {
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Accessors() {
+                var columns = Parameter<IReadOnlyList<Col>>();   // folds into the Factory signature
+                foreach (var c in columns)                       // real factory-time loop (NOT unrolled)
+                    yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
+                        .AddModifiers(Token(PublicKeyword))
+                        .WithExpressionBody(ArrowExpressionClause(
+                            LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal))))
+                        .WithSemicolonToken(Token(SemicolonToken));
+            }
+        }
+        """;
+
+    [Fact]
+    public void SpliceMemberGenerator_EmitsMemberPerColumn_Compiles()
+    {
+        var compilation = CSharpCompilation.Create("SpliceMemberGeneratorCompileTest",
+            [CSharpSyntaxTree.ParseText(SpliceMemberGeneratorTemplate)],
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Linq, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Collections, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime.Extensions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new TemplateFactorySourceGenerator());
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Reader"));
+        Assert.NotNull(factoryTree);
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation of a [Splice] member generator reported errors "
+            + "(the generator was not emitted / its members were not spliced): "
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+
+        var factorySource = factoryTree.ToString();
+
+        // The generator's Parameter<…>() folded into the factory signature ...
+        Assert.Contains("columns", factorySource, StringComparison.Ordinal);
+        // ... and its yielded members were spliced into the type's member list (the member-axis BuildList).
+        Assert.Contains("BuildList<MemberDeclarationSyntax>", factorySource, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void InjectedSurfaceIsCompleteForStagedTemplate()
     {

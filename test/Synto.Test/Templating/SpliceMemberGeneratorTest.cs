@@ -108,4 +108,90 @@ public class SpliceMemberGeneratorTest
         var diagnostics = RunAndGetDiagnostics(HasParametersGenerator);
         Assert.Single(diagnostics, d => d.Id == "SY1021");
     }
+
+    private const string MemberPerColumnTemplate =
+        """
+        using System;
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+
+        partial class Factory {}
+
+        public readonly record struct Col(int Ordinal, string Name);
+
+        [Template(typeof(Factory))]
+        public class Reader {
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Accessors() {
+                var columns = Parameter<IReadOnlyList<Col>>();
+                foreach (var c in columns)
+                    yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
+                        .AddModifiers(Token(PublicKeyword))
+                        .WithExpressionBody(ArrowExpressionClause(
+                            LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal))))
+                        .WithSemicolonToken(Token(SemicolonToken));
+            }
+        }
+        """;
+
+    private static Compilation CompilationWithSource(string source)
+    {
+        // The snapshot / cacheability runs reference the public Synto.Core surface (so the markers + Template
+        // facade bind) and run ONLY TemplateFactorySourceGenerator, so the snapshot captures just the factory
+        // output (not the ~two dozen injected marker files).
+        MetadataReference[] references = [.. References, MetadataReference.CreateFromFile(SyntoCoreAssembly.Location)];
+        return CSharpCompilation.Create("SpliceMemberGeneratorSnapshotTest",
+            [CSharpSyntaxTree.ParseText(source)],
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+    }
+
+    /// <summary>
+    /// Snapshot of the canonical member-per-column emission: pins the
+    /// <c>BuildList&lt;MemberDeclarationSyntax&gt;(ListSegment&lt;MemberDeclarationSyntax&gt;.Run(...))</c>
+    /// member-list shape and the verbatim factory-time generator local function.
+    /// </summary>
+    [Fact]
+    public async Task MemberGenerator_CanonicalShape()
+    {
+        var compilation = CompilationWithSource(MemberPerColumnTemplate);
+
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var result = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        var ret = await Verify(result).UseDirectory("snapshots");
+        Assert.NotEmpty(ret.Files);
+    }
+
+    /// <summary>
+    /// Incremental-caching guard (spec §4 / Global Constraints): all the member-generator analysis runs inside
+    /// the <c>ForAttributeWithMetadataName</c> transform and captures no
+    /// <c>Compilation</c>/<c>SemanticModel</c>/<c>SyntaxNode</c> into pipeline state, so an unrelated edit must
+    /// leave EVERY tracked step Cached/Unchanged.
+    /// </summary>
+    [Fact]
+    public void SpliceMemberGeneratorTemplate_IsIncrementalOnUnrelatedEdit()
+    {
+        var compilation = CompilationWithSource(MemberPerColumnTemplate);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        var modified = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
+        driver = driver.RunGenerators(modified, TestContext.Current.CancellationToken);
+
+        var result = driver.GetRunResult().Results.Single();
+
+        CacheabilityAssert.AllStepsCachedOrUnchanged(
+            result,
+            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+    }
 }

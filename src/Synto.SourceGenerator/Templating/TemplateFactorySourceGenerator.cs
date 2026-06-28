@@ -359,10 +359,16 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // [Splice] member generators (static methods returning MemberDeclarationSyntax / IEnumerable<…>):
         // discover and validate each up front. An invalid shape is reported (SY1019 non-static, SY1020 bad
         // return type, SY1021 has parameters) and the template bails; a valid generator is recognized and
-        // trimmed from the quoted output member set so generation stays green (its factory-time member
-        // emission lands in Task 3).
+        // trimmed from the quoted output member set, then emitted as factory-time code below (its members are
+        // spliced into the type's member list via BuildList<MemberDeclarationSyntax>).
         var spliceMemberGenerators = SpliceMemberGeneratorFinder.FindGenerators(semanticModel, templateInfo.Source!.Syntax);
         bool spliceGeneratorError = false;
+        var validSpliceGenerators = new List<SpliceMemberGenerator>();
+
+        // Every node inside a valid generator body: excluded from the live-staging pipeline (its `foreach` over a
+        // Parameter<>() is a REAL factory-time loop emitted verbatim — never unrolled, lifted, or quoted).
+        var spliceGeneratorNodes = new HashSet<SyntaxNode>();
+
         foreach (var generator in spliceMemberGenerators)
         {
             var generatorLocation = generator.Method.Identifier.GetLocation();
@@ -386,15 +392,32 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 spliceGeneratorError = true;
             }
 
-            // The generator method is never a quoted output member (a valid one is emitted as factory-time
-            // code in Task 3; an invalid one is dropped). Trim it from the quoted member set.
-            trimNodes.Add(generator.Method);
+            if (generator.IsStatic && !generator.HasParameters && generator.ReturnShape != SpliceMemberReturnShape.Invalid)
+            {
+                // A valid generator is NOT trimmed: the member-list quoter substitutes it with its member
+                // segment (BuildList run) at its declaration position. (Trimming it could make a single-generator
+                // type collapse under BranchPruneIdentifier once its only member is gone.)
+                validSpliceGenerators.Add(generator);
+                foreach (var node in generator.Method.DescendantNodesAndSelf())
+                    spliceGeneratorNodes.Add(node);
+            }
+            else
+            {
+                // An invalid generator is reported above (the template bails); trim it so it is never a quoted
+                // output member.
+                trimNodes.Add(generator.Method);
+            }
         }
 
         if (spliceGeneratorError)
             return null;
 
         var preamble = new List<StatementSyntax>();
+
+        // The member segment each valid generator contributes to its enclosing type's member list, keyed at the
+        // generator method's declaration node so the quoter splices it at that position (TemplateSyntaxQuoter's
+        // member-list override). Built below, after the factory parameters/preamble are assembled.
+        var spliceMemberSegments = new Dictionary<SyntaxNode, ExpressionSyntax>();
 
         // we use these to ensure we generate a unique type name
         var paramNames = new HashSet<string>(StringComparer.Ordinal);
@@ -561,7 +584,11 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             return null;
         }
 
-        var stagedRegions = StagedRegionEmitter.FindRegions(semanticModel, templateInfo.Source.Syntax, partition);
+        // Exclude any control region inside a [Splice] generator body: that `foreach` is a real factory-time loop
+        // emitted verbatim by the member-generator path, NOT a live region to unroll.
+        var stagedRegions = StagedRegionEmitter.FindRegions(semanticModel, templateInfo.Source.Syntax, partition)
+            .Where(region => !spliceGeneratorNodes.Contains(region.Control))
+            .ToList();
         var regionConsumedNodes = StagedRegionEmitter.ComputeConsumedNodes(stagedRegions);
         int stagedRegionCounter = 0;
 
@@ -571,7 +598,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // OUTPUT (wrong code, no signal). Degrade to SY1014 instead of a silent mis-expansion.
         var unhandledStagedControl = templateInfo.Source.Syntax.DescendantNodes()
             .OfType<StatementSyntax>()
-            .Where(statement => partition.IsStagedControl(statement) && !regionConsumedNodes.Contains(statement))
+            .Where(statement => partition.IsStagedControl(statement) && !regionConsumedNodes.Contains(statement) && !spliceGeneratorNodes.Contains(statement))
             .ToList();
         if (unhandledStagedControl.Count > 0)
         {
@@ -618,7 +645,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             // References consumed by a live region are handled by the verbatim scaffold (which uses the factory
             // parameter directly as a runtime value); only depth-0 references lift via value.ToSyntax() — binds
             // to the file-local LiteralSyntaxExtensions (built-in types) or the generic ToSyntax<T> fallback.
-            var depthZeroReferences = stagedParameter.References.Where(reference => !regionConsumedNodes.Contains(reference)).ToList();
+            var depthZeroReferences = stagedParameter.References.Where(reference => !regionConsumedNodes.Contains(reference) && !spliceGeneratorNodes.Contains(reference)).ToList();
             if (depthZeroReferences.Count > 0)
             {
                 ExpressionSyntax conversion = InvocationExpression(
@@ -927,13 +954,26 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         foreach (var containerReplacement in liveRegionEmission.ContainerReplacements)
             unquotedReplacements[containerReplacement.Key] = containerReplacement.Value;
 
+        // [Splice] member generators: emit each valid generator's body VERBATIM as a factory-time local function
+        // (its Parameter<>() declarations dropped — those fold into the factory parameters above and are in scope
+        // as captured factory parameters), and record the member segment it contributes to its enclosing type's
+        // member list (TemplateSyntaxQuoter splices it via BuildList<MemberDeclarationSyntax> at the generator's
+        // declaration position).
+        int spliceGeneratorCounter = 0;
+        foreach (var generator in validSpliceGenerators)
+        {
+            var segment = EmitSpliceMemberGenerator(generator, semanticModel, preamble, ref spliceGeneratorCounter);
+            spliceMemberSegments[generator.Method] = segment;
+        }
+
         var prunableNodes = BranchPruneIdentifier.FindPrunableNodes(trimNodes, templateInfo.Source.Syntax);
 
         TemplateSyntaxQuoter quoter = new(
             semanticModel,
             unquotedReplacements,
             prunableNodes,
-            includeTrivia: options.HasFlag(TemplateOption.PreserveTrivia));
+            includeTrivia: options.HasFlag(TemplateOption.PreserveTrivia),
+            memberSegments: spliceMemberSegments);
 
 
         if (!TemplateSyntaxQuoterInvoker.TryQuote(
@@ -962,5 +1002,118 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             syntaxFactoryMethod = syntaxFactoryMethod.WithParameterList(ParameterList(SeparatedList(parameters)));
 
         return syntaxFactoryMethod;
+    }
+
+    /// <summary>
+    /// Emits a valid <c>[Splice]</c> member generator as factory-time code: a non-static local function carrying
+    /// the generator's body VERBATIM (its <c>Parameter&lt;&gt;()</c> declarations dropped, since those values fold
+    /// into the factory parameters and are captured in scope here), appended to the factory <paramref name="preamble"/>.
+    /// Returns the member segment the generator contributes to its enclosing type's member list: a
+    /// <c>ListSegment&lt;MemberDeclarationSyntax&gt;.Run(localFn())</c> for an enumerable shape, or the local-function
+    /// call directly (implicitly a single-node segment) for a single member.
+    /// </summary>
+    private static ExpressionSyntax EmitSpliceMemberGenerator(
+        SpliceMemberGenerator generator,
+        SemanticModel semanticModel,
+        List<StatementSyntax> preamble,
+        ref int counter)
+    {
+        var methodSymbol = semanticModel.GetDeclaredSymbol(generator.Method);
+        var templateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);
+        var rewriter = new SpliceGeneratorBodyRewriter(semanticModel, templateSymbol);
+
+        string localName = "__spliceGenerator_" + generator.Method.Identifier.Text + "_" + counter++;
+
+        // Fully-qualified return type so it resolves in the generated factory regardless of its usings.
+        TypeSyntax returnType = methodSymbol?.ReturnType is { } returnTypeSymbol
+            ? ParseTypeName(returnTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+            : generator.Method.ReturnType;
+
+        BlockSyntax body;
+        if (generator.Method.Body is { } block)
+            body = (BlockSyntax)rewriter.Visit(block)!;
+        else if (generator.Method.ExpressionBody is { } arrow)
+            body = Block(ReturnStatement((ExpressionSyntax)rewriter.Visit(arrow.Expression)!.WithoutTrivia()));
+        else
+            body = Block();
+
+        // Non-static local function so it captures the folded factory parameters (a `static` local function could
+        // not reach them).
+        var localFunction = LocalFunctionStatement(returnType, Identifier(localName))
+            .WithParameterList(ParameterList())
+            .WithBody(body);
+
+        preamble.Add(localFunction);
+
+        ExpressionSyntax call = InvocationExpression(IdentifierName(localName));
+
+        if (generator.ReturnShape == SpliceMemberReturnShape.Enumerable)
+        {
+            // CollectionSyntaxExtensions.ListSegment<MemberDeclarationSyntax>.Run(localFn())
+            return InvocationExpression(
+                    MemberAccessExpression(
+                        SyntaxKind.SimpleMemberAccessExpression,
+                        MemberAccessExpression(
+                            SyntaxKind.SimpleMemberAccessExpression,
+                            IdentifierName(nameof(CollectionSyntaxExtensions)),
+                            GenericName(Identifier(nameof(CollectionSyntaxExtensions.ListSegment<MemberDeclarationSyntax>)))
+                                .WithTypeArgumentList(TypeArgumentList(SingletonSeparatedList<TypeSyntax>(IdentifierName(nameof(MemberDeclarationSyntax)))))),
+                        IdentifierName(nameof(CollectionSyntaxExtensions.ListSegment<MemberDeclarationSyntax>.Run))))
+                .AddArgumentListArguments(Argument(call));
+        }
+
+        // Single shape: the call returns a MemberDeclarationSyntax → implicit ListSegment conversion.
+        return call;
+    }
+
+    /// <summary>
+    /// Rewrites a <c>[Splice]</c> member generator body into factory-time code: drops each
+    /// <c>var x = Parameter&lt;T&gt;();</c> declaration (the value folds into a captured factory parameter of the
+    /// same name) and replaces any inline <c>Parameter&lt;T&gt;("name")</c> call with its resolved parameter
+    /// identifier. Everything else is preserved verbatim — the generator's <c>foreach</c> stays a real loop.
+    /// </summary>
+    private sealed class SpliceGeneratorBodyRewriter : Microsoft.CodeAnalysis.CSharp.CSharpSyntaxRewriter
+    {
+        private readonly SemanticModel _semanticModel;
+        private readonly INamedTypeSymbol? _templateSymbol;
+
+        public SpliceGeneratorBodyRewriter(SemanticModel semanticModel, INamedTypeSymbol? templateSymbol)
+        {
+            _semanticModel = semanticModel;
+            _templateSymbol = templateSymbol;
+        }
+
+        public override SyntaxNode? VisitLocalDeclarationStatement(LocalDeclarationStatementSyntax node)
+        {
+            if (node.Declaration.Variables.Count == 1
+                && node.Declaration.Variables[0].Initializer?.Value is InvocationExpressionSyntax invocation
+                && IsParameterCall(invocation))
+            {
+                return null;
+            }
+
+            return base.VisitLocalDeclarationStatement(node);
+        }
+
+        public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
+        {
+            if (IsParameterCall(node)
+                && node.ArgumentList.Arguments.Count == 1
+                && _semanticModel.GetConstantValue(node.ArgumentList.Arguments[0].Expression) is { HasValue: true, Value: string name })
+            {
+                return IdentifierName(name);
+            }
+
+            return base.VisitInvocationExpression(node);
+        }
+
+        private bool IsParameterCall(InvocationExpressionSyntax node)
+        {
+            return _templateSymbol is not null
+                && _semanticModel.GetSymbolInfo(node).Symbol is IMethodSymbol method
+                && method.Name == nameof(global::Synto.Templating.Template.Parameter)
+                && method.TypeArguments.Length == 1
+                && SymbolEqualityComparer.Default.Equals(method.ContainingType, _templateSymbol);
+        }
     }
 }
