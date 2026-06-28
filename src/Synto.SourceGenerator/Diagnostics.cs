@@ -302,4 +302,46 @@ internal static class Diagnostics
             LocationInfo.CreateFrom(location),
             new EquatableArray<string>(ImmutableArray.Create(facadeName)));
     }
+
+    private static readonly DiagnosticDescriptor _spliceMethodMustBeStatic = new(IdPrefix + "1019",
+        "Invalid Splice Member Generator",
+        "[Splice] member generator '{0}' must be static (it runs at factory-build time; an instance method could reach output-world members).",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo SpliceMethodMustBeStatic(Location? location, string methodName)
+    {
+        return new DiagnosticInfo(_spliceMethodMustBeStatic,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(methodName)));
+    }
+
+    private static readonly DiagnosticDescriptor _spliceMethodBadReturnType = new(IdPrefix + "1020",
+        "Invalid Splice Member Generator",
+        "[Splice] member generator '{0}' returns '{1}', which is not a supported shape (expected MemberDeclarationSyntax or IEnumerable<MemberDeclarationSyntax>).",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo SpliceMethodBadReturnType(Location? location, string methodName, string returnType)
+    {
+        return new DiagnosticInfo(_spliceMethodBadReturnType,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(methodName, returnType)));
+    }
+
+    private static readonly DiagnosticDescriptor _spliceMethodHasParameters = new(IdPrefix + "1021",
+        "Invalid Splice Member Generator",
+        "[Splice] member generator '{0}' must be parameterless (inputs are supplied via Parameter<T>(); the generator is auto-invoked with no caller).",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo SpliceMethodHasParameters(Location? location, string methodName)
+    {
+        return new DiagnosticInfo(_spliceMethodHasParameters,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(methodName)));
+    }
 }

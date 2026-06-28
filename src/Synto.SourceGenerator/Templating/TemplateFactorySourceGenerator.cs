@@ -356,6 +356,44 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // trim the template attribute
         trimNodes.Add(templateInfo.AttributeSyntax);
 
+        // [Splice] member generators (static methods returning MemberDeclarationSyntax / IEnumerable<…>):
+        // discover and validate each up front. An invalid shape is reported (SY1019 non-static, SY1020 bad
+        // return type, SY1021 has parameters) and the template bails; a valid generator is recognized and
+        // trimmed from the quoted output member set so generation stays green (its factory-time member
+        // emission lands in Task 3).
+        var spliceMemberGenerators = SpliceMemberGeneratorFinder.FindGenerators(semanticModel, templateInfo.Source!.Syntax);
+        bool spliceGeneratorError = false;
+        foreach (var generator in spliceMemberGenerators)
+        {
+            var generatorLocation = generator.Method.Identifier.GetLocation();
+            var generatorName = generator.Method.Identifier.Text;
+
+            if (!generator.IsStatic)
+            {
+                diagnostics.Add(Diagnostics.SpliceMethodMustBeStatic(generatorLocation, generatorName));
+                spliceGeneratorError = true;
+            }
+
+            if (generator.ReturnShape == SpliceMemberReturnShape.Invalid)
+            {
+                diagnostics.Add(Diagnostics.SpliceMethodBadReturnType(generatorLocation, generatorName, generator.Method.ReturnType.ToString()));
+                spliceGeneratorError = true;
+            }
+
+            if (generator.HasParameters)
+            {
+                diagnostics.Add(Diagnostics.SpliceMethodHasParameters(generatorLocation, generatorName));
+                spliceGeneratorError = true;
+            }
+
+            // The generator method is never a quoted output member (a valid one is emitted as factory-time
+            // code in Task 3; an invalid one is dropped). Trim it from the quoted member set.
+            trimNodes.Add(generator.Method);
+        }
+
+        if (spliceGeneratorError)
+            return null;
+
         var preamble = new List<StatementSyntax>();
 
         // we use these to ensure we generate a unique type name
