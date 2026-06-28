@@ -43,9 +43,9 @@ internal static class MatchEmitter
             // order. A None/Bare option on an expression body is an option×body-shape misuse -> SY1205.
             if (info.Option == MatchOption.Single)
             {
-                ctx.CouldMatchGuard = ComputeExpressionRootGate(expression, ctx);
-                EmitNodeMatch(body, "node", expression, ctx);
-                body.Add(ParseStatement($"return new {info.Name}Match({RenderCaptureArguments(ctx)});"));
+                ctx.CouldMatchGuard = MatchNodeWalker.ComputeExpressionRootGate(expression, ctx);
+                MatchNodeWalker.EmitNodeMatch(body, "node", expression, ctx);
+                body.Add(ParseStatement($"return new {info.Name}Match({MatchNodeWalker.RenderCaptureArguments(ctx)});"));
             }
             else
             {
@@ -119,165 +119,6 @@ internal static class MatchEmitter
 
         return Compose(info, ctx, body);
     }
-
-    /// <summary>
-    /// Emits the structural guards for one node position against the runtime candidate <paramref name="accessor"/>
-    /// and recurses child-by-child. Guards both the .NET type (binding a typed local for child navigation) and
-    /// the <c>RawKind</c>, then the child count, then each child: a node child recurses through the
-    /// <c>.AsNode()</c> projection, a token child compares kind + text.
-    /// </summary>
-    private static void EmitNodeMatch(List<StatementSyntax> body, string accessor, SyntaxNode pattern, MatchContext ctx)
-    {
-        // Hole dispatch: a node that binds to a [Capture] parameter is a capture position, not literal syntax
-        // to match. Narrowing + binding happens AT the hole (the accessor-type contract), so a captured node
-        // binds straight into its typed record member even when {accessor} is statically SyntaxNode.
-        if (ctx.Markers.TryGetCapture(pattern, out var capture))
-        {
-            EmitCapture(body, accessor, capture, ctx);
-            return;
-        }
-
-        // Expression wildcard Expr.Any<T>(): assert the candidate is an expression, capture nothing, and do
-        // NOT recurse into the marker invocation's children.
-        if (ctx.Markers.IsExpressionWildcard(pattern))
-        {
-            body.Add(ParseStatement($"if ({accessor} is not ExpressionSyntax) return null;"));
-            return;
-        }
-
-        // Embedded statement hole: a [Capture] Stmt .One() / Statement.One() sitting as a single embedded
-        // statement (e.g. the body of `if (cond) only.One();`) captures / matches that one statement. Only the
-        // fixed single (One) is meaningful in a single embedded slot; a variable-length quantifier there can't
-        // expand to one slot -> SY1204 (quantifier-placement, arm ii).
-        if (pattern is StatementSyntax statement && ctx.Markers.TryGetStatementHole(statement, out var statementHole))
-        {
-            if (statementHole.Quantifier == StatementQuantifier.One)
-            {
-                EmitStatementCapture(body, accessor, statementHole, ctx);
-                return;
-            }
-
-            if (statementHole.IsVariableLength)
-            {
-                ctx.Diagnostics.Add(MatchDiagnostics.QuantifierPlacementUnsupported(
-                    statement.GetLocation(),
-                    "a variable-length quantifier (Some/All/Opt) is not allowed in a single-statement slot"));
-                ctx.Aborted = true;
-                return;
-            }
-        }
-
-        string local = ctx.NextTmp();
-        string typeName = pattern.GetType().Name;
-
-        // Type guard (binds a temp for child navigation) + RawKind guard. The .NET type alone over-accepts
-        // kinds sharing a type (e.g. the several BinaryExpressionSyntax kinds), so the kind guard is required.
-        body.Add(ParseStatement($"if ({accessor} is not {typeName} {local}) return null;"));
-        body.Add(ParseStatement($"if (!{local}.IsKind(SyntaxKind.{pattern.Kind()})) return null;"));
-
-        var children = pattern.ChildNodesAndTokens();
-
-        // Child-count guard: the "same child count" clause of structural equality, which also bounds the child
-        // indices and rejects a superset candidate (an optional child present in the candidate but omitted in
-        // the pattern).
-        body.Add(ParseStatement($"if ({local}.ChildNodesAndTokens().Count != {children.Count}) return null;"));
-
-        for (int i = 0; i < children.Count; i++)
-        {
-            var child = children[i];
-            if (child.IsNode)
-            {
-                // Node-child boundary: pass the `.AsNode()` accessor (static type SyntaxNode) unchanged.
-                EmitNodeMatch(body, $"{local}.ChildNodesAndTokens()[{i}].AsNode()", child.AsNode()!, ctx);
-            }
-            else
-            {
-                var token = child.AsToken();
-                string tok = ctx.NextTmp();
-                body.Add(ParseStatement($"var {tok} = {local}.ChildNodesAndTokens()[{i}];"));
-                body.Add(ParseStatement($"if (!{tok}.IsKind(SyntaxKind.{token.Kind()})) return null;"));
-                body.Add(ParseStatement($"if ({tok}.AsToken().Text != {SymbolDisplay.FormatLiteral(token.Text, quote: true)}) return null;"));
-            }
-        }
-    }
-
-    /// <summary>
-    /// Computes the cheap root gate for an expression-Single matcher rooted on <paramref name="pattern"/>:
-    /// the SAME first guard <see cref="EmitNodeMatch"/> emits at the root, lifted to a boolean over <c>node</c>.
-    /// A capture root narrows to the capture's member type; an expression wildcard narrows to
-    /// <c>ExpressionSyntax</c>; any other node roots on its .NET type + <c>RawKind</c>. C-FM1 superset.
-    /// </summary>
-    private static string ComputeExpressionRootGate(SyntaxNode pattern, MatchContext ctx)
-    {
-        if (ctx.Markers.TryGetCapture(pattern, out var capture))
-            return $"node is {capture.MemberType}";
-
-        if (ctx.Markers.IsExpressionWildcard(pattern))
-            return "node is ExpressionSyntax";
-
-        return $"node is {pattern.GetType().Name} && node.IsKind(SyntaxKind.{pattern.Kind()})";
-    }
-
-    /// <summary>
-    /// Emits an expression-capture hole: narrow + bind the candidate into a <c>cap_{name}</c> local at the
-    /// hole (so it binds straight into the typed record member regardless of the accessor's static type), and
-    /// record the capture carrying <c>Ordinal = param.Ordinal</c> for signature-order record members.
-    /// </summary>
-    /// <remarks>
-    /// Non-linear equality (Task 8): a REUSED capture adds no new member — at a site whose local is already
-    /// bound, narrow a UNIQUE temp (so 3+ reuse sites don't re-declare a fixed name → CS0128) and require it
-    /// <c>IsEquivalentTo</c> the first-site local. The first site binds the typed <c>cap_{name}</c> local and
-    /// records the member.
-    /// </remarks>
-    private static void EmitCapture(List<StatementSyntax> body, string accessor, CaptureParameter capture, MatchContext ctx)
-    {
-        string local = "cap_" + capture.ParameterName;
-
-        if (ctx.BoundCaptureLocals.Contains(local))
-        {
-            // Reuse site: narrow into a unique temp (enforces the same kind as the first site) and require
-            // structural equality with the first-site capture. No new member.
-            string temp = ctx.NextTmp();
-            body.Add(ParseStatement($"if ({accessor} is not {capture.MemberType} {temp}) return null;"));
-            // topLevel:false is load-bearing — the single-arg IsEquivalentTo defaults to topLevel:true
-            // (signature-only / trivia-sensitive on a sub-expression), which rejects structurally-equal sides.
-            body.Add(ParseStatement($"if (!{temp}.IsEquivalentTo({local}, topLevel: false)) return null;"));
-            return;
-        }
-
-        body.Add(ParseStatement($"if ({accessor} is not {capture.MemberType} {local}) return null;"));
-
-        ctx.BoundCaptureLocals.Add(local);
-        ctx.Captures.Add(new Capture(capture.Ordinal, capture.MemberName, capture.MemberType, local));
-    }
-
-    /// <summary>
-    /// Emits a statement-hole guard at <paramref name="accessor"/>, narrowing AT the hole (the accessor-type
-    /// contract: never <c>var {local} = {accessor};</c> into a typed member). Task 10 handles the fixed single
-    /// (<c>One</c>): a wildcard asserts <c>is StatementSyntax</c> (no capture); a capture binds a
-    /// <c>StatementSyntax cap_{name}</c> local and records the member. Tasks 11+ add the variable quantifiers.
-    /// </summary>
-    private static void EmitStatementCapture(List<StatementSyntax> body, string accessor, StatementHole hole, MatchContext ctx)
-    {
-        if (hole.Kind == StatementHoleKind.Wildcard)
-        {
-            body.Add(ParseStatement($"if ({accessor} is not StatementSyntax) return null;"));
-            return;
-        }
-
-        string local = "cap_" + hole.ParameterName;
-        body.Add(ParseStatement($"if ({accessor} is not StatementSyntax {local}) return null;"));
-        ctx.BoundCaptureLocals.Add(local);
-        ctx.Captures.Add(new Capture(hole.Ordinal, hole.MemberName, "StatementSyntax", local));
-    }
-
-    /// <summary>
-    /// The captured-local argument list for the result-record constructor, in SIGNATURE order (by
-    /// <see cref="Capture.Ordinal"/>) — the same order <see cref="Compose"/> sorts the record members by, so
-    /// positional construction lines up with the positional record regardless of walk order.
-    /// </summary>
-    private static string RenderCaptureArguments(MatchContext ctx) =>
-        string.Join(", ", ctx.Captures.OrderBy(capture => capture.Ordinal).Select(capture => capture.LocalName));
 
     /// <summary>
     /// Classifies each core statement into a <see cref="RunElement"/>: a direct statement hole becomes a
@@ -424,7 +265,7 @@ internal static class MatchEmitter
 
         var attemptBody = new List<StatementSyntax>();
         EmitRunElementsAt(attemptBody, run, ctx);
-        attemptBody.Add(ParseStatement($"return new {matchType}({RenderCaptureArguments(ctx)});"));
+        attemptBody.Add(ParseStatement($"return new {matchType}({MatchNodeWalker.RenderCaptureArguments(ctx)});"));
 
         var attempt = ((LocalFunctionStatementSyntax)ParseStatement($"{matchType}? _TryAt(int _o) {{ }}"))
             .WithBody(Block(attemptBody.ToArray()));
@@ -548,11 +389,11 @@ internal static class MatchEmitter
         switch (element)
         {
             case LiteralElement literal:
-                EmitNodeMatch(attemptBody, $"_blk.Statements[{indexExpr}]", literal.Statement, ctx);
+                MatchNodeWalker.EmitNodeMatch(attemptBody, $"_blk.Statements[{indexExpr}]", literal.Statement, ctx);
                 return 1;
 
             case HoleElement { Hole: { Quantifier: StatementQuantifier.One } hole }:
-                EmitStatementCapture(attemptBody, $"_blk.Statements[{indexExpr}]", hole, ctx);
+                MatchNodeWalker.EmitStatementCapture(attemptBody, $"_blk.Statements[{indexExpr}]", hole, ctx);
                 return 1;
 
             case HoleElement { Hole: { Quantifier: StatementQuantifier.Exactly } hole }:
