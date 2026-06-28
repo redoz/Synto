@@ -353,6 +353,13 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         var unquotedReplacements = new Dictionary<SyntaxNode, ExpressionSyntax>();
         var trimNodes = new HashSet<SyntaxNode>();
 
+        // Interpolation staged-fold channel (spec 2026-06-28): string-typed staged-root REFERENCE nodes mapped to
+        // their factory-time raw value accessor (the factory parameter / hoisted local). Built here at EMISSION,
+        // adjacent to where the staged roots are consumed, as a plain local exactly like unquotedReplacements /
+        // trimNodes — only the resulting Dictionary<SyntaxNode, ExpressionSyntax> of nodes leaves this scope; no
+        // ITypeSymbol/SemanticModel ever enters cached pipeline state.
+        var stringStagedRoots = new Dictionary<SyntaxNode, ExpressionSyntax>();
+
         // trim the template attribute
         trimNodes.Add(templateInfo.AttributeSyntax);
 
@@ -642,6 +649,16 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             var parameterType = ParseTypeName(stagedParameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
             parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
+            // Interpolation staged-fold: a string-typed staged root may be baked into surrounding literal text
+            // when used as a bare interpolation hole. Map EVERY reference (depth-0 AND region-consumed) to the
+            // factory-time raw value accessor (the shared factory parameter), which is in scope everywhere the
+            // factory body / staged-region scaffold runs.
+            if (stagedParameter.Type.SpecialType == SpecialType.System_String)
+            {
+                foreach (var reference in stagedParameter.References)
+                    stringStagedRoots[reference] = IdentifierName(paramName);
+            }
+
             // References consumed by a live region are handled by the verbatim scaffold (which uses the factory
             // parameter directly as a runtime value); only depth-0 references lift via value.ToSyntax() — binds
             // to the file-local LiteralSyntaxExtensions (built-in types) or the generic ToSyntax<T> fallback.
@@ -717,6 +734,16 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                     unquotedReplacements.Add(reference, IdentifierName(syntaxForStagedIdentifier));
             }
 
+            // Interpolation staged-fold: a string-typed Unquote<string>(…) local may be baked into surrounding
+            // literal text when used as a bare interpolation hole. The hoisted runtime local (`var name = …;`) is
+            // in scope throughout the factory body, so its name is the raw value accessor. The String decision is
+            // made HERE at emission off the Unquote<T> type argument; only the resulting nodes leave this scope.
+            if ((semanticModel.GetSymbolInfo(stagedLocal.StagedCall).Symbol as IMethodSymbol)?.TypeArguments[0].SpecialType == SpecialType.System_String)
+            {
+                foreach (var reference in stagedLocal.References)
+                    stringStagedRoots[reference] = IdentifierName(stagedLocal.Name);
+            }
+
             trimNodes.Add(stagedLocal.Declaration);
         }
 
@@ -783,6 +810,14 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
             foreach (var reference in stagedParameterRoot.References)
                 unquotedReplacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
+
+            // Interpolation staged-fold: a string-typed [Unquote] parameter may be baked into surrounding literal
+            // text when used as a bare interpolation hole. The factory parameter is the raw value accessor.
+            if (paramType.SpecialType == SpecialType.System_String)
+            {
+                foreach (var reference in stagedParameterRoot.References)
+                    stringStagedRoots[reference] = IdentifierName(paramName);
+            }
 
             trimNodes.Add(stagedParameterRoot.Parameter);
         }
@@ -895,7 +930,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             // A fresh quoter for the [Quoted] islands inside builder arguments: it carries the lifts collected
             // so far (inline/syntax/live parameter replacements) so an island that references a lifted value
             // quotes correctly. It never descends into a builder invocation (those are not yet in the map).
-            var islandQuoter = new TemplateSyntaxQuoter(semanticModel, unquotedReplacements, new HashSet<SyntaxNode>(), includeTrivia: false);
+            var islandQuoter = new TemplateSyntaxQuoter(semanticModel, unquotedReplacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: stringStagedRoots);
 
             foreach (var call in builderResult.Calls)
             {
@@ -940,6 +975,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             rootNames,
             unquotedReplacements,
             trimNodes,
+            stringStagedRoots,
             ref stagedRegionCounter);
 
         diagnostics.AddRange(liveRegionEmission.Diagnostics);
@@ -973,7 +1009,8 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             unquotedReplacements,
             prunableNodes,
             includeTrivia: options.HasFlag(TemplateOption.PreserveTrivia),
-            memberSegments: spliceMemberSegments);
+            memberSegments: spliceMemberSegments,
+            stringStagedRoots: stringStagedRoots);
 
 
         if (!TemplateSyntaxQuoterInvoker.TryQuote(

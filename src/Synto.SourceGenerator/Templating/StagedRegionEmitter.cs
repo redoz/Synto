@@ -176,6 +176,7 @@ internal static class StagedRegionEmitter
         IReadOnlyDictionary<ISymbol, string> rootNames,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
         HashSet<SyntaxNode> trimNodes,
+        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
         ref int counter)
     {
         var emission = new StagedRegionEmission();
@@ -199,7 +200,7 @@ internal static class StagedRegionEmitter
                 if (regionByControl.TryGetValue(statement, out var region))
                 {
                     string runName = "__run_" + counter++;
-                    if (!TryBuildScaffold(semanticModel, partition, region, stagedSet, renamer, baseReplacements, runName, emission))
+                    if (!TryBuildScaffold(semanticModel, partition, region, stagedSet, renamer, baseReplacements, stringStagedRoots, runName, emission))
                         return emission; // a diagnostic was recorded
                     segments.Add(RunSegment(runName));
                 }
@@ -213,7 +214,7 @@ internal static class StagedRegionEmitter
                 {
                     // A fixed quoted sibling of the region (e.g. a trailing throw): quote it verbatim and add it
                     // as a single-node segment (implicit TNode -> ListSegment conversion).
-                    var fixedQuoter = new TemplateSyntaxQuoter(semanticModel, baseReplacements, new HashSet<SyntaxNode>(), includeTrivia: false);
+                    var fixedQuoter = new TemplateSyntaxQuoter(semanticModel, baseReplacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: stringStagedRoots);
                     if (fixedQuoter.Visit(statement) is { } quote)
                         segments.Add(quote);
                 }
@@ -232,6 +233,7 @@ internal static class StagedRegionEmitter
         HashSet<ISymbol> stagedSet,
         RootRenameRewriter renamer,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
+        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
         string runName,
         StagedRegionEmission emission)
     {
@@ -249,7 +251,7 @@ internal static class StagedRegionEmitter
                                     ParseTypeName("global::System.Collections.Generic.List<global::Microsoft.CodeAnalysis.CSharp.Syntax.StatementSyntax>"))
                                     .WithArgumentList(ArgumentList())))))));
 
-        if (!TryBuildControl(semanticModel, partition, region.Control, stagedSet, renamer, baseReplacements, runIdentifier, emission, out var scaffold))
+        if (!TryBuildControl(semanticModel, partition, region.Control, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var scaffold))
             return false;
 
         emission.Preamble.Add(scaffold!);
@@ -268,6 +270,7 @@ internal static class StagedRegionEmitter
         HashSet<ISymbol> stagedSet,
         RootRenameRewriter renamer,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
+        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
         SyntaxToken runIdentifier,
         StagedRegionEmission emission,
         out StatementSyntax? scaffold)
@@ -278,7 +281,7 @@ internal static class StagedRegionEmitter
         {
             case ForEachStatementSyntax forEach:
                 {
-                    if (!TryBuildRegionBody(semanticModel, partition, forEach.Statement, stagedSet, renamer, baseReplacements, runIdentifier, emission, out var body))
+                    if (!TryBuildRegionBody(semanticModel, partition, forEach.Statement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var body))
                         return false;
                     var source = (ExpressionSyntax)renamer.Visit(forEach.Expression)!;
                     scaffold = ForEachStatement(forEach.Type.WithoutTrivia(), forEach.Identifier.WithoutTrivia(), source.WithoutTrivia(), body!);
@@ -287,7 +290,7 @@ internal static class StagedRegionEmitter
 
             case ForStatementSyntax forStatement:
                 {
-                    if (!TryBuildRegionBody(semanticModel, partition, forStatement.Statement, stagedSet, renamer, baseReplacements, runIdentifier, emission, out var body))
+                    if (!TryBuildRegionBody(semanticModel, partition, forStatement.Statement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var body))
                         return false;
 
                     var result = ForStatement(body!)
@@ -302,14 +305,14 @@ internal static class StagedRegionEmitter
 
             case WhileStatementSyntax whileStatement:
                 {
-                    if (!TryBuildRegionBody(semanticModel, partition, whileStatement.Statement, stagedSet, renamer, baseReplacements, runIdentifier, emission, out var body))
+                    if (!TryBuildRegionBody(semanticModel, partition, whileStatement.Statement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var body))
                         return false;
                     scaffold = WhileStatement((ExpressionSyntax)renamer.Visit(whileStatement.Condition)!.WithoutTrivia(), body!);
                     return true;
                 }
 
             case IfStatementSyntax ifStatement:
-                return TryBuildIf(semanticModel, partition, ifStatement, stagedSet, renamer, baseReplacements, runIdentifier, emission, out scaffold);
+                return TryBuildIf(semanticModel, partition, ifStatement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out scaffold);
         }
 
         emission.Diagnostics.Add(Diagnostics.UnsupportedStagedShape(control.GetLocation(), "unsupported staged control shape"));
@@ -323,13 +326,14 @@ internal static class StagedRegionEmitter
         HashSet<ISymbol> stagedSet,
         RootRenameRewriter renamer,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
+        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
         SyntaxToken runIdentifier,
         StagedRegionEmission emission,
         out StatementSyntax? scaffold)
     {
         scaffold = null;
 
-        if (!TryBuildRegionBody(semanticModel, partition, ifStatement.Statement, stagedSet, renamer, baseReplacements, runIdentifier, emission, out var thenBody))
+        if (!TryBuildRegionBody(semanticModel, partition, ifStatement.Statement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var thenBody))
             return false;
 
         var condition = (ExpressionSyntax)renamer.Visit(ifStatement.Condition)!.WithoutTrivia();
@@ -340,13 +344,13 @@ internal static class StagedRegionEmitter
             // `else if` chains recurse so the whole chain specializes at factory time onto the same run.
             if (elseClause.Statement is IfStatementSyntax elseIf)
             {
-                if (!TryBuildIf(semanticModel, partition, elseIf, stagedSet, renamer, baseReplacements, runIdentifier, emission, out var elseIfScaffold))
+                if (!TryBuildIf(semanticModel, partition, elseIf, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var elseIfScaffold))
                     return false;
                 result = result.WithElse(ElseClause(elseIfScaffold!));
             }
             else
             {
-                if (!TryBuildRegionBody(semanticModel, partition, elseClause.Statement, stagedSet, renamer, baseReplacements, runIdentifier, emission, out var elseBody))
+                if (!TryBuildRegionBody(semanticModel, partition, elseClause.Statement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var elseBody))
                     return false;
                 result = result.WithElse(ElseClause(elseBody!));
             }
@@ -368,6 +372,7 @@ internal static class StagedRegionEmitter
         HashSet<ISymbol> stagedSet,
         RootRenameRewriter renamer,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
+        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
         SyntaxToken runIdentifier,
         StagedRegionEmission emission,
         out BlockSyntax? block)
@@ -399,7 +404,7 @@ internal static class StagedRegionEmitter
                 liftMap[pair.Key] = pair.Value;
             CollectLiftPoints(semanticModel, statement, stagedSet, renamer, liftMap);
 
-            var islandQuoter = new TemplateSyntaxQuoter(semanticModel, liftMap, new HashSet<SyntaxNode>(), includeTrivia: false);
+            var islandQuoter = new TemplateSyntaxQuoter(semanticModel, liftMap, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: stringStagedRoots);
             if (islandQuoter.Visit(statement) is not { } island)
             {
                 emission.Diagnostics.Add(Diagnostics.UnsupportedStagedShape(body.GetLocation(), "staged region body could not be quoted"));
