@@ -272,6 +272,41 @@ public partial class RoundTripTests
         AssertGenerated(expected, node);
     }
 
+    // The SINGLE-return [Splice] member shape (spec §2–§3): the static `Count` method returns one
+    // `MemberDeclarationSyntax` directly (not an `IEnumerable<>`), so the factory emits it as a bare
+    // `BuildList<MemberDeclarationSyntax>(call)` arg relying on the `MemberDeclarationSyntax -> ListSegment`
+    // implicit conversion — a DISTINCT emission branch from the enumerable `ListSegment.Run(...)` shape in
+    // SpliceMembers above. The lifted `Parameter<int>()` folds into the factory's `count` argument.
+    [Template(typeof(Factory))]
+    public class Counter
+    {
+        [Splice]
+        static MemberDeclarationSyntax Count()
+        {
+            var count = Parameter<int>();
+            return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Count"))
+                .AddModifiers(Token(PublicKeyword))
+                .WithExpressionBody(ArrowExpressionClause(
+                    LiteralExpression(NumericLiteralExpression, Literal(count))))
+                .WithSemicolonToken(Token(SemicolonToken));
+        }
+    }
+
+    [Fact]
+    public void SpliceSingleMember()
+    {
+        ClassDeclarationSyntax node = Factory.Counter(7);
+
+        string expected = """
+                          public class Counter
+                          {
+                              public int Count() => 7;
+                          }
+                          """;
+
+        AssertGenerated(expected, node);
+    }
+
 }
 
 /// <summary>A fixed column descriptor for the <c>[Splice]</c> member-generator round-trip.</summary>
