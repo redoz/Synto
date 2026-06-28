@@ -95,6 +95,7 @@
 	<EmbeddedResource Include="..\Synto\LiteralSyntaxExtensions.cs" LogicalName="Synto.Helper.LiteralSyntaxExtensions.cs" />
 	<EmbeddedResource Include="..\Synto\QuoteSyntaxExtensions.cs" LogicalName="Synto.Helper.QuoteSyntaxExtensions.cs" />
 	<EmbeddedResource Include="..\Synto\CollectionSyntaxExtensions.cs" LogicalName="Synto.Helper.CollectionSyntaxExtensions.cs" />
+	<EmbeddedResource Include="..\Synto\InterpolationSyntaxExtensions.cs" LogicalName="Synto.Helper.InterpolationSyntaxExtensions.cs" />
   </ItemGroup>
 
   <ItemGroup>

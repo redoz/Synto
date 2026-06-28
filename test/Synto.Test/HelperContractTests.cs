@@ -72,4 +72,45 @@ public class HelperContractTests
 
         Assert.Equal("null", expr.OrNullLiteralExpression().ToString());
     }
+
+    [Fact]
+    public void ToInterpolatedTextLeavesPlainStringUnchanged()
+    {
+        Assert.Equal("plain", "plain".ToInterpolatedText());
+    }
+
+    [Fact]
+    public void ToInterpolatedTextDoublesOpenBrace()
+    {
+        // `{` must be doubled so it renders as a literal brace inside interpolated text rather than
+        // opening a hole.
+        Assert.Equal("a{{b", "a{b".ToInterpolatedText());
+    }
+
+    [Fact]
+    public void ToInterpolatedTextDoublesCloseBrace()
+    {
+        Assert.Equal("a}}b", "a}b".ToInterpolatedText());
+    }
+
+    [Fact]
+    public void ToInterpolatedTextEscapesQuoteForRegularLiteralToken()
+    {
+        // The fused text becomes part of a regular (non-verbatim) string-literal token, so a quote must be
+        // backslash-escaped to stay inside the token.
+        Assert.Equal("a\\\"b", "a\"b".ToInterpolatedText());
+    }
+
+    [Fact]
+    public void ToInterpolatedTextEscapesBackslashForRegularLiteralToken()
+    {
+        Assert.Equal("a\\\\b", "a\\b".ToInterpolatedText());
+    }
+
+    [Fact]
+    public void ToInterpolatedTextEscapesAllHazardCharactersCombined()
+    {
+        // a{b}"c\d  ->  a{{b}}\"c\\d  (braces doubled; quote and backslash escaped for the literal token)
+        Assert.Equal("a{{b}}\\\"c\\\\d", "a{b}\"c\\d".ToInterpolatedText());
+    }
 }
