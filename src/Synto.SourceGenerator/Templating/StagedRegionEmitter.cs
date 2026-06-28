@@ -33,6 +33,7 @@ internal static class StagedRegionEmitter
         var emission = new StagedRegionEmission();
         var stagedSet = StagedLivenessAnalysis.ComputeStagedSet(semanticModel, regions, baseStaged);
         var renamer = new RootRenameRewriter(semanticModel, rootNames);
+        var context = new StagedEmitContext(semanticModel, partition, stagedSet, renamer, baseReplacements, stringStagedRoots, emission);
 
         foreach (var group in regions.GroupBy(r => r.Container))
         {
@@ -51,7 +52,7 @@ internal static class StagedRegionEmitter
                 if (regionByControl.TryGetValue(statement, out var region))
                 {
                     string runName = "__run_" + counter++;
-                    if (!TryBuildScaffold(semanticModel, partition, region, stagedSet, renamer, baseReplacements, stringStagedRoots, runName, emission))
+                    if (!TryBuildScaffold(context, region, runName))
                         return emission; // a diagnostic was recorded
                     segments.Add(StagedHelperCallFactory.RunSegment(runName));
                 }
@@ -77,21 +78,13 @@ internal static class StagedRegionEmitter
         return emission;
     }
 
-    private static bool TryBuildScaffold(
-        SemanticModel semanticModel,
-        BindingTimePartition partition,
-        StagedRegion region,
-        HashSet<ISymbol> stagedSet,
-        RootRenameRewriter renamer,
-        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
-        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
-        string runName,
-        StagedRegionEmission emission)
+    private static bool TryBuildScaffold(StagedEmitContext context, StagedRegion region, string runName)
     {
         var runIdentifier = Identifier(runName);
+        context.RunIdentifier = runIdentifier;
 
         // var __run_N = new global::System.Collections.Generic.List<...StatementSyntax>();
-        emission.Preamble.Add(
+        context.Emission.Preamble.Add(
             LocalDeclarationStatement(
                 VariableDeclaration(
                     IdentifierName("var"),
@@ -102,10 +95,10 @@ internal static class StagedRegionEmitter
                                     ParseTypeName("global::System.Collections.Generic.List<global::Microsoft.CodeAnalysis.CSharp.Syntax.StatementSyntax>"))
                                     .WithArgumentList(ArgumentList())))))));
 
-        if (!TryBuildControl(semanticModel, partition, region.Control, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var scaffold))
+        if (!TryBuildControl(context, region.Control, out var scaffold))
             return false;
 
-        emission.Preamble.Add(scaffold!);
+        context.Emission.Preamble.Add(scaffold!);
         return true;
     }
 
@@ -114,25 +107,16 @@ internal static class StagedRegionEmitter
     /// factory parameters and its body replaced by the island-collecting / live-verbatim block. An <c>if</c> is
     /// branch-specialized (both branches append to the SAME run; exactly one runs at factory time).
     /// </summary>
-    private static bool TryBuildControl(
-        SemanticModel semanticModel,
-        BindingTimePartition partition,
-        StatementSyntax control,
-        HashSet<ISymbol> stagedSet,
-        RootRenameRewriter renamer,
-        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
-        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
-        SyntaxToken runIdentifier,
-        StagedRegionEmission emission,
-        out StatementSyntax? scaffold)
+    private static bool TryBuildControl(StagedEmitContext context, StatementSyntax control, out StatementSyntax? scaffold)
     {
         scaffold = null;
+        var renamer = context.Renamer;
 
         switch (control)
         {
             case ForEachStatementSyntax forEach:
                 {
-                    if (!TryBuildRegionBody(semanticModel, partition, forEach.Statement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var body))
+                    if (!TryBuildRegionBody(context, forEach.Statement, out var body))
                         return false;
                     var source = (ExpressionSyntax)renamer.Visit(forEach.Expression)!;
                     scaffold = ForEachStatement(forEach.Type.WithoutTrivia(), forEach.Identifier.WithoutTrivia(), source.WithoutTrivia(), body!);
@@ -141,7 +125,7 @@ internal static class StagedRegionEmitter
 
             case ForStatementSyntax forStatement:
                 {
-                    if (!TryBuildRegionBody(semanticModel, partition, forStatement.Statement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var body))
+                    if (!TryBuildRegionBody(context, forStatement.Statement, out var body))
                         return false;
 
                     var result = ForStatement(body!)
@@ -156,38 +140,28 @@ internal static class StagedRegionEmitter
 
             case WhileStatementSyntax whileStatement:
                 {
-                    if (!TryBuildRegionBody(semanticModel, partition, whileStatement.Statement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var body))
+                    if (!TryBuildRegionBody(context, whileStatement.Statement, out var body))
                         return false;
                     scaffold = WhileStatement((ExpressionSyntax)renamer.Visit(whileStatement.Condition)!.WithoutTrivia(), body!);
                     return true;
                 }
 
             case IfStatementSyntax ifStatement:
-                return TryBuildIf(semanticModel, partition, ifStatement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out scaffold);
+                return TryBuildIf(context, ifStatement, out scaffold);
         }
 
-        emission.Diagnostics.Add(TemplateDiagnostics.UnsupportedStagedShape(control.GetLocation(), "unsupported staged control shape"));
+        context.Emission.Diagnostics.Add(TemplateDiagnostics.UnsupportedStagedShape(control.GetLocation(), "unsupported staged control shape"));
         return false;
     }
 
-    private static bool TryBuildIf(
-        SemanticModel semanticModel,
-        BindingTimePartition partition,
-        IfStatementSyntax ifStatement,
-        HashSet<ISymbol> stagedSet,
-        RootRenameRewriter renamer,
-        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
-        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
-        SyntaxToken runIdentifier,
-        StagedRegionEmission emission,
-        out StatementSyntax? scaffold)
+    private static bool TryBuildIf(StagedEmitContext context, IfStatementSyntax ifStatement, out StatementSyntax? scaffold)
     {
         scaffold = null;
 
-        if (!TryBuildRegionBody(semanticModel, partition, ifStatement.Statement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var thenBody))
+        if (!TryBuildRegionBody(context, ifStatement.Statement, out var thenBody))
             return false;
 
-        var condition = (ExpressionSyntax)renamer.Visit(ifStatement.Condition)!.WithoutTrivia();
+        var condition = (ExpressionSyntax)context.Renamer.Visit(ifStatement.Condition)!.WithoutTrivia();
         var result = IfStatement(condition, thenBody!);
 
         if (ifStatement.Else is { } elseClause)
@@ -195,13 +169,13 @@ internal static class StagedRegionEmitter
             // `else if` chains recurse so the whole chain specializes at factory time onto the same run.
             if (elseClause.Statement is IfStatementSyntax elseIf)
             {
-                if (!TryBuildIf(semanticModel, partition, elseIf, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var elseIfScaffold))
+                if (!TryBuildIf(context, elseIf, out var elseIfScaffold))
                     return false;
                 result = result.WithElse(ElseClause(elseIfScaffold!));
             }
             else
             {
-                if (!TryBuildRegionBody(semanticModel, partition, elseClause.Statement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out var elseBody))
+                if (!TryBuildRegionBody(context, elseClause.Statement, out var elseBody))
                     return false;
                 result = result.WithElse(ElseClause(elseBody!));
             }
@@ -216,19 +190,14 @@ internal static class StagedRegionEmitter
     /// locals and mutations of live accumulators) and quoted islands (each becomes <c>__run.Add(&lt;quote&gt;)</c>).
     /// A nested live-control statement is not supported in v1 → <c>SY1014</c> (rather than a silent mis-expansion).
     /// </summary>
-    private static bool TryBuildRegionBody(
-        SemanticModel semanticModel,
-        BindingTimePartition partition,
-        StatementSyntax body,
-        HashSet<ISymbol> stagedSet,
-        RootRenameRewriter renamer,
-        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
-        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
-        SyntaxToken runIdentifier,
-        StagedRegionEmission emission,
-        out BlockSyntax? block)
+    private static bool TryBuildRegionBody(StagedEmitContext context, StatementSyntax body, out BlockSyntax? block)
     {
         block = null;
+        var semanticModel = context.SemanticModel;
+        var partition = context.Partition;
+        var stagedSet = context.StagedSet;
+        var renamer = context.Renamer;
+        var emission = context.Emission;
         var statements = body is BlockSyntax blockBody
             ? (IReadOnlyList<StatementSyntax>)blockBody.Statements
             : new[] { body };
@@ -251,11 +220,11 @@ internal static class StagedRegionEmitter
             }
 
             var liftMap = new Dictionary<SyntaxNode, ExpressionSyntax>();
-            foreach (var pair in baseReplacements)
+            foreach (var pair in context.BaseReplacements)
                 liftMap[pair.Key] = pair.Value;
             CollectLiftPoints(semanticModel, statement, stagedSet, renamer, liftMap);
 
-            var islandQuoter = new TemplateSyntaxQuoter(semanticModel, liftMap, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: stringStagedRoots);
+            var islandQuoter = new TemplateSyntaxQuoter(semanticModel, liftMap, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: context.StringStagedRoots);
             if (islandQuoter.Visit(statement) is not { } island)
             {
                 emission.Diagnostics.Add(TemplateDiagnostics.UnsupportedStagedShape(body.GetLocation(), "staged region body could not be quoted"));
@@ -268,7 +237,7 @@ internal static class StagedRegionEmitter
                     InvocationExpression(
                         MemberAccessExpression(
                             SyntaxKind.SimpleMemberAccessExpression,
-                            IdentifierName(runIdentifier),
+                            IdentifierName(context.RunIdentifier),
                             IdentifierName("Add")))
                         .AddArgumentListArguments(Argument(island))));
         }
