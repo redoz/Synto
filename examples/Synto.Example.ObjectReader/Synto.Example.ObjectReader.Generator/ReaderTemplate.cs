@@ -1,6 +1,10 @@
+using System.Collections.Generic;
 using System.Linq;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Generators;
 using Synto.Templating;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 using static Synto.Templating.Template;
 
 namespace Synto.Example.ObjectReader.Generator;
@@ -81,114 +85,27 @@ internal sealed class ObjectReaderTemplate<[Splice] T>
         throw OutOfRange(i);
     }
 
-    // ---- cast-less typed getters: filtered by the column's CLR type, read the member DIRECTLY (no box) -------
+    // ---- cast-less typed getters: ONE child [Template] (GetterTemplate.TypedGetter), invoked once per CLR type ----
+    // The 12 near-identical typed getters collapse to a [Splice] member-generator that calls the child factory once
+    // per getter — supplying the return-type TypeSyntax, the CLR-type filter, and the exception label — then renames
+    // each result via .WithIdentifier(...). Generated output is byte-identical to the former hand-written getters.
 
-    public bool GetBoolean(int i)
+    [Splice]
+    static IEnumerable<MemberDeclarationSyntax> TypedGetters()
     {
         var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Boolean"))
-            if (i == c.Ordinal)
-                return Member<bool>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not a Boolean column.");
-    }
-
-    public byte GetByte(int i)
-    {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Byte"))
-            if (i == c.Ordinal)
-                return Member<byte>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not a Byte column.");
-    }
-
-    public char GetChar(int i)
-    {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Char"))
-            if (i == c.Ordinal)
-                return Member<char>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not a Char column.");
-    }
-
-    public global::System.DateTime GetDateTime(int i)
-    {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.DateTime"))
-            if (i == c.Ordinal)
-                return Member<global::System.DateTime>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not a DateTime column.");
-    }
-
-    public decimal GetDecimal(int i)
-    {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Decimal"))
-            if (i == c.Ordinal)
-                return Member<decimal>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not a Decimal column.");
-    }
-
-    public double GetDouble(int i)
-    {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Double"))
-            if (i == c.Ordinal)
-                return Member<double>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not a Double column.");
-    }
-
-    public float GetFloat(int i)
-    {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Single"))
-            if (i == c.Ordinal)
-                return Member<float>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not a Single column.");
-    }
-
-    public global::System.Guid GetGuid(int i)
-    {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Guid"))
-            if (i == c.Ordinal)
-                return Member<global::System.Guid>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not a Guid column.");
-    }
-
-    public short GetInt16(int i)
-    {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Int16"))
-            if (i == c.Ordinal)
-                return Member<short>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not an Int16 column.");
-    }
-
-    public int GetInt32(int i)
-    {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Int32"))
-            if (i == c.Ordinal)
-                return Member<int>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not an Int32 column.");
-    }
-
-    public long GetInt64(int i)
-    {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.Int64"))
-            if (i == c.Ordinal)
-                return Member<long>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not an Int64 column.");
-    }
-
-    public string GetString(int i)
-    {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == "global::System.String"))
-            if (i == c.Ordinal)
-                return Member<string>(_e.Current, c.Name);
-        throw new global::System.InvalidCastException($"Field {i} is not a String column.");
+        yield return Factory.TypedGetter(PredefinedType(Token(BoolKeyword)), columns, "global::System.Boolean", "a Boolean").WithIdentifier(Identifier("GetBoolean"));
+        yield return Factory.TypedGetter(PredefinedType(Token(ByteKeyword)), columns, "global::System.Byte", "a Byte").WithIdentifier(Identifier("GetByte"));
+        yield return Factory.TypedGetter(PredefinedType(Token(CharKeyword)), columns, "global::System.Char", "a Char").WithIdentifier(Identifier("GetChar"));
+        yield return Factory.TypedGetter(ParseTypeName("global::System.DateTime"), columns, "global::System.DateTime", "a DateTime").WithIdentifier(Identifier("GetDateTime"));
+        yield return Factory.TypedGetter(PredefinedType(Token(DecimalKeyword)), columns, "global::System.Decimal", "a Decimal").WithIdentifier(Identifier("GetDecimal"));
+        yield return Factory.TypedGetter(PredefinedType(Token(DoubleKeyword)), columns, "global::System.Double", "a Double").WithIdentifier(Identifier("GetDouble"));
+        yield return Factory.TypedGetter(PredefinedType(Token(FloatKeyword)), columns, "global::System.Single", "a Single").WithIdentifier(Identifier("GetFloat"));
+        yield return Factory.TypedGetter(ParseTypeName("global::System.Guid"), columns, "global::System.Guid", "a Guid").WithIdentifier(Identifier("GetGuid"));
+        yield return Factory.TypedGetter(PredefinedType(Token(ShortKeyword)), columns, "global::System.Int16", "an Int16").WithIdentifier(Identifier("GetInt16"));
+        yield return Factory.TypedGetter(PredefinedType(Token(IntKeyword)), columns, "global::System.Int32", "an Int32").WithIdentifier(Identifier("GetInt32"));
+        yield return Factory.TypedGetter(PredefinedType(Token(LongKeyword)), columns, "global::System.Int64", "an Int64").WithIdentifier(Identifier("GetInt64"));
+        yield return Factory.TypedGetter(PredefinedType(Token(StringKeyword)), columns, "global::System.String", "a String").WithIdentifier(Identifier("GetString"));
     }
 
     // ---- invariant members (the [Template] payload) ----
