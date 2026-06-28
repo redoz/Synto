@@ -64,7 +64,7 @@ internal sealed class StagedParameterResult
     public IReadOnlyList<DiagnosticInfo> Diagnostics { get; }
 }
 
-internal sealed class StagedParameterFinder : CSharpSyntaxWalker
+internal sealed class StagedParameterFinder : TemplateScopedWalker
 {
     private sealed class Site
     {
@@ -92,9 +92,9 @@ internal sealed class StagedParameterFinder : CSharpSyntaxWalker
 
     private static readonly SymbolDisplayFormat TypeFormat = SymbolDisplayFormat.FullyQualifiedFormat;
 
-    public static StagedParameterResult FindStagedParameters(SemanticModel semanticModel, SyntaxNode node)
+    public static StagedParameterResult FindStagedParameters(SemanticModel semanticModel, SyntaxNode node, TemplateScope scope)
     {
-        var finder = new StagedParameterFinder(semanticModel);
+        var finder = new StagedParameterFinder(semanticModel, scope);
         finder.Visit(node);
         return finder.Resolve();
     }
@@ -104,7 +104,8 @@ internal sealed class StagedParameterFinder : CSharpSyntaxWalker
     private readonly List<Site> _sites = new();
     private readonly Dictionary<ISymbol, Site> _siteByLocal = new(SymbolEqualityComparer.Default);
 
-    private StagedParameterFinder(SemanticModel semanticModel)
+    private StagedParameterFinder(SemanticModel semanticModel, TemplateScope scope)
+        : base(scope)
     {
         _semanticModel = semanticModel;
         _templateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);

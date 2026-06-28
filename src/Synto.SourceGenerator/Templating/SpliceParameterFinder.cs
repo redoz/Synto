@@ -23,11 +23,11 @@ internal sealed class SpliceParameter(ParameterSyntax parameter, IReadOnlyList<I
 /// (find-then-replace) because a use can precede the parameter discovery during the single tree walk; nothing
 /// is captured into pipeline state.
 /// </summary>
-internal sealed class SpliceParameterFinder : CSharpSyntaxWalker
+internal sealed class SpliceParameterFinder : TemplateScopedWalker
 {
-    public static IEnumerable<SpliceParameter> FindSpliceParameters(SemanticModel semanticModel, SyntaxNode node)
+    public static IEnumerable<SpliceParameter> FindSpliceParameters(SemanticModel semanticModel, SyntaxNode node, TemplateScope scope)
     {
-        var finder = new SpliceParameterFinder(semanticModel);
+        var finder = new SpliceParameterFinder(semanticModel, scope);
         finder.Visit(node);
 
         foreach (var parameterBySymbol in finder._parameterBySymbol)
@@ -43,7 +43,8 @@ internal sealed class SpliceParameterFinder : CSharpSyntaxWalker
     private readonly Dictionary<ISymbol, ParameterSyntax> _parameterBySymbol;
     private readonly Dictionary<ISymbol, List<IdentifierNameSyntax>> _replacementsBySymbol;
 
-    private SpliceParameterFinder(SemanticModel semanticModel)
+    private SpliceParameterFinder(SemanticModel semanticModel, TemplateScope scope)
+        : base(scope)
     {
         _semanticModel = semanticModel;
         _spliceAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(SpliceAttribute).FullName!);

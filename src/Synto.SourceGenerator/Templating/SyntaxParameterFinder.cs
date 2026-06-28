@@ -12,12 +12,12 @@ internal sealed class SyntaxParameter(ParameterSyntax parameter, IReadOnlyList<I
     public IReadOnlyList<InvocationExpressionSyntax> References { get; } = references;
 }
 
-internal sealed class SyntaxParameterFinder : CSharpSyntaxWalker
+internal sealed class SyntaxParameterFinder : TemplateScopedWalker
 {
-    public static IEnumerable<SyntaxParameter> FindSyntaxParameters(SemanticModel semanticModel, SyntaxNode node)
+    public static IEnumerable<SyntaxParameter> FindSyntaxParameters(SemanticModel semanticModel, SyntaxNode node, TemplateScope scope)
     {
         // since the usage might be before the discovery this is a two phase operation
-        var finder = new SyntaxParameterFinder(semanticModel);
+        var finder = new SyntaxParameterFinder(semanticModel, scope);
         finder.Visit(node);
 
         foreach (var typeParameterBySymbol in finder._parameterBySymbol)
@@ -36,7 +36,8 @@ internal sealed class SyntaxParameterFinder : CSharpSyntaxWalker
     private readonly Dictionary<ISymbol, ParameterSyntax> _parameterBySymbol;
     private readonly Dictionary<ISymbol, List<InvocationExpressionSyntax>> _replacementsBySymbol;
 
-    private SyntaxParameterFinder(SemanticModel semanticModel)
+    private SyntaxParameterFinder(SemanticModel semanticModel, TemplateScope scope)
+        : base(scope)
     {
         _semanticModel = semanticModel;
         // Fully-qualified: this file imports both Microsoft.CodeAnalysis.CSharp and

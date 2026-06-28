@@ -142,6 +142,50 @@ public class ChildTemplateTest
         }
         """;
 
+    // Same nested shape, but the child [Template] declares a [Splice] VALUE parameter (`childOnlySplice`) — a
+    // finder kind (SpliceParameterFinder) that historically had NO per-site child-skip. When the PARENT carrier is
+    // processed, the per-template finders must NOT visit the child's subtree, so `childOnlySplice` must never leak
+    // into the parent factory's parameter list. Regression guard for the structural ownership boundary (skip-during).
+    private const string NestedChildSpliceValueComposition =
+        """
+        using System;
+        using System.Collections.Generic;
+        using System.Linq;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+
+        partial class Factory {}
+
+        public readonly record struct Col(int Ordinal, string Name, string ClrType);
+
+        [Template(typeof(Factory))]
+        public class Reader
+        {
+            [Template(typeof(Factory))]
+            public TRet TypedGetter<[Splice] TRet>(int i, [Splice] object childOnlySplice)
+            {
+                var columns = Parameter<IReadOnlyList<Col>>();
+                var clrType = Parameter<string>();
+                var typeLabel = Parameter<string>();
+                foreach (var c in columns.Where(c => c.ClrType == clrType))
+                    if (i == c.Ordinal)
+                        return Member<TRet>(childOnlySplice, c.Name);
+                throw new global::System.InvalidCastException($"Field {i} is not {typeLabel} column.");
+            }
+
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Getters()
+            {
+                var columns = Parameter<IReadOnlyList<Col>>();
+                yield return Factory.TypedGetter(PredefinedType(Token(IntKeyword)), columns, "System.Int32", "an Int32")
+                    .WithIdentifier(Identifier("GetInt32"));
+            }
+        }
+        """;
+
     [Fact]
     public async Task ChildTemplate_MemberGeneratorInvokesChildFactory()
     {
@@ -192,5 +236,31 @@ public class ChildTemplateTest
 
         var ret = await Verify(result).UseDirectory("snapshots");
         Assert.NotEmpty(ret.Files);
+    }
+
+    [Fact]
+    public void ChildTemplate_SpliceValueParam_DoesNotLeakIntoParentFactory()
+    {
+        var compilation = CompilationWithSource(NestedChildSpliceValueComposition);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var result = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        var runResult = result.GetRunResult();
+
+        // No generator diagnostics (a leaked/unhandled staged shape would surface here).
+        Assert.Empty(runResult.Diagnostics);
+
+        var sources = runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .ToDictionary(s => s.HintName, s => s.SourceText.ToString(), StringComparer.Ordinal);
+
+        // The parent factory IS generated.
+        Assert.Contains("Factory.Reader.g.cs", sources.Keys);
+        var readerFactory = sources["Factory.Reader.g.cs"];
+
+        // The child's [Splice] VALUE parameter belongs to the CHILD's own factory; it must NEVER surface in the
+        // parent factory. Before the structural ownership boundary, the unguarded SpliceParameterFinder walked the
+        // child subtree and leaked `childOnlySplice` into the parent factory's parameter list.
+        Assert.DoesNotContain("childOnlySplice", readerFactory, StringComparison.Ordinal);
     }
 }

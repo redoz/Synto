@@ -24,11 +24,11 @@ internal sealed class QuoteCall(InvocationExpressionSyntax invocation, Expressio
 /// into pipeline state. The discovered invocation nodes are also handed to <see cref="BindingTimeClassifier"/> so
 /// it can shield their arguments from liveness propagation.
 /// </summary>
-internal sealed class QuoteCallFinder : CSharpSyntaxWalker
+internal sealed class QuoteCallFinder : TemplateScopedWalker
 {
-    public static IReadOnlyList<QuoteCall> FindQuoteCalls(SemanticModel semanticModel, SyntaxNode node)
+    public static IReadOnlyList<QuoteCall> FindQuoteCalls(SemanticModel semanticModel, SyntaxNode node, TemplateScope scope)
     {
-        var finder = new QuoteCallFinder(semanticModel);
+        var finder = new QuoteCallFinder(semanticModel, scope);
         finder.Visit(node);
         return finder._calls;
     }
@@ -37,7 +37,8 @@ internal sealed class QuoteCallFinder : CSharpSyntaxWalker
     private readonly INamedTypeSymbol? _templateSymbol;
     private readonly List<QuoteCall> _calls = new();
 
-    private QuoteCallFinder(SemanticModel semanticModel)
+    private QuoteCallFinder(SemanticModel semanticModel, TemplateScope scope)
+        : base(scope)
     {
         _semanticModel = semanticModel;
         _templateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);

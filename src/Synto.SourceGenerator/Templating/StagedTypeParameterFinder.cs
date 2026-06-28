@@ -28,7 +28,7 @@ internal sealed class StagedTypeParameter(ITypeParameterSymbol typeParameterSymb
 /// type-position use-sites. Two-phase (identify type parameters, then find references) because a use can
 /// precede the declaration during the walk; nothing is captured into pipeline state.
 /// </summary>
-internal sealed class StagedTypeParameterFinder : CSharpSyntaxWalker
+internal sealed class StagedTypeParameterFinder : TemplateScopedWalker
 {
     private sealed class Info(TypeParameterSyntax typeParameter, bool isSplice)
     {
@@ -42,9 +42,9 @@ internal sealed class StagedTypeParameterFinder : CSharpSyntaxWalker
         FindTypeParameterReferences,
     }
 
-    public static IEnumerable<StagedTypeParameter> FindStagedTypeParameters(SemanticModel semanticModel, SyntaxNode node)
+    public static IEnumerable<StagedTypeParameter> FindStagedTypeParameters(SemanticModel semanticModel, SyntaxNode node, TemplateScope scope)
     {
-        var finder = new StagedTypeParameterFinder(semanticModel);
+        var finder = new StagedTypeParameterFinder(semanticModel, scope);
         finder._phase = Phase.IdentifyTypeParameters;
         finder.Visit(node);
         finder._phase = Phase.FindTypeParameterReferences;
@@ -66,7 +66,8 @@ internal sealed class StagedTypeParameterFinder : CSharpSyntaxWalker
 
     private Phase _phase;
 
-    private StagedTypeParameterFinder(SemanticModel semanticModel)
+    private StagedTypeParameterFinder(SemanticModel semanticModel, TemplateScope scope)
+        : base(scope)
     {
         _semanticModel = semanticModel;
         _unquoteAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(UnquoteAttribute).FullName!);

@@ -22,11 +22,11 @@ internal sealed class SpliceCall(InvocationExpressionSyntax invocation, Expressi
 /// how <c>Template.Unquote</c> / <c>Member</c> / <c>TypeOf</c> are recognized). Nothing is captured into
 /// pipeline state.
 /// </summary>
-internal sealed class SpliceCallFinder : CSharpSyntaxWalker
+internal sealed class SpliceCallFinder : TemplateScopedWalker
 {
-    public static IReadOnlyList<SpliceCall> FindSpliceCalls(SemanticModel semanticModel, SyntaxNode node)
+    public static IReadOnlyList<SpliceCall> FindSpliceCalls(SemanticModel semanticModel, SyntaxNode node, TemplateScope scope)
     {
-        var finder = new SpliceCallFinder(semanticModel);
+        var finder = new SpliceCallFinder(semanticModel, scope);
         finder.Visit(node);
         return finder._calls;
     }
@@ -35,7 +35,8 @@ internal sealed class SpliceCallFinder : CSharpSyntaxWalker
     private readonly INamedTypeSymbol? _templateSymbol;
     private readonly List<SpliceCall> _calls = new();
 
-    private SpliceCallFinder(SemanticModel semanticModel)
+    private SpliceCallFinder(SemanticModel semanticModel, TemplateScope scope)
+        : base(scope)
     {
         _semanticModel = semanticModel;
         _templateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);

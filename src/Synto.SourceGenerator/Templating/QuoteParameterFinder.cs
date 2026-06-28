@@ -28,11 +28,11 @@ internal sealed class QuoteParameter(ParameterSyntax parameter, IReadOnlyList<Id
 /// <see cref="BindingTimeClassifier"/>, so a control construct referencing only a quoted value stays
 /// <c>Quoted</c> (no unroll).
 /// </summary>
-internal sealed class QuoteParameterFinder : CSharpSyntaxWalker
+internal sealed class QuoteParameterFinder : TemplateScopedWalker
 {
-    public static IEnumerable<QuoteParameter> FindQuoteParameters(SemanticModel semanticModel, SyntaxNode node)
+    public static IEnumerable<QuoteParameter> FindQuoteParameters(SemanticModel semanticModel, SyntaxNode node, TemplateScope scope)
     {
-        var finder = new QuoteParameterFinder(semanticModel);
+        var finder = new QuoteParameterFinder(semanticModel, scope);
         finder.Visit(node);
 
         foreach (var parameterBySymbol in finder._parameterBySymbol)
@@ -48,7 +48,8 @@ internal sealed class QuoteParameterFinder : CSharpSyntaxWalker
     private readonly Dictionary<ISymbol, ParameterSyntax> _parameterBySymbol;
     private readonly Dictionary<ISymbol, List<IdentifierNameSyntax>> _replacementsBySymbol;
 
-    private QuoteParameterFinder(SemanticModel semanticModel)
+    private QuoteParameterFinder(SemanticModel semanticModel, TemplateScope scope)
+        : base(scope)
     {
         _semanticModel = semanticModel;
         _quoteAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(QuoteAttribute).FullName!);

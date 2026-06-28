@@ -421,27 +421,16 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
         // Child [Template] methods nested in the carrier (Capability 1): a method-level [Template] inside this
         // class-level [Template] carrier is independently picked up by ForAttributeWithMetadataName and generates
-        // its OWN factory. When processing the PARENT carrier, exclude each child entirely: trim it so it is never
-        // quoted into the parent's output, and collect its descendant-and-self nodes so the parent's live-staging
-        // pipeline skips them (same bucket as spliceGeneratorNodes) — otherwise the child's own Parameter<…>()
-        // roots would leak into the parent factory's parameter list. Only relevant for a class-level carrier (a
-        // method-level template's own Source.Syntax IS the method, never a nested sibling).
-        var childTemplateNodes = new HashSet<SyntaxNode>();
-        if (templateInfo.Source!.Syntax is ClassDeclarationSyntax)
-        {
-            foreach (var childTemplate in ChildTemplateFinder.FindChildTemplates(semanticModel, templateInfo.Source.Syntax))
-            {
-                trimNodes.Add(childTemplate);
-                foreach (var node in childTemplate.DescendantNodesAndSelf())
-                    childTemplateNodes.Add(node);
-            }
-        }
-
-        // The combined staging-exclusion set: a node inside a valid [Splice] generator body OR inside a nested
-        // child [Template] is NOT part of THIS template's live-staging pipeline. Used at every region /
-        // staged-control / depth-zero-reference consumption point below.
-        var stagingExclusionNodes = new HashSet<SyntaxNode>(spliceGeneratorNodes);
-        stagingExclusionNodes.UnionWith(childTemplateNodes);
+        // its OWN factory. The carrier's ownership boundary is the single source of truth for "what is foreign to
+        // this parent"; every per-template finder is re-based onto TemplateScopedWalker, which SKIPS a foreign
+        // child's whole subtree (skip-during) so the child's staged roots / parameters / type-parameters are never
+        // even visited — they cannot leak into the parent factory's signature. Here we only still TRIM each foreign
+        // child from the parent's QUOTED OUTPUT (trimming-from-output is separate from the walk-skip; both sourced
+        // from `scope`). An empty scope (a non-class carrier, or a class with no children) behaves like the
+        // unscoped walk.
+        var scope = TemplateScope.ForCarrier(semanticModel, templateInfo.Source!.Syntax);
+        foreach (var child in scope.ForeignChildren)
+            trimNodes.Add(child);
 
         var preamble = new List<StatementSyntax>();
 
@@ -458,14 +447,8 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         List<TypeParameterSyntax> typeParams = new List<TypeParameterSyntax>();
 
         HashSet<ITypeParameterSymbol> inlinedTypeParams = new HashSet<ITypeParameterSymbol>(SymbolEqualityComparer.Default);
-        foreach (var replacements in StagedTypeParameterFinder.FindStagedTypeParameters(semanticModel, templateInfo.Source!.Syntax))
+        foreach (var replacements in StagedTypeParameterFinder.FindStagedTypeParameters(semanticModel, templateInfo.Source!.Syntax, scope))
         {
-            // A [Splice]/[Unquote] type parameter declared on a nested child [Template] (e.g. the child's
-            // `TypedGetter<[Splice] TRet>`) belongs to the CHILD's own factory, not the parent's — skip it so it
-            // does not leak into the parent factory's parameter/type-parameter list (Capability 1).
-            if (childTemplateNodes.Contains(replacements.TypeParameterSyntax))
-                continue;
-
             string typeParamName = replacements.TypeParameterSyntax.Identifier.Text;
 
             ExpressionSyntax typeSyntaxForTypeParam;
@@ -526,7 +509,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // [Splice] value parameters: a pre-built ExpressionSyntax supplied to the factory and spliced VERBATIM
         // (no evaluation, no value lift). The factory parameter is typed ExpressionSyntax and every use of it is
         // replaced by the parameter as-is.
-        foreach (var replacements in SpliceParameterFinder.FindSpliceParameters(semanticModel, templateInfo.Source.Syntax))
+        foreach (var replacements in SpliceParameterFinder.FindSpliceParameters(semanticModel, templateInfo.Source.Syntax, scope))
         {
             string paramName = replacements.Parameter.Identifier.Text;
             while (!paramNames.Add(paramName))
@@ -542,7 +525,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         }
 
 
-        foreach (var replacements in SyntaxParameterFinder.FindSyntaxParameters(semanticModel, templateInfo.Source.Syntax))
+        foreach (var replacements in SyntaxParameterFinder.FindSyntaxParameters(semanticModel, templateInfo.Source.Syntax, scope))
         {
             string paramName = replacements.Parameter.Identifier.Text;
             while (!paramNames.Add(paramName))
@@ -563,7 +546,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // discover them, then classify the body's binding-time partition so the staging emitter can unroll
         // live control regions (plan Task 6). All of this is semantic work inside the transform; nothing here
         // is captured into pipeline state.
-        var stagedParameterResult = StagedParameterFinder.FindStagedParameters(semanticModel, templateInfo.Source.Syntax);
+        var stagedParameterResult = StagedParameterFinder.FindStagedParameters(semanticModel, templateInfo.Source.Syntax, scope);
         diagnostics.AddRange(stagedParameterResult.Diagnostics);
 
         // A live-parameter naming error is a usage error: bail with the diagnostic(s) already reported
@@ -571,41 +554,15 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         if (stagedParameterResult.Diagnostics.Count > 0)
             return null;
 
-        var stagedRootResult = StagedRootFinder.FindStagedRoots(semanticModel, templateInfo.Source.Syntax);
+        var stagedRootResult = StagedRootFinder.FindStagedRoots(semanticModel, templateInfo.Source.Syntax, scope);
 
-        // Drop any staged parameter / staged root whose declaration sites AND references lie ENTIRELY within a
-        // nested child [Template] (Capability 1, the load-bearing fix). The child's own Parameter<…>() roots
-        // (e.g. clrType, typeLabel) would otherwise become spurious PARENT factory parameters. A root SHARED with
-        // the parent (the same (name, T) also declared in a parent member — e.g. `columns`) has occurrences
-        // outside the child, so it is NOT dropped; only roots whose every occurrence is inside a child method are.
+        // The finders are scoped (TemplateScopedWalker skips foreign child subtrees), so a root that lived ONLY
+        // inside a child is never discovered, and a root SHARED with the parent (e.g. `columns`, also referenced in
+        // a parent member-generator) is still discovered via its parent-side declaration + references. No
+        // per-consumption filtering of child-internal roots is required.
         var stagedParameters = stagedParameterResult.Parameters;
         var stagedLocals = stagedRootResult.Locals;
         var stagedRootParameters = stagedRootResult.Parameters;
-        if (childTemplateNodes.Count > 0)
-        {
-            bool EntirelyWithinChild(IEnumerable<SyntaxNode> occurrences)
-            {
-                bool any = false;
-                foreach (var occurrence in occurrences)
-                {
-                    any = true;
-                    if (!childTemplateNodes.Contains(occurrence))
-                        return false;
-                }
-
-                return any;
-            }
-
-            stagedParameters = stagedParameters
-                .Where(p => !EntirelyWithinChild(p.References.Concat(p.TrimNodes)))
-                .ToList();
-            stagedLocals = stagedLocals
-                .Where(l => !EntirelyWithinChild(l.References.Append(l.Declaration)))
-                .ToList();
-            stagedRootParameters = stagedRootParameters
-                .Where(p => !EntirelyWithinChild(p.References.Append<SyntaxNode>(p.Parameter)))
-                .ToList();
-        }
 
         // Seed the binding-time classifier from every live root symbol (parameters + bound locals), then find
         // the live control regions (a foreach driven by a live root) to unroll.
@@ -640,7 +597,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // Inline Quote(value) calls: discovered up front so the classifier can SHIELD their live arguments
         // (output-world boundary). The actual value-lift + replacement is wired below, alongside the other
         // value lifts, once the [Runtime] converter state is resolved.
-        var quoteCalls = QuoteCallFinder.FindQuoteCalls(semanticModel, templateInfo.Source.Syntax);
+        var quoteCalls = QuoteCallFinder.FindQuoteCalls(semanticModel, templateInfo.Source.Syntax, scope);
         var quoteCallNodes = new HashSet<SyntaxNode>(quoteCalls.Select(call => (SyntaxNode)call.Invocation));
 
         var partition = BindingTimeClassifier.Classify(semanticModel, templateInfo.Source.Syntax, classifierRoots, quoteCallNodes);
@@ -658,7 +615,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // Exclude any control region inside a [Splice] generator body: that `foreach` is a real factory-time loop
         // emitted verbatim by the member-generator path, NOT a live region to unroll.
         var stagedRegions = StagedRegionEmitter.FindRegions(semanticModel, templateInfo.Source.Syntax, partition)
-            .Where(region => !stagingExclusionNodes.Contains(region.Control))
+            .Where(region => !spliceGeneratorNodes.Contains(region.Control))
             .ToList();
         var regionConsumedNodes = StagedRegionEmitter.ComputeConsumedNodes(stagedRegions);
         int stagedRegionCounter = 0;
@@ -669,7 +626,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // OUTPUT (wrong code, no signal). Degrade to SY1014 instead of a silent mis-expansion.
         var unhandledStagedControl = templateInfo.Source.Syntax.DescendantNodes()
             .OfType<StatementSyntax>()
-            .Where(statement => partition.IsStagedControl(statement) && !regionConsumedNodes.Contains(statement) && !stagingExclusionNodes.Contains(statement))
+            .Where(statement => partition.IsStagedControl(statement) && !regionConsumedNodes.Contains(statement) && !spliceGeneratorNodes.Contains(statement))
             .ToList();
         if (unhandledStagedControl.Count > 0)
         {
@@ -721,7 +678,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             {
                 if (memberAccess.Expression is not IdentifierNameSyntax receiver)
                     continue;
-                if (regionConsumedNodes.Contains(memberAccess) || stagingExclusionNodes.Contains(memberAccess))
+                if (regionConsumedNodes.Contains(memberAccess) || spliceGeneratorNodes.Contains(memberAccess))
                     continue;
                 if (semanticModel.GetSymbolInfo(receiver).Symbol is not { } receiverSymbol
                     || !rootSymbolToStagedParameter.TryGetValue(receiverSymbol, out var ownerParameter))
@@ -783,7 +740,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             // References consumed by a live region are handled by the verbatim scaffold (which uses the factory
             // parameter directly as a runtime value); only depth-0 references lift via value.ToSyntax() — binds
             // to the file-local LiteralSyntaxExtensions (built-in types) or the generic ToSyntax<T> fallback.
-            var depthZeroReferences = stagedParameter.References.Where(reference => !regionConsumedNodes.Contains(reference) && !stagingExclusionNodes.Contains(reference) && !foldClaimedReferences.Contains(reference)).ToList();
+            var depthZeroReferences = stagedParameter.References.Where(reference => !regionConsumedNodes.Contains(reference) && !spliceGeneratorNodes.Contains(reference) && !foldClaimedReferences.Contains(reference)).ToList();
             if (depthZeroReferences.Count > 0)
             {
                 ExpressionSyntax conversion = InvocationExpression(
@@ -948,7 +905,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // construct referencing only a quoted value stays Quoted and is emitted as a runtime construct rather than
         // unrolled (spec §3). Value-axis only ([Quote] is AttributeTargets.Parameter), so there is no
         // generic-type-parameter branch here.
-        foreach (var quoteParameter in QuoteParameterFinder.FindQuoteParameters(semanticModel, templateInfo.Source.Syntax))
+        foreach (var quoteParameter in QuoteParameterFinder.FindQuoteParameters(semanticModel, templateInfo.Source.Syntax, scope))
         {
             string paramName = quoteParameter.Parameter.Identifier.Text;
             while (!paramNames.Add(paramName))
@@ -1081,7 +1038,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // Template.Splice(node) body calls (recognized by binding): splice the pre-built ExpressionSyntax
         // argument VERBATIM into the output at the call position — the inline counterpart to a [Splice]
         // parameter. Keyed at the invocation so the quoter substitutes the argument expression as-is.
-        foreach (var spliceCall in SpliceCallFinder.FindSpliceCalls(semanticModel, templateInfo.Source.Syntax))
+        foreach (var spliceCall in SpliceCallFinder.FindSpliceCalls(semanticModel, templateInfo.Source.Syntax, scope))
             unquotedReplacements[spliceCall.Invocation] = (ExpressionSyntax)spliceCall.Argument.WithoutTrivia();
 
         // Unroll the live control regions: each foreach over a live root becomes a verbatim scaffold in the

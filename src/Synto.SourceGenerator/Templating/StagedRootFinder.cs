@@ -83,7 +83,7 @@ internal sealed class StagedRootResult
 /// mirrors <see cref="SpliceParameterFinder"/>). Depth-0 only: a live local that is part of a control-flow
 /// region is left for the staging emitter (plan Task 6), not hoisted here.
 /// </summary>
-internal sealed class StagedRootFinder : CSharpSyntaxWalker
+internal sealed class StagedRootFinder : TemplateScopedWalker
 {
     private sealed class LocalSite
     {
@@ -115,9 +115,9 @@ internal sealed class StagedRootFinder : CSharpSyntaxWalker
         public List<SyntaxNode> References { get; } = new();
     }
 
-    public static StagedRootResult FindStagedRoots(SemanticModel semanticModel, SyntaxNode node)
+    public static StagedRootResult FindStagedRoots(SemanticModel semanticModel, SyntaxNode node, TemplateScope scope)
     {
-        var finder = new StagedRootFinder(semanticModel);
+        var finder = new StagedRootFinder(semanticModel, scope);
         finder.Visit(node);
         return finder.Resolve();
     }
@@ -132,7 +132,8 @@ internal sealed class StagedRootFinder : CSharpSyntaxWalker
     private readonly Dictionary<ISymbol, LocalSite> _localBySymbol = new(SymbolEqualityComparer.Default);
     private readonly Dictionary<ISymbol, ParameterSite> _parameterBySymbol = new(SymbolEqualityComparer.Default);
 
-    private StagedRootFinder(SemanticModel semanticModel)
+    private StagedRootFinder(SemanticModel semanticModel, TemplateScope scope)
+        : base(scope)
     {
         _semanticModel = semanticModel;
         _templateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);
