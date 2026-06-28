@@ -688,4 +688,176 @@ public class InjectedSurfaceCompletenessTest
             + "surface is incomplete or misplaced for the namespaced/nested template): "
             + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
     }
+
+    /// <summary>
+    /// The base-type contract payoff (spec §6.4): a <c>[Splice]</c> member generator may yield a NESTED TYPE
+    /// (a <c>ClassDeclarationSyntax</c>, which is a <c>MemberDeclarationSyntax</c>) — not just methods. Keying
+    /// the splice on the base <c>MemberDeclarationSyntax</c> (rather than <c>MethodDeclarationSyntax</c>) is what
+    /// lets a generator emit nested types, fields, properties, etc. Compiled against ONLY the injected surface
+    /// + Roslyn, so a base-type assumption regression is a hard compile error.
+    /// </summary>
+    private const string SpliceNestedTypeTemplate =
+        """
+        using System;
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+
+        partial class Factory {}
+
+        public readonly record struct Col(int Ordinal, string Name);
+
+        [Template(typeof(Factory))]
+        public class Shapes {
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Nested() {
+                var columns = Parameter<IReadOnlyList<Col>>();
+                foreach (var c in columns)
+                    yield return ClassDeclaration("Shape_" + c.Name).AddModifiers(Token(PublicKeyword));
+            }
+        }
+        """;
+
+    [Fact]
+    public void SpliceMemberGenerator_EmitsNestedType_Compiles()
+    {
+        var compilation = CSharpCompilation.Create("SpliceNestedTypeCompileTest",
+            [CSharpSyntaxTree.ParseText(SpliceNestedTypeTemplate)],
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Linq, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Collections, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime.Extensions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new TemplateFactorySourceGenerator());
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Shapes"));
+        Assert.NotNull(factoryTree);
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation of a [Splice] member generator yielding a NESTED TYPE reported errors "
+            + "(the emission assumes MethodDeclarationSyntax rather than the MemberDeclarationSyntax base): "
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+
+        var factorySource = factoryTree.ToString();
+
+        // The nested types were spliced into the type's member list via the member-axis BuildList.
+        Assert.Contains("BuildList<MemberDeclarationSyntax>", factorySource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Order preservation (spec §3): generated members land at the generator's DECLARATION POSITION among the
+    /// fixed quoted siblings. A template with a fixed member, then the <c>[Splice]</c> generator, then another
+    /// fixed member must emit the generator's <c>Run(...)</c> segment BETWEEN the two fixed member segments in
+    /// the member-axis <c>BuildList&lt;MemberDeclarationSyntax&gt;(...)</c>.
+    /// </summary>
+    private const string SpliceOrderTemplate =
+        """
+        using System;
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+
+        partial class Factory {}
+
+        public readonly record struct Col(int Ordinal, string Name);
+
+        [Template(typeof(Factory))]
+        public class Reader {
+            public int First() => 0;
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Middle() {
+                var columns = Parameter<IReadOnlyList<Col>>();
+                foreach (var c in columns)
+                    yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
+                        .AddModifiers(Token(PublicKeyword))
+                        .WithExpressionBody(ArrowExpressionClause(
+                            LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal))))
+                        .WithSemicolonToken(Token(SemicolonToken));
+            }
+            public int Last() => 1;
+        }
+        """;
+
+    [Fact]
+    public void SpliceMemberGenerator_PreservesDeclarationOrder_Compiles()
+    {
+        var compilation = CSharpCompilation.Create("SpliceOrderCompileTest",
+            [CSharpSyntaxTree.ParseText(SpliceOrderTemplate)],
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Linq, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Collections, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime.Extensions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new TemplateFactorySourceGenerator());
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Reader"));
+        Assert.NotNull(factoryTree);
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation of an order-preserving [Splice] member generator reported errors: "
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+
+        var factorySource = factoryTree.ToString();
+
+        // The generator's Run(...) segment lands BETWEEN the fixed `First` and `Last` member segments: the
+        // member-list BuildList interleaves it at its declaration position, not before/after the fixed members.
+        int firstIndex = factorySource.IndexOf("First", StringComparison.Ordinal);
+        int runIndex = factorySource.IndexOf(".Run(", StringComparison.Ordinal);
+        int lastIndex = factorySource.IndexOf("Last", StringComparison.Ordinal);
+
+        Assert.True(firstIndex >= 0, "Fixed member `First` was not found in the factory source.");
+        Assert.True(runIndex >= 0, "The generator's ListSegment Run(...) segment was not found in the factory source.");
+        Assert.True(lastIndex >= 0, "Fixed member `Last` was not found in the factory source.");
+
+        Assert.True(firstIndex < runIndex,
+            "The generator's Run(...) segment was emitted BEFORE the fixed `First` member (declaration order not preserved).");
+        Assert.True(runIndex < lastIndex,
+            "The generator's Run(...) segment was emitted AFTER the fixed `Last` member (declaration order not preserved).");
+    }
 }
