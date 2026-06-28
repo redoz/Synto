@@ -278,17 +278,19 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
 
     // The dog-food (plan Task 9): quote the FULLY data-driven IDataReader from the Synto live-staged [Template]
     // (ReaderTemplate.cs). The template lifts the resolved column list to the factory (`EquatableArray<ColumnInfo>
-    // columns` + the degenerate `int fieldCount`), and its live `foreach`/`Member`/`TypeOf` shapes are unrolled at
-    // factory time — so there is no raw-SyntaxFactory text-gluing here any more. We only rename the class + ctor to
-    // the call-site reader name, make it `file sealed`, and add the `: IDataReader` base list.
+    // columns`) — the field count is now derived from `columns.Count` (staged scalar count-fold), so there is no
+    // separate count parameter — and its live `foreach`/`Member`/`TypeOf` shapes are unrolled at factory time, so
+    // there is no raw-SyntaxFactory text-gluing here any more. We only rename the class + ctor to the call-site
+    // reader name, make it `file sealed`, and add the `: IDataReader` base list.
     private static MemberDeclarationSyntax BuildReader(ObjectReaderModel model, int index)
     {
         string reader = $"ObjectReader_{model.TargetTypeShortName}_{index}";
         TypeSyntax elementType = SyntaxFactory.ParseTypeName(model.TargetTypeQualifiedName);
 
         // Synto holes: [Splice] T splices the element type wherever T appears (the _e field + the
-        // ctor's IEnumerable<T> parameter); the live `columns`/`fieldCount` parameters drive the unrolled members.
-        ClassDeclarationSyntax skeleton = Factory.ObjectReaderTemplate(elementType, model.Columns.Count, model.Columns);
+        // ctor's IEnumerable<T> parameter); the live `columns` parameter drives the unrolled members (and the
+        // folded `columns.Count` literal).
+        ClassDeclarationSyntax skeleton = Factory.ObjectReaderTemplate(elementType, model.Columns);
 
         var specialized = SyntaxFactory.List(
             skeleton.Members.Select(member => RenameConstructor(member, reader)));

@@ -14,7 +14,8 @@ namespace Synto.Example.ObjectReader.Generator;
 // resolved column list (lifted to the factory via `Parameter<EquatableArray<ColumnInfo>>()`), with `Member`/`TypeOf`
 // builders splicing the per-column member access / type — so the generator no longer glues text with
 // `StringBuilder`/`ParseMemberDeclaration`. ObjectReaderGenerator calls Factory.ObjectReaderTemplate(elementType,
-// columns, fieldCount), renames the class + ctor, makes it `file sealed`, and adds the `: IDataReader` base list.
+// columns) — the field count is derived from `columns.Count` — renames the class + ctor, makes it `file sealed`,
+// and adds the `: IDataReader` base list.
 //
 // Every member compiles here (this is real source in the netstandard2.0 generator assembly): the live surface is
 // inert at carrier-compile time (Parameter/Member/TypeOf return default!), and the `foreach`/`.Where(...)` shapes
@@ -33,13 +34,15 @@ internal sealed class ObjectReaderTemplate<[Splice] T>
 
     // ---- data-driven members: each repeats over the live column list (unrolled at factory time) -------------
 
-    // Degenerate value hole: the column count → an int literal (lifted via a live int parameter).
+    // Staged scalar count-fold (Capability 2): the column count is DERIVED from the already-lifted column list via
+    // `columns.Count` — `EquatableArray<ColumnInfo>.Count` folds to the same int literal at factory time, so there
+    // is no redundant `Parameter<int>()`.
     public int FieldCount
     {
         get
         {
-            var fieldCount = Parameter<int>();
-            return fieldCount;
+            var columns = Parameter<EquatableArray<ColumnInfo>>();
+            return columns.Count;
         }
     }
 
@@ -85,10 +88,28 @@ internal sealed class ObjectReaderTemplate<[Splice] T>
         throw OutOfRange(i);
     }
 
-    // ---- cast-less typed getters: ONE child [Template] (GetterTemplate.TypedGetter), invoked once per CLR type ----
+    // ---- cast-less typed getters: ONE child [Template] (TypedGetter), invoked once per CLR type ----
     // The 12 near-identical typed getters collapse to a [Splice] member-generator that calls the child factory once
     // per getter — supplying the return-type TypeSyntax, the CLR-type filter, and the exception label — then renames
     // each result via .WithIdentifier(...). Generated output is byte-identical to the former hand-written getters.
+    //
+    // The child [Template] now lives HERE, co-located inside the parent carrier (nested child template, Capability 1):
+    // a method-level [Template] nested in a class-level [Template] is a sibling child template — it is independently
+    // picked up by the generator (its own Factory.TypedGetter factory) and excluded from the parent's quoted output
+    // and staging. It binds the real `_e` (`IEnumerator<T>`); only `_e.Current` is quoted, exactly as the standalone
+    // carrier did. The return type is supplied per call as a `TypeSyntax` via the `[Splice] TRet` param.
+
+    [Template(typeof(Factory))]
+    public TRet TypedGetter<[Splice] TRet>(int i)
+    {
+        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        var clrTypeName = Parameter<string>();
+        var typeLabel = Parameter<string>();
+        foreach (var c in columns.Where(c => c.ColumnTypeName == clrTypeName))
+            if (i == c.Ordinal)
+                return Member<TRet>(_e.Current, c.Name);
+        throw new global::System.InvalidCastException($"Field {i} is not {typeLabel} column.");
+    }
 
     [Splice]
     static IEnumerable<MemberDeclarationSyntax> TypedGetters()
@@ -185,8 +206,8 @@ internal sealed class ObjectReaderTemplate<[Splice] T>
 #pragma warning restore CA1812
 
 /// <summary>Synto template factory target. The injected <c>TemplateFactorySourceGenerator</c> fills the other
-/// partial with <c>ObjectReaderTemplate(TypeSyntax T, int fieldCount, EquatableArray&lt;ColumnInfo&gt; columns)</c>
-/// returning the skeleton's <c>ClassDeclarationSyntax</c>.</summary>
+/// partial with <c>ObjectReaderTemplate(TypeSyntax T, EquatableArray&lt;ColumnInfo&gt; columns)</c> returning the
+/// skeleton's <c>ClassDeclarationSyntax</c> (the column count is derived from <c>columns.Count</c>).</summary>
 internal static partial class Factory
 {
 }
