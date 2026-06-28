@@ -1,8 +1,9 @@
 # Interpolation staged-fold — bake build-time staged strings into literal text (design)
 
 **Date:** 2026-06-28
-**Status:** Design (quoter correctness fix). Default/automatic; scoped to bare staged-**string** holes
-for v1. Format/alignment holes and non-string staged values explicitly deferred.
+**Status:** Shipped (quoter correctness fix; plan `2026-06-28-interpolation-staged-fold.md`, Tasks 1–4).
+Default/automatic; scoped to bare staged-**string** holes for v1. Format/alignment holes, non-string
+staged values, and verbatim/raw interpolated strings explicitly deferred.
 
 ## Context
 
@@ -56,15 +57,27 @@ build-time value has no use case.
 
 ## Mechanism
 
-1. **Override site.** A hand-written `VisitInterpolation` override in `TemplateSyntaxQuoter` (the
-   blessed "override suppresses the generated visitor method" pattern already used for
-   `VisitIdentifierName`). The generated base keeps handling every other interpolation case.
+1. **Override site (shipped: list-level, not per-hole).** The fold lives in the hand-written
+   list-level `Visit<TNode>(SyntaxList<TNode>)` override in `TemplateSyntaxQuoter` (a plain virtual
+   override of the generated base list-quoting, the same mechanism as the `[Splice]` member
+   `BuildList` path — not the `VisitInterpolation` per-hole override the design first sketched). The
+   contents list is the correct level because fusing a foldable hole with its **flanking**
+   `InterpolatedStringText` runs requires seeing the sibling text nodes, which a per-hole override
+   never receives. Every non-foldable list (and every interpolated string with no foldable hole)
+   defers to the base behavior.
 
-2. **Type-metadata channel.** The override must fire only when the hole's expression is a *string*
-   staged root. The string-typed staged roots are known upstream (`StagedParameterRoot.Type` /
-   `StagedLocal`), but `_unquotedReplacements` carries no type. Pass a small additional input into
-   `TemplateSyntaxQuoter` — the set (or predicate) identifying string-typed staged-root nodes — so the
-   override can recognize a foldable hole. (Minimal: a `HashSet<SyntaxNode>` of string staged roots.)
+2. **Type-metadata channel (shipped: `Dictionary<SyntaxNode, ExpressionSyntax>`).** The fold fires
+   only when the hole's expression is a *string* staged root, AND it needs the hole's factory-time
+   raw value accessor to emit `accessor.ToInterpolatedText()`. Recovering that accessor from
+   `_unquotedReplacements` (which holds the `accessor.ToSyntax()` form) proved unworkable, so the
+   channel is upgraded from the design's default `HashSet<SyntaxNode>` to a
+   `Dictionary<SyntaxNode, ExpressionSyntax>` mapping each string staged-root reference node to its
+   raw accessor — a strictly-internal change carrying no type symbols. It covers **all three** string
+   staged-root kinds: `StagedParameterRoot` (`[Unquote]` parameter), `StagedLocal` (`Unquote<T>()`
+   local), and `StagedParameter` (`Parameter<T>()` local — the kind the motivating ObjectReader
+   `var typeLabel = Parameter<string>()` hole uses). The channel is built at emission as a plain local
+   adjacent to where staged roots are already consumed, then passed into the quoter's constructor;
+   nothing enters cached pipeline state.
 
 3. **Build-time fold + fuse.** The actual characters are only known when the factory runs, so the
    override emits *factory code* that, at build time, fuses the hole with its adjacent literal-text
@@ -88,12 +101,20 @@ transform) and produces only equatable output — the generated factory source. 
 
 ## Testing
 
-New focused snapshot/behavior tests:
-- A bare staged-string hole folds into contiguous literal text (the core case).
-- Escaping: a staged string whose value contains `{`, `}`, `"`, `\` round-trips correctly when folded.
+Shipped focused snapshot/behavior tests (`test/Synto.Test/Templating/InterpolationFoldTest.cs`,
+plus a direct escaper unit test in `HelperContractTests.cs`):
+- A bare staged-string hole folds into contiguous literal text — both the `Parameter<string>()` and
+  the `Unquote<string>()` channel-population paths (the core case).
+- Escaping: a staged string whose flanking literal value contains `{`, `}`, `"`, `\` round-trips
+  correctly when folded.
 - A runtime hole (`{i}`) is left untouched.
-- A staged-string hole **with** a format/alignment clause is left untouched (non-goal guard).
+- A **non-string** staged value (`Parameter<int>()` / `Unquote<bool>`) in a bare hole is left untouched.
+- A staged-string hole **with** a format (`{label:N2}`) or alignment (`{label,5}`) clause is left
+  untouched (non-goal guard).
+- A bare staged-string hole inside a verbatim (`$@"…"`) or raw (`$"""…"""`) string is left untouched.
 - Mixed: `$"a {runtime} b {stagedString} c"` folds only the staged part.
+- Boundary/adjacency: holes at string start/end, adjacent foldable holes, and a foldable hole flanked
+  by a runtime hole each fold independently into the adjoining (possibly empty) literal text.
 
 Toolkit-wide snapshot churn: any existing template that interpolates a staged string will change
 output (correctly) and its snapshot is re-accepted.
@@ -115,10 +136,15 @@ output (correctly) and its snapshot is re-accepted.
   to contiguous text, the type-metadata channel, and the test suite above.
 - **Deferred:** format/alignment-clause folding; non-string staged folding; any `Interp(...)` builder.
 
-## Open decisions
+## Resolved decisions (at implementation)
 
-- **Exact form of the type-metadata channel** (a `HashSet<SyntaxNode>` of string staged roots vs.
-  threading the type through the replacements map) — an implementation detail, settled when wiring
-  `TemplateSyntaxQuoter`'s constructor.
-- **Whether the injected escaper is a new helper or an extension of an existing `*SyntaxExtensions`
-  file** — a packaging detail decided at implementation, consistent with `FileLocalHelpers`.
+- **Form of the type-metadata channel** — resolved to `Dictionary<SyntaxNode, ExpressionSyntax>`
+  (string staged-root reference node → raw value accessor), not the `HashSet<SyntaxNode>` default,
+  because the fold emits `accessor.ToInterpolatedText()` and must recover the raw accessor. See
+  Mechanism §2.
+- **Escaper as new helper vs. extension of an existing file** — resolved to a **new** helper file
+  `src/Synto/InterpolationSyntaxExtensions.cs` (`ToInterpolatedText(this string)`), injected file-local
+  via the existing `FileLocalHelpers` scan, alongside `LiteralSyntaxExtensions.ToSyntax`.
+- **Verbatim/raw interpolated strings** — deferred for v1: the fold only fires on regular `$"…"`
+  strings (gated on `InterpolatedStringStartToken`); `$@"…"` and `$"""…"""` holes stay as runtime
+  holes. Boundary tests pin this.
