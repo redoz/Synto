@@ -59,6 +59,27 @@ public partial class RoundTripTests
     }
 
     [Fact]
+    public void InterpolationFold()
+    {
+        // The interpolation staged-fold (spec 2026-06-28): a BARE staged-string hole in a regular $"…" string
+        // is baked into the surrounding literal text at factory-build time via label.ToInterpolatedText(),
+        // instead of being re-emitted as a runtime hole. This is the round-trip counterpart to
+        // InterpolationFoldTest's snapshot coverage — it compiles and EXECUTES the folded factory and renders
+        // the result back, so a stable-but-wrong escaping/fusion regression fails here even though the snapshot
+        // would still match. The value "a{b}\"" carries every brace/quote escape hazard: ToInterpolatedText
+        // must double the braces ({{ }}) and escape the quote (\") so the fused literal text is well-formed.
+        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        static void Interp([Unquote] string label)
+        {
+            Console.WriteLine($"Field {label} column");
+        }
+
+        StatementSyntax node = Factory.Interp("a{b}\"");
+
+        AssertGenerated("Console.WriteLine($\"Field a{{b}}\\\" column\");", node);
+    }
+
+    [Fact]
     public void Test2()
     {
         // Syntax<T> composition: the expression produced by one template is spliced into a Syntax<string>
