@@ -1,6 +1,6 @@
 # Refactor Plan — Synto Source-Generator Modularization
 
-> **Status:** PARTIALLY IMPLEMENTED — Waves 1–2 landed in full plus the four Wave-3 leaf carve-outs; the headline decomposition (Wave 5) and Wave 4 are NOT delivered. Do **not** archive to `completed/`. See "Implementation progress" below. All 5 decisions remain locked (see "Locked decisions").
+> **Status:** CONTINUATION — Waves 1–2 + the four Wave-3 leaf carve-outs already LANDED on `experiment/modularization` (MatchEmitter 803→195, Diagnostics partitioned, SymbolMetadataExtensions, StagedRegion/RootRenameRewriter/StagedHelperCallFactory/StagedRegionFinder; StagedRegionEmitter 600→431). The **remaining** work is enumerated below as `### Task 1..14` — implement those only; do NOT redo landed extractions. All 5 decisions remain locked. The detailed Wave 3/4/5 contracts, risks, and verification steps live in the "Sequenced work (waves)" section further down — each task references its wave.
 > **Rigor:** High — behavior-preserving refactor of cacheability-load-bearing generator code; every wave is green-gated against byte-identical snapshots + the terminal cacheability assertions. TDD discipline: no production move lands without the existing snapshot/cacheability suite green; treat any snapshot diff as a regression to fix-forward, never a re-accept.
 > **Scope:** `src/Synto.SourceGenerator/` only (the umbrella generator). The `Synto.Diagnostics` package is explicitly OUT of scope (decision 2).
 > **Generated:** 2026-06-29 via the `modularity-refactor-plan` workflow (5 cluster analyzers + invariant briefing + principal-engineer synthesis). All `path:line` anchors verified against source.
@@ -12,6 +12,52 @@
 3. **`TemplateValidator` mid-build gates — keep guards physically in place** as bool guard methods the builder invokes (NO control-flow inversion, no hoist to a single pre-build pass). Diagnostic emission order relative to partial-build state must stay identical.
 4. **`ValueLift` — one instance per `CreateSyntaxFactoryMethod` invocation**, the `[Runtime]` converter cache lazy (walked on first concrete non-built-in type) and shared across all three lift sites; SY1011/SY1012 fire at identical locations. Never a per-call repeated scan.
 5. **Wave-5 granularity — separate commits within the wave.** The leaf carve-outs (`ValueLift`, `SpliceMemberGeneratorEmitter`, `TemplateDocumentBuilder`, `TemplateValidator`, shell) land as their own commits BEFORE the `CreateSyntaxFactoryMethod → TemplateFactoryBuilder` step decomposition, which is its own final commit, so a snapshot regression bisects to one step.
+
+## Continuation tasks (remaining work — implement these in order)
+
+Each task is one committable green unit. Risk rises down the list (Wave-3 remainder → Wave 4 → the Wave-5 headline last). **Acceptance for every task:** `dotnet build` green, `dotnet test` green with all `test/Synto.Test/**` snapshots **byte-identical** (any diff is a regression to fix-forward, never re-accept), `dotnet format whitespace --verify-no-changes` clean, and the terminal Transform/Result cacheability assertions green. No task may add an `IncrementalValueProvider`/`SyntaxProvider` stage or capture `Compilation`/`SemanticModel`/`ISymbol`/`SyntaxNode` into pipeline state. Flat `namespace Synto;` everywhere. Do NOT touch `src/Synto.Diagnostics/`.
+
+### Task 1: Extract StagedLivenessAnalysis (Wave 3)
+Carve `ComputeStagedSet` (fixpoint) + `ReferencesStaged` out of `StagedRegionEmitter.cs` into `Templating/StagedLivenessAnalysis.cs`. Pure transform-internal helper; same results, same SY1014 nested-region behavior. See Wave 3.
+
+### Task 2: Introduce StagedEmitContext carrier (Wave 3)
+Replace the multi-arg thread-through in `StagedRegionEmitter` codegen with a `Templating/StagedEmitContext.cs` carrier (transform-local scratch, need not be equatable). Behavior-preserving; kills the 8-arg signatures. See Wave 3.
+
+### Task 3: Extract StagedScaffoldBuilder; slim StagedRegionEmitter (Wave 3)
+Move per-region control-flow codegen + staged predicates into `Templating/StagedScaffoldBuilder.cs`, leaving `StagedRegionEmitter.cs` as a ~100-LOC orchestrator (per-container grouping/assembly). Keep `InjectedSurfaceCompletenessTest` green (CollectLiftPoints behavior identical). See Wave 3.
+
+### Task 4: Extract InterpolationFold from TemplateSyntaxQuoter (Wave 4)
+Move `TryFoldInterpolatedContents`/`IsFoldableHole`/`BuildFusedText` into `Templating/InterpolationFold.cs`; the quoter keeps its `Visit<TNode>` guard but delegates the body, passing `this.Visit` as a synchronous re-entry callback (a local delegate, never a captured closure outliving the transform). Byte-identical fold output. See Wave 4.
+
+### Task 5: Extract BuilderCallModel DTOs + SyntaxBuilderRegistry (Wave 4)
+Move the builder-call DTOs to `Templating/BuilderCallModel.cs` and the compilation-wide `[SyntaxBuilder]` discovery to `Templating/SyntaxBuilderRegistry.cs` (its `HasAttribute` now defers to the already-landed `SymbolMetadataExtensions`). See Wave 4.
+
+### Task 6: Extract FacadeCallFinder + FacadeArgumentBinder (Wave 4)
+Split body-walk call discovery into `Templating/FacadeCallFinder.cs` and call→bindings into `Templating/FacadeArgumentBinder.cs`, **keeping the exact `FindBuilderCalls` entry name/signature** the core calls (`TemplateFactorySourceGenerator.cs`). Argument binder reuses `FacadeShape.Derive`'s cursor rather than recomputing. See Wave 4.
+
+### Task 7: Extract HelperResourceLoader from FileLocalHelpers (Wave 4)
+Move load/parse/`public→file` rewrite into `Templating/HelperResourceLoader.cs`; `FileLocalHelpers.cs` keeps the `Entries` registry + DTOs only. **Invariant:** the loader must still emit a `file static class` (the `public`→`file` outcome is byte-load-bearing vs `Synto.Core`); keep its rewriter distinct in outcome (file, not internal) from `SurfaceInjectionGenerator.PublicToInternalRewriter`. See Wave 4.
+
+### Task 8: Collapse duplicate visitors in TemplateSyntaxQuoterInvoker (Wave 4, in-place)
+Unify the two duplicated visitor methods and the repeated `ParseTypeName(node.GetType().FullName!)` idiom behind one private helper. No new file; byte-identical output. See Wave 4.
+
+### Task 9: Extract ValueLift from TemplateFactorySourceGenerator (Wave 5)
+Move `IsBuiltInLiteralType` + `TryEmitValueLift` into `Templating/ValueLift.cs` as ONE instance per `CreateSyntaxFactoryMethod` invocation (locked decision 4): the `[Runtime]` converter cache is lazy (first concrete non-built-in type) and shared across all three lift sites; SY1011/SY1012 fire at identical locations. See Wave 5.
+
+### Task 10: Extract SpliceMemberGeneratorEmitter (Wave 5)
+Move the splice-generator body emit + its nested rewriter into `Templating/SpliceMemberGeneratorEmitter.cs`. Leaf carve-out, own commit. See Wave 5.
+
+### Task 11: Extract TemplateDocumentBuilder (Wave 5)
+Move `ProcessTemplate` + `MergeUsings`/`FindReferencedHelpers` into `Templating/TemplateDocumentBuilder.cs`. **Invariant:** `FindReferencedHelpers` must keep deciding emission by scanning the emitted factory's `MemberAccessExpression` names against `FileLocalHelpers.Entries` — never via builder flags. Filename `$"{Target.FullName}.{Source.Identifier}.g.cs"` unchanged. See Wave 5.
+
+### Task 12: Extract TemplateValidator (Wave 5)
+Move `ValidateTemplate` + the scattered mid-build bail gates into `Templating/TemplateValidator.cs` as bool guard methods the builder invokes **in place** — NO control-flow inversion, no hoist to a single pre-build pass (locked decision 3). Diagnostic emission order relative to partial-build state stays identical. See Wave 5.
+
+### Task 13: Reduce TemplateFactorySourceGenerator to the pipeline shell + TemplateFactoryBuilder (Wave 5, headline, FINAL commit)
+Reduce `TemplateFactorySourceGenerator.cs` to the ~70-LOC pipeline shell (Initialize/GenerateTemplate/Emit), carving `CreateSyntaxFactoryMethod` into `Templating/TemplateFactoryBuilder.cs` driven by ordered, named per-feature steps over a `Templating/TemplateBuildContext.cs` accumulator. **Preserve the EXACT phase order** (parameter discovery, preamble append, "container replacement added LAST", lifts populated before the island quoter then the final quoter) — make each ordering invariant explicit as a named ordered step, never implicit-by-line-position. Any reordering changes output and is a regression. This is the highest-risk unit; it is its own final commit. See Wave 5.
+
+### Task 14: Fix the two introduced LOW nits (cleanup)
+(a) `Matching/MatchEmitModel.cs` — the stale doc-comment `<see cref="MatchEmitter.Compose"/>` now dangles (Compose moved to `MatchComposer`); update to `MatchComposer.Compose`. (b) `Templating/TemplateDiagnostics.cs` — its `private const string IdPrefix = "SY"` duplicates `Diagnostics.cs`; reference a single shared source of truth instead of a second copy. Both are inert today but are introduced nits from the landed split.
 
 ## Problem summary
 
