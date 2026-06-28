@@ -1,3 +1,12 @@
+---
+type: Reference
+title: Open Knowledge Format (OKF) spec
+description: The OKF v0.1 format this bundle conforms to — imported verbatim from upstream below the frontmatter.
+resource: https://raw.githubusercontent.com/GoogleCloudPlatform/knowledge-catalog/refs/heads/main/okf/SPEC.md
+tags: [meta, okf, spec, imported]
+timestamp: 2026-06-28T00:00:00Z
+---
+
 # Open Knowledge Format (OKF)
 
 **Version 0.1 — Draft**
