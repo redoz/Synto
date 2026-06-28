@@ -419,6 +419,30 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         if (spliceGeneratorError)
             return null;
 
+        // Child [Template] methods nested in the carrier (Capability 1): a method-level [Template] inside this
+        // class-level [Template] carrier is independently picked up by ForAttributeWithMetadataName and generates
+        // its OWN factory. When processing the PARENT carrier, exclude each child entirely: trim it so it is never
+        // quoted into the parent's output, and collect its descendant-and-self nodes so the parent's live-staging
+        // pipeline skips them (same bucket as spliceGeneratorNodes) — otherwise the child's own Parameter<…>()
+        // roots would leak into the parent factory's parameter list. Only relevant for a class-level carrier (a
+        // method-level template's own Source.Syntax IS the method, never a nested sibling).
+        var childTemplateNodes = new HashSet<SyntaxNode>();
+        if (templateInfo.Source!.Syntax is ClassDeclarationSyntax)
+        {
+            foreach (var childTemplate in ChildTemplateFinder.FindChildTemplates(semanticModel, templateInfo.Source.Syntax))
+            {
+                trimNodes.Add(childTemplate);
+                foreach (var node in childTemplate.DescendantNodesAndSelf())
+                    childTemplateNodes.Add(node);
+            }
+        }
+
+        // The combined staging-exclusion set: a node inside a valid [Splice] generator body OR inside a nested
+        // child [Template] is NOT part of THIS template's live-staging pipeline. Used at every region /
+        // staged-control / depth-zero-reference consumption point below.
+        var stagingExclusionNodes = new HashSet<SyntaxNode>(spliceGeneratorNodes);
+        stagingExclusionNodes.UnionWith(childTemplateNodes);
+
         var preamble = new List<StatementSyntax>();
 
         // The member segment each valid generator contributes to its enclosing type's member list, keyed at the
@@ -436,6 +460,12 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         HashSet<ITypeParameterSymbol> inlinedTypeParams = new HashSet<ITypeParameterSymbol>(SymbolEqualityComparer.Default);
         foreach (var replacements in StagedTypeParameterFinder.FindStagedTypeParameters(semanticModel, templateInfo.Source!.Syntax))
         {
+            // A [Splice]/[Unquote] type parameter declared on a nested child [Template] (e.g. the child's
+            // `TypedGetter<[Splice] TRet>`) belongs to the CHILD's own factory, not the parent's — skip it so it
+            // does not leak into the parent factory's parameter/type-parameter list (Capability 1).
+            if (childTemplateNodes.Contains(replacements.TypeParameterSyntax))
+                continue;
+
             string typeParamName = replacements.TypeParameterSyntax.Identifier.Text;
 
             ExpressionSyntax typeSyntaxForTypeParam;
@@ -543,13 +573,47 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
         var stagedRootResult = StagedRootFinder.FindStagedRoots(semanticModel, templateInfo.Source.Syntax);
 
+        // Drop any staged parameter / staged root whose declaration sites AND references lie ENTIRELY within a
+        // nested child [Template] (Capability 1, the load-bearing fix). The child's own Parameter<…>() roots
+        // (e.g. clrType, typeLabel) would otherwise become spurious PARENT factory parameters. A root SHARED with
+        // the parent (the same (name, T) also declared in a parent member — e.g. `columns`) has occurrences
+        // outside the child, so it is NOT dropped; only roots whose every occurrence is inside a child method are.
+        var stagedParameters = stagedParameterResult.Parameters;
+        var stagedLocals = stagedRootResult.Locals;
+        var stagedRootParameters = stagedRootResult.Parameters;
+        if (childTemplateNodes.Count > 0)
+        {
+            bool EntirelyWithinChild(IEnumerable<SyntaxNode> occurrences)
+            {
+                bool any = false;
+                foreach (var occurrence in occurrences)
+                {
+                    any = true;
+                    if (!childTemplateNodes.Contains(occurrence))
+                        return false;
+                }
+
+                return any;
+            }
+
+            stagedParameters = stagedParameters
+                .Where(p => !EntirelyWithinChild(p.References.Concat(p.TrimNodes)))
+                .ToList();
+            stagedLocals = stagedLocals
+                .Where(l => !EntirelyWithinChild(l.References.Append(l.Declaration)))
+                .ToList();
+            stagedRootParameters = stagedRootParameters
+                .Where(p => !EntirelyWithinChild(p.References.Append<SyntaxNode>(p.Parameter)))
+                .ToList();
+        }
+
         // Seed the binding-time classifier from every live root symbol (parameters + bound locals), then find
         // the live control regions (a foreach driven by a live root) to unroll.
         var stagedRootSymbols = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
         var rootNames = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         var classifierRoots = new List<StagedRoot>();
 
-        foreach (var stagedParameter in stagedParameterResult.Parameters)
+        foreach (var stagedParameter in stagedParameters)
         {
             // Seed EVERY declaration-site local (the same (name, T) may be re-declared across several member
             // bodies of a class template — plan Task 9), so each member's live control region is recognized,
@@ -561,13 +625,13 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             }
         }
 
-        foreach (var stagedLocal in stagedRootResult.Locals)
+        foreach (var stagedLocal in stagedLocals)
         {
             if (semanticModel.GetDeclaredSymbol(stagedLocal.Declaration.Declaration.Variables[0]) is { } symbol && stagedRootSymbols.Add(symbol))
                 classifierRoots.Add(new StagedRoot(symbol, stagedLocal.ValueExpression));
         }
 
-        foreach (var stagedParameterRoot in stagedRootResult.Parameters)
+        foreach (var stagedParameterRoot in stagedRootParameters)
         {
             if (semanticModel.GetDeclaredSymbol(stagedParameterRoot.Parameter) is { } symbol && stagedRootSymbols.Add(symbol))
                 classifierRoots.Add(new StagedRoot(symbol));
@@ -594,7 +658,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // Exclude any control region inside a [Splice] generator body: that `foreach` is a real factory-time loop
         // emitted verbatim by the member-generator path, NOT a live region to unroll.
         var stagedRegions = StagedRegionEmitter.FindRegions(semanticModel, templateInfo.Source.Syntax, partition)
-            .Where(region => !spliceGeneratorNodes.Contains(region.Control))
+            .Where(region => !stagingExclusionNodes.Contains(region.Control))
             .ToList();
         var regionConsumedNodes = StagedRegionEmitter.ComputeConsumedNodes(stagedRegions);
         int stagedRegionCounter = 0;
@@ -605,7 +669,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // OUTPUT (wrong code, no signal). Degrade to SY1014 instead of a silent mis-expansion.
         var unhandledStagedControl = templateInfo.Source.Syntax.DescendantNodes()
             .OfType<StatementSyntax>()
-            .Where(statement => partition.IsStagedControl(statement) && !regionConsumedNodes.Contains(statement) && !spliceGeneratorNodes.Contains(statement))
+            .Where(statement => partition.IsStagedControl(statement) && !regionConsumedNodes.Contains(statement) && !stagingExclusionNodes.Contains(statement))
             .ToList();
         if (unhandledStagedControl.Count > 0)
         {
@@ -635,11 +699,68 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             }
         }
 
-        foreach (var stagedParameter in stagedParameterResult.Parameters)
+        // Staged scalar member-access count-fold (Capability 2 / spec 2026-06-28). DELIBERATELY NARROW SCOPE: a
+        // member-access `root.Member` (e.g. `columns.Count`) whose RECEIVER is a bare reference to a staged-root
+        // parameter and whose RESULT type is a built-in literal type (so `EquatableArray<T>.Count` -> int folds to
+        // an int literal). The WHOLE member-access is the lift unit — `(root.Member).ToSyntax()`, keyed at the
+        // member-access node — so no separate `Parameter<int>()` is required. The bare receiver reference is
+        // CLAIMED here (added to foldClaimedReferences) so the depth-zero path below does not also lift it as
+        // `root.ToSyntax()` (which would break, since the receiver's collection type is not a built-in literal).
+        // Out of scope (NOT handled): arbitrary live method calls, multi-hop chains, non-built-in result types, a
+        // member-access consumed by a live control region.
+        var rootSymbolToStagedParameter = new Dictionary<ISymbol, StagedParameter>(SymbolEqualityComparer.Default);
+        foreach (var stagedParameter in stagedParameters)
+            foreach (var symbol in stagedParameter.Symbols)
+                rootSymbolToStagedParameter[symbol] = stagedParameter;
+
+        var foldClaimedReferences = new HashSet<SyntaxNode>();
+        var foldsByStagedParameter = new Dictionary<StagedParameter, List<MemberAccessExpressionSyntax>>();
+        if (rootSymbolToStagedParameter.Count > 0)
+        {
+            foreach (var memberAccess in templateInfo.Source.Syntax.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
+            {
+                if (memberAccess.Expression is not IdentifierNameSyntax receiver)
+                    continue;
+                if (regionConsumedNodes.Contains(memberAccess) || stagingExclusionNodes.Contains(memberAccess))
+                    continue;
+                if (semanticModel.GetSymbolInfo(receiver).Symbol is not { } receiverSymbol
+                    || !rootSymbolToStagedParameter.TryGetValue(receiverSymbol, out var ownerParameter))
+                    continue;
+                if (semanticModel.GetTypeInfo(memberAccess).Type is not { } resultType || !IsBuiltInLiteralType(resultType))
+                    continue;
+
+                foldClaimedReferences.Add(receiver);
+                if (!foldsByStagedParameter.TryGetValue(ownerParameter, out var list))
+                    foldsByStagedParameter[ownerParameter] = list = new List<MemberAccessExpressionSyntax>();
+                list.Add(memberAccess);
+            }
+        }
+
+        foreach (var stagedParameter in stagedParameters)
         {
             string paramName = stagedParameter.Name;
             while (!paramNames.Add(paramName))
                 paramName += '_';
+
+            // Staged scalar count-fold: emit `(paramName.Member).ToSyntax()` for each claimed member-access on this
+            // staged root, keyed at the member-access node so the quoter splices the factory-time literal lift in
+            // place of the whole `root.Member` expression.
+            if (foldsByStagedParameter.TryGetValue(stagedParameter, out var folds))
+            {
+                foreach (var memberAccess in folds)
+                {
+                    ExpressionSyntax lift = InvocationExpression(
+                        MemberAccessExpression(
+                            SyntaxKind.SimpleMemberAccessExpression,
+                            ParenthesizedExpression(
+                                MemberAccessExpression(
+                                    SyntaxKind.SimpleMemberAccessExpression,
+                                    IdentifierName(paramName),
+                                    memberAccess.Name.WithoutTrivia())),
+                            IdentifierName("ToSyntax")));
+                    unquotedReplacements[memberAccess] = lift;
+                }
+            }
 
             // Map EVERY declaration-site symbol to the shared factory parameter name so the live-region renamer
             // rewrites each member's local reference (the foreach driver) to the one factory parameter.
@@ -662,7 +783,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             // References consumed by a live region are handled by the verbatim scaffold (which uses the factory
             // parameter directly as a runtime value); only depth-0 references lift via value.ToSyntax() — binds
             // to the file-local LiteralSyntaxExtensions (built-in types) or the generic ToSyntax<T> fallback.
-            var depthZeroReferences = stagedParameter.References.Where(reference => !regionConsumedNodes.Contains(reference) && !spliceGeneratorNodes.Contains(reference)).ToList();
+            var depthZeroReferences = stagedParameter.References.Where(reference => !regionConsumedNodes.Contains(reference) && !stagingExclusionNodes.Contains(reference) && !foldClaimedReferences.Contains(reference)).ToList();
             if (depthZeroReferences.Count > 0)
             {
                 ExpressionSyntax conversion = InvocationExpression(
@@ -695,7 +816,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // live LOCAL hoists its `var n = <expr>;` verbatim into the factory body (a real runtime local) and
         // each use lifts via `n.ToSyntax()`; a [Unquote] PARAMETER becomes a caller-supplied factory parameter
         // lifted the same way (an [Unquote] value, classified live for later staging).
-        foreach (var stagedLocal in stagedRootResult.Locals)
+        foreach (var stagedLocal in stagedLocals)
         {
             // Hoist the runtime local: `var n = <expr>;` (the Unquote(...) carrier is unwrapped to its argument,
             // which is evaluated at factory-build time). Build it fresh so source comments/trivia don't leak.
@@ -755,7 +876,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         ImmutableArray<INamedTypeSymbol>? runtimeClasses = null;
         bool converterError = false;
 
-        foreach (var stagedParameterRoot in stagedRootResult.Parameters)
+        foreach (var stagedParameterRoot in stagedRootParameters)
         {
             string paramName = stagedParameterRoot.Parameter.Identifier.Text;
             while (!paramNames.Add(paramName))

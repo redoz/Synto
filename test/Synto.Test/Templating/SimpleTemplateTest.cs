@@ -428,6 +428,57 @@ public class SimpleTemplateTest
     }
 
     [Fact]
+    public void StagedScalarMemberAccess_FoldsToLiteral()
+    {
+        // Capability 2 (count-fold): a scalar member-access on a staged-root parameter whose RESULT type is a
+        // built-in literal type (`xs.Count` -> int) folds to a factory-time literal lift `(xs.Count).ToSyntax()`
+        // — NO separate Parameter<int>() is needed, and the bare receiver reference (`xs`) must NOT be separately
+        // depth-zero lifted (which would emit a broken `xs.ToSyntax()` on the non-literal list type).
+        const string source =
+            """
+            using System.Collections.Generic;
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+
+            partial class Factory {}
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                int N() {
+                    var xs = Parameter<IReadOnlyList<int>>();
+                    return xs.Count;
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+        Assert.Empty(compilation.GetDiagnostics().Where(diag => diag.Severity == DiagnosticSeverity.Error));
+
+        var result = _driver.RunGenerators(compilation);
+        var runResult = result.GetRunResult();
+        Assert.Empty(runResult.Diagnostics);
+
+        var factory = runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .Single(s => s.HintName == "Factory.N.g.cs")
+            .SourceText.ToString();
+
+        // The whole member-access is lifted via (xs.Count).ToSyntax() — a factory-time literal lift, NOT a literal
+        // baked at generator-author time.
+        Assert.Contains("(xs.Count).ToSyntax()", factory, StringComparison.Ordinal);
+
+        // The bare receiver reference was claimed by the fold: it is NOT separately lifted (no `xs.ToSyntax()` on
+        // the non-literal list type, which would otherwise throw at the author's runtime).
+        Assert.DoesNotContain("xs.ToSyntax()", factory, StringComparison.Ordinal);
+
+        // No scalar Parameter<int>()-sourced parameter: the single factory parameter is the staged list `xs`
+        // (whose type happens to contain `int`), so the signature carries exactly one parameter (no comma).
+        var signature = factory.Split('\n').Single(line => line.Contains(" N(", StringComparison.Ordinal));
+        Assert.Contains("xs", signature, StringComparison.Ordinal);
+        Assert.DoesNotContain(",", signature, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void QuoteParamTemplate_IsIncrementalOnUnrelatedEdit()
     {
         // Cacheability guard for the [Quote] parameter path: discovery (QuoteParameterFinder), the value-lift,
