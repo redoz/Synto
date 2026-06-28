@@ -4,6 +4,11 @@ Synto ("**SYN**tax **TO**olkit") is a set of Roslyn incremental source generator
 and template C# syntax trees. For orientation read `README.md` (what it is + the quickest
 example) and `.claude/playbook/architecture.md` (the domain context + packaging model).
 
+**Navigation map — `docs/kb/`** (read on demand): an OKF knowledge bundle mapping Synto's
+internals — where code lives + non-obvious invariants, each fact a `path:line` link. Start
+at `docs/kb/index.md` to orient before exploring source. The `refresh-kb` skill keeps it in
+sync with the code. (This is the *where/what* layer; the playbook below is the *why*.)
+
 ## Playbook — `.claude/playbook/` (read on demand, NOT auto-loaded)
 
 Reference material for reviewing, evaluating, and reasoning about Synto. These are **not
