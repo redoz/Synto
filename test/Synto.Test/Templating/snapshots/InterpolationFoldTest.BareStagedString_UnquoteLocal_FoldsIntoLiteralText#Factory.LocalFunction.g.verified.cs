@@ -225,23 +225,26 @@ file static class LiteralSyntaxExtensions
 file static class InterpolationSyntaxExtensions
 {
     /// <summary>
-    /// Escapes <paramref name = "value"/> for inclusion in a regular interpolated-string text token: backslash
-    /// and double-quote are escaped for the underlying string-literal token, and braces are doubled so they
-    /// render as literal braces rather than opening or closing an interpolation hole.
+    /// Escapes <paramref name = "value"/> for inclusion in a regular interpolated-string text token. Full
+    /// string-literal escaping — backslash, double-quote, and every control character (newline, tab,
+    /// carriage-return, null, etc.) — is delegated to Roslyn's <see cref = "SF.Literal(string)"/> so the
+    /// fused text always forms a valid string-literal token; braces are then doubled so they render as
+    /// literal braces rather than opening or closing an interpolation hole.
     /// </summary>
     public static string ToInterpolatedText(this string value)
     {
-        var builder = new StringBuilder(value.Length);
-        foreach (char c in value)
+        // SyntaxFactory.Literal(string) always yields a regular (non-verbatim) quoted literal whose Text is
+        // the fully-escaped source representation surrounded by double-quotes, e.g. "a\nb" for the value a<LF>b.
+        string literal = SF.Literal(value).Text;
+        // Strip the surrounding quotes to get just the escaped body, then double any braces (Roslyn leaves
+        // braces unescaped since they are not special in a plain string literal, but they are inside an
+        // interpolated-string text token).
+        var builder = new StringBuilder(literal.Length);
+        for (int i = 1; i < literal.Length - 1; i++)
         {
+            char c = literal[i];
             switch (c)
             {
-                case '\\':
-                    builder.Append("\\\\");
-                    break;
-                case '"':
-                    builder.Append("\\\"");
-                    break;
                 case '{':
                     builder.Append("{{");
                     break;

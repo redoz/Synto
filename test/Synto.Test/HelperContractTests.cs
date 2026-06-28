@@ -113,4 +113,15 @@ public class HelperContractTests
         // a{b}"c\d  ->  a{{b}}\"c\\d  (braces doubled; quote and backslash escaped for the literal token)
         Assert.Equal("a{{b}}\\\"c\\\\d", "a{b}\"c\\d".ToInterpolatedText());
     }
+
+    [Fact]
+    public void ToInterpolatedTextEscapesControlCharactersForRegularLiteralToken()
+    {
+        // A raw control character (newline / tab / carriage-return / null) in a regular (non-verbatim)
+        // interpolated-string text token is malformed source, so each must be emitted as an escape sequence.
+        Assert.Equal("line1\\nline2", "line1\nline2".ToInterpolatedText());
+        Assert.Equal("a\\tb", "a\tb".ToInterpolatedText());
+        Assert.Equal("a\\rb", "a\rb".ToInterpolatedText());
+        Assert.Equal("a\\0b", "a\0b".ToInterpolatedText());
+    }
 }
