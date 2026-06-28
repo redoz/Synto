@@ -19,56 +19,6 @@ namespace Synto;
 /// </summary>
 internal static class StagedRegionEmitter
 {
-    /// <summary>Discovers the live control regions in <paramref name="body"/> using the classifier partition.</summary>
-    public static IReadOnlyList<StagedRegion> FindRegions(SemanticModel semanticModel, SyntaxNode body, BindingTimePartition partition)
-    {
-        var regions = new List<StagedRegion>();
-        foreach (var node in body.DescendantNodes())
-        {
-            if (node is not StatementSyntax statement)
-                continue;
-            if (!partition.IsStagedControl(statement))
-                continue;
-            if (statement.Parent is not BlockSyntax container)
-                continue; // only block-owned regions are unrolled in v1 (else-if chains handled within the if)
-
-            var loopVariables = new List<ISymbol>();
-            switch (statement)
-            {
-                case ForEachStatementSyntax forEach:
-                    if (semanticModel.GetDeclaredSymbol(forEach) is { } v)
-                        loopVariables.Add(v);
-                    break;
-                case ForStatementSyntax forStatement when forStatement.Declaration is { } declaration:
-                    foreach (var declarator in declaration.Variables)
-                        if (semanticModel.GetDeclaredSymbol(declarator) is { } fv)
-                            loopVariables.Add(fv);
-                    break;
-            }
-
-            regions.Add(new StagedRegion(statement, container, loopVariables));
-        }
-
-        return regions;
-    }
-
-    /// <summary>
-    /// The set of nodes consumed by a live region (every node inside the region's control statement). A live-root
-    /// reference in this set is handled by the verbatim scaffold (which uses the factory parameter directly),
-    /// so the caller must NOT also emit a depth-0 <c>.ToSyntax()</c> lift for it.
-    /// </summary>
-    public static HashSet<SyntaxNode> ComputeConsumedNodes(IReadOnlyList<StagedRegion> regions)
-    {
-        var consumed = new HashSet<SyntaxNode>();
-        foreach (var region in regions)
-        {
-            foreach (var node in region.Control.DescendantNodesAndSelf())
-                consumed.Add(node);
-        }
-
-        return consumed;
-    }
-
     /// <summary>
     /// The region-local live set: the classifier's live symbols, plus every region loop variable, plus
     /// accumulators (locals whose initializer or an assignment within the region references a live value). The

@@ -614,10 +614,10 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
         // Exclude any control region inside a [Splice] generator body: that `foreach` is a real factory-time loop
         // emitted verbatim by the member-generator path, NOT a live region to unroll.
-        var stagedRegions = StagedRegionEmitter.FindRegions(semanticModel, templateInfo.Source.Syntax, partition)
+        var stagedRegions = StagedRegionFinder.FindRegions(semanticModel, templateInfo.Source.Syntax, partition)
             .Where(region => !spliceGeneratorNodes.Contains(region.Control))
             .ToList();
-        var regionConsumedNodes = StagedRegionEmitter.ComputeConsumedNodes(stagedRegions);
+        var regionConsumedNodes = StagedRegionFinder.ComputeConsumedNodes(stagedRegions);
         int stagedRegionCounter = 0;
 
         // A live control statement that region discovery did not pick up (it is an embedded, non-block statement
