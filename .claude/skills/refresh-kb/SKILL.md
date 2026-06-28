@@ -1,6 +1,6 @@
 ---
 name: refresh-kb
-description: Rebuild or update the docs/kb OKF knowledge bundle that maps Synto's internals for navigation. Use whenever the kb has drifted from the code — after a feature lands, a subsystem is refactored, files move, or path:line references go stale — or when asked to "refresh the kb", "update the knowledge base", or seed a new concept. Keeps the map accurate without scattering READMEs through the source tree.
+description: Rebuild or update the OKF knowledge bundle under docs/kb — the concept-doc map of Synto's internals (each fact a path:line link) used for navigation. Reach for this whenever the kb has drifted from the code, or someone asks to "refresh the kb", "update the knowledge base", or "get the kb in sync" — e.g. after a feature lands, a subsystem is refactored, files move, a new concept needs seeding, or path:line references go stale. This is specifically the docs/kb concept map; it is NOT for editing .claude/playbook, writing READMEs, re-importing the OKF SPEC.md from upstream, or changing code or tests.
 user_invocable: true
 ---
 
