@@ -147,12 +147,12 @@ New for child-templates:
   position-aware validation (item #4). Designed here so the narrow case does not paint us into a
   corner, but not built until a fragment-reuse case earns it.
 
-## Open decisions (for the implementation plan to resolve)
+## Resolved decisions (settled 2026-06-28)
 
-- Member-name variance: ship with post-quote `.WithIdentifier(...)` now, or pull the identifier
-  hole forward? (Recommendation: `.WithIdentifier(...)` now; identifier hole later.)
-- `Splice` position-awareness: diagnostic-only, or also infer the graft position? (Recommendation:
-  diagnostic-only for the first cut.)
-- Child-carrier field visibility: author the child inside the parent carrier vs. lift parent
-  state as parameters. (Recommendation: decide per the ObjectReader getter migration, which is
-  the first real consumer.)
+- **Member-name variance → post-quote `.WithIdentifier(...)` now.** Reuse ObjectReader's existing
+  class/ctor rename pattern; no new machinery. A dedicated identifier hole is deferred.
+- **`Splice` position-awareness → diagnostic-only for the first cut.** Detect an illegal graft
+  position and emit a diagnostic; do not auto-infer/auto-place the node.
+- **Child-carrier field visibility → decide per the ObjectReader getter migration.** The first
+  real consumer settles whether to author the child inside the parent carrier or lift parent
+  state (`_e`, `int i`) as `Parameter<>()`/holes — no up-front commitment.
