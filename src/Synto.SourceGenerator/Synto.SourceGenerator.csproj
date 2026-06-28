@@ -102,6 +102,11 @@
 	<EmbeddedResource Include="..\Synto\QuoteSyntaxExtensions.cs" LogicalName="Synto.Helper.QuoteSyntaxExtensions.cs" />
 	<EmbeddedResource Include="..\Synto\CollectionSyntaxExtensions.cs" LogicalName="Synto.Helper.CollectionSyntaxExtensions.cs" />
 	<EmbeddedResource Include="..\Synto\InterpolationSyntaxExtensions.cs" LogicalName="Synto.Helper.InterpolationSyntaxExtensions.cs" />
+	<EmbeddedResource Include="..\Synto\IdentifierAttributeExtensions.cs" LogicalName="Synto.Helper.IdentifierAttributeExtensions.cs" />
+	<EmbeddedResource Include="..\Synto\VisibilityAttributeExtensions.cs" LogicalName="Synto.Helper.VisibilityAttributeExtensions.cs" />
+	<EmbeddedResource Include="..\Synto\SealedAttributeExtensions.cs" LogicalName="Synto.Helper.SealedAttributeExtensions.cs" />
+	<EmbeddedResource Include="..\Synto\ImplementsAttributeExtensions.cs" LogicalName="Synto.Helper.ImplementsAttributeExtensions.cs" />
+	<EmbeddedResource Include="..\Synto\InheritsAttributeExtensions.cs" LogicalName="Synto.Helper.InheritsAttributeExtensions.cs" />
   </ItemGroup>
 
   <ItemGroup>

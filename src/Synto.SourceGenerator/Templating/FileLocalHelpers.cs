@@ -47,6 +47,11 @@ internal static class FileLocalHelpers
     private const string QuoteResource = ResourcePrefix + "QuoteSyntaxExtensions.cs";
     private const string CollectionResource = ResourcePrefix + "CollectionSyntaxExtensions.cs";
     private const string InterpolationResource = ResourcePrefix + "InterpolationSyntaxExtensions.cs";
+    private const string IdentifierResource = ResourcePrefix + "IdentifierAttributeExtensions.cs";
+    private const string VisibilityResource = ResourcePrefix + "VisibilityAttributeExtensions.cs";
+    private const string SealedResource = ResourcePrefix + "SealedAttributeExtensions.cs";
+    private const string ImplementsResource = ResourcePrefix + "ImplementsAttributeExtensions.cs";
+    private const string InheritsResource = ResourcePrefix + "InheritsAttributeExtensions.cs";
 
     /// <summary>
     /// Every injectable helper, paired with the public extension-method name that, when found as a real
@@ -63,6 +68,11 @@ internal static class FileLocalHelpers
         new HelperEntry(nameof(QuoteSyntaxExtensions.OrNullLiteralExpression), Load(QuoteResource)),
         new HelperEntry(nameof(CollectionSyntaxExtensions.BuildList), Load(CollectionResource)),
         new HelperEntry(nameof(InterpolationSyntaxExtensions.ToInterpolatedText), Load(InterpolationResource)),
+        new HelperEntry(nameof(IdentifierAttributeExtensions.ApplyIdentifierAttribute), Load(IdentifierResource)),
+        new HelperEntry(nameof(VisibilityAttributeExtensions.ApplyVisibilityAttribute), Load(VisibilityResource)),
+        new HelperEntry(nameof(SealedAttributeExtensions.ApplySealedAttribute), Load(SealedResource)),
+        new HelperEntry(nameof(ImplementsAttributeExtensions.ApplyImplementsAttribute), Load(ImplementsResource)),
+        new HelperEntry(nameof(InheritsAttributeExtensions.ApplyInheritsAttribute), Load(InheritsResource)),
     ];
 
     /// <summary>An injectable helper: the public method name that triggers it plus its rewritten class.</summary>
