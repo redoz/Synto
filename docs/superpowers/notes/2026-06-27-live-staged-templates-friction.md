@@ -176,3 +176,31 @@ builder/usings sharp edges, deliberately deferred scope). Empty findings are not
   classifier touch the whole plan needed was the inline `Quote(...)` output-world boundary (Task 4), and even that
   is purely additive (shield a recognized `Quote(...)` invocation's argument from liveness propagation), confirming
   the spec §5 "purely additive, `[Unquote]` unchanged" contract held.
+
+## `[Splice]` member generator (splice-member-generator plan)
+
+- **Tasks 4 + 5 required ZERO production change — the `MemberDeclarationSyntax`-base keying paid off exactly as
+  designed.** Task 3 keyed the member splice on the base `MemberDeclarationSyntax` (not `MethodDeclarationSyntax`)
+  and emitted each segment at its declaration position by iterating the member list in order. So the nested-type
+  compile-assert (a generator `yield return`ing `ClassDeclaration(...)`), the order-preservation compile-assert
+  (fixed member · generator · fixed member, asserted via ordinal `IndexOf` of `First` < `.Run(` < `Last` in the
+  factory source), the round-trip, AND the ObjectReader-shaped example all passed against the unmodified Task-3
+  emission. The base-type contract (spec §6.4) is what made nested types/fields/properties free; the in-order
+  member-list walk is what made position preservation free. The "fix-forward if it fails" branch in Tasks 4–5 was
+  never taken — both task commits dropped `TemplateFactorySourceGenerator.cs` from their fileset.
+- **Carrier-scope `using static` is mandatory for the generator body, and it is a real ergonomic tax.** A `[Splice]`
+  generator body is ordinary carrier-compiled C# that calls `SyntaxFactory`/`SyntaxKind` members and references
+  `MemberDeclarationSyntax`, so any file hosting a member-generator template must add `using static
+  Microsoft.CodeAnalysis.CSharp.SyntaxFactory;`, `using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;`,
+  `using Microsoft.CodeAnalysis.CSharp.Syntax;`, and `using static Synto.Templating.Template;` (for `Parameter<>()`)
+  — even though every one of those calls is inert at carrier-compile time and only runs at factory-build time. The
+  round-trip test (`RoundTripTests.SpliceMembers`) and the example (`Examples.TestSplice`/`DataRecord`) both needed
+  the four-using preamble. Candidate ergonomics pass: a carrier-side `using static Synto.Templating.MemberSyntax`
+  re-export bundle, or doc guidance, so a member generator does not force four Roslyn usings into the consumer file.
+- **`typeof(Factory)` resolution is lexical, so a member-generator template must be co-scoped with its target
+  `Factory`.** Because the round-trip's `Factory` is `RoundTripTests.Factory` (a nested partial) and the example's
+  is the top-level `Factory`, the `[Template(typeof(Factory))]` member-generator class had to be declared at the
+  matching lexical scope (nested in `RoundTripTests`; nested in `Examples`) for `typeof(Factory)` to bind to the
+  intended partial. A class template (unlike the method templates the other round-trips use as method-local
+  functions) cannot be method-local, so it lives at type scope alongside the rest of the fixture — a placement
+  constraint worth noting but not a defect.

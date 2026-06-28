@@ -1,11 +1,15 @@
 // See https://aka.ms/new-console-template for more information
 
+using System.Collections.Generic;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Templating;
 using Spectre.Console;
 using static Examples;
+using static Synto.Templating.Template;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 
 
 for (; ; )
@@ -26,6 +30,7 @@ for (; ; )
                 new Choice("Use a [Quote] parameter to keep a literal-bounded runtime loop", TestQuoteLoop),
                 new Choice("Inline type parameters", Test6),
                 new Choice("Inline type parameters in class declaration", Test7),
+                new Choice("Use a [Splice] member generator to emit one accessor per column", TestSplice),
 
                 new Choice("Exit", () =>
                 {
@@ -240,6 +245,42 @@ internal class Examples
     public static string Test7()
     {
         var node = Factory.Test7Class<string, int, bool>(4);
+
+        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
+
+        return source;
+    }
+
+    /// <summary>A fixed column descriptor consumed by the <see cref="DataRecord"/> member generator.</summary>
+    public readonly record struct Column(int Ordinal, string Name);
+
+    // An ObjectReader-shaped [Splice] member generator: the static `Accessors` method runs at factory-build time;
+    // its `foreach` over the lifted column list (folded into the factory signature via Parameter<…>()) yields ONE
+    // `int GetXxx() => <ordinal>;` MEMBER per column, which Synto splices into the produced `DataRecord` type. The
+    // fixed `FieldCount` member is quoted verbatim; the generated accessors land at the generator's position.
+    [Template(typeof(Factory))]
+    public class DataRecord
+    {
+        public int FieldCount => 0;
+
+        [Splice]
+        static IEnumerable<MemberDeclarationSyntax> Accessors()
+        {
+            var columns = Parameter<IReadOnlyList<Column>>();
+            foreach (var c in columns)
+                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
+                    .AddModifiers(Token(PublicKeyword))
+                    .WithExpressionBody(ArrowExpressionClause(
+                        LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal))))
+                    .WithSemicolonToken(Token(SemicolonToken));
+        }
+    }
+
+    public static string TestSplice()
+    {
+        IReadOnlyList<Column> columns = new[] { new Column(0, "Id"), new Column(1, "Name") };
+
+        ClassDeclarationSyntax node = Factory.DataRecord(columns);
 
         var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
 

@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using Synto.Templating;
 using Xunit;
+using static Synto.Templating.Template;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 
@@ -232,7 +233,49 @@ public partial class RoundTripTests
         AssertGenerated("Console.WriteLine(new Rgb(255));", node);
     }
 
+    // A [Splice] MEMBER generator (spec §2–§3): the static `Accessors` method runs at factory-build time and its
+    // `foreach` over the lifted `Parameter<IReadOnlyList<Col>>()` produces ONE accessor MEMBER per column, spliced
+    // into the produced `Reader` type's member list. Contrast the statement-level unroll (Test5's [Unquote] `for`
+    // that emits four `ret++` *statements* into a block): here the live loop yields *members* of the type, not
+    // statements of a body. The generator method itself is trimmed from the produced type.
+    [Template(typeof(Factory))]
+    public class Reader
+    {
+        [Splice]
+        static IEnumerable<MemberDeclarationSyntax> Accessors()
+        {
+            var columns = Parameter<IReadOnlyList<Col>>();
+            foreach (var c in columns)
+                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
+                    .AddModifiers(Token(PublicKeyword))
+                    .WithExpressionBody(ArrowExpressionClause(
+                        LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal))))
+                    .WithSemicolonToken(Token(SemicolonToken));
+        }
+    }
+
+    [Fact]
+    public void SpliceMembers()
+    {
+        IReadOnlyList<Col> cols = new[] { new Col(0, "Id"), new Col(1, "Name") };
+
+        ClassDeclarationSyntax node = Factory.Reader(cols);
+
+        string expected = """
+                          public class Reader
+                          {
+                              public int GetId() => 0;
+                              public int GetName() => 1;
+                          }
+                          """;
+
+        AssertGenerated(expected, node);
+    }
+
 }
+
+/// <summary>A fixed column descriptor for the <c>[Splice]</c> member-generator round-trip.</summary>
+public readonly record struct Col(int Ordinal, string Name);
 
 /// <summary>A user type that has no built-in value-to-syntax conversion.</summary>
 public readonly struct Rgb
