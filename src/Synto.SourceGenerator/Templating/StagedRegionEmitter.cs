@@ -534,29 +534,4 @@ internal static class StagedRegionEmitter
     private static bool NeedsParentheses(ExpressionSyntax expression) =>
         expression is not (IdentifierNameSyntax or MemberAccessExpressionSyntax or InvocationExpressionSyntax
             or ElementAccessExpressionSyntax or ParenthesizedExpressionSyntax or LiteralExpressionSyntax);
-
-    /// <summary>Rewrites live-root identifier references to their factory parameter names (identity when unchanged).</summary>
-    private sealed class RootRenameRewriter : CSharpSyntaxRewriter
-    {
-        private readonly SemanticModel _semanticModel;
-        private readonly IReadOnlyDictionary<ISymbol, string> _rootNames;
-
-        public RootRenameRewriter(SemanticModel semanticModel, IReadOnlyDictionary<ISymbol, string> rootNames)
-        {
-            _semanticModel = semanticModel;
-            _rootNames = rootNames;
-        }
-
-        public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
-        {
-            if (node.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == node)
-                return base.VisitIdentifierName(node);
-
-            var symbol = _semanticModel.GetSymbolInfo(node).Symbol;
-            if (symbol is not null && _rootNames.TryGetValue(symbol, out var name))
-                return IdentifierName(name);
-
-            return base.VisitIdentifierName(node);
-        }
-    }
 }
