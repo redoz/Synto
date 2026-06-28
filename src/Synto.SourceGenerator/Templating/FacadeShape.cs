@@ -86,8 +86,8 @@ internal sealed class FacadeShape
 
         foreach (var p in builder.Parameters)
         {
-            var quoted = FindAttribute(p, typeof(global::Synto.Templating.QuotedAttribute).FullName!);
-            bool isReturnType = FindAttribute(p, typeof(global::Synto.Templating.ReturnTypeAttribute).FullName!) is not null;
+            var quoted = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.QuotedAttribute).FullName!);
+            bool isReturnType = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.ReturnTypeAttribute).FullName!) is not null;
 
             if (quoted is null)
             {
@@ -102,7 +102,7 @@ internal sealed class FacadeShape
                 continue;
             }
 
-            bool asTypeArg = GetNamedBool(quoted, "AsTypeArg");
+            bool asTypeArg = SymbolMetadataExtensions.GetNamedBool(quoted, "AsTypeArg");
             if (asTypeArg)
             {
                 string genericName = Pascal(p.Name);
@@ -124,7 +124,7 @@ internal sealed class FacadeShape
                 }
 
                 // [Quoted] value island: facade value param typed `As` (if given) else object.
-                string valueType = GetNamedTypeDisplay(quoted, "As") ?? "object";
+                string valueType = SymbolMetadataExtensions.GetNamedTypeDisplay(quoted, "As") ?? "object";
                 parameters.Add(new FacadeParam(p.Name, BuilderArgKind.Quoted, null, valueType));
             }
         }
@@ -161,39 +161,6 @@ internal sealed class FacadeShape
     private static bool IsNamed(ITypeSymbol type, string fullyQualifiedMetadata)
     {
         return type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::" + fullyQualifiedMetadata;
-    }
-
-    private static AttributeData? FindAttribute(ISymbol symbol, string attributeFullName)
-    {
-        foreach (var attr in symbol.GetAttributes())
-        {
-            if (attr.AttributeClass?.ToDisplayString() == attributeFullName)
-                return attr;
-        }
-
-        return null;
-    }
-
-    private static bool GetNamedBool(AttributeData attr, string name)
-    {
-        foreach (var kv in attr.NamedArguments)
-        {
-            if (kv.Key == name && kv.Value.Value is bool b)
-                return b;
-        }
-
-        return false;
-    }
-
-    private static string? GetNamedTypeDisplay(AttributeData attr, string name)
-    {
-        foreach (var kv in attr.NamedArguments)
-        {
-            if (kv.Key == name && kv.Value.Value is ITypeSymbol t)
-                return t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        }
-
-        return null;
     }
 
     private static string Pascal(string name)

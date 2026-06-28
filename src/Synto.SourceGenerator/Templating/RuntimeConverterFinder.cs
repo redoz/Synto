@@ -32,7 +32,7 @@ internal static class RuntimeConverterFinder
         var builder = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
         foreach (var type in EnumerateTypes(compilation.Assembly.GlobalNamespace))
         {
-            if (type.TypeKind == TypeKind.Class && type.IsStatic && HasAttribute(type, runtimeAttribute))
+            if (type.TypeKind == TypeKind.Class && type.IsStatic && SymbolMetadataExtensions.HasAttribute(type, runtimeAttribute))
                 builder.Add(type);
         }
 
@@ -92,17 +92,6 @@ internal static class RuntimeConverterFinder
         for (ITypeSymbol? current = type; current is not null; current = current.BaseType)
         {
             if (SymbolEqualityComparer.Default.Equals(current, target))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static bool HasAttribute(ISymbol symbol, INamedTypeSymbol attribute)
-    {
-        foreach (var attr in symbol.GetAttributes())
-        {
-            if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, attribute))
                 return true;
         }
 

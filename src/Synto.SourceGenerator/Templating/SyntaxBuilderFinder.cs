@@ -103,7 +103,7 @@ internal static class SyntaxBuilderFinder
             {
                 if (member is IMethodSymbol method
                     && method.IsStatic
-                    && HasAttribute(method, syntaxBuilderAttribute))
+                    && SymbolMetadataExtensions.HasAttribute(method, syntaxBuilderAttribute))
                 {
                     builder.Add(method);
                 }
@@ -265,17 +265,6 @@ internal static class SyntaxBuilderFinder
             MemberAccessExpressionSyntax { Name: GenericNameSyntax g } => g.Identifier.ValueText,
             _ => null,
         };
-    }
-
-    private static bool HasAttribute(ISymbol symbol, INamedTypeSymbol attribute)
-    {
-        foreach (var attr in symbol.GetAttributes())
-        {
-            if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, attribute))
-                return true;
-        }
-
-        return false;
     }
 
     private static IEnumerable<INamedTypeSymbol> EnumerateTypes(INamespaceSymbol ns)
