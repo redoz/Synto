@@ -19,17 +19,6 @@ namespace Synto;
 /// </summary>
 internal static class StagedRegionEmitter
 {
-    /// <summary>
-    /// Emitted helper names, taken from the Synto.Core symbols via <c>nameof</c> so a rename of a helper fails at
-    /// generator compile time instead of silently producing a non-compiling factory (the runtime helpers are
-    /// authored in Synto.Core and injected <c>file static</c> by the scan-based injection, Task 5).
-    /// </summary>
-    private const string CollectionHelper = nameof(CollectionSyntaxExtensions);
-    private const string BuildListMethod = nameof(CollectionSyntaxExtensions.BuildList);
-    private const string ListSegmentType = nameof(CollectionSyntaxExtensions.ListSegment<StatementSyntax>);
-    private const string RunMethod = nameof(CollectionSyntaxExtensions.ListSegment<StatementSyntax>.Run);
-    private const string ToSyntaxMethod = nameof(LiteralSyntaxExtensions.ToSyntax);
-
     /// <summary>Discovers the live control regions in <paramref name="body"/> using the classifier partition.</summary>
     public static IReadOnlyList<StagedRegion> FindRegions(SemanticModel semanticModel, SyntaxNode body, BindingTimePartition partition)
     {
@@ -164,7 +153,7 @@ internal static class StagedRegionEmitter
                     string runName = "__run_" + counter++;
                     if (!TryBuildScaffold(semanticModel, partition, region, stagedSet, renamer, baseReplacements, stringStagedRoots, runName, emission))
                         return emission; // a diagnostic was recorded
-                    segments.Add(RunSegment(runName));
+                    segments.Add(StagedHelperCallFactory.RunSegment(runName));
                 }
                 else if (IsStagedStatement(semanticModel, statement, stagedSet))
                 {
@@ -182,7 +171,7 @@ internal static class StagedRegionEmitter
                 }
             }
 
-            emission.ContainerReplacements[container] = BlockReplacement(segments);
+            emission.ContainerReplacements[container] = StagedHelperCallFactory.BlockReplacement(segments);
         }
 
         return emission;
@@ -442,34 +431,6 @@ internal static class StagedRegionEmitter
         return false;
     }
 
-    /// <summary><c>CollectionSyntaxExtensions.ListSegment&lt;StatementSyntax&gt;.Run(runName)</c>.</summary>
-    private static ExpressionSyntax RunSegment(string runName) =>
-        InvocationExpression(
-            MemberAccessExpression(
-                SyntaxKind.SimpleMemberAccessExpression,
-                MemberAccessExpression(
-                    SyntaxKind.SimpleMemberAccessExpression,
-                    IdentifierName(CollectionHelper),
-                    GenericName(Identifier(ListSegmentType))
-                        .WithTypeArgumentList(TypeArgumentList(SingletonSeparatedList<TypeSyntax>(IdentifierName("StatementSyntax"))))),
-                IdentifierName(RunMethod)))
-            .AddArgumentListArguments(Argument(IdentifierName(runName)));
-
-    /// <summary><c>Block(CollectionSyntaxExtensions.BuildList&lt;StatementSyntax&gt;(seg0, seg1, ...))</c>.</summary>
-    private static ExpressionSyntax BlockReplacement(IReadOnlyList<ExpressionSyntax> segments)
-    {
-        var buildList = InvocationExpression(
-                MemberAccessExpression(
-                    SyntaxKind.SimpleMemberAccessExpression,
-                    IdentifierName(CollectionHelper),
-                    GenericName(Identifier(BuildListMethod))
-                        .WithTypeArgumentList(TypeArgumentList(SingletonSeparatedList<TypeSyntax>(IdentifierName("StatementSyntax"))))))
-            .WithArgumentList(ArgumentList(SeparatedList(segments.Select(Argument))));
-
-        return InvocationExpression(IdentifierName("Block"))
-            .AddArgumentListArguments(Argument(buildList));
-    }
-
     /// <summary>
     /// Records every maximal purely-live subexpression of <paramref name="node"/> as a <c>.ToSyntax()</c> lift
     /// in <paramref name="map"/>. An expression is purely live when it references at least one live symbol and
@@ -482,7 +443,7 @@ internal static class StagedRegionEmitter
     {
         if (node is ExpressionSyntax expression && IsPurelyStaged(semanticModel, expression, stagedSet))
         {
-            map[expression] = ToSyntaxCall((ExpressionSyntax)renamer.Visit(expression)!);
+            map[expression] = StagedHelperCallFactory.ToSyntaxCall((ExpressionSyntax)renamer.Visit(expression)!);
             return; // maximal — do not descend
         }
 
@@ -517,21 +478,4 @@ internal static class StagedRegionEmitter
 
         return hasStaged;
     }
-
-    private static ExpressionSyntax ToSyntaxCall(ExpressionSyntax expression)
-    {
-        ExpressionSyntax target = NeedsParentheses(expression)
-            ? ParenthesizedExpression(expression.WithoutTrivia())
-            : expression.WithoutTrivia();
-
-        return InvocationExpression(
-            MemberAccessExpression(
-                SyntaxKind.SimpleMemberAccessExpression,
-                target,
-                IdentifierName(ToSyntaxMethod)));
-    }
-
-    private static bool NeedsParentheses(ExpressionSyntax expression) =>
-        expression is not (IdentifierNameSyntax or MemberAccessExpressionSyntax or InvocationExpressionSyntax
-            or ElementAccessExpressionSyntax or ParenthesizedExpressionSyntax or LiteralExpressionSyntax);
 }
