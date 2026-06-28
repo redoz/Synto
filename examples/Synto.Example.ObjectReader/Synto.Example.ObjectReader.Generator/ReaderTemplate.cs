@@ -21,6 +21,7 @@ namespace Synto.Example.ObjectReader.Generator;
 // inert at carrier-compile time (Parameter/Member/TypeOf return default!), and the `foreach`/`.Where(...)` shapes
 // are ordinary C# — the generator unrolls them at factory-build time.
 #pragma warning disable CA1812 // ObjectReaderTemplate is a template carrier, only ever quoted — never instantiated.
+#pragma warning disable CA1852 // ObjectReaderTemplate need not be sealed; the carrier is quoted, never subclassed.
 #pragma warning disable CA1024 // GetSchemaTable etc. mirror the IDataReader signatures verbatim.
 
 [Template(typeof(Factory))]
@@ -203,6 +204,7 @@ internal sealed class ObjectReaderTemplate<[Splice] T>
 }
 
 #pragma warning restore CA1024
+#pragma warning restore CA1852
 #pragma warning restore CA1812
 
 /// <summary>Synto template factory target. The injected <c>TemplateFactorySourceGenerator</c> fills the other
