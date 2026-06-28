@@ -33,8 +33,14 @@ A static method marked `[SyntaxBuilder]` is auto-discovered by the generator
 arguments are bound **declaratively** from `[Quoted]` markers (`FacadeShape.Derive`). Unmarked
 parameters are *staged* (a real factory-build-time value); `[Quoted]` parameters quote the
 author's expression into a syntax island; the method returns a Roslyn node that the generator
-splices in. **No generator change is required to add a builder** — this is the documented
-extensibility path, distinct from the hard-coded built-ins (`Member`/`TypeOf`).
+splices in. For a builder that returns exactly `ExpressionSyntax` or `TypeSyntax`, **no generator
+change is required to add it** — that is the documented extensibility path, distinct from the
+hard-coded built-ins (`Member`/`TypeOf`). **That does not hold for this surface:** 7 of the 8
+switch builders return other node types (`SwitchStatementSyntax` / `SwitchSectionSyntax` /
+`SwitchExpressionArmSyntax` / `StatementSyntax`), so SY1017 return-shape widening is *guaranteed*,
+not merely possible. This surface therefore requires bounded, file-capped generator work in three
+areas — return-shape acceptance widening, overload disambiguation, and `params`
+emission/binding — all gated and proven by the Task 1 spike.
 
 What is missing is not infrastructure but a **worked example of `[SyntaxBuilder]` for a complex,
 list-shaped construct**. Switch is that example, and it establishes the reusable recipe.
@@ -90,6 +96,10 @@ section/arm list is *staged* (unmarked): a factory-build-time value produced by 
 - pass the projection directly as the single params argument (normal form, no copy), or
 - pass individual elements `Switch(i, Case(...), Case(...), Default(...))` (expanded form).
 
+`params IEnumerable<T>` (C# 13 params collections) raises the consumer's *generator-project*
+LangVersion floor to 13 — acceptable here (the repo is `preview`) — and the facade generator will be
+taught to emit the `params` modifier (decision: keep `params`, teach the generator).
+
 ### Element builders
 
 ```csharp
@@ -116,6 +126,15 @@ Plus one tiny statement builder so the common case needs no child template:
 (Exact signatures of label/pattern parameters are the implementer's to finalize during the spike;
 the contract is "constant label/pattern quoted from the author's expression, body/value as syntax".)
 
+> **Quoted-vs-staged binding is resolved by the Task 1 spike — default toward STAGED.** The
+> `[Quoted]` markers shown above on `Case`'s label, `Return`'s value, and the arm pattern/value are
+> *not* settled. For the data-driven motivating case the case-label is a **build-time value folded to
+> a literal** (e.g. `c.Ordinal`, a `static`/build-time `int`) and the body/value is an
+> **already-built node passed through** (e.g. `Member<…>(…)`) — both *staged*. Marking them
+> `[Quoted]` would emit `case c.Ordinal:` with `c` out of output scope (a CS error). So the surface
+> must **not** assume `[Quoted]` on those; the spike picks the real markers. The list parameters keep
+> `params IEnumerable<T>` regardless (decision: keep `params`).
+
 ## Empirical gate (residual unknowns — spike first)
 
 The `[SyntaxBuilder]` mechanism is proven for simple builders, but three things on this design are
@@ -128,10 +147,17 @@ missing-snapshot Verify fail) → systematic-debugging; do not silently widen sc
    builder — i.e. a `[SyntaxBuilder]` call (`Case`) inside a live `.Select` lambda. `foreach`/`.Where`
    over a live collection is proven; *builder-call-inside-a-live-projection-as-a-builder-arg* is not.
 2. **Overloaded `[SyntaxBuilder]` discovery.** Two `Switch` overloads differing only by element type.
-   Recognition binds to the resolved `IMethodSymbol`, so it *should* hold, but it is untested.
-3. **`params IEnumerable<T>` facade synthesis.** The synthesized facade must preserve the `params`
-   collection. If it flattens to a plain `IEnumerable<T>`, we lose only the comma-separated form and
-   keep the projection form — a graceful degrade, not a redesign.
+   ⚠️ **Confirmed gap, not a "should hold":** `SyntaxBuilderFinder` indexes builders by *simple
+   name*, so two same-named `Switch` builders trip diagnostic **SY1018 (ambiguous)**. Bounded
+   disambiguation work is required: bind by **shared binding-shape compatibility** — both overloads
+   have the identical `[Quoted governing, Staged list]` shape, so the finder binds with that shared
+   shape and lets the **C# compiler** resolve the actual overload from the typed projection
+   argument. (Do not attempt to type the projection inside the finder; see Task 1.)
+3. **`params IEnumerable<T>` facade synthesis + binding.** The synthesized facade currently flattens
+   `params` to a plain `IEnumerable<T>`. **Decision: keep `params` and teach the generator** — this is
+   intentional, in-scope generator work, *not* a graceful degrade. The facade generator is taught to
+   emit the `params` modifier and the finder to bind the expanded comma form (collecting trailing args
+   into the params collection); both the projection form and the expanded form must work.
 
 ## Dog-food target
 
