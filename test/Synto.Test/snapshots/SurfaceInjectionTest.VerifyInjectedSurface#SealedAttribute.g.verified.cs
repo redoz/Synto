@@ -1,0 +1,10 @@
+//HintName: SealedAttribute.g.cs
+#nullable enable
+using System;
+
+namespace Synto.Templating;
+
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Method, AllowMultiple = false)]
+internal sealed class SealedAttribute : Attribute
+{
+}

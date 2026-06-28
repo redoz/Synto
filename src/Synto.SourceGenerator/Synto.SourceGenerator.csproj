@@ -52,6 +52,12 @@
 	<EmbeddedResource Include="..\Synto\Templating\QuotedAttribute.cs" LogicalName="Synto.Runtime.QuotedAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\ReturnTypeAttribute.cs" LogicalName="Synto.Runtime.ReturnTypeAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\SyntoBuilders.cs" LogicalName="Synto.Runtime.SyntoBuilders.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\Access.cs" LogicalName="Synto.Runtime.Access.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\IdentifierAttribute.cs" LogicalName="Synto.Runtime.IdentifierAttribute.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\VisibilityAttribute.cs" LogicalName="Synto.Runtime.VisibilityAttribute.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\SealedAttribute.cs" LogicalName="Synto.Runtime.SealedAttribute.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\ImplementsAttribute.cs" LogicalName="Synto.Runtime.ImplementsAttribute.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\InheritsAttribute.cs" LogicalName="Synto.Runtime.InheritsAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\MatchOption.cs" LogicalName="Synto.Runtime.MatchOption.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\MatchAttribute.cs" LogicalName="Synto.Runtime.MatchAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Matching\CaptureAttribute.cs" LogicalName="Synto.Runtime.CaptureAttribute.cs" />
