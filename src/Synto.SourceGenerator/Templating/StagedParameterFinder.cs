@@ -177,7 +177,7 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
         {
             if (site.ResolvedName is null)
             {
-                diagnostics.Add(Diagnostics.UnquoteParameterMissingName(site.Invocation.GetLocation()));
+                diagnostics.Add(TemplateDiagnostics.UnquoteParameterMissingName(site.Invocation.GetLocation()));
                 continue;
             }
 
@@ -199,7 +199,7 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
             if (distinctTypes.Count > 1)
             {
                 var conflicting = groupSites.First(s => s.Type.ToDisplayString(TypeFormat) != distinctTypes[0]);
-                diagnostics.Add(Diagnostics.UnquoteParameterTypeConflict(
+                diagnostics.Add(TemplateDiagnostics.UnquoteParameterTypeConflict(
                     conflicting.Invocation.GetLocation(),
                     group.Key!,
                     distinctTypes[0],
@@ -211,7 +211,7 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
             if (groupSites.Count > 1 && groupSites.Count(s => s.ExplicitName is not null) > 1)
             {
                 var second = groupSites.Where(s => s.ExplicitName is not null).Skip(1).First();
-                diagnostics.Add(Diagnostics.UnquoteParameterNameCollision(second.Invocation.GetLocation(), group.Key!));
+                diagnostics.Add(TemplateDiagnostics.UnquoteParameterNameCollision(second.Invocation.GetLocation(), group.Key!));
                 continue;
             }
 

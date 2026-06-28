@@ -77,7 +77,7 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
 
         if (body!.Statements.Count == 0)
         {
-            Error = Diagnostics.BareSourceCannotBeEmpty(_template.Source!);
+            Error = TemplateDiagnostics.BareSourceCannotBeEmpty(_template.Source!);
         }
         else if ((_template.Options & TemplateOption.Single) == TemplateOption.Single)
         {
@@ -88,7 +88,7 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
             }
             else
             {
-                Error = Diagnostics.MultipleStatementsNotAllowed(_template.Source!);
+                Error = TemplateDiagnostics.MultipleStatementsNotAllowed(_template.Source!);
             }
         }
         else
@@ -120,7 +120,7 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
         {
             if (node.Members.Count == 0)
             {
-                Error = Diagnostics.BareSourceCannotBeEmpty(_template.Source!);
+                Error = TemplateDiagnostics.BareSourceCannotBeEmpty(_template.Source!);
             }
             else if ((_template.Options & TemplateOption.Single) == TemplateOption.Single)
             {
@@ -131,7 +131,7 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
                 }
                 else
                 {
-                    Error = Diagnostics.MultipleMembersNotAllowed(_template.Source!);
+                    Error = TemplateDiagnostics.MultipleMembersNotAllowed(_template.Source!);
                 }
             }
             else

@@ -316,14 +316,14 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
         if (converters.Length == 0)
         {
-            diagnostic = Diagnostics.NoRuntimeConverter(diagnosticLocation, valueType.ToDisplayString());
+            diagnostic = TemplateDiagnostics.NoRuntimeConverter(diagnosticLocation, valueType.ToDisplayString());
             liftedSyntax = valueAccess;
             return false;
         }
 
         if (converters.Length > 1)
         {
-            diagnostic = Diagnostics.AmbiguousRuntimeConverter(diagnosticLocation, valueType.ToDisplayString(), converters.Length);
+            diagnostic = TemplateDiagnostics.AmbiguousRuntimeConverter(diagnosticLocation, valueType.ToDisplayString(), converters.Length);
             liftedSyntax = valueAccess;
             return false;
         }
@@ -383,19 +383,19 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
             if (!generator.IsStatic)
             {
-                diagnostics.Add(Diagnostics.SpliceMethodMustBeStatic(generatorLocation, generatorName));
+                diagnostics.Add(TemplateDiagnostics.SpliceMethodMustBeStatic(generatorLocation, generatorName));
                 spliceGeneratorError = true;
             }
 
             if (generator.ReturnShape == SpliceMemberReturnShape.Invalid)
             {
-                diagnostics.Add(Diagnostics.SpliceMethodBadReturnType(generatorLocation, generatorName, generator.Method.ReturnType.ToString()));
+                diagnostics.Add(TemplateDiagnostics.SpliceMethodBadReturnType(generatorLocation, generatorName, generator.Method.ReturnType.ToString()));
                 spliceGeneratorError = true;
             }
 
             if (generator.HasParameters)
             {
-                diagnostics.Add(Diagnostics.SpliceMethodHasParameters(generatorLocation, generatorName));
+                diagnostics.Add(TemplateDiagnostics.SpliceMethodHasParameters(generatorLocation, generatorName));
                 spliceGeneratorError = true;
             }
 
@@ -608,7 +608,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         if (partition.ImpossibleCuts.Count > 0)
         {
             foreach (var cut in partition.ImpossibleCuts)
-                diagnostics.Add(Diagnostics.ImpossibleCut(cut.Node.GetLocation(), cut.Reason));
+                diagnostics.Add(TemplateDiagnostics.ImpossibleCut(cut.Node.GetLocation(), cut.Reason));
             return null;
         }
 
@@ -631,7 +631,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         if (unhandledStagedControl.Count > 0)
         {
             foreach (var statement in unhandledStagedControl)
-                diagnostics.Add(Diagnostics.UnsupportedStagedShape(statement.GetLocation(), "a staged control region must be a direct statement of a block to unroll in v1"));
+                diagnostics.Add(TemplateDiagnostics.UnsupportedStagedShape(statement.GetLocation(), "a staged control region must be a direct statement of a block to unroll in v1"));
             return null;
         }
 

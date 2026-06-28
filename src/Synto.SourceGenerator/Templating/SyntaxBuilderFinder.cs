@@ -156,7 +156,7 @@ internal static class SyntaxBuilderFinder
             {
                 if (candidates.Count > 1)
                 {
-                    diagnostics.Add(Diagnostics.AmbiguousBuilder(invocation.GetLocation(), simpleName));
+                    diagnostics.Add(TemplateDiagnostics.AmbiguousBuilder(invocation.GetLocation(), simpleName));
                     continue;
                 }
 
@@ -198,12 +198,12 @@ internal static class SyntaxBuilderFinder
         var shape = FacadeShape.Derive(builder, out var annotationError, out var returnShapeError);
         if (returnShapeError is not null)
         {
-            diagnostics.Add(Diagnostics.BuilderBadReturnShape(invocation.GetLocation(), builder.Name, returnShapeError));
+            diagnostics.Add(TemplateDiagnostics.BuilderBadReturnShape(invocation.GetLocation(), builder.Name, returnShapeError));
             return null;
         }
         if (annotationError is not null)
         {
-            diagnostics.Add(Diagnostics.FacadeSynthesisError(invocation.GetLocation(), builder.Name, annotationError));
+            diagnostics.Add(TemplateDiagnostics.FacadeSynthesisError(invocation.GetLocation(), builder.Name, annotationError));
             return null;
         }
 
@@ -222,7 +222,7 @@ internal static class SyntaxBuilderFinder
                 case BuilderArgKind.QuotedTypeArg:
                     if (typeArgCursor >= typeArgs.Count)
                     {
-                        diagnostics.Add(Diagnostics.BuilderArgBindingMismatch(invocation.GetLocation(), p.ParameterName, "missing type argument"));
+                        diagnostics.Add(TemplateDiagnostics.BuilderArgBindingMismatch(invocation.GetLocation(), p.ParameterName, "missing type argument"));
                         return null;
                     }
                     bindings.Add(new BuilderArgBinding(BuilderArgKind.QuotedTypeArg, p.ParameterName, null, typeArgs[typeArgCursor]));
@@ -232,7 +232,7 @@ internal static class SyntaxBuilderFinder
                 default:
                     if (valueCursor >= valueArgs.Count)
                     {
-                        diagnostics.Add(Diagnostics.BuilderArgBindingMismatch(invocation.GetLocation(), p.ParameterName, "missing argument"));
+                        diagnostics.Add(TemplateDiagnostics.BuilderArgBindingMismatch(invocation.GetLocation(), p.ParameterName, "missing argument"));
                         return null;
                     }
                     bindings.Add(new BuilderArgBinding(p.Kind, p.ParameterName, valueArgs[valueCursor].Expression, null));

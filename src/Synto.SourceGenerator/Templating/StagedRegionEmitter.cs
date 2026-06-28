@@ -315,7 +315,7 @@ internal static class StagedRegionEmitter
                 return TryBuildIf(semanticModel, partition, ifStatement, stagedSet, renamer, baseReplacements, stringStagedRoots, runIdentifier, emission, out scaffold);
         }
 
-        emission.Diagnostics.Add(Diagnostics.UnsupportedStagedShape(control.GetLocation(), "unsupported staged control shape"));
+        emission.Diagnostics.Add(TemplateDiagnostics.UnsupportedStagedShape(control.GetLocation(), "unsupported staged control shape"));
         return false;
     }
 
@@ -389,7 +389,7 @@ internal static class StagedRegionEmitter
             // unrolled) — degrade to a diagnostic instead.
             if (partition.IsStagedControl(statement) || statement.DescendantNodes().Any(partition.IsStagedControl))
             {
-                emission.Diagnostics.Add(Diagnostics.UnsupportedStagedShape(statement.GetLocation(), "nested staged control region is not supported in v1"));
+                emission.Diagnostics.Add(TemplateDiagnostics.UnsupportedStagedShape(statement.GetLocation(), "nested staged control region is not supported in v1"));
                 return false;
             }
 
@@ -407,7 +407,7 @@ internal static class StagedRegionEmitter
             var islandQuoter = new TemplateSyntaxQuoter(semanticModel, liftMap, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: stringStagedRoots);
             if (islandQuoter.Visit(statement) is not { } island)
             {
-                emission.Diagnostics.Add(Diagnostics.UnsupportedStagedShape(body.GetLocation(), "staged region body could not be quoted"));
+                emission.Diagnostics.Add(TemplateDiagnostics.UnsupportedStagedShape(body.GetLocation(), "staged region body could not be quoted"));
                 return false;
             }
 
