@@ -58,8 +58,9 @@ The boundary that matters is **runtime vs generator** and **consumer-facing surf
 generator-internal helpers**:
 
 - **`src/Synto`** → ships as **`Synto.Core`** (`netstandard2.0`, `IsPackable=true`). The
-  runtime/toolkit library: the **marker surface** (`TemplateAttribute`, `InlineAttribute`,
-  `RuntimeAttribute`, `TemplateOption`, `Syntax`/`Syntax<T>`), the emitted **helpers**
+  runtime/toolkit library: the **marker surface** (`TemplateAttribute`,
+  `QuoteAttribute`/`UnquoteAttribute`/`SpliceAttribute`, `RuntimeAttribute`,
+  `TemplateOption`, `Syntax`/`Syntax<T>`), the emitted **helpers**
   (`ToSyntax`/`LiteralSyntaxExtensions`, `ToTypeSyntax`/`RuntimeTypeExtensions`,
   `OrNullLiteralExpression`/`QuoteSyntaxExtensions`), and **generator-internal** machinery
   the quoter uses (`CSharpSyntaxQuoter`, `Formatting/SyntaxFormatter`, `UsingDirectiveSet`,

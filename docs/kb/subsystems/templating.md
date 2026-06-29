@@ -97,8 +97,10 @@ which skips foreign child subtrees in `VisitMethodDeclaration`.
   `Unquote<T>()` (`:34`), `Quote<T>()` (`:48`), `Splice()` (`:59`), `Member<T>()`
   (`:71`), `TypeOf()` (`:80`) — all inert (`=> default!`), recognized by binding.
 
-> `Live<T>()` is a **method** carrier, not `[Live]`; a Live/Inline → Unquote/Splice
-> rename is in flight (this doc uses target names). See [glossary](/glossary.md).
+> `Unquote<T>()` is a **method** carrier, not `[Unquote]`. The Live/Inline →
+> Unquote/Splice rename shipped 2026-06-27 (`Live`/`Inline`/`AsSyntax` deleted; see
+> spec `docs/superpowers/specs/2026-06-27-quote-unquote-splice-naming.md` §9). See
+> [glossary](/glossary.md).
 
 # Invariants
 
