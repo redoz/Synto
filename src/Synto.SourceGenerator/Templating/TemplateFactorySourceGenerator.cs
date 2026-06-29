@@ -242,105 +242,6 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         return helpers;
     }
 
-    /// <summary>
-    /// The built-in literal types <see cref="LiteralSyntaxExtensions"/> handles directly. An inlined parameter
-    /// of one of these binds to a specific <c>ToSyntax(this T)</c> overload (injected via the method-name
-    /// scan); any other concrete type needs a user-provided <c>[Runtime]</c> converter.
-    /// </summary>
-    private static bool IsBuiltInLiteralType(ITypeSymbol type) =>
-        type.SpecialType switch
-        {
-            SpecialType.System_String
-                or SpecialType.System_Boolean
-                or SpecialType.System_Char
-                or SpecialType.System_SByte
-                or SpecialType.System_Byte
-                or SpecialType.System_Int16
-                or SpecialType.System_UInt16
-                or SpecialType.System_Int32
-                or SpecialType.System_UInt32
-                or SpecialType.System_Int64
-                or SpecialType.System_UInt64
-                or SpecialType.System_Decimal
-                or SpecialType.System_Single
-                or SpecialType.System_Double => true,
-            _ => false,
-        };
-
-    /// <summary>
-    /// The shared value→syntax lift used by both the <c>[Unquote]</c> value-parameter path and the new
-    /// <c>[Quote]</c> paths (parameter + inline <c>Quote(value)</c>). Produces the factory-time conversion
-    /// expression that lifts <paramref name="valueAccess"/> to <c>ExpressionSyntax</c>:
-    /// <c>valueAccess.ToSyntax()</c> for a built-in literal type (binds to the file-local
-    /// <c>LiteralSyntaxExtensions</c> / generic <c>ToSyntax&lt;T&gt;</c> fallback, also used for an inlined
-    /// generic type parameter), or a fully-qualified <c>global::Ns.Converter.ToSyntax(valueAccess)</c> call for a
-    /// concrete non-built-in type carrying exactly one <c>[Runtime]</c> converter. A concrete type with no
-    /// converter yields <c>SY1011</c>; with more than one yields <c>SY1012</c> — returned via
-    /// <paramref name="diagnostic"/> with a <c>false</c> result so the caller can bail. The generic-type-parameter
-    /// <c>typeof(T).ToTypeSyntax()</c> lift is <c>[Unquote]</c>-only and stays out of this helper (<c>[Quote]</c>
-    /// is value-axis only). <paramref name="runtimeClasses"/> is the lazily-resolved converter-class cache, walked
-    /// only on the first concrete non-built-in type encountered. All work is semantic and done inside the
-    /// transform; nothing is captured into pipeline state.
-    /// </summary>
-    private static bool TryEmitValueLift(
-        ITypeSymbol valueType,
-        ExpressionSyntax valueAccess,
-        Location? diagnosticLocation,
-        SemanticModel semanticModel,
-        INamedTypeSymbol? runtimeAttribute,
-        INamedTypeSymbol? expressionSyntaxSymbol,
-        ref ImmutableArray<INamedTypeSymbol>? runtimeClasses,
-        out ExpressionSyntax liftedSyntax,
-        out DiagnosticInfo? diagnostic)
-    {
-        diagnostic = null;
-
-        // Built-in literal type (or an inlined generic type parameter): value.ToSyntax(), binding to the
-        // file-local LiteralSyntaxExtensions / generic ToSyntax<T> fallback.
-        if (valueType is ITypeParameterSymbol || IsBuiltInLiteralType(valueType))
-        {
-            liftedSyntax = InvocationExpression(
-                MemberAccessExpression(
-                    SyntaxKind.SimpleMemberAccessExpression,
-                    valueAccess,
-                    IdentifierName("ToSyntax")));
-            return true;
-        }
-
-        // A concrete, non-built-in type needs a user-provided [Runtime] converter exposing
-        // ToSyntax(this ThatType). It is discovered from the TYPE; with no converter (or more than one) a
-        // diagnostic is emitted at generation time, rather than letting the generic ToSyntax<T> fallback throw
-        // NotImplementedException at the author's runtime.
-        runtimeClasses ??= RuntimeConverterFinder.FindRuntimeClasses(semanticModel.Compilation, runtimeAttribute);
-        var converters = RuntimeConverterFinder.FindConvertersFor(runtimeClasses.Value, valueType, expressionSyntaxSymbol);
-
-        if (converters.Length == 0)
-        {
-            diagnostic = TemplateDiagnostics.NoRuntimeConverter(diagnosticLocation, valueType.ToDisplayString());
-            liftedSyntax = valueAccess;
-            return false;
-        }
-
-        if (converters.Length > 1)
-        {
-            diagnostic = TemplateDiagnostics.AmbiguousRuntimeConverter(diagnosticLocation, valueType.ToDisplayString(), converters.Length);
-            liftedSyntax = valueAccess;
-            return false;
-        }
-
-        // Call the user's converter DIRECTLY by its fully-qualified name as a static method —
-        // `global::Ns.Converter.ToSyntax(value)`. A fully-qualified static call binds to exactly the discovered
-        // converter, needs no `using`, and keeps the generated output free of any Synto runtime dependency.
-        var converter = converters[0];
-        liftedSyntax = InvocationExpression(
-                MemberAccessExpression(
-                    SyntaxKind.SimpleMemberAccessExpression,
-                    ParseName(converter.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)),
-                    IdentifierName("ToSyntax")))
-            .AddArgumentListArguments(Argument(valueAccess));
-        return true;
-    }
-
     private static MethodDeclarationSyntax? CreateSyntaxFactoryMethod(
         List<DiagnosticInfo> diagnostics,
         SemanticModel semanticModel,
@@ -683,7 +584,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 if (semanticModel.GetSymbolInfo(receiver).Symbol is not { } receiverSymbol
                     || !rootSymbolToStagedParameter.TryGetValue(receiverSymbol, out var ownerParameter))
                     continue;
-                if (semanticModel.GetTypeInfo(memberAccess).Type is not { } resultType || !IsBuiltInLiteralType(resultType))
+                if (semanticModel.GetTypeInfo(memberAccess).Type is not { } resultType || !ValueLift.IsBuiltInLiteralType(resultType))
                     continue;
 
                 foldClaimedReferences.Add(receiver);
@@ -825,12 +726,13 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             trimNodes.Add(stagedLocal.Declaration);
         }
 
-        // Lazily-resolved state for [Runtime] converter discovery — only walked when an [Unquote] parameter of
-        // a concrete, non-built-in type is actually encountered. All of this is semantic work done INSIDE the
+        // The shared value→syntax lift policy for this invocation: ONE instance whose [Runtime] converter cache
+        // is lazy (walked only when an [Unquote]/[Quote] parameter of a concrete, non-built-in type is actually
+        // encountered) and shared across all three lift sites. All of this is semantic work done INSIDE the
         // transform; nothing here is captured into pipeline state (only the resulting source text flows out).
         var runtimeAttribute = semanticModel.Compilation.GetTypeByMetadataName(typeof(RuntimeAttribute).FullName!);
         var expressionSyntaxSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(ExpressionSyntax).FullName!);
-        ImmutableArray<INamedTypeSymbol>? runtimeClasses = null;
+        var valueLift = new ValueLift(semanticModel, runtimeAttribute, expressionSyntaxSymbol);
         bool converterError = false;
 
         foreach (var stagedParameterRoot in stagedRootParameters)
@@ -861,12 +763,12 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             // The [Unquote] value lift: the supplied value is converted to syntax at factory time and the result
             // spliced into the output. Shared with the [Quote] paths via TryEmitValueLift (the generic-type-param
             // declaration above stays [Unquote]-only; [Quote] is value-axis only).
-            if (!TryEmitValueLift(paramType, IdentifierName(paramName), stagedParameterRoot.Parameter.Type!.GetLocation(), semanticModel, runtimeAttribute, expressionSyntaxSymbol, ref runtimeClasses, out ExpressionSyntax conversion, out var liftDiagnostic))
+            if (!valueLift.TryEmitValueLift(paramType, IdentifierName(paramName), stagedParameterRoot.Parameter.Type!.GetLocation(), out ExpressionSyntax conversion, out var liftDiagnostic))
             {
                 diagnostics.Add(liftDiagnostic!.Value);
                 converterError = true;
             }
-            else if (paramType is not ITypeParameterSymbol && !IsBuiltInLiteralType(paramType))
+            else if (paramType is not ITypeParameterSymbol && !ValueLift.IsBuiltInLiteralType(paramType))
             {
                 // Emit the parameter with its fully-qualified declared type so it resolves in the generated file
                 // regardless of which usings the template's file happened to carry.
@@ -921,14 +823,14 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 continue;
             }
 
-            if (!TryEmitValueLift(paramType, IdentifierName(paramName), quoteParameter.Parameter.Type!.GetLocation(), semanticModel, runtimeAttribute, expressionSyntaxSymbol, ref runtimeClasses, out ExpressionSyntax conversion, out var liftDiagnostic))
+            if (!valueLift.TryEmitValueLift(paramType, IdentifierName(paramName), quoteParameter.Parameter.Type!.GetLocation(), out ExpressionSyntax conversion, out var liftDiagnostic))
             {
                 diagnostics.Add(liftDiagnostic!.Value);
                 converterError = true;
                 continue;
             }
 
-            if (paramType is not ITypeParameterSymbol && !IsBuiltInLiteralType(paramType))
+            if (paramType is not ITypeParameterSymbol && !ValueLift.IsBuiltInLiteralType(paramType))
             {
                 // Emit the parameter with its fully-qualified declared type so it resolves in the generated file
                 // regardless of which usings the template's file happened to carry.
@@ -973,7 +875,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 ? quoteCall.ValueArgument.WithoutTrivia()
                 : ParenthesizedExpression(quoteCall.ValueArgument.WithoutTrivia());
 
-            if (!TryEmitValueLift(valueType, valueAccess, quoteCall.ValueArgument.GetLocation(), semanticModel, runtimeAttribute, expressionSyntaxSymbol, ref runtimeClasses, out ExpressionSyntax quoteCallConversion, out var quoteCallDiagnostic))
+            if (!valueLift.TryEmitValueLift(valueType, valueAccess, quoteCall.ValueArgument.GetLocation(), out ExpressionSyntax quoteCallConversion, out var quoteCallDiagnostic))
             {
                 diagnostics.Add(quoteCallDiagnostic!.Value);
                 converterError = true;
