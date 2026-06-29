@@ -25,7 +25,7 @@ marker surface post-init.
   (accumulator), `TemplateDocumentBuilder.cs:22` (assembly), `TemplateValidator.cs:18`,
   `ValueLift.cs:16`, `SpliceMemberGeneratorEmitter.cs:24` — the carved templating core.
 - `Templating/*Finder.cs`, `BindingTimeClassifier.cs`, `TemplateScope.cs`,
-  `TemplateSyntaxQuoter.cs:30` (+ `InterpolationFold.cs`), and the staging family
+  `TemplateQuoterFactory.cs:19` + `Templating/Middleware/` (+ `InterpolationFold.cs`), and the staging family
   (`StagedRegionEmitter.cs:20`, `StagedRegionFinder.cs`, `StagedLivenessAnalysis.cs`,
   `StagedEmitContext.cs`, `StagedScaffoldBuilder.cs:19`) — the templating machinery.
 - `Templating/FacadeCallFinder.cs:19` / `SyntaxBuilderRegistry.cs:17` / `FacadeArgumentBinder.cs:16`

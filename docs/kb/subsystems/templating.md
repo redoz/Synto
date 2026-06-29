@@ -70,12 +70,12 @@ The ordered steps run inside `TemplateFactoryBuilder.Build` (`TemplateFactoryBui
 | 18 | Emit staged regions (unroll → `BuildList`) | `StagedRegionEmitter.cs:20` → `StagedLivenessAnalysis.cs`, `RootRenameRewriter.cs`, `StagedScaffoldBuilder.cs:19`, `StagedHelperCallFactory.cs` |
 | 19 | `[Splice]` member generators → local functions | `SpliceMemberGeneratorEmitter.cs:24` |
 | 20 | Branch pruning | `BranchPruneIdentifier.cs` |
-| 21 | Construct `TemplateSyntaxQuoter`, quote the source | `TemplateSyntaxQuoter.cs:30`, `TemplateSyntaxQuoterInvoker.cs:20` |
+| 21 | Compose the middleware quoter, quote the source | `TemplateQuoterFactory.cs:19`, `TemplateSyntaxQuoterInvoker.cs:20`, `Quoting/MiddlewareSyntaxQuoter.cs:19` (engine, Core) |
 | 22 | Assemble factory + helpers + unit; `AddSource` | `TemplateDocumentBuilder.cs:22` |
 
 Staged-string interpolation bare holes are fused into literal text during quoting by
-`InterpolationFold` (`InterpolationFold.cs:41`), which the quoter delegates to via a
-`Visit` callback (`TemplateSyntaxQuoter.cs:43`, `:74`).
+`InterpolationFold` (`InterpolationFold.cs:41`), which `InterpolationFoldMiddleware`
+(`Middleware/InterpolationFoldMiddleware.cs:23`) delegates to via the engine's `Quote` callback.
 
 # Scope: child templates
 

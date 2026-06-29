@@ -35,7 +35,9 @@ and [matching](/subsystems/matching.md) build on.
 # Entry points
 
 - `src/Synto/CSharpSyntaxQuoter.cs:204` — the concrete quoter.
-- Templating extends this via `TemplateSyntaxQuoter` (see [templating](/subsystems/templating.md)).
+- Templating extends this via the `MiddlewareSyntaxQuoter<TContext>` engine
+  (`Quoting/MiddlewareSyntaxQuoter.cs:19`), composed from feature middleware by
+  `TemplateQuoterFactory` (see [templating](/subsystems/templating.md)).
 
 # Invariants
 
