@@ -286,30 +286,8 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
     {
         string reader = $"ObjectReader_{model.TargetTypeShortName}_{index}";
         TypeSyntax elementType = SyntaxFactory.ParseTypeName(model.TargetTypeQualifiedName);
-
-        // Synto holes: [Splice] T splices the element type wherever T appears (the _e field + the
-        // ctor's IEnumerable<T> parameter); the live `columns` parameter drives the unrolled members (and the
-        // folded `columns.Count` literal).
-        ClassDeclarationSyntax skeleton = Factory.ObjectReaderTemplate(elementType, model.Columns);
-
-        var specialized = SyntaxFactory.List(
-            skeleton.Members.Select(member => RenameConstructor(member, reader)));
-
-        return skeleton
-            .WithIdentifier(SyntaxFactory.Identifier(reader))
-            .WithModifiers(SyntaxFactory.TokenList(
-                SyntaxFactory.Token(SyntaxKind.FileKeyword),
-                SyntaxFactory.Token(SyntaxKind.SealedKeyword)))
-            .WithBaseList(SyntaxFactory.BaseList(SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(
-                SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName("global::System.Data.IDataReader")))))
-            .WithMembers(specialized);
+        return Factory.ObjectReaderTemplate(elementType, model.Columns, reader);
     }
-
-    // Rename the templated constructor to match the specialized reader; every other member is emitted verbatim.
-    private static MemberDeclarationSyntax RenameConstructor(MemberDeclarationSyntax member, string reader) =>
-        member is ConstructorDeclarationSyntax ctor
-            ? ctor.WithIdentifier(SyntaxFactory.Identifier(reader))
-            : member;
 
     private static string BuildInterceptorMethod(ObjectReaderModel model, int index)
     {

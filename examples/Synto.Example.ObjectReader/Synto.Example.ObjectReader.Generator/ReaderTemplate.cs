@@ -25,7 +25,11 @@ namespace Synto.Example.ObjectReader.Generator;
 #pragma warning disable CA1024 // GetSchemaTable etc. mirror the IDataReader signatures verbatim.
 
 [Template(typeof(Factory))]
-internal sealed class ObjectReaderTemplate<[Splice] T>
+[Identifier]
+[Visibility(Access.File)]
+[Sealed]
+[Implements<global::System.Data.IDataReader>]
+internal class ObjectReaderTemplate<[Splice] T>
 {
     private readonly global::System.Collections.Generic.IEnumerator<T> _e;
     private bool _closed;

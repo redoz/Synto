@@ -248,4 +248,108 @@ internal static class TemplateDiagnostics
             LocationInfo.CreateFrom(location),
             new EquatableArray<string>(ImmutableArray.Create(methodName)));
     }
+
+    // ----- Post-quote declaration decorations (SY1022–SY1028) ----------------------------------------
+    // All mechanical (symbol/syntax facts only). Raised by DecorationFinder, which drops the offending
+    // decoration and continues (accumulate-and-continue, like ValidateTemplate).
+
+    private static readonly DiagnosticDescriptor _decorationTargetMismatch = new(IdPrefix + "1022",
+        "Invalid Decoration Target",
+        "Decoration '{0}' cannot apply to this declaration: its hook targets '{1}', which this declaration kind is not",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo DecorationTargetMismatch(Location? location, string decorationName, string targetType)
+    {
+        return new DiagnosticInfo(_decorationTargetMismatch,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(decorationName, targetType)));
+    }
+
+    private static readonly DiagnosticDescriptor _decorationFileNotTopLevel = new(IdPrefix + "1023",
+        "Invalid Decoration Visibility",
+        "[Visibility(Access.File)] is only valid on a top-level declaration; '{0}' is nested",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo DecorationFileNotTopLevel(Location? location, string declarationName)
+    {
+        return new DiagnosticInfo(_decorationFileNotTopLevel,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(declarationName)));
+    }
+
+    private static readonly DiagnosticDescriptor _decorationBadBaseType = new(IdPrefix + "1024",
+        "Invalid Decoration Base Type",
+        "Decoration base type '{0}' is invalid: {1}",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo DecorationBadBaseType(Location? location, string typeName, string reason)
+    {
+        return new DiagnosticInfo(_decorationBadBaseType,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(typeName, reason)));
+    }
+
+    private static readonly DiagnosticDescriptor _decorationConflict = new(IdPrefix + "1025",
+        "Conflicting Decorations",
+        "Conflicting decorations on one declaration: {0}",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo DecorationConflict(Location? location, string reason)
+    {
+        return new DiagnosticInfo(_decorationConflict,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(reason)));
+    }
+
+    private static readonly DiagnosticDescriptor _decorationSettableMember = new(IdPrefix + "1026",
+        "Invalid Decoration Attribute",
+        "Decoration attribute '{0}' declares settable member '{1}'; decoration inputs must be constructor parameters only",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo DecorationSettableMember(Location? location, string attributeName, string memberName)
+    {
+        return new DiagnosticInfo(_decorationSettableMember,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(attributeName, memberName)));
+    }
+
+    private static readonly DiagnosticDescriptor _decorationNoApplyHook = new(IdPrefix + "1027",
+        "Missing Decoration Hook",
+        "No usable 'Apply{0}' extension method resolvable for decoration '{0}' (or its parameter arity does not match the attribute's {1} constructor argument(s))",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo DecorationNoApplyHook(Location? location, string attributeName, int constructorArgCount)
+    {
+        return new DiagnosticInfo(_decorationNoApplyHook,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(
+                attributeName,
+                constructorArgCount.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
+    private static readonly DiagnosticDescriptor _decorationApplyNonComposing = new(IdPrefix + "1028",
+        "Non-composing Decoration Hook",
+        "Decoration hook 'Apply{0}' returns '{1}', which differs from its this-parameter type '{2}'; decoration hooks must be type-preserving",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo DecorationApplyNonComposing(Location? location, string attributeName, string returnType, string thisType)
+    {
+        return new DiagnosticInfo(_decorationApplyNonComposing,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(attributeName, returnType, thisType)));
+    }
 }

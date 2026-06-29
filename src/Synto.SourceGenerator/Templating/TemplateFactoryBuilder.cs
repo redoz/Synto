@@ -69,6 +69,8 @@ internal static class TemplateFactoryBuilder
 
         ResolveSpliceCalls(ctx);
 
+        ResolveDecorations(ctx);
+
         if (!EmitLiveRegions(ctx))
             return null;
 
@@ -813,6 +815,32 @@ internal static class TemplateFactoryBuilder
             ctx.UnquotedReplacements[spliceCall.Invocation] = (ExpressionSyntax)spliceCall.Argument.WithoutTrivia();
     }
 
+    // Post-quote declaration decorations ([Identifier]/[Visibility]/[Sealed]/[Implements<T>]/[Inherits<T>]):
+    // discover each decorated declaration's ordered Apply… hook chain, the injected `string identifier`
+    // parameter, and the decoration attribute nodes to trim. Skipped entirely (zero behavior change) when the
+    // decoration surface isn't referenced. All discovery is semantic and runs INSIDE the transform — the
+    // SyntaxNode-keyed hooks / TypeSyntax params are consumed here to drive the quoter + factory signature,
+    // never captured into cached pipeline state. Diagnostics land in ctx.Diagnostics.
+    private static void ResolveDecorations(TemplateBuildContext ctx)
+    {
+        if (DecorationMarkers.Resolve(ctx.SemanticModel.Compilation) is not { } decorationMarkers)
+            return;
+
+        var decorationResult = DecorationFinder.FindDecorations(
+            ctx.SemanticModel, ctx.TemplateInfo.Source!.Syntax, ctx.Scope, decorationMarkers, ctx.ParamNames, ctx.Diagnostics);
+
+        ctx.DecorationHooks = decorationResult.Hooks;
+
+        // Append each injected [Identifier] parameter AFTER the existing holes (ParamNames already updated by
+        // the finder, preserving the uniqueness set).
+        foreach (var injected in decorationResult.InjectedParameters)
+            ctx.Parameters.Add(Parameter(Identifier(injected.Name)).WithType(injected.Type));
+
+        // Strip the decoration markers from the quoted output (like [Template]/[Splice]).
+        foreach (var trimAttribute in decorationResult.TrimAttributes)
+            ctx.TrimNodes.Add(trimAttribute);
+    }
+
     // Unroll the live control regions: each foreach over a live root becomes a verbatim scaffold in the
     // factory preamble (collecting quoted islands into a run) plus a single replacement keyed at the
     // region's owning container block (spec §5.3). The fixed-sibling quoter and island quoters carry the
@@ -873,7 +901,8 @@ internal static class TemplateFactoryBuilder
             prunableNodes,
             includeTrivia: ctx.Options.HasFlag(TemplateOption.PreserveTrivia),
             memberSegments: ctx.SpliceMemberSegments,
-            stringStagedRoots: ctx.StringStagedRoots);
+            stringStagedRoots: ctx.StringStagedRoots,
+            postQuoteHooks: ctx.DecorationHooks);
 
 
         if (!TemplateSyntaxQuoterInvoker.TryQuote(

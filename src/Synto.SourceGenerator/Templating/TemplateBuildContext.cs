@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Templating;
@@ -83,6 +84,10 @@ internal sealed class TemplateBuildContext
     public HashSet<SyntaxNode> RegionConsumedNodes { get; set; } = new();
     public HashSet<SyntaxNode> FoldClaimedReferences { get; } = new();
     public Dictionary<StagedParameter, List<MemberAccessExpressionSyntax>> FoldsByStagedParameter { get; } = new();
+
+    // Post-quote decoration hooks discovered by ResolveDecorations: per-node ordered Apply… chains the final
+    // quoter folds onto each decorated declaration. Null when the decoration surface isn't referenced.
+    public IReadOnlyDictionary<SyntaxNode, ImmutableArray<AppliedDecoration>>? DecorationHooks;
 
     // --- Shared lift policy + counters ---
     public ValueLift ValueLift { get; set; } = null!;

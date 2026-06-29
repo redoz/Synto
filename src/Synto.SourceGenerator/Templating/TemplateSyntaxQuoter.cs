@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -21,6 +22,11 @@ internal sealed class TemplateSyntaxQuoter : CSharpSyntaxQuoter
     // ITypeSymbol/SemanticModel leaks into cached pipeline state); empty when no template-body string holes occur.
     private readonly IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> _stringStagedRoots;
 
+    // Post-quote hook channel (Task 3): decoration hooks applied after a node's base quote is produced.
+    // Each entry maps a source node to an ordered sequence of AppliedDecoration values; the quoter folds
+    // them in order onto the base quote as chained method-invocation expressions. Inert when empty.
+    private readonly IReadOnlyDictionary<SyntaxNode, ImmutableArray<AppliedDecoration>> _postQuoteHooks;
+
     // Interpolation staged-fold subsystem (spec 2026-06-28). Constructed with this quoter's own Visit (synchronous
     // re-entry) and the base array-literal builder as callbacks — a local delegate, never a captured closure
     // outliving the transform.
@@ -33,13 +39,15 @@ internal sealed class TemplateSyntaxQuoter : CSharpSyntaxQuoter
         HashSet<SyntaxNode> trimNodes,
         bool includeTrivia,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax>? memberSegments = null,
-        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax>? stringStagedRoots = null) : base(includeTrivia)
+        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax>? stringStagedRoots = null,
+        IReadOnlyDictionary<SyntaxNode, ImmutableArray<AppliedDecoration>>? postQuoteHooks = null) : base(includeTrivia)
     {
         _semanticModel = semanticModel;
         _unquotedReplacements = unquotedReplacements;
         _trimNodes = trimNodes;
         _memberSegments = memberSegments ?? new Dictionary<SyntaxNode, ExpressionSyntax>();
         _stringStagedRoots = stringStagedRoots ?? new Dictionary<SyntaxNode, ExpressionSyntax>();
+        _postQuoteHooks = postQuoteHooks ?? new Dictionary<SyntaxNode, ImmutableArray<AppliedDecoration>>();
         _interpolationFold = new InterpolationFold(_stringStagedRoots, Visit, ToArrayLiteral);
     }
 
@@ -51,7 +59,18 @@ internal sealed class TemplateSyntaxQuoter : CSharpSyntaxQuoter
         if (node is not null && _trimNodes.Contains(node))
             return null;
 
-        return base.Visit(node);
+        var result = base.Visit(node);
+        if (node is not null && result is not null && _postQuoteHooks.TryGetValue(node, out var hooks))
+            foreach (var hook in hooks)
+            {
+                var arguments = new List<ArgumentSyntax>(hook.Arguments.Length);
+                foreach (var arg in hook.Arguments)
+                    arguments.Add(Argument(arg));
+                result = InvocationExpression(
+                        MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, result, IdentifierName(hook.HelperMethodName)))
+                    .WithArgumentList(ArgumentList(SeparatedList(arguments)));
+            }
+        return result;
     }
 
     /// <summary>

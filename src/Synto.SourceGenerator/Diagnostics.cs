@@ -103,4 +103,5 @@ internal static class Diagnostics
                                     location,
                                     new EquatableArray<string>(ImmutableArray.Create(targetName, ancestorName)));
     }
+
 }
