@@ -42,17 +42,13 @@ internal static class SyntaxBuilderRegistry
 
     private static IEnumerable<INamedTypeSymbol> EnumerateTypes(INamespaceSymbol ns)
     {
-        foreach (var type in ns.GetTypeMembers())
+        // Unlike the other finders, builder discovery must also see nested types, so each top-level type from
+        // the shared assembly walk is expanded with its nested types here.
+        foreach (var type in SymbolMetadataExtensions.EnumerateAssemblyTypes(ns))
         {
             yield return type;
             foreach (var nested in EnumerateNested(type))
                 yield return nested;
-        }
-
-        foreach (var child in ns.GetNamespaceMembers())
-        {
-            foreach (var type in EnumerateTypes(child))
-                yield return type;
         }
     }
 

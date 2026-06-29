@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
@@ -30,7 +29,7 @@ internal static class RuntimeConverterFinder
             return ImmutableArray<INamedTypeSymbol>.Empty;
 
         var builder = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
-        foreach (var type in EnumerateTypes(compilation.Assembly.GlobalNamespace))
+        foreach (var type in SymbolMetadataExtensions.EnumerateAssemblyTypes(compilation.Assembly.GlobalNamespace))
         {
             if (type.TypeKind == TypeKind.Class && type.IsStatic && SymbolMetadataExtensions.HasAttribute(type, runtimeAttribute))
                 builder.Add(type);
@@ -96,17 +95,5 @@ internal static class RuntimeConverterFinder
         }
 
         return false;
-    }
-
-    private static IEnumerable<INamedTypeSymbol> EnumerateTypes(INamespaceSymbol ns)
-    {
-        foreach (var type in ns.GetTypeMembers())
-            yield return type;
-
-        foreach (var child in ns.GetNamespaceMembers())
-        {
-            foreach (var type in EnumerateTypes(child))
-                yield return type;
-        }
     }
 }

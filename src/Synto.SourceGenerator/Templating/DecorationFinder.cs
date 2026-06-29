@@ -453,25 +453,13 @@ internal static class DecorationFinder
         /// <summary>All source-declared static methods named <paramref name="name"/> in the current assembly.</summary>
         private IEnumerable<IMethodSymbol> EnumerateMethodsNamed(string name)
         {
-            foreach (var type in EnumerateTypes(_model.Compilation.Assembly.GlobalNamespace))
+            foreach (var type in SymbolMetadataExtensions.EnumerateAssemblyTypes(_model.Compilation.Assembly.GlobalNamespace))
             {
                 foreach (var member in type.GetMembers(name))
                 {
                     if (member is IMethodSymbol { IsStatic: true } method)
                         yield return method;
                 }
-            }
-        }
-
-        private static IEnumerable<INamedTypeSymbol> EnumerateTypes(INamespaceSymbol ns)
-        {
-            foreach (var type in ns.GetTypeMembers())
-                yield return type;
-
-            foreach (var child in ns.GetNamespaceMembers())
-            {
-                foreach (var type in EnumerateTypes(child))
-                    yield return type;
             }
         }
 

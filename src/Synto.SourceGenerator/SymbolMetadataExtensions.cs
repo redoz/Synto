@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 
 namespace Synto;
@@ -50,5 +51,22 @@ internal static class SymbolMetadataExtensions
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// All source-declared top-level named types in <paramref name="ns"/> and its descendant namespaces.
+    /// Nested types are not descended into; callers that need them expand each result themselves. Used by the
+    /// generator's compilation-wide discovery passes to walk the current source assembly's global namespace.
+    /// </summary>
+    public static IEnumerable<INamedTypeSymbol> EnumerateAssemblyTypes(INamespaceSymbol ns)
+    {
+        foreach (var type in ns.GetTypeMembers())
+            yield return type;
+
+        foreach (var child in ns.GetNamespaceMembers())
+        {
+            foreach (var type in EnumerateAssemblyTypes(child))
+                yield return type;
+        }
     }
 }
