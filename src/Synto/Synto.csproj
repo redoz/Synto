@@ -63,6 +63,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Synto.SourceGenerator" />
     <InternalsVisibleTo Include="Synto.Diagnostics" />
+    <InternalsVisibleTo Include="Synto.Test" />
   </ItemGroup>
 
   <!-- Pack the repo LICENSE into the nupkg root (mirrors the generator packages). -->
