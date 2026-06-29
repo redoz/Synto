@@ -1,7 +1,11 @@
 # Synto.Core runtime — folder reorganization (decoupled from namespaces)
 
 **Date:** 2026-06-29
-**Status:** Design — awaiting review. No code changed yet.
+**Status:** **Implemented 2026-06-30.** Executed exactly as specified — 34 files moved,
+31 cross-project path references updated, build green (0 errors), 284/284 tests pass, zero
+snapshot diffs (byte-identical generated output). `docs/kb` `path:line` links refreshed in the
+follow-up. (One filename detail: `Syntax/` also received `SyntaxListExtensions.cs`, present on
+disk as the spec's prose anticipated.)
 **Scope:** `src/Synto` (the `Synto.Core` runtime/toolkit package) only.
 
 ## Goal
