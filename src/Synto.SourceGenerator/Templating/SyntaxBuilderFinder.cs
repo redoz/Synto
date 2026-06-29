@@ -1,80 +1,10 @@
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Synto;
-
-/// <summary>
-/// How a single syntax-builder parameter's call argument is bound at factory time (plan Task 3 / Locked
-/// Names §6). An <c>[Quoted]</c> parameter receives the <em>quote</em> of the call argument (an output-world
-/// island); an <c>[Quoted(AsTypeArg = true)]</c> parameter receives the quote of a facade <em>type</em>
-/// argument; an unmarked parameter receives the live/computed value verbatim.
-/// </summary>
-internal enum BuilderArgKind
-{
-    Staged,
-    Quoted,
-    QuotedTypeArg,
-}
-
-/// <summary>One builder parameter's resolved binding + the facade call element that feeds it.</summary>
-internal sealed class BuilderArgBinding
-{
-    public BuilderArgBinding(BuilderArgKind kind, string parameterName, ExpressionSyntax? valueArgument, TypeSyntax? typeArgument)
-    {
-        Kind = kind;
-        ParameterName = parameterName;
-        ValueArgument = valueArgument;
-        TypeArgument = typeArgument;
-    }
-
-    public BuilderArgKind Kind { get; }
-    public string ParameterName { get; }
-
-    /// <summary>The call argument expression (for <see cref="BuilderArgKind.Quoted"/> / <see cref="BuilderArgKind.Staged"/>).</summary>
-    public ExpressionSyntax? ValueArgument { get; }
-
-    /// <summary>The facade type argument (for <see cref="BuilderArgKind.QuotedTypeArg"/>).</summary>
-    public TypeSyntax? TypeArgument { get; }
-}
-
-/// <summary>
-/// A recognized facade call in the carrier, resolved to its factory-time builder invocation (plan Task 3).
-/// The invocation node is the replacement key; <see cref="BuilderFullyQualifiedTypeName"/> + <see cref="BuilderMethodName"/>
-/// name the static builder to call, and <see cref="Args"/> carries each builder parameter's binding in
-/// builder-parameter order.
-/// </summary>
-internal sealed class BuilderCall
-{
-    public BuilderCall(InvocationExpressionSyntax invocation, string builderFullyQualifiedTypeName, string builderMethodName, IReadOnlyList<BuilderArgBinding> args)
-    {
-        Invocation = invocation;
-        BuilderFullyQualifiedTypeName = builderFullyQualifiedTypeName;
-        BuilderMethodName = builderMethodName;
-        Args = args;
-    }
-
-    public InvocationExpressionSyntax Invocation { get; }
-    public string BuilderFullyQualifiedTypeName { get; }
-    public string BuilderMethodName { get; }
-    public IReadOnlyList<BuilderArgBinding> Args { get; }
-}
-
-/// <summary>The result of discovering facade calls: the resolved calls plus any builder/binding diagnostics.</summary>
-internal sealed class BuilderCallResult
-{
-    public BuilderCallResult(IReadOnlyList<BuilderCall> calls, IReadOnlyList<DiagnosticInfo> diagnostics)
-    {
-        Calls = calls;
-        Diagnostics = diagnostics;
-    }
-
-    public IReadOnlyList<BuilderCall> Calls { get; }
-    public IReadOnlyList<DiagnosticInfo> Diagnostics { get; }
-}
 
 /// <summary>
 /// Discovers the built-in <c>Template.Member</c>/<c>Template.TypeOf</c> facade calls (recognized by binding)
@@ -87,43 +17,13 @@ internal static class SyntaxBuilderFinder
 {
     private const string BuiltInBuilderType = "global::Synto.Templating.SyntoBuilders";
 
-    /// <summary>
-    /// Enumerates the source-declared <c>public static</c> methods marked <c>[SyntaxBuilder]</c>, in a
-    /// deterministic order (used by the facade-synthesis generator and by facade-call matching).
-    /// </summary>
-    public static ImmutableArray<IMethodSymbol> FindBuilders(Compilation compilation, INamedTypeSymbol? syntaxBuilderAttribute)
-    {
-        if (syntaxBuilderAttribute is null)
-            return ImmutableArray<IMethodSymbol>.Empty;
-
-        var builder = ImmutableArray.CreateBuilder<IMethodSymbol>();
-        foreach (var type in EnumerateTypes(compilation.Assembly.GlobalNamespace))
-        {
-            foreach (var member in type.GetMembers())
-            {
-                if (member is IMethodSymbol method
-                    && method.IsStatic
-                    && SymbolMetadataExtensions.HasAttribute(method, syntaxBuilderAttribute))
-                {
-                    builder.Add(method);
-                }
-            }
-        }
-
-        builder.Sort(static (a, b) => string.CompareOrdinal(
-            a.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            b.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
-
-        return builder.ToImmutable();
-    }
-
     public static BuilderCallResult FindBuilderCalls(SemanticModel semanticModel, SyntaxNode body)
     {
         var compilation = semanticModel.Compilation;
         var templateSymbol = compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);
         var syntaxBuilderAttribute = compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.SyntaxBuilderAttribute).FullName!);
 
-        var builders = FindBuilders(compilation, syntaxBuilderAttribute);
+        var builders = SyntaxBuilderRegistry.FindBuilders(compilation, syntaxBuilderAttribute);
 
         // Facade identity for a user builder = its method name. Index by name; >1 with the same name is
         // ambiguous (SY1018) once a matching call is found.
@@ -265,31 +165,5 @@ internal static class SyntaxBuilderFinder
             MemberAccessExpressionSyntax { Name: GenericNameSyntax g } => g.Identifier.ValueText,
             _ => null,
         };
-    }
-
-    private static IEnumerable<INamedTypeSymbol> EnumerateTypes(INamespaceSymbol ns)
-    {
-        foreach (var type in ns.GetTypeMembers())
-        {
-            yield return type;
-            foreach (var nested in EnumerateNested(type))
-                yield return nested;
-        }
-
-        foreach (var child in ns.GetNamespaceMembers())
-        {
-            foreach (var type in EnumerateTypes(child))
-                yield return type;
-        }
-    }
-
-    private static IEnumerable<INamedTypeSymbol> EnumerateNested(INamedTypeSymbol type)
-    {
-        foreach (var nested in type.GetTypeMembers())
-        {
-            yield return nested;
-            foreach (var deeper in EnumerateNested(nested))
-                yield return deeper;
-        }
     }
 }
