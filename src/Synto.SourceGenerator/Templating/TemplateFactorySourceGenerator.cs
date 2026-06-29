@@ -995,7 +995,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // parameter receives the live/computed value verbatim. No copy of the builder is injected into the
         // generated output (the built-in builders are injected internal; user builders are the consumer's own
         // code) — both are called fully-qualified, so the output carries no Synto.Core runtime dependency.
-        var builderResult = SyntaxBuilderFinder.FindBuilderCalls(semanticModel, templateInfo.Source.Syntax);
+        var builderResult = FacadeCallFinder.FindBuilderCalls(semanticModel, templateInfo.Source.Syntax);
         diagnostics.AddRange(builderResult.Diagnostics);
 
         // A builder facade-synthesis / argument-binding / ambiguity error is a usage error: bail with the
