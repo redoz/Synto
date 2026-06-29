@@ -6,7 +6,7 @@ resource: src/Synto.SourceGenerator/Matching
 project: projects/synto-sourcegenerator
 entrypoints: ["src/Synto.SourceGenerator/Matching/MatchFactorySourceGenerator.cs:20", "src/Synto/Matching/MatchAttribute.cs:11"]
 tags: [matching, capture, replace, pattern]
-timestamp: 2026-06-28T00:00:00Z
+timestamp: 2026-06-29T00:00:00Z
 ---
 
 # Responsibility
@@ -18,14 +18,24 @@ holes); the generator emits a matcher plus `Matched<T>` capture records and
 
 # Key files
 
-Generator (`src/Synto.SourceGenerator/Matching/`):
+Generator (`src/Synto.SourceGenerator/Matching/`). `MatchEmitter` was decomposed
+(2026-06-29) from 803 LOC into an orchestrator + walker + aligner + composer + model:
 - `MatchFactorySourceGenerator.cs:20` — `[Generator]`; `Initialize` (`:47`),
   `GenerateMatcher` (`:63`), `ValidateTarget` (`:114`, the partial/declared checks).
 - `MatchInfo.cs:14` — transform-local pattern model (`Create` `:52`); never cached.
-- `MatchEmitter.cs:21` — lowers a pattern to matcher source via a structural walk
-  over `ChildNodesAndTokens()`, capturing at holes (`Emit` `:23`).
+- `MatchEmitter.cs:18` — orchestrator: `Emit` (`:20`) routes markers → deferred-foreach
+  pre-scan → anchor split → run align → compose.
+- `MatchNodeWalker.cs:24` — `EmitNodeMatch`: recursive structural type/kind/child guards,
+  capturing at holes (non-linear equality via `IsEquivalentTo`).
+- `MatchRunAligner.cs:22` — `BuildRun` + anchored-run emission; statement-run alignment
+  with the ≤1-variable-length quantifier rule (SY1204).
+- `MatchComposer.cs:27` — `Compose`: assembles the record + matcher + `CouldMatch`
+  predicate + `Pattern` descriptor (owns the generated-output snapshot shape).
+- `MatchEmitModel.cs` — `Capture`/`RunElement`/`LiteralElement`/`HoleElement`/`MatchContext`
+  data types (transform-local scratch).
 - `MatchMarkers.cs:22` — resolves marker symbols (`[Capture]`, `Stmt`, `Statement`);
-  `Create` `:51`, `TryGetCapture`.
+  `Create` (`:59`), `TryGetCapture` (`:195`).
+- `MatchDiagnostics.cs:12` — the per-feature SY12xx registry.
 
 Consumer surface (`src/Synto/Matching/`):
 - `MatchAttribute.cs:11` — `[Match<TMatcher>]`, takes a `MatchOption` cardinality (`:14`).

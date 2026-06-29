@@ -6,7 +6,7 @@ resource: src/Synto.SourceGenerator/Templating
 project: projects/synto-sourcegenerator
 entrypoints: ["src/Synto.SourceGenerator/Templating/TemplateFactorySourceGenerator.cs:17"]
 tags: [templating, staging, binding-time, pipeline]
-timestamp: 2026-06-28T00:00:00Z
+timestamp: 2026-06-29T00:00:00Z
 ---
 
 # Responsibility
@@ -32,32 +32,50 @@ live data.
   `StagedControl` by seeding from live roots and propagating via def-use; an
   "impossible cut" (live depends on quoted) is error **SY1013**.
 
+# Layout (post-modularization 2026-06-29)
+
+The former 1234-LOC `TemplateFactorySourceGenerator` was decomposed into a thin
+shell + an ordered builder + a document assembler, each ≤ ~400 LOC:
+
+- **Shell** — `TemplateFactorySourceGenerator.cs:17` (`[Generator]`), `Initialize`
+  (`:20`); the `GenerateTemplate` transform is tracking-named `Transform`/`Result`
+  (`TrackingNames.cs:10`–`11`).
+- **Document assembler** — `TemplateDocumentBuilder.Build` (`TemplateDocumentBuilder.cs:22`):
+  invokes the factory builder, then wraps the factory in target ancestry, scan-injects
+  file-local helpers (`FindReferencedHelpers` vs `FileLocalHelpers` registry), merges
+  usings, prepends `#nullable enable`, formats, names the `.g.cs`.
+- **Factory builder** — `TemplateFactoryBuilder.Build` (`TemplateFactoryBuilder.cs:24`):
+  ordered per-feature steps over a `TemplateBuildContext` accumulator (whose field order
+  is the load-bearing step contract).
+
 # Pipeline (ordered, the spine)
 
-Orchestrated by `TemplateFactorySourceGenerator.ProcessTemplate`. Key stages:
+The ordered steps run inside `TemplateFactoryBuilder.Build` (`TemplateFactoryBuilder.cs:24`):
 
 | # | Step | Where |
 |---|------|-------|
-| 0 | `[Generator]` registration over `[Template]` | `TemplateFactorySourceGenerator.cs:17` |
+| 0 | `[Generator]` over `[Template]`; transform | `TemplateFactorySourceGenerator.cs:17`, `:20` |
 | 1 | Discover target/source/options | `TemplateInfo.cs:26` |
-| 2 | Validate (target partial, declared in source) | `TemplateFactorySourceGenerator.cs:81` |
-| 3 | Build `TemplateScope` (child-template boundary) | `TemplateScope.cs:46` |
-| 4 | Find child `[Template]`s + staged type params | `ChildTemplateFinder.cs:21`, `StagedTypeParameterFinder.cs` |
-| 5 | Find `[Splice]` / plain `ExpressionSyntax` params | `SpliceParameterFinder.cs`, `SyntaxParameterFinder.cs` |
-| 6 | Find live `Template.Parameter<T>()` roots | `StagedParameterFinder.cs:67` |
-| 7 | Find `Unquote` locals + `[Unquote]` params | `StagedRootFinder.cs` |
-| 8 | Find inline `Quote(value)` boundaries | `QuoteCallFinder.cs` |
-| 9 | **Classify binding time** | `BindingTimeClassifier.cs:102` |
-| 10 | Discover staged regions (loops/ifs to unroll) | `StagedRegionEmitter.cs:72` |
-| 11 | Staged scalar member-access fold (e.g. `columns.Count` → literal) | `TemplateFactorySourceGenerator.cs:673` |
-| 12–16 | Lift params/locals/`[Unquote]`/`[Quote]`/inline `Quote` into factory params + `.ToSyntax()` calls | `TemplateFactorySourceGenerator.cs:696`–`984` |
-| 17 | Syntax-builder facade calls | `SyntaxBuilderFinder.cs` |
-| 18 | Inline `Template.Splice(node)` | `SpliceCallFinder.cs` |
-| 19 | Emit staged regions (unroll → `BuildList`) | `StagedRegionEmitter.Emit` |
-| 20 | `[Splice]` member generators → local functions | `SpliceMemberGeneratorFinder.cs` |
-| 21 | Branch pruning | `BranchPruneIdentifier.cs` |
-| 22–23 | Construct `TemplateSyntaxQuoter`, quote the source | `TemplateSyntaxQuoter.cs`, `TemplateSyntaxQuoterInvoker.cs:20` |
-| 24–28 | Assemble factory method + file-local helpers + compilation unit; `AddSource` | `TemplateFactorySourceGenerator.cs:134`–`203` |
+| 2 | Validate (target class/partial, declared in source; SY1001–4) | `TemplateValidator.cs:18` |
+| 3 | `TemplateScope` + trim foreign child `[Template]`s | `TemplateScope.cs`, `TemplateScopedWalker.cs:18` |
+| 4–5 | Lift staged type params / `[Splice]` / `[Syntax]` params | `StagedTypeParameterFinder.cs`, `SpliceParameterFinder.cs`, `SyntaxParameterFinder.cs` |
+| 6 | Staged roots + **classify binding time** | `StagedParameterFinder.cs`, `StagedRootFinder.cs`, `QuoteCallFinder.cs`, `BindingTimeClassifier.cs:102` |
+| 7 | Impossible-cut check (live ⟵ quoted) → SY1013 | `TemplateFactoryBuilder.cs` |
+| 8 | Discover staged regions (loops/ifs to unroll) + consumed nodes | `StagedRegionFinder.cs:14` |
+| 9 | Scalar member-access fold (`columns.Count` → literal) | `TemplateFactoryBuilder.cs` |
+| 10–12 | Lift staged params/locals; init `ValueLift` (lazy `[Runtime]` cache) | `ValueLift.cs:16`, `:68` |
+| 13–15 | Lift `[Unquote]`/`[Quote]` roots + inline `Quote(value)` | `QuoteParameterFinder.cs`, `QuoteCallFinder.cs` |
+| 16 | Syntax-builder facade calls | `FacadeCallFinder.cs:19` (`FindBuilderCalls`), `SyntaxBuilderRegistry.cs:17`, `FacadeArgumentBinder.cs:16`, `FacadeShape.cs` |
+| 17 | Inline `Template.Splice(node)` | `SpliceCallFinder.cs` |
+| 18 | Emit staged regions (unroll → `BuildList`) | `StagedRegionEmitter.cs:20` → `StagedLivenessAnalysis.cs`, `RootRenameRewriter.cs`, `StagedScaffoldBuilder.cs:19`, `StagedHelperCallFactory.cs` |
+| 19 | `[Splice]` member generators → local functions | `SpliceMemberGeneratorEmitter.cs:24` |
+| 20 | Branch pruning | `BranchPruneIdentifier.cs` |
+| 21 | Construct `TemplateSyntaxQuoter`, quote the source | `TemplateSyntaxQuoter.cs:30`, `TemplateSyntaxQuoterInvoker.cs:20` |
+| 22 | Assemble factory + helpers + unit; `AddSource` | `TemplateDocumentBuilder.cs:22` |
+
+Staged-string interpolation bare holes are fused into literal text during quoting by
+`InterpolationFold` (`InterpolationFold.cs:41`), which the quoter delegates to via a
+`Visit` callback (`TemplateSyntaxQuoter.cs:43`, `:74`).
 
 # Scope: child templates
 
@@ -85,7 +103,15 @@ which skips foreign child subtrees in `VisitMethodDeclaration`.
 # Invariants
 
 - Honor the [cacheability contract](/architecture/incremental-pipeline.md): every
-  stage tracking-named (`TrackingNames.cs:8`), equatable results only.
+  stage tracking-named (`TrackingNames.cs:10`), equatable results only. `TemplateBuildContext`
+  is transform-local mutable scratch — never equatable, never crosses a provider.
+- `TemplateBuildContext` **field order is the step-ordering contract** — steps in
+  `TemplateFactoryBuilder.Build` (`TemplateFactoryBuilder.cs:24`) must not be reordered;
+  live-region container replacements are added LAST.
+- One `ValueLift` (`ValueLift.cs:16`) per build, with a lazy `[Runtime]` converter cache
+  shared across `[Unquote]`/`[Quote]`/inline-`Quote` lifts.
+- File-local helpers are injected by **scanning the emitted factory** against the
+  `FileLocalHelpers` registry (`TemplateDocumentBuilder.FindReferencedHelpers`), never via flags.
 - Impossible cut (live ⟵ quoted) is a hard error (SY1013), not a silent miscompile.
 
 # Related
