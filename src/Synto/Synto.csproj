@@ -52,7 +52,7 @@
          SurfaceInjectionGenerator (see the Synto.Runtime.SyntoBuilders.cs EmbeddedResource); never <Compile>d
          into Synto.Core, so the injected internal copy is the only one and can never collide (CS0121) with a
          public Synto.Core copy when a consumer references both. -->
-    <Compile Remove="Templating\SyntoBuilders.cs" />
+    <Compile Remove="Templating\Builders\SyntoBuilders.cs" />
   </ItemGroup>
 
   <!-- Both shipped generators consume Synto.Core's generator-internal machinery (CSharpSyntaxQuoter,

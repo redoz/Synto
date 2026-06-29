@@ -9,8 +9,8 @@
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 	</PropertyGroup>
 	<ItemGroup>
-		<Compile Include="..\Synto\LiteralSyntaxExtensions.cs" Link="LiteralSyntaxExtensions.cs" />
-		<Compile Include="..\Synto\UsingDirectiveSet.cs" Link="UsingDirectiveSet.cs" />
+		<Compile Include="..\Synto\Syntax\LiteralSyntaxExtensions.cs" Link="LiteralSyntaxExtensions.cs" />
+		<Compile Include="..\Synto\Emit\UsingDirectiveSet.cs" Link="UsingDirectiveSet.cs" />
 		<Compile Include="..\Synto\Formatting\SyntaxFormatter.cs" Link="SyntaxFormatter.cs" />
 	</ItemGroup>
 
