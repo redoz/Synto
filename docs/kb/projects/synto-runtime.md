@@ -18,21 +18,22 @@ the generated factories call, and the hand-authored half of the quoter.
 
 # Key files
 
-- `src/Synto/CSharpSyntaxQuoter.cs:21` — `CSharpSyntaxQuoterBase` (the quoter; other
+- `src/Synto/Quoting/CSharpSyntaxQuoter.cs:21` — `CSharpSyntaxQuoterBase` (the quoter; other
   half is generated, see [bootstrap](/architecture/bootstrap.md)).
-- `src/Synto/Templating/` — the template consumer surface: `TemplateAttribute.cs`,
-  `Template.Parameter.cs`, `UnquoteAttribute.cs`, `SpliceAttribute.cs`,
-  `QuoteAttribute.cs`, `SyntaxBuilderAttribute.cs`, `Syntax.cs`, `SyntoBuilders.cs`,
-  plus the [decoration](/subsystems/decorations.md) attributes.
+- `src/Synto/Templating/` — the template consumer surface, now grouped: `Definition/`
+  (`TemplateAttribute.cs`, `QuoteAttribute.cs`), `Staging/` (`Template.Parameter.cs`,
+  `UnquoteAttribute.cs`, `SpliceAttribute.cs`, `Syntax.cs`), `Builders/`
+  (`SyntaxBuilderAttribute.cs`, `SyntoBuilders.cs`), and `Decorations/`
+  ([decoration](/subsystems/decorations.md) attributes).
 - `src/Synto/Matching/` — the [matching](/subsystems/matching.md) consumer surface.
-- `src/Synto/*SyntaxExtensions.cs`, `Formatting/SyntaxFormatter.cs`,
-  `UsingDirectiveSet.cs` — the [quoting](/subsystems/quoting.md) helper layer.
+- `src/Synto/Syntax/*SyntaxExtensions.cs`, `Formatting/SyntaxFormatter.cs`,
+  `Emit/UsingDirectiveSet.cs` — the [quoting](/subsystems/quoting.md) helper layer.
 
 # Entry points
 
-- Quoter: `src/Synto/CSharpSyntaxQuoter.cs:204`.
+- Quoter: `src/Synto/Quoting/CSharpSyntaxQuoter.cs:204`.
 - Lift helper most generated code calls: `.ToSyntax()` in
-  `src/Synto/LiteralSyntaxExtensions.cs`.
+  `src/Synto/Syntax/LiteralSyntaxExtensions.cs`.
 
 # Invariants
 

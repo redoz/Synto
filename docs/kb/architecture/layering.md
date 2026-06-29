@@ -39,8 +39,8 @@ Synto.Bootstrap ───────┘    (links a few source files, see boots
   consumer of a generated factory does **not** transitively pick up the runtime
   as a public dependency.
 - `Synto.Bootstrap` does not project-reference the runtime; it *links* a few
-  source files (`LiteralSyntaxExtensions.cs`, `UsingDirectiveSet.cs`,
-  `SyntaxFormatter.cs`) — see `src/Synto.Bootstrap/Synto.Bootstrap.csproj:12-15`.
+  source files (`Syntax/LiteralSyntaxExtensions.cs`, `Emit/UsingDirectiveSet.cs`,
+  `Formatting/SyntaxFormatter.cs`) — see `src/Synto.Bootstrap/Synto.Bootstrap.csproj:12-15`.
 
 # Invariants
 

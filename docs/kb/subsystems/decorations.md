@@ -4,7 +4,7 @@ title: Decorations
 description: Post-quote declaration markers that modify a quoted declaration's identifier, visibility, sealed-ness, and base types.
 resource: src/Synto/Templating
 project: projects/synto-runtime
-entrypoints: ["src/Synto/Templating/IdentifierAttribute.cs:6"]
+entrypoints: ["src/Synto/Templating/Decorations/IdentifierAttribute.cs:6"]
 tags: [decorations, declarations, templating]
 timestamp: 2026-06-28T00:00:00Z
 ---
@@ -20,16 +20,16 @@ performs the post-quote rewrite.
 
 | Marker | Attribute | Extension | Purpose |
 |--------|-----------|-----------|---------|
-| Identifier | `Templating/IdentifierAttribute.cs:6` | `IdentifierAttributeExtensions.cs:8` | Rename declaration (+ its constructors). |
-| Visibility | `Templating/VisibilityAttribute.cs:6` | `VisibilityAttributeExtensions.cs:11` | Set access modifiers (via `Access`). |
-| Sealed | `Templating/SealedAttribute.cs:6` | `SealedAttributeExtensions.cs:9` | Add the `sealed` keyword. |
-| Implements | `Templating/ImplementsAttribute.cs:6` | `ImplementsAttributeExtensions.cs:8` | Add an interface base type (repeatable). |
-| Inherits | `Templating/InheritsAttribute.cs:6` | `InheritsAttributeExtensions.cs:8` | Add a base class (prepended). |
+| Identifier | `Templating/Decorations/IdentifierAttribute.cs:6` | `Decorations/IdentifierAttributeExtensions.cs:8` | Rename declaration (+ its constructors). |
+| Visibility | `Templating/Decorations/VisibilityAttribute.cs:6` | `Decorations/VisibilityAttributeExtensions.cs:11` | Set access modifiers (via `Access`). |
+| Sealed | `Templating/Decorations/SealedAttribute.cs:6` | `Decorations/SealedAttributeExtensions.cs:9` | Add the `sealed` keyword. |
+| Implements | `Templating/Decorations/ImplementsAttribute.cs:6` | `Decorations/ImplementsAttributeExtensions.cs:8` | Add an interface base type (repeatable). |
+| Inherits | `Templating/Decorations/InheritsAttribute.cs:6` | `Decorations/InheritsAttributeExtensions.cs:8` | Add a base class (prepended). |
 
-- `Templating/Access.cs:3` — the `Access` enum: `Public`, `Internal`, `Private`,
+- `Templating/Decorations/Access.cs:3` — the `Access` enum: `Public`, `Internal`, `Private`,
   `Protected`, `ProtectedInternal`, `PrivateProtected`, `File`.
 
-(Extensions live at the `src/Synto/` root; attributes under `src/Synto/Templating/`.)
+(Extensions live under `src/Synto/Decorations/`; marker attributes under `src/Synto/Templating/Decorations/`.)
 
 # Invariants
 

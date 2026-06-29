@@ -87,13 +87,13 @@ which skips foreign child subtrees in `VisitMethodDeclaration`.
 
 # Consumer surface (in `src/Synto/Templating/`)
 
-- `[Template]` — `TemplateAttribute.cs:6` (Method | Class | Struct; `Options` for Bare/Single).
-- `[Unquote]` — `UnquoteAttribute.cs` (param/type; lifts, **may drive** control).
-- `[Quote]` — `QuoteAttribute.cs` (param-only; lifts, **never** drives control).
-- `[Splice]` — `SpliceAttribute.cs` (param/type/method; verbatim, no lift).
-- `[SyntaxBuilder]` + `[Quoted]` + `[ReturnType]` — facade builders.
-- `[Runtime]` — `RuntimeAttribute.cs` (marks a class exposing `ToSyntax(this T)` for custom-type lifts).
-- Inline facades on `Template` (`Template.Parameter.cs`): `Parameter<T>()` (`:22`),
+- `[Template]` — `Definition/TemplateAttribute.cs:6` (Method | Class | Struct; `Options` for Bare/Single).
+- `[Unquote]` — `Staging/UnquoteAttribute.cs` (param/type; lifts, **may drive** control).
+- `[Quote]` — `Definition/QuoteAttribute.cs` (param-only; lifts, **never** drives control).
+- `[Splice]` — `Staging/SpliceAttribute.cs` (param/type/method; verbatim, no lift).
+- `[SyntaxBuilder]` + `[Quoted]` + `[ReturnType]` — facade builders (`Builders/`).
+- `[Runtime]` — `Staging/RuntimeAttribute.cs` (marks a class exposing `ToSyntax(this T)` for custom-type lifts).
+- Inline facades on `Template` (`Staging/Template.Parameter.cs`): `Parameter<T>()` (`:22`),
   `Unquote<T>()` (`:34`), `Quote<T>()` (`:48`), `Splice()` (`:59`), `Member<T>()`
   (`:71`), `TypeOf()` (`:80`) — all inert (`=> default!`), recognized by binding.
 

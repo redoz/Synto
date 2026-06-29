@@ -33,7 +33,7 @@ mechanism is in [bootstrap loop](/architecture/bootstrap.md).
 # Invariants
 
 - The committed `CSharpSyntaxQuoter.Generated.cs` **must stay in sync** with what
-  the generator emits; a snapshot test (`src/Synto/CSharpSyntaxQuoter.cs:11-18`)
+  the generator emits; a snapshot test (`src/Synto/Quoting/CSharpSyntaxQuoter.cs:11-18`)
   guards drift.
 - Ships as an analyzer in the runtime's build, not to consumers.
 

@@ -18,8 +18,8 @@ the most common orientation stumble in the repo.
 
 1. The runtime quoter base is hand-authored:
    `CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>` at
-   `src/Synto/CSharpSyntaxQuoter.cs:21`, with the concrete partial at
-   `src/Synto/CSharpSyntaxQuoter.cs:204`.
+   `src/Synto/Quoting/CSharpSyntaxQuoter.cs:21`, with the concrete partial at
+   `src/Synto/Quoting/CSharpSyntaxQuoter.cs:204`.
 2. The **other half** — a `Visit` method for every Roslyn `SyntaxKind` — is
    generated into `src/Synto/.../generated/.../CSharpSyntaxQuoter.cs` by
    `Synto.Bootstrap`'s generator, then mirrored into the committed
@@ -45,7 +45,7 @@ runtime quoter is what every other subsystem ([templating](/subsystems/templatin
 
 - **The committed `CSharpSyntaxQuoter.Generated.cs` must stay in sync** with what
   the generator would emit. Drift is caught by a snapshot test referenced at
-  `src/Synto/CSharpSyntaxQuoter.cs:11-18`. When the runtime quoter's surface
+  `src/Synto/Quoting/CSharpSyntaxQuoter.cs:11-18`. When the runtime quoter's surface
   changes, the generated half is regenerated and re-committed.
 - `Synto.Bootstrap` runs **only during Synto's own build** — it is not part of
   the consumer-facing generator set.
