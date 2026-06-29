@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -22,6 +21,11 @@ internal sealed class TemplateSyntaxQuoter : CSharpSyntaxQuoter
     // ITypeSymbol/SemanticModel leaks into cached pipeline state); empty when no template-body string holes occur.
     private readonly IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> _stringStagedRoots;
 
+    // Interpolation staged-fold subsystem (spec 2026-06-28). Constructed with this quoter's own Visit (synchronous
+    // re-entry) and the base array-literal builder as callbacks — a local delegate, never a captured closure
+    // outliving the transform.
+    private readonly InterpolationFold _interpolationFold;
+
 
     public TemplateSyntaxQuoter(
         SemanticModel semanticModel,
@@ -36,6 +40,7 @@ internal sealed class TemplateSyntaxQuoter : CSharpSyntaxQuoter
         _trimNodes = trimNodes;
         _memberSegments = memberSegments ?? new Dictionary<SyntaxNode, ExpressionSyntax>();
         _stringStagedRoots = stringStagedRoots ?? new Dictionary<SyntaxNode, ExpressionSyntax>();
+        _interpolationFold = new InterpolationFold(_stringStagedRoots, Visit, ToArrayLiteral);
     }
 
     public override ExpressionSyntax? Visit(SyntaxNode? node)
@@ -66,7 +71,7 @@ internal sealed class TemplateSyntaxQuoter : CSharpSyntaxQuoter
         // runs requires seeing the sibling text nodes, which a per-hole override never receives. Every
         // non-foldable list (and every interpolated string with no foldable hole) defers to the base behavior.
         if (typeof(TNode) == typeof(InterpolatedStringContentSyntax)
-            && TryFoldInterpolatedContents((SyntaxList<InterpolatedStringContentSyntax>)(object)nodeList, out var foldedContents))
+            && _interpolationFold.TryFoldInterpolatedContents((SyntaxList<InterpolatedStringContentSyntax>)(object)nodeList, out var foldedContents))
         {
             return foldedContents;
         }
@@ -106,152 +111,5 @@ internal sealed class TemplateSyntaxQuoter : CSharpSyntaxQuoter
                     GenericName(Identifier(nameof(CollectionSyntaxExtensions.BuildList)))
                         .WithTypeArgumentList(TypeArgumentList(SingletonSeparatedList(elementType)))))
             .WithArgumentList(ArgumentList(SeparatedList(arguments)));
-    }
-
-    /// <summary>
-    /// Folds bare staged-string interpolation holes in a regular <c>$"…"</c> string's contents list into their
-    /// flanking literal text. Returns <see langword="false"/> (defer to base) when there is nothing to fold:
-    /// no string staged roots, a verbatim/raw interpolated string, or no foldable hole present. v1 scope:
-    /// only a hole whose expression is a string staged root with NO alignment and NO format clause inside a
-    /// regular interpolated string.
-    /// </summary>
-    private bool TryFoldInterpolatedContents(SyntaxList<InterpolatedStringContentSyntax> contents, out ExpressionSyntax result)
-    {
-        result = null!;
-
-        if (_stringStagedRoots.Count == 0 || contents.Count == 0)
-            return false;
-
-        // Regular `$"…"` only — defer verbatim (`$@"…"`) and raw (`$"""…"""`) interpolated strings to base.
-        if (contents[0].Parent is not InterpolatedStringExpressionSyntax owner
-            || !owner.StringStartToken.IsKind(SyntaxKind.InterpolatedStringStartToken))
-            return false;
-
-        bool anyFold = false;
-        foreach (var content in contents)
-        {
-            if (content is InterpolationSyntax interpolation && IsFoldableHole(interpolation))
-            {
-                anyFold = true;
-                break;
-            }
-        }
-
-        if (!anyFold)
-            return false;
-
-        // Rebuild the contents: a maximal run of literal text + foldable holes (bounded by runtime/non-foldable
-        // holes or the string ends) fuses into ONE InterpolatedStringText token; runtime holes break the run and
-        // are emitted unchanged via the base per-node quoting.
-        var output = new List<ExpressionSyntax>();
-        var group = new List<InterpolatedStringContentSyntax>();
-        bool groupHasFold = false;
-
-        void Flush()
-        {
-            if (group.Count == 0)
-                return;
-
-            if (groupHasFold)
-            {
-                output.Add(BuildFusedText(group));
-            }
-            else
-            {
-                foreach (var node in group)
-                    if (Visit(node) is { } quoted)
-                        output.Add(quoted);
-            }
-
-            group.Clear();
-            groupHasFold = false;
-        }
-
-        foreach (var content in contents)
-        {
-            if (content is InterpolationSyntax interpolation && IsFoldableHole(interpolation))
-            {
-                group.Add(content);
-                groupHasFold = true;
-            }
-            else if (content is InterpolatedStringTextSyntax)
-            {
-                group.Add(content);
-            }
-            else
-            {
-                // A runtime / non-foldable interpolation: flush the pending run, then emit it unchanged.
-                Flush();
-                if (Visit(content) is { } quoted)
-                    output.Add(quoted);
-            }
-        }
-
-        Flush();
-
-        // Mirror the base SyntaxList quoting wrapper exactly: new List<InterpolatedStringContentSyntax>(new[] { … }).
-        TypeSyntax elementType = ParseTypeName(typeof(InterpolatedStringContentSyntax).Name);
-        result = InvocationExpression(
-            GenericName(Identifier(nameof(List)), TypeArgumentList(SingletonSeparatedList(elementType))),
-            ArgumentList(SingletonSeparatedList(Argument(ToArrayLiteral(output, elementType)))));
-        return true;
-    }
-
-    private bool IsFoldableHole(InterpolationSyntax interpolation)
-        => interpolation.AlignmentClause is null
-           && interpolation.FormatClause is null
-           && _stringStagedRoots.ContainsKey(interpolation.Expression);
-
-    /// <summary>
-    /// Builds the single fused <c>InterpolatedStringText(Token(TriviaList(), InterpolatedStringTextToken, …, …,
-    /// TriviaList()))</c> for a run of literal-text and foldable-hole content. The token's TEXT is the escaped
-    /// concatenation (literal runs verbatim, each hole as <c>accessor.ToInterpolatedText()</c>); its VALUE-TEXT is
-    /// the decoded concatenation (literal value-text, each hole as the raw <c>accessor</c>).
-    /// </summary>
-    private ExpressionSyntax BuildFusedText(List<InterpolatedStringContentSyntax> group)
-    {
-        ExpressionSyntax? textExpr = null;
-        ExpressionSyntax? valueExpr = null;
-
-        static void Append(ref ExpressionSyntax? accumulator, ExpressionSyntax piece)
-            => accumulator = accumulator is null
-                ? piece
-                : BinaryExpression(SyntaxKind.AddExpression, accumulator, piece);
-
-        foreach (var item in group)
-        {
-            if (item is InterpolatedStringTextSyntax text)
-            {
-                Append(ref textExpr, LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(text.TextToken.Text)));
-                Append(ref valueExpr, LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(text.TextToken.ValueText)));
-            }
-            else if (item is InterpolationSyntax interpolation)
-            {
-                ExpressionSyntax accessor = _stringStagedRoots[interpolation.Expression];
-                Append(ref textExpr, InvocationExpression(
-                    MemberAccessExpression(
-                        SyntaxKind.SimpleMemberAccessExpression,
-                        accessor,
-                        IdentifierName(nameof(InterpolationSyntaxExtensions.ToInterpolatedText)))));
-                Append(ref valueExpr, accessor);
-            }
-        }
-
-        textExpr ??= LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(string.Empty));
-        valueExpr ??= LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(string.Empty));
-
-        return InvocationExpression(
-            IdentifierName(nameof(InterpolatedStringText)),
-            ArgumentList(SingletonSeparatedList(Argument(
-                InvocationExpression(
-                    IdentifierName(nameof(Token)),
-                    ArgumentList(SeparatedList(new[]
-                    {
-                        Argument(InvocationExpression(IdentifierName(nameof(TriviaList)))),
-                        Argument(IdentifierName(nameof(SyntaxKind.InterpolatedStringTextToken))),
-                        Argument(textExpr),
-                        Argument(valueExpr),
-                        Argument(InvocationExpression(IdentifierName(nameof(TriviaList)))),
-                    })))))));
     }
 }
