@@ -34,42 +34,38 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
     public DiagnosticInfo? Error { get; private set; }
 
     public override void VisitMethodDeclaration(MethodDeclarationSyntax node)
+        => VisitMethodLike(node, node.Body, node.ExpressionBody);
+
+    public override void VisitLocalFunctionStatement(LocalFunctionStatementSyntax node)
+        => VisitMethodLike(node, node.Body, node.ExpressionBody);
+
+    /// <summary>
+    /// Shared selection for the two method-shaped carriers (a <c>[Template]</c> method and a local function):
+    /// in <c>Bare</c> mode quote the block body (or the expression body's expression); otherwise quote the whole
+    /// declaration node.
+    /// </summary>
+    private void VisitMethodLike(SyntaxNode node, BlockSyntax? body, ArrowExpressionClauseSyntax? expressionBody)
     {
         if (_template.Options.HasFlag(TemplateOption.Bare))
         {
-            if (node.Body is not null)
-                VisitMethodBody(node.Body);
-            else if (node.ExpressionBody is not null)
+            if (body is not null)
+                VisitMethodBody(body);
+            else if (expressionBody is not null)
             {
-                Expression = _quoter.Visit(node.ExpressionBody.Expression);
-                ReturnType = SyntaxFactory.ParseTypeName(node.ExpressionBody.Expression.GetType().FullName!);
+                Expression = _quoter.Visit(expressionBody.Expression);
+                ReturnType = TypeNameOf(expressionBody.Expression);
             }
         }
         else
         {
             Expression = _quoter.Visit(node);
-            ReturnType = SyntaxFactory.ParseTypeName(node.GetType().FullName!);
+            ReturnType = TypeNameOf(node);
         }
     }
 
-    public override void VisitLocalFunctionStatement(LocalFunctionStatementSyntax node)
-    {
-        if (_template.Options.HasFlag(TemplateOption.Bare))
-        {
-            if (node.Body is not null)
-                VisitMethodBody(node.Body);
-            else if (node.ExpressionBody is not null)
-            {
-                Expression = _quoter.Visit(node.ExpressionBody.Expression);
-                ReturnType = SyntaxFactory.ParseTypeName(node.ExpressionBody.Expression.GetType().FullName!);
-            }
-        }
-        else
-        {
-            Expression = _quoter.Visit(node);
-            ReturnType = SyntaxFactory.ParseTypeName(node.GetType().FullName!);
-        }
-    }
+    /// <summary>The <c>ParseTypeName(node.GetType().FullName!)</c> idiom: the fully-qualified Roslyn type of a node.</summary>
+    private static TypeSyntax TypeNameOf(SyntaxNode node)
+        => SyntaxFactory.ParseTypeName(node.GetType().FullName!);
 
     private void VisitMethodBody(BlockSyntax body)
     {
@@ -84,7 +80,7 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
             if (body.Statements.Count == 1)
             {
                 Expression = _quoter.Visit(body.Statements[0]);
-                ReturnType = SyntaxFactory.ParseTypeName(body.Statements[0].GetType().FullName!);
+                ReturnType = TypeNameOf(body.Statements[0]);
             }
             else
             {
@@ -127,7 +123,7 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
                 if (node.Members.Count == 1)
                 {
                     Expression = _quoter.Visit(node.Members[0]);
-                    ReturnType = SyntaxFactory.ParseTypeName(node.Members[0].GetType().FullName!);
+                    ReturnType = TypeNameOf(node.Members[0]);
                 }
                 else
                 {
@@ -144,7 +140,7 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
         else
         {
             Expression = _quoter.Visit(node);
-            ReturnType = SyntaxFactory.ParseTypeName(node.GetType().FullName!);
+            ReturnType = TypeNameOf(node);
         }
     }
 
