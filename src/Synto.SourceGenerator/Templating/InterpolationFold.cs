@@ -11,8 +11,8 @@ namespace Synto;
 /// Interpolation staged-fold subsystem (spec 2026-06-28). Folds bare staged-string interpolation holes in a
 /// regular <c>$"…"</c> string's contents list into their flanking literal text, so a foldable hole's escaped value
 /// (<c>label.ToInterpolatedText()</c>) is fused into the surrounding literal token instead of being re-emitted as a
-/// runtime hole. Driven by <see cref="TemplateSyntaxQuoter"/>, which passes its own <c>Visit</c> (synchronous
-/// re-entry) and array-literal builder as callbacks — no captured closure outlives the transform. Pure
+/// runtime hole. Driven by <see cref="InterpolationFoldMiddleware"/>, which passes the engine's <c>Quote</c>
+/// (synchronous re-entry) and array-literal builder as callbacks — no captured closure outlives the transform. Pure
 /// transform-internal helper; nothing captured into pipeline state.
 /// </summary>
 internal sealed class InterpolationFold

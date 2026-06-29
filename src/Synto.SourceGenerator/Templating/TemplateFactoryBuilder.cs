@@ -776,7 +776,7 @@ internal static class TemplateFactoryBuilder
             // A fresh quoter for the [Quoted] islands inside builder arguments: it carries the lifts collected
             // so far (inline/syntax/live parameter replacements) so an island that references a lifted value
             // quotes correctly. It never descends into a builder invocation (those are not yet in the map).
-            var islandQuoter = new TemplateSyntaxQuoter(semanticModel, ctx.UnquotedReplacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: ctx.StringStagedRoots);
+            var islandQuoter = TemplateQuoterFactory.Create(ctx.UnquotedReplacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: ctx.StringStagedRoots);
 
             foreach (var call in builderResult.Calls)
             {
@@ -876,7 +876,7 @@ internal static class TemplateFactoryBuilder
     // [Splice] member generators: emit each valid generator's body VERBATIM as a factory-time local function
     // (its Parameter<>() declarations dropped — those fold into the factory parameters above and are in scope
     // as captured factory parameters), and record the member segment it contributes to its enclosing type's
-    // member list (TemplateSyntaxQuoter splices it via BuildList<MemberDeclarationSyntax> at the generator's
+    // member list (MemberSegmentMiddleware splices it via BuildList<MemberDeclarationSyntax> at the generator's
     // declaration position).
     private static void EmitSpliceMemberGenerators(TemplateBuildContext ctx)
     {
@@ -895,14 +895,13 @@ internal static class TemplateFactoryBuilder
 
         var prunableNodes = BranchPruneIdentifier.FindPrunableNodes(ctx.TrimNodes, ctx.TemplateInfo.Source!.Syntax);
 
-        TemplateSyntaxQuoter quoter = new(
-            semanticModel,
+        var quoter = TemplateQuoterFactory.Create(
             ctx.UnquotedReplacements,
             prunableNodes,
             includeTrivia: ctx.Options.HasFlag(TemplateOption.PreserveTrivia),
             memberSegments: ctx.SpliceMemberSegments,
             stringStagedRoots: ctx.StringStagedRoots,
-            postQuoteHooks: ctx.DecorationHooks);
+            decorationHooks: ctx.DecorationHooks);
 
 
         if (!TemplateSyntaxQuoterInvoker.TryQuote(

@@ -10,7 +10,7 @@ namespace Synto;
 /// <summary>
 /// Model struct carrying one post-quote decoration hook: the name of the helper method to invoke
 /// on the quoted node expression and the argument expressions to pass. Populated by
-/// <see cref="DecorationFinder"/> (Task 4) and consumed by <see cref="TemplateSyntaxQuoter"/>.
+/// <see cref="DecorationFinder"/> (Task 4) and consumed by <see cref="DecorationMiddleware"/>.
 /// </summary>
 internal readonly struct AppliedDecoration
 {

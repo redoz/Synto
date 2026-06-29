@@ -51,34 +51,9 @@ public class DecorationTests
         Assert.Contains("internal sealed class InheritsAttribute<TBase>", allGeneratedSource, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Quoter_FoldsPostQuoteHook_OntoNodeQuote()
-    {
-        var tree = CSharpSyntaxTree.ParseText("class Foo {}");
-        var compilation = CSharpCompilation.Create("c",
-            new[] { tree },
-            references:
-            [
-                CorlibReference,
-                NetStandardReference,
-                SystemRuntimeReference,
-            ],
-            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-        var model = compilation.GetSemanticModel(tree);
-        var node = tree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().First();
-
-        var hooks = new Dictionary<SyntaxNode, ImmutableArray<AppliedDecoration>>
-        {
-            [node] = ImmutableArray.Create(new AppliedDecoration(
-                "ApplySealedAttribute", ImmutableArray<ExpressionSyntax>.Empty)),
-        };
-        var quoter = new TemplateSyntaxQuoter(model,
-            new Dictionary<SyntaxNode, ExpressionSyntax>(), new HashSet<SyntaxNode>(),
-            includeTrivia: false, postQuoteHooks: hooks);
-
-        var expr = quoter.Visit(node);
-        Assert.Contains("ApplySealedAttribute()", expr!.ToString());
-    }
+    // Post-quote hook folding (the decoration feature's quoter branch) is covered at the engine level by
+    // QuoteMiddlewareTest.Decoration_WrapsBaseQuote_InChainedInvocation, exercising DecorationMiddleware over
+    // the MiddlewareSyntaxQuoter engine that replaced the dissolved TemplateSyntaxQuoter.
 
     // ----- Task 4: decoration round-trip through the factory generator -------------------------------
     // A carrier marked with each decoration marker runs through TemplateFactorySourceGenerator; the

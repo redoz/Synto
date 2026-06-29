@@ -12,7 +12,7 @@ namespace Synto;
 /// region's owning container block is keyed in <c>unquotedReplacements</c> to a
 /// <c>Block(BuildList(Run(run), &lt;fixed siblings&gt;...))</c> — so the quoter never descends into the region
 /// (the map hit returns the precomputed expression). Each quoted island is produced by a fresh
-/// <see cref="TemplateSyntaxQuoter"/> whose map lifts every maximal purely-live subexpression via
+/// <see cref="MiddlewareSyntaxQuoter{TContext}"/> (built by <see cref="TemplateQuoterFactory"/>) whose map lifts every maximal purely-live subexpression via
 /// <c>.ToSyntax()</c>. Runs entirely inside the generator transform; nothing captured into pipeline state.
 /// </summary>
 internal static class StagedRegionEmitter
@@ -64,7 +64,7 @@ internal static class StagedRegionEmitter
                 {
                     // A fixed quoted sibling of the region (e.g. a trailing throw): quote it verbatim and add it
                     // as a single-node segment (implicit TNode -> ListSegment conversion).
-                    var fixedQuoter = new TemplateSyntaxQuoter(semanticModel, baseReplacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: stringStagedRoots);
+                    var fixedQuoter = TemplateQuoterFactory.Create(baseReplacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: stringStagedRoots);
                     if (fixedQuoter.Visit(statement) is { } quote)
                         segments.Add(quote);
                 }
