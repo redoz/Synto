@@ -51,7 +51,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
         try
         {
-            if (ValidateTemplate(diagnostics, assemblyName, templateInfo)
+            if (TemplateValidator.Validate(diagnostics, assemblyName, templateInfo)
                 && TemplateDocumentBuilder.Build(
                     diagnostics,
                     templateInfo,
@@ -80,50 +80,6 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             context.AddSource(result.FileName, SourceText.From(result.Source, Encoding.UTF8));
     }
 
-
-    private static bool ValidateTemplate(List<DiagnosticInfo> diagnostics, string assemblyName, TemplateInfo template)
-    {
-        if (template.Target.Type.DeclaringSyntaxReferences.FirstOrDefault() is not { } syntaxRef)
-        {
-            diagnostics.Add(Diagnostics.TargetNotDeclaredInSource(template.Target, assemblyName));
-            return false;
-        }
-
-        if (syntaxRef.GetSyntax() is not ClassDeclarationSyntax classSyntax)
-        {
-            diagnostics.Add(Diagnostics.TargetNotClass(template.Target));
-            return false;
-        }
-
-        if (!classSyntax.Modifiers.Any(SyntaxKind.PartialKeyword))
-        {
-            diagnostics.Add(Diagnostics.TargetNotPartial(template.Target));
-            return false;
-        }
-
-        bool EnsureAncestryIsPartial(ClassDeclarationSyntax classDeclarationSyntax)
-        {
-            bool ret = true;
-            var parent = classDeclarationSyntax.Parent;
-            while (parent is ClassDeclarationSyntax parentClass)
-            {
-                if (!parentClass.Modifiers.Any(SyntaxKind.PartialKeyword))
-                {
-                    diagnostics.Add(Diagnostics.TargetAncestorNotPartial(template.Target, parentClass.Identifier.Text));
-                    ret = false;
-                }
-
-                parent = parentClass.Parent;
-            }
-
-            return ret;
-        }
-
-        if (!EnsureAncestryIsPartial(classSyntax))
-            return false;
-
-        return true;
-    }
 
     private static MethodDeclarationSyntax? CreateSyntaxFactoryMethod(
         List<DiagnosticInfo> diagnostics,
