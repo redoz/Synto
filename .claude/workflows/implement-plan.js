@@ -64,9 +64,9 @@ const SCRIPTS_DIR = REPO_DIR + '/.claude/scripts'
 const INTEGRATE_SH = SCRIPTS_DIR + '/integrate.sh' // mechanical, LLM-free per-unit integration onto bookmark B
 const CONTEXT_FILL = SCRIPTS_DIR + '/context-fill.py' // reads the agent's own transcript -> rotation verdict (exit 10)
 
-// Rotation cap: an ABSOLUTE context-token quality-zone cap (~17% of a 1M window), not a window fraction — model
+// Rotation cap: an ABSOLUTE context-token quality-zone cap (~10% of a 1M window), not a window fraction — model
 // sharpness degrades long before the window fills, and the still-sharp zone is ~absolute, not a percentage.
-const ROTATE_MAX_TOKENS = 175000
+const ROTATE_MAX_TOKENS = 100000
 
 // Backstops on the generation loop. The no-progress guard (a generation that lands no NEW Plan-Tasks trailer parks)
 // already bounds it to <= one generation per unit; the cap is a defensive net against a pathological loop.
