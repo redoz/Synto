@@ -100,7 +100,7 @@ internal sealed class MatchContext
     /// <summary>
     /// The cheap companion-predicate body: a boolean expression over <c>node</c> equal to the matcher's
     /// top-level type/kind/shape gate (C-FM1 superset). Each dispatch branch sets it to the SAME guard it
-    /// roots the matcher on; <see cref="MatchEmitter.Compose"/> emits <c>{Name}CouldMatch</c> from it.
+    /// roots the matcher on; <see cref="MatchComposer.Compose"/> emits <c>{Name}CouldMatch</c> from it.
     /// </summary>
     public string? CouldMatchGuard { get; set; }
 

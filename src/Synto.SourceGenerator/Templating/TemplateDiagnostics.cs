@@ -5,7 +5,8 @@ namespace Synto;
 
 internal static class TemplateDiagnostics
 {
-    private const string IdPrefix = "SY";
+    // Single source of truth for the diagnostic id prefix lives on the root Diagnostics registry.
+    private const string IdPrefix = Diagnostics.IdPrefix;
 
     private static readonly DiagnosticDescriptor _bareSourceCannotBeEmpty = new(IdPrefix + "1005",
                                                                             "Invalid Source",

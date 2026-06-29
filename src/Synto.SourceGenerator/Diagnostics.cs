@@ -8,7 +8,7 @@ internal static class Diagnostics
 {
 
 
-    private const string IdPrefix = "SY";
+    internal const string IdPrefix = "SY";
 
     private static readonly DiagnosticDescriptor _internalError = new(IdPrefix + "0000",
                                                                     "Internal Error",
