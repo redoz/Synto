@@ -14,7 +14,7 @@ for the full picture.
 |------|----------------|-----------|
 | **Quote** | `src/Synto/Quoting/CSharpSyntaxQuoter.cs:21` | Turn a syntax tree into the C# expression that rebuilds it. See [quoting](/subsystems/quoting.md). |
 | **Template** | `src/Synto/Templating/Definition/TemplateAttribute.cs:6` | `[Template(typeof(Target))]` on a method/class/struct; generator completes it into a factory. See [templating](/subsystems/templating.md). |
-| **Staged / binding-time** | `src/Synto.SourceGenerator/Templating/BindingTimeClassifier.cs` | Split of a template body into `Quoted` (emitted as output syntax) vs live (`Unquote`/`Parameter`, computed at factory-build time; control flow over live data is unrolled). |
+| **Staged / binding-time** | `src/Synto.SourceGenerator/Templating/Analysis/BindingTimeClassifier.cs` | Split of a template body into `Quoted` (emitted as output syntax) vs live (`Unquote`/`Parameter`, computed at factory-build time; control flow over live data is unrolled). |
 | **Unquote** | `src/Synto/Templating/Staging/UnquoteAttribute.cs` | Value/type supplied at invocation, lifted into syntax at factory time; **may drive** staged control. Inline form: `Template.Unquote<T>(expr)`. |
 | **Quote (param)** | `src/Synto/Templating/Definition/QuoteAttribute.cs` | Like Unquote but **never** drives control — the enclosing loop/condition stays a runtime construct. Inline form: `Template.Quote<T>(value)`. |
 | **Splice** | `src/Synto/Templating/Staging/SpliceAttribute.cs` | Pre-built `ExpressionSyntax`/`TypeSyntax` inserted verbatim (no evaluation); also marks member-generator methods. Inline form: `Template.Splice(node)`. |

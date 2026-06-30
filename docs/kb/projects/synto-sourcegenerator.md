@@ -18,25 +18,25 @@ marker surface post-init.
 
 # Key files
 
-- `Templating/TemplateFactorySourceGenerator.cs:17` — `[Template]` → factory; thin
+- `Templating/Pipeline/TemplateFactorySourceGenerator.cs:17` — `[Template]` → factory; thin
   `[Generator]` shell (~83 LOC after the 2026-06-29 decomposition) over the
   [templating pipeline](/subsystems/templating.md).
-- `Templating/TemplateFactoryBuilder.cs:24` (ordered build steps), `TemplateBuildContext.cs`
-  (accumulator), `TemplateDocumentBuilder.cs:22` (assembly), `TemplateValidator.cs:18`,
-  `ValueLift.cs:16`, `SpliceMemberGeneratorEmitter.cs:24` — the carved templating core.
-- `Templating/*Finder.cs`, `BindingTimeClassifier.cs`, `TemplateScope.cs`,
-  `TemplateQuoterFactory.cs:19` + `Templating/Middleware/` (+ `InterpolationFold.cs`), and the staging family
-  (`StagedRegionEmitter.cs:20`, `StagedRegionFinder.cs`, `StagedLivenessAnalysis.cs`,
-  `StagedEmitContext.cs`, `StagedScaffoldBuilder.cs:19`) — the templating machinery.
-- `Templating/FacadeCallFinder.cs:19` / `SyntaxBuilderRegistry.cs:17` / `FacadeArgumentBinder.cs:16`
-  / `BuilderCallModel.cs` — syntax-builder facade resolution.
-- `Templating/TemplateDiagnostics.cs:6` (SY1005–1021), `Diagnostics.cs` (shared SY0000/SY1001–4),
-  `SymbolMetadataExtensions.cs:9` (shared attribute reads).
-- `Matching/MatchFactorySourceGenerator.cs:20` — `[Match<T>]` → matcher; emit decomposed
+- `Templating/Pipeline/TemplateFactoryBuilder.cs:24` (ordered build steps), `Templating/Pipeline/TemplateBuildContext.cs`
+  (accumulator), `Templating/Pipeline/TemplateDocumentBuilder.cs:22` (assembly), `Templating/Pipeline/TemplateValidator.cs:18`,
+  `Templating/Lifting/ValueLift.cs:16`, `Templating/Staging/SpliceMemberGeneratorEmitter.cs:24` — the carved templating core.
+- `Templating/Discovery/*Finder.cs`, `Templating/Analysis/BindingTimeClassifier.cs`, `Templating/Pipeline/TemplateScope.cs`,
+  `Templating/Quoting/TemplateQuoterFactory.cs:19` + `Templating/Quoting/Middleware/` (+ `Templating/Quoting/InterpolationFold.cs`), and the staging family
+  (`Templating/Staging/StagedRegionEmitter.cs:20`, `Templating/Discovery/StagedRegionFinder.cs`, `Templating/Analysis/StagedLivenessAnalysis.cs`,
+  `Templating/Staging/StagedEmitContext.cs`, `Templating/Staging/StagedScaffoldBuilder.cs:19`) — the templating machinery.
+- `Templating/Discovery/FacadeCallFinder.cs:19` / `Templating/Builders/SyntaxBuilderRegistry.cs:17` / `Templating/Builders/FacadeArgumentBinder.cs:16`
+  / `Templating/Builders/BuilderCallModel.cs` — syntax-builder facade resolution.
+- `Templating/Diagnostics/TemplateDiagnostics.cs:6` (SY1005–1021), `Shared/Diagnostics.cs` (shared SY0000/SY1001–4),
+  `Shared/SymbolMetadataExtensions.cs:9` (shared attribute reads).
+- `Matching/Pipeline/MatchFactorySourceGenerator.cs:20` — `[Match<T>]` → matcher; emit decomposed
   into `MatchEmitter`/`MatchNodeWalker`/`MatchRunAligner`/`MatchComposer`. See
   [matching](/subsystems/matching.md).
-- `Templating/SyntaxBuilderFacadeGenerator.cs:20` — `[SyntaxBuilder]` → facades.
-- `SurfaceInjectionGenerator.cs:58` — post-init injection of the internal markers.
+- `Templating/Builders/SyntaxBuilderFacadeGenerator.cs:20` — `[SyntaxBuilder]` → facades.
+- `Shared/SurfaceInjectionGenerator.cs:58` — post-init injection of the internal markers.
 
 # Entry points
 

@@ -21,10 +21,10 @@ All Synto generators are `IIncrementalGenerator`s with an
 
 | Generator | File:Line | Trigger |
 |-----------|-----------|---------|
-| `TemplateFactorySourceGenerator` | `src/Synto.SourceGenerator/Templating/TemplateFactorySourceGenerator.cs:17` | `[Template]` (`ForAttributeWithMetadataName`) |
-| `MatchFactorySourceGenerator` | `src/Synto.SourceGenerator/Matching/MatchFactorySourceGenerator.cs:20` | `[Match<T>]` |
-| `SyntaxBuilderFacadeGenerator` | `src/Synto.SourceGenerator/Templating/SyntaxBuilderFacadeGenerator.cs:20` | `[SyntaxBuilder]` |
-| `SurfaceInjectionGenerator` | `src/Synto.SourceGenerator/SurfaceInjectionGenerator.cs:58` | post-init marker injection |
+| `TemplateFactorySourceGenerator` | `src/Synto.SourceGenerator/Templating/Pipeline/TemplateFactorySourceGenerator.cs:17` | `[Template]` (`ForAttributeWithMetadataName`) |
+| `MatchFactorySourceGenerator` | `src/Synto.SourceGenerator/Matching/Pipeline/MatchFactorySourceGenerator.cs:20` | `[Match<T>]` |
+| `SyntaxBuilderFacadeGenerator` | `src/Synto.SourceGenerator/Templating/Builders/SyntaxBuilderFacadeGenerator.cs:20` | `[SyntaxBuilder]` |
+| `SurfaceInjectionGenerator` | `src/Synto.SourceGenerator/Shared/SurfaceInjectionGenerator.cs:58` | post-init marker injection |
 | `DiagnosticsGenerator` | `src/Synto.Diagnostics/DiagnosticsGenerator.cs:17` | `[Diagnostic]` |
 | `CSharpSyntaxQuoterGenerator` | `src/Synto.Bootstrap/CSharpSyntaxQuoterGenerator.cs:15` | the `CSharpSyntaxQuoter` class (`CreateSyntaxProvider`) |
 
@@ -32,14 +32,14 @@ All Synto generators are `IIncrementalGenerator`s with an
 
 - **Every pipeline stage is tagged** with `.WithTrackingName(...)` from a
   `TrackingNames.cs` (one per generator project, e.g.
-  `src/Synto.SourceGenerator/Templating/TrackingNames.cs:8`). Tests assert each
+  `src/Synto.SourceGenerator/Templating/Diagnostics/TrackingNames.cs:8`). Tests assert each
   tracked step is `Cached`/`Unchanged` on unrelated edits.
 - **Only immutable, structurally-equatable values cross cached boundaries** —
   never a `SyntaxNode`, `SemanticModel`, or `Compilation`. The enablers:
   - `EquatableArray<T>` — content-equality array wrapper
-    (`src/Synto.SourceGenerator/EquatableArray.cs:12`); nested by all result records.
+    (`src/Synto.SourceGenerator/Shared/EquatableArray.cs:12`); nested by all result records.
   - `DiagnosticInfo` / `LocationInfo` — record structs serializing diagnostics to
-    primitives (`src/Synto.SourceGenerator/DiagnosticInfo.cs:10`); the live
+    primitives (`src/Synto.SourceGenerator/Shared/DiagnosticInfo.cs:10`); the live
     `Diagnostic` is materialized only at emit time.
   - Result records (`TemplateGenerationResult`, `MatchGenerationResult`,
     `DiagnosticGenerationResult`, `QuoterGenerationResult`) hold only equatable fields.
