@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
+using Synto.Generators.Matching;
 namespace Synto.Test.Match;
 
 /// <summary>

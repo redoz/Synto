@@ -9,6 +9,7 @@ using Xunit;
 using Core = SyntoCore::Synto;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
+using Synto.Generators.Templating;
 namespace Synto.Test.Templating;
 
 /// <summary>

@@ -2,6 +2,7 @@ using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
+using Synto.Generators.Templating;
 namespace Synto.Test.Templating;
 
 /// <summary>

@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
+using Synto.Generators.Matching;
 namespace Synto.Test.Match;
 
 /// <summary>
@@ -409,7 +410,7 @@ public class MatchDiagnosticsTests
         // carrying the exception text (the generator's try/catch never throws).
         var exception = new InvalidOperationException("boom-marker-7f3a");
 
-        var diagnostic = Synto.Diagnostics.InternalError(exception).ToDiagnostic();
+        var diagnostic = Synto.Generators.Diagnostics.InternalError(exception).ToDiagnostic();
 
         Assert.Equal("SY0000", diagnostic.Id);
         Assert.Equal(Location.None, diagnostic.Location);
