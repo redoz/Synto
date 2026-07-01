@@ -5,10 +5,10 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Synto.Generators.Templating;
 
 /// <summary>
-/// How a single syntax-builder parameter's call argument is bound at factory time (plan Task 3 / Locked
-/// Names §6). An <c>[Quoted]</c> parameter receives the <em>quote</em> of the call argument (an output-world
-/// island); an <c>[Quoted(AsTypeArg = true)]</c> parameter receives the quote of a facade <em>type</em>
-/// argument; an unmarked parameter receives the live/computed value verbatim.
+/// How a single syntax-builder parameter's call argument is bound at factory time (Locked Names §6). An
+/// <c>[Quoted]</c> parameter receives the <em>quote</em> of the call argument (an output-world island); a
+/// <c>[TypeArg]</c> parameter receives the quote of a facade <em>type</em> argument; an unmarked parameter
+/// receives the live/computed value verbatim.
 /// </summary>
 internal enum BuilderArgKind
 {

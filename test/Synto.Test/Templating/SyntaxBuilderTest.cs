@@ -151,7 +151,7 @@ public class SyntaxBuilderTest
             // builder (factory-time); Synto synthesizes the inert facade `T Cast<T>(object x)`.
             static partial class MyBuilders {
                 [SyntaxBuilder]
-                public static ExpressionSyntax Cast([Quoted(AsTypeArg = true), ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => CastExpression(t, x);
+                public static ExpressionSyntax Cast([TypeArg, ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => CastExpression(t, x);
             }
 
             public class TestClass {
@@ -245,7 +245,7 @@ public class SyntaxBuilderTest
             partial class Factory {}
 
             static partial class Bad {
-                // [ReturnType] without [Quoted(AsTypeArg = true)] -> facade-synthesis error.
+                // [ReturnType] without [TypeArg] -> facade-synthesis error.
                 [SyntaxBuilder]
                 public static ExpressionSyntax Foo([ReturnType] ExpressionSyntax x) => x;
             }
@@ -271,7 +271,7 @@ public class SyntaxBuilderTest
 
             static partial class Builders {
                 [SyntaxBuilder]
-                public static ExpressionSyntax Cast([Quoted(AsTypeArg = true), ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => x;
+                public static ExpressionSyntax Cast([TypeArg, ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => x;
             }
 
             public class TestClass {

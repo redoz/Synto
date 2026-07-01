@@ -90,22 +90,16 @@ internal sealed class FacadeShape
             var typeArg = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.TypeArgAttribute).FullName!);
             bool isReturnType = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.ReturnTypeAttribute).FullName!) is not null;
 
-            // Legacy [Quoted(AsTypeArg = true)] is still honored during migration (removed in Task 2);
-            // [TypeArg] is the going-forward marker for a facade generic type parameter.
-            bool legacyAsTypeArg = quoted is not null && SymbolMetadataExtensions.GetNamedBool(quoted, "AsTypeArg");
-            bool isTypeIsland = typeArg is not null || legacyAsTypeArg;
-
-            if (isReturnType && !isTypeIsland)
+            if (isReturnType && typeArg is null)
             {
                 annotationError = $"[ReturnType] on parameter '{p.Name}' requires [TypeArg]";
                 return null;
             }
 
-            if (isTypeIsland)
+            if (typeArg is not null)
             {
-                // Type island: facade generic type parameter. Name override (from [TypeArg]) else Pascal(param).
-                string genericName = (typeArg is not null ? SymbolMetadataExtensions.GetNamedString(typeArg, "Name") : null)
-                                     ?? Pascal(p.Name);
+                // [TypeArg] type island: facade generic type parameter. Name override else Pascal(param).
+                string genericName = SymbolMetadataExtensions.GetNamedString(typeArg, "Name") ?? Pascal(p.Name);
                 genericParameters.Add(genericName);
                 parameters.Add(new FacadeParam(p.Name, BuilderArgKind.QuotedTypeArg, genericName, null));
 
