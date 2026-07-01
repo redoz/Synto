@@ -26,6 +26,21 @@ internal sealed class FacadeParam
     public string? ValueTypeDisplay { get; }
 }
 
+/// <summary>One synthesized facade generic type parameter: its name and an optional base-type constraint.</summary>
+internal readonly struct FacadeGenericParam
+{
+    public FacadeGenericParam(string name, string? constraintDisplay)
+    {
+        Name = name;
+        ConstraintDisplay = constraintDisplay;
+    }
+
+    public string Name { get; }
+
+    /// <summary>Fully-qualified base type for a <c>where Name : X</c> clause, or <c>null</c> when unconstrained.</summary>
+    public string? ConstraintDisplay { get; }
+}
+
 /// <summary>
 /// The mechanical facade-derivation rule (Locked Names §5): given a <c>[SyntaxBuilder]</c> method, derive the
 /// inert carrier-callable facade Synto synthesizes for it. Shared by <see cref="SyntaxBuilderFinder"/> (to map
@@ -37,7 +52,7 @@ internal sealed class FacadeShape
     private FacadeShape(
         string methodName,
         IReadOnlyList<FacadeParam> parameters,
-        IReadOnlyList<string> genericParameters,
+        IReadOnlyList<FacadeGenericParam> genericParameters,
         bool freshReturnTypeParam,
         string returnTypeDisplay)
     {
@@ -53,8 +68,8 @@ internal sealed class FacadeShape
     /// <summary>Builder parameters in declared order, each carrying its binding + facade element.</summary>
     public IReadOnlyList<FacadeParam> Parameters { get; }
 
-    /// <summary>The synthesized facade's generic type parameters, in facade order (a leading fresh TResult first when <see cref="FreshReturnTypeParam"/>).</summary>
-    public IReadOnlyList<string> GenericParameters { get; }
+    /// <summary>The synthesized facade's generic type parameters (name + optional constraint), in facade order (a leading fresh TResult first when <see cref="FreshReturnTypeParam"/>).</summary>
+    public IReadOnlyList<FacadeGenericParam> GenericParameters { get; }
 
     /// <summary>True when the facade gains a fresh leading <c>TResult</c> return type parameter (builder returns ExpressionSyntax with no [ReturnType] param).</summary>
     public bool FreshReturnTypeParam { get; }
@@ -80,7 +95,7 @@ internal sealed class FacadeShape
         }
 
         var parameters = new List<FacadeParam>();
-        var genericParameters = new List<string>();
+        var genericParameters = new List<FacadeGenericParam>();
         string? returnTypeParamName = null;
         int returnTypeParamCount = 0;
 
@@ -100,7 +115,8 @@ internal sealed class FacadeShape
             {
                 // [TypeArg] type island: facade generic type parameter. Name override else Pascal(param).
                 string genericName = SymbolMetadataExtensions.GetNamedString(typeArg, "Name") ?? Pascal(p.Name);
-                genericParameters.Add(genericName);
+                string? constraintDisplay = SymbolMetadataExtensions.GetNamedTypeDisplay(typeArg, "Constraint");
+                genericParameters.Add(new FacadeGenericParam(genericName, constraintDisplay));
                 parameters.Add(new FacadeParam(p.Name, BuilderArgKind.QuotedTypeArg, genericName, null));
 
                 if (isReturnType)
@@ -148,7 +164,7 @@ internal sealed class FacadeShape
 
         // The fresh TResult is the FIRST facade generic parameter.
         if (freshReturnTypeParam)
-            genericParameters.Insert(0, FreshReturnTypeParamName);
+            genericParameters.Insert(0, new FacadeGenericParam(FreshReturnTypeParamName, null));
 
         return new FacadeShape(builder.Name, parameters, genericParameters, freshReturnTypeParam, returnTypeDisplay);
     }

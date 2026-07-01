@@ -206,6 +206,88 @@ public class SyntaxBuilderTest
             "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
     }
 
+    // [TypeArg(Constraint = ...)] emits a `where T : Constraint` clause on the facade, so a consumer type
+    // argument that violates it is a compile error (CS0311). This proves the constraint is emitted, not ignored.
+    [Fact]
+    public void TypeArg_Constraint_RejectsViolatingTypeArgument()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Cast([TypeArg(Name = "T", Constraint = typeof(System.IComparable)), ReturnType] TypeSyntax targetType, [Quoted] ExpressionSyntax x)
+                    => CastExpression(targetType, x);
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] object x) {
+                    System.Console.WriteLine(MyBuilders.Cast<object>(x)); // object does NOT satisfy `where T : IComparable`
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.Contains(errors, d => d.Id == "CS0311");
+    }
+
+    // A consumer type argument that SATISFIES the [TypeArg] constraint still compiles cleanly.
+    [Fact]
+    public void TypeArg_Constraint_AcceptsSatisfyingTypeArgument()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Cast([TypeArg(Name = "T", Constraint = typeof(System.IComparable)), ReturnType] TypeSyntax targetType, [Quoted] ExpressionSyntax x)
+                    => CastExpression(targetType, x);
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] object x) {
+                    System.Console.WriteLine(MyBuilders.Cast<string>(x)); // string satisfies `where T : IComparable`
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+    }
+
     // META: an UNMARKED ExpressionSyntax builder parameter receives a LIVE ExpressionSyntax passed through
     // UNQUOTED (the case the parameter TYPE cannot disambiguate; Locked Names §6).
     [Fact]

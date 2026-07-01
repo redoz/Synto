@@ -96,7 +96,7 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
             for (int i = 0; i < shape.GenericParameters.Count; i++)
             {
                 if (i > 0) sb.Append(", ");
-                sb.Append(shape.GenericParameters[i]);
+                sb.Append(shape.GenericParameters[i].Name);
             }
             sb.Append('>');
         }
@@ -111,7 +111,15 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
             first = false;
             sb.Append(p.ValueTypeDisplay).Append(' ').Append(p.ParameterName);
         }
-        sb.Append(") => default!;\n");
+        sb.Append(')');
+
+        foreach (var gp in shape.GenericParameters)
+        {
+            if (gp.ConstraintDisplay is not null)
+                sb.Append(" where ").Append(gp.Name).Append(" : ").Append(gp.ConstraintDisplay);
+        }
+
+        sb.Append(" => default!;\n");
     }
 
     private static void AppendTypeParameters(StringBuilder sb, System.Collections.Immutable.ImmutableArray<ITypeParameterSymbol> typeParameters)

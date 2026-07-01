@@ -21,4 +21,11 @@ internal sealed class TypeArgAttribute : Attribute
     /// <c>targetType</c> with <c>Name = "TResult"</c> surfaces as <c>&lt;TResult&gt;</c>.
     /// </summary>
     public string? Name { get; set; }
+
+    /// <summary>
+    /// When set, constrains the synthesized facade type parameter to this base class or interface, emitting a
+    /// <c>where T : Constraint</c> clause so the consumer's supplied type argument must satisfy it. Default
+    /// (<c>null</c>) emits an unconstrained type parameter. A single base/interface type only.
+    /// </summary>
+    public Type? Constraint { get; set; }
 }
