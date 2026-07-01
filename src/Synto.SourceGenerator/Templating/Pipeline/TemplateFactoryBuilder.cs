@@ -771,37 +771,13 @@ internal static class TemplateFactoryBuilder
         if (builderResult.Diagnostics.Count > 0)
             return false;
 
-        if (builderResult.Calls.Count > 0)
-        {
-            // A fresh quoter for the [Quoted] islands inside builder arguments: it carries the lifts collected
-            // so far (inline/syntax/live parameter replacements) so an island that references a lifted value
-            // quotes correctly. It never descends into a builder invocation (those are not yet in the map).
-            var islandQuoter = TemplateQuoterFactory.Create(ctx.Plan.Replacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: ctx.Plan.StringRoots);
-
-            foreach (var call in builderResult.Calls)
-            {
-                var args = new List<ArgumentSyntax>();
-                foreach (var binding in call.Args)
-                {
-                    ExpressionSyntax argExpr = binding.Kind switch
-                    {
-                        BuilderArgKind.Quoted => islandQuoter.Visit(binding.ValueArgument!)!,
-                        BuilderArgKind.QuotedTypeArg => islandQuoter.Visit(binding.TypeArgument!)!,
-                        _ => binding.ValueArgument!.WithoutTrivia(),
-                    };
-                    args.Add(Argument(argExpr));
-                }
-
-                var builderInvocation = InvocationExpression(
-                        MemberAccessExpression(
-                            SyntaxKind.SimpleMemberAccessExpression,
-                            ParseName(call.BuilderFullyQualifiedTypeName),
-                            IdentifierName(call.BuilderMethodName)))
-                    .WithArgumentList(ArgumentList(SeparatedList(args)));
-
-                ctx.Plan.Replacements[call.Invocation] = builderInvocation;
-            }
-        }
+        // Record each recognized call keyed at its invocation node. Assembly (quoting the [Quoted]/[TypeArg]
+        // islands) is deferred to quote time (BuilderCallMiddleware), where re-entry over the FINAL plan lets
+        // nested builder calls expand and splice injections inside a builder argument compose — the plan-time
+        // island sub-quoter used here previously could not see replacements registered after it was built
+        // (splice calls, sibling/nested builders).
+        foreach (var call in builderResult.Calls)
+            ctx.Plan.BuilderCalls[call.Invocation] = call;
 
         return true;
     }
@@ -856,6 +832,7 @@ internal static class TemplateFactoryBuilder
             ctx.Plan.Replacements,
             ctx.Plan.Trim,
             ctx.Plan.StringRoots,
+            ctx.Plan.BuilderCalls,
             ref ctx.StagedRegionCounter);
 
         ctx.Diagnostics.AddRange(liveRegionEmission.Diagnostics);
@@ -901,7 +878,8 @@ internal static class TemplateFactoryBuilder
             includeTrivia: ctx.Options.HasFlag(TemplateOption.PreserveTrivia),
             memberSegments: ctx.Plan.MemberSegments,
             stringStagedRoots: ctx.Plan.StringRoots,
-            decorationHooks: ctx.Plan.DecorationHooks);
+            decorationHooks: ctx.Plan.DecorationHooks,
+            builderCalls: ctx.Plan.BuilderCalls);
 
 
         if (!TemplateSyntaxQuoterInvoker.TryQuote(

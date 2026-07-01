@@ -316,6 +316,62 @@ public class SyntaxBuilderTest
             """);
     }
 
+    // BUG #1 (Scope-C Stage 2): a Template.Splice(node) call INSIDE a [Quoted] builder argument must INJECT
+    // `node` (the quote of `Splice(node)` is the live node), yielding `Wrap(node)`. Today the plan-time island
+    // sub-quoter is built before splice-call replacements are registered, so it quotes the `Splice(...)`
+    // invocation raw. Re-entry over the full plan fixes this.
+    [Fact]
+    public async Task SpliceInsideQuotedBuilderArg_InjectsSplicedNode()
+    {
+        await VerifyBuilderTemplate(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] ExpressionSyntax node) {
+                    System.Console.WriteLine(MyBuilders.Wrap(Splice(node)));   // -> Wrap(node) in OUTPUT
+                }
+            }
+            """);
+    }
+
+    // BUG #2 (Scope-C Stage 2): a nested builder call `A(B(x))` must EXPAND the inner builder — the inner
+    // `[Quoted]` island is itself a builder call and should become a real builder invocation, yielding
+    // `Wrap(Wrap(x))`. Today the plan-time island sub-quoter cannot see the sibling builder replacements
+    // (added during/after its construction), so it quotes the inner call raw. Re-entry fixes this.
+    [Fact]
+    public async Task NestedBuilderCalls_ExpandInnerBuilder()
+    {
+        await VerifyBuilderTemplate(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] ExpressionSyntax x) {
+                    System.Console.WriteLine(MyBuilders.Wrap(MyBuilders.Wrap(x)));   // -> Wrap(Wrap(x)) in OUTPUT
+                }
+            }
+            """);
+    }
+
     // Diagnostic: a [SyntaxBuilder] whose annotations cannot synthesize a valid facade.
     [Fact]
     public void InvalidBuilderAnnotation_ReportsSY1015()

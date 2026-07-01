@@ -21,6 +21,7 @@ internal sealed class StagedEmitContext
         RootRenameRewriter renamer,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
+        IReadOnlyDictionary<SyntaxNode, BuilderCall> builderCalls,
         StagedRegionEmission emission)
     {
         SemanticModel = semanticModel;
@@ -29,6 +30,7 @@ internal sealed class StagedEmitContext
         Renamer = renamer;
         BaseReplacements = baseReplacements;
         StringStagedRoots = stringStagedRoots;
+        BuilderCalls = builderCalls;
         Emission = emission;
     }
 
@@ -38,6 +40,9 @@ internal sealed class StagedEmitContext
     public RootRenameRewriter Renamer { get; }
     public IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> BaseReplacements { get; }
     public IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> StringStagedRoots { get; }
+
+    /// <summary>Builder-call channel so island quoters inside a live region also expand facade calls (BuilderCallMiddleware).</summary>
+    public IReadOnlyDictionary<SyntaxNode, BuilderCall> BuilderCalls { get; }
     public StagedRegionEmission Emission { get; }
 
     /// <summary>The current scaffold's run identifier (e.g. <c>__run_0</c>); reset per region by the scaffold builder.</summary>

@@ -22,13 +22,17 @@ internal static class TemplateQuoterFactory
         bool includeTrivia,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax>? memberSegments = null,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax>? stringStagedRoots = null,
-        IReadOnlyDictionary<SyntaxNode, ImmutableArray<AppliedDecoration>>? decorationHooks = null)
+        IReadOnlyDictionary<SyntaxNode, ImmutableArray<AppliedDecoration>>? decorationHooks = null,
+        IReadOnlyDictionary<SyntaxNode, BuilderCall>? builderCalls = null)
     {
         var middleware = new List<IQuoteMiddleware>();
 
-        // Node seam (in precedence order): Replacement (pre, short-circuit) → Trim (pre, drop) → Decoration (post).
+        // Node seam (in precedence order): Replacement (pre, short-circuit) → BuilderCall (pre, re-entrant
+        // assembly) → Trim (pre, drop) → Decoration (post).
         if (replacements.Count > 0)
             middleware.Add(new ReplacementMiddleware(replacements));
+        if (builderCalls is { Count: > 0 })
+            middleware.Add(new BuilderCallMiddleware(builderCalls));
         if (trimNodes.Count > 0)
             middleware.Add(new TrimMiddleware(trimNodes));
 

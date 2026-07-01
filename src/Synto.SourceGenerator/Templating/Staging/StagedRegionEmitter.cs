@@ -26,12 +26,13 @@ internal static class StagedRegionEmitter
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
         HashSet<SyntaxNode> trimNodes,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
+        IReadOnlyDictionary<SyntaxNode, BuilderCall> builderCalls,
         ref int counter)
     {
         var emission = new StagedRegionEmission();
         var stagedSet = StagedLivenessAnalysis.ComputeStagedSet(semanticModel, regions, baseStaged);
         var renamer = new RootRenameRewriter(semanticModel, rootNames);
-        var context = new StagedEmitContext(semanticModel, partition, stagedSet, renamer, baseReplacements, stringStagedRoots, emission);
+        var context = new StagedEmitContext(semanticModel, partition, stagedSet, renamer, baseReplacements, stringStagedRoots, builderCalls, emission);
 
         foreach (var group in regions.GroupBy(r => r.Container))
         {
@@ -64,7 +65,7 @@ internal static class StagedRegionEmitter
                 {
                     // A fixed quoted sibling of the region (e.g. a trailing throw): quote it verbatim and add it
                     // as a single-node segment (implicit TNode -> ListSegment conversion).
-                    var fixedQuoter = TemplateQuoterFactory.Create(baseReplacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: stringStagedRoots);
+                    var fixedQuoter = TemplateQuoterFactory.Create(baseReplacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: stringStagedRoots, builderCalls: builderCalls);
                     if (fixedQuoter.Visit(statement) is { } quote)
                         segments.Add(quote);
                 }
