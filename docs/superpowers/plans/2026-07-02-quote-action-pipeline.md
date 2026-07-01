@@ -8,6 +8,17 @@
 
 **Tech Stack:** C# / Roslyn incremental source generators, `Microsoft.CodeAnalysis.CSharp`. Tests: MTP (`dotnet test --project ...`), Verify snapshot suite.
 
+## Implementation status — updated 2026-07-02 (overnight autonomous run)
+
+Branch: `experimental/quote-action-pipeline` (off `main`, never merged). Baseline before work: 267/267 `Synto.Test` green.
+
+- ✅ **Stage 1 (Tasks 1-5) — LANDED, byte-identical.** Commit `ykzozxtx` (163f0ff9). `TemplateBuildContext` dissolved into `FactoryShape` + `QuotePlan` + `NameAllocator` (thin coordinator retains constant inputs + transient analysis). 71 call sites repointed. **267/267 pass.**
+- ❌ **Stage 3 (Node-seam per-node pipeline) — REVERTED (review decision 2026-07-02 AM).** Was landed overnight (commit `yzkumstq`), then abandoned per review: low behavior payoff (the old Node middleware were already node-keyed dicts), a "failed cleanup attempt." Branch reverted to Stage-1-only; `TemplateQuoterFactory` is back to the three global Node middleware. Per-node lives in git history if ever revived. **Tasks 10-12 CANCELLED.**
+- 🟢 **Stage 2 (Tasks 6-9) — APPROVED to implement.** Review decision: bugs #1 (Splice inside a `[Quoted]` builder arg quoted raw) and #2 (nested builder calls not expanded) are unsupported-but-should-work — **fix them.** Re-entry is the fix; it is NOT byte-identical (it changes output for these two cases), so it needs new snapshot tests capturing the desired output. See the divergence investigation appendix in `docs/superpowers/handoffs/2026-07-02-quote-action-pipeline-overnight.md`.
+- ✅ **Node-seam middleware — decision: ALL-IN on the global node-middleware model.** Keep `ReplacementMiddleware`/`TrimMiddleware`/`DecorationMiddleware` as the Node-seam mechanism (they are already `INodeQuoteMiddleware`). Stage 2 adds the re-homed covering features (builder calls, live regions) as **additional re-entrant node middleware** alongside them — NOT as per-node steps.
+
+**Revised Stage 2 framing:** it is a *bug-fix* (fix #1 and #2), not a byte-identical refactor. Live-region re-homing carries the same partial-plan divergence risk as builder-call re-homing (its island sub-quoters at `StagedScaffoldBuilder.cs:165` also use replacements+folds only) — so it too needs the same treatment (tests first, then re-entry). Keep the covering-replace ⊥ Layer-B assertion (Task 9) as the backstop.
+
 ## Global Constraints
 
 - **Byte-identical output is the bar.** The whole change is behavior-preserving. Verification = existing `Synto.Test` suite stays green (267 tests, incl. Templating Verify snapshots). No snapshot re-accepts except the ONE intentional new diagnostic in Task 9 (which does not fire for any existing valid input, so snapshots are still unchanged).
