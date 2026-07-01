@@ -87,25 +87,25 @@ internal sealed class FacadeShape
         foreach (var p in builder.Parameters)
         {
             var quoted = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.QuotedAttribute).FullName!);
+            var typeArg = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.TypeArgAttribute).FullName!);
             bool isReturnType = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.ReturnTypeAttribute).FullName!) is not null;
 
-            if (quoted is null)
-            {
-                if (isReturnType)
-                {
-                    annotationError = $"[ReturnType] on parameter '{p.Name}' requires [Quoted(AsTypeArg = true)]";
-                    return null;
-                }
+            // Legacy [Quoted(AsTypeArg = true)] is still honored during migration (removed in Task 2);
+            // [TypeArg] is the going-forward marker for a facade generic type parameter.
+            bool legacyAsTypeArg = quoted is not null && SymbolMetadataExtensions.GetNamedBool(quoted, "AsTypeArg");
+            bool isTypeIsland = typeArg is not null || legacyAsTypeArg;
 
-                // Unmarked (staged): facade value param, same type as the builder param.
-                parameters.Add(new FacadeParam(p.Name, BuilderArgKind.Staged, null, p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
-                continue;
+            if (isReturnType && !isTypeIsland)
+            {
+                annotationError = $"[ReturnType] on parameter '{p.Name}' requires [TypeArg]";
+                return null;
             }
 
-            bool asTypeArg = SymbolMetadataExtensions.GetNamedBool(quoted, "AsTypeArg");
-            if (asTypeArg)
+            if (isTypeIsland)
             {
-                string genericName = Pascal(p.Name);
+                // Type island: facade generic type parameter. Name override (from [TypeArg]) else Pascal(param).
+                string genericName = (typeArg is not null ? SymbolMetadataExtensions.GetNamedString(typeArg, "Name") : null)
+                                     ?? Pascal(p.Name);
                 genericParameters.Add(genericName);
                 parameters.Add(new FacadeParam(p.Name, BuilderArgKind.QuotedTypeArg, genericName, null));
 
@@ -114,19 +114,20 @@ internal sealed class FacadeShape
                     returnTypeParamCount++;
                     returnTypeParamName = genericName;
                 }
-            }
-            else
-            {
-                if (isReturnType)
-                {
-                    annotationError = $"[ReturnType] on parameter '{p.Name}' requires [Quoted(AsTypeArg = true)]";
-                    return null;
-                }
 
+                continue;
+            }
+
+            if (quoted is not null)
+            {
                 // [Quoted] value island: facade value param typed `As` (if given) else object.
                 string valueType = SymbolMetadataExtensions.GetNamedTypeDisplay(quoted, "As") ?? "object";
                 parameters.Add(new FacadeParam(p.Name, BuilderArgKind.Quoted, null, valueType));
+                continue;
             }
+
+            // Unmarked (staged): facade value param, same type as the builder param.
+            parameters.Add(new FacadeParam(p.Name, BuilderArgKind.Staged, null, p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
         }
 
         if (returnTypeParamCount > 1)

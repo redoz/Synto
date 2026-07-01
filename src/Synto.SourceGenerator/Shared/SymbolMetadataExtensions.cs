@@ -53,6 +53,17 @@ internal static class SymbolMetadataExtensions
         return null;
     }
 
+    public static string? GetNamedString(AttributeData attr, string name)
+    {
+        foreach (var kv in attr.NamedArguments)
+        {
+            if (kv.Key == name && kv.Value.Value is string s)
+                return s;
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// All source-declared top-level named types in <paramref name="ns"/> and its descendant namespaces.
     /// Nested types are not descended into; callers that need them expand each result themselves. Used by the

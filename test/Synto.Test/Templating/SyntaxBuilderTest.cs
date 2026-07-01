@@ -163,6 +163,49 @@ public class SyntaxBuilderTest
             """);
     }
 
+    // [TypeArg] surfaces a facade generic type parameter; Name decouples the facade type-param name from the
+    // builder parameter name. Proven by post-generation compile: the synthesized `TResult Cast<TResult>(object x)`
+    // resolves the consumer's `Cast<int>(x)`. Compile-only (no snapshot).
+    [Fact]
+    public void TypeArg_WithName_SynthesizesGenericFacadeThatCompiles()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Cast([TypeArg(Name = "TResult"), ReturnType] TypeSyntax targetType, [Quoted] ExpressionSyntax x)
+                    => CastExpression(targetType, x);
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] object x) {
+                    System.Console.WriteLine(MyBuilders.Cast<int>(x));
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+    }
+
     // META: an UNMARKED ExpressionSyntax builder parameter receives a LIVE ExpressionSyntax passed through
     // UNQUOTED (the case the parameter TYPE cannot disambiguate; Locked Names §6).
     [Fact]

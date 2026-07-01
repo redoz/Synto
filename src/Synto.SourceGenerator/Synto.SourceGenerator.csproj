@@ -51,6 +51,7 @@
 	<EmbeddedResource Include="..\Synto\Templating\Builders\SyntaxBuilderAttribute.cs" LogicalName="Synto.Runtime.SyntaxBuilderAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Builders\QuotedAttribute.cs" LogicalName="Synto.Runtime.QuotedAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Builders\ReturnTypeAttribute.cs" LogicalName="Synto.Runtime.ReturnTypeAttribute.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\Builders\TypeArgAttribute.cs" LogicalName="Synto.Runtime.TypeArgAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Builders\SyntoBuilders.cs" LogicalName="Synto.Runtime.SyntoBuilders.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Decorations\Access.cs" LogicalName="Synto.Runtime.Access.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Decorations\IdentifierAttribute.cs" LogicalName="Synto.Runtime.IdentifierAttribute.cs" />
