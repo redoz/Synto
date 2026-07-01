@@ -31,7 +31,7 @@ internal static class TemplateFactoryBuilder
         var ctx = new TemplateBuildContext(diagnostics, semanticModel, additionalUsings, templateInfo, options);
 
         // trim the template attribute
-        ctx.TrimNodes.Add(templateInfo.AttributeSyntax);
+        ctx.Plan.Trim.Add(templateInfo.AttributeSyntax);
 
         if (!DiscoverSpliceGenerators(ctx))
             return null;
@@ -125,7 +125,7 @@ internal static class TemplateFactoryBuilder
             {
                 // An invalid generator is reported above (the template bails); trim it so it is never a quoted
                 // output member.
-                ctx.TrimNodes.Add(generator.Method);
+                ctx.Plan.Trim.Add(generator.Method);
             }
         }
 
@@ -145,7 +145,7 @@ internal static class TemplateFactoryBuilder
     {
         ctx.Scope = TemplateScope.ForCarrier(ctx.SemanticModel, ctx.TemplateInfo.Source!.Syntax);
         foreach (var child in ctx.Scope.ForeignChildren)
-            ctx.TrimNodes.Add(child);
+            ctx.Plan.Trim.Add(child);
     }
 
     private static void LiftStagedTypeParameters(TemplateBuildContext ctx)
@@ -165,22 +165,22 @@ internal static class TemplateFactoryBuilder
                 // TypeSyntax slot and the generated factory compiles — the fix for the type-axis miscompile where
                 // a spliced type was previously emitted as ExpressionSyntax (CS1503 ExpressionSyntax -> TypeSyntax).
                 // TODO make a little utility for this
-                while (!ctx.ParamNames.Add(typeParamName))
+                while (!ctx.Names.ParamNames.Add(typeParamName))
                     typeParamName += '_';
 
                 typeSyntaxForTypeParam = IdentifierName(typeParamName);
 
-                ctx.Parameters.Add(Parameter(Identifier(typeParamName)).WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(TypeSyntax).FullName!))));
+                ctx.Shape.Parameters.Add(Parameter(Identifier(typeParamName)).WithType(additionalUsings.GetTypeName(ParseTypeName(typeof(TypeSyntax).FullName!))));
             }
             else
             {
-                ctx.InlinedTypeParams.Add(replacements.TypeParameterSymbol);
+                ctx.Shape.InlinedTypeParams.Add(replacements.TypeParameterSymbol);
 
                 // TODO make a little utility for this
-                while (!ctx.InlinedTypeParamNames.Add(typeParamName))
+                while (!ctx.Names.InlinedTypeParamNames.Add(typeParamName))
                     typeParamName += '_';
 
-                ctx.TypeParams.Add(TypeParameter(typeParamName));
+                ctx.Shape.TypeParams.Add(TypeParameter(typeParamName));
 
                 var syntaxForTypeParamIdentifier = Identifier("syntaxForTypeParam_" + typeParamName);
 
@@ -195,7 +195,7 @@ internal static class TemplateFactoryBuilder
                         TypeOfExpression(IdentifierName(typeParamName)),
                         IdentifierName(nameof(RuntimeTypeExtensions.ToTypeSyntax))));
 
-                ctx.Preamble.Add(
+                ctx.Shape.Preamble.Add(
                     LocalDeclarationStatement(
                         VariableDeclaration(
                             additionalUsings.GetTypeName(ParseTypeName(typeof(TypeSyntax).FullName!)),
@@ -207,9 +207,9 @@ internal static class TemplateFactoryBuilder
             }
 
             foreach (var typeSyntax in replacements.References)
-                ctx.UnquotedReplacements.Add(typeSyntax, typeSyntaxForTypeParam);
+                ctx.Plan.Replacements.Add(typeSyntax, typeSyntaxForTypeParam);
 
-            ctx.TrimNodes.Add(replacements.TypeParameterSyntax);
+            ctx.Plan.Trim.Add(replacements.TypeParameterSyntax);
         }
     }
 
@@ -222,16 +222,16 @@ internal static class TemplateFactoryBuilder
         foreach (var replacements in SpliceParameterFinder.FindSpliceParameters(ctx.SemanticModel, ctx.TemplateInfo.Source!.Syntax, ctx.Scope))
         {
             string paramName = replacements.Parameter.Identifier.Text;
-            while (!ctx.ParamNames.Add(paramName))
+            while (!ctx.Names.ParamNames.Add(paramName))
                 paramName += '_';
 
             var parameterType = additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!));
-            ctx.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
+            ctx.Shape.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
             foreach (var identifierNameSyntax in replacements.References)
-                ctx.UnquotedReplacements.Add(identifierNameSyntax, IdentifierName(paramName));
+                ctx.Plan.Replacements.Add(identifierNameSyntax, IdentifierName(paramName));
 
-            ctx.TrimNodes.Add(replacements.Parameter);
+            ctx.Plan.Trim.Add(replacements.Parameter);
         }
     }
 
@@ -241,17 +241,17 @@ internal static class TemplateFactoryBuilder
         foreach (var replacements in SyntaxParameterFinder.FindSyntaxParameters(ctx.SemanticModel, ctx.TemplateInfo.Source!.Syntax, ctx.Scope))
         {
             string paramName = replacements.Parameter.Identifier.Text;
-            while (!ctx.ParamNames.Add(paramName))
+            while (!ctx.Names.ParamNames.Add(paramName))
                 paramName += '_';
 
             var parameterType = additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!));
 
-            ctx.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
+            ctx.Shape.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
             foreach (var identifierNameSyntax in replacements.References)
-                ctx.UnquotedReplacements.Add(identifierNameSyntax, IdentifierName(paramName));
+                ctx.Plan.Replacements.Add(identifierNameSyntax, IdentifierName(paramName));
 
-            ctx.TrimNodes.Add(replacements.Parameter);
+            ctx.Plan.Trim.Add(replacements.Parameter);
         }
     }
 
@@ -435,7 +435,7 @@ internal static class TemplateFactoryBuilder
         foreach (var stagedParameter in ctx.StagedParameters)
         {
             string paramName = stagedParameter.Name;
-            while (!ctx.ParamNames.Add(paramName))
+            while (!ctx.Names.ParamNames.Add(paramName))
                 paramName += '_';
 
             // Staged scalar count-fold: emit `(paramName.Member).ToSyntax()` for each claimed member-access on this
@@ -454,7 +454,7 @@ internal static class TemplateFactoryBuilder
                                     IdentifierName(paramName),
                                     memberAccess.Name.WithoutTrivia())),
                             IdentifierName("ToSyntax")));
-                    ctx.UnquotedReplacements[memberAccess] = lift;
+                    ctx.Plan.Replacements[memberAccess] = lift;
                 }
             }
 
@@ -464,7 +464,7 @@ internal static class TemplateFactoryBuilder
                 ctx.RootNames[rootSymbol] = paramName;
 
             var parameterType = ParseTypeName(stagedParameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-            ctx.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
+            ctx.Shape.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
             // Interpolation staged-fold: a string-typed staged root may be baked into surrounding literal text
             // when used as a bare interpolation hole. Map EVERY reference (depth-0 AND region-consumed) to the
@@ -473,7 +473,7 @@ internal static class TemplateFactoryBuilder
             if (stagedParameter.Type.SpecialType == SpecialType.System_String)
             {
                 foreach (var reference in stagedParameter.References)
-                    ctx.StringStagedRoots[reference] = IdentifierName(paramName);
+                    ctx.Plan.StringRoots[reference] = IdentifierName(paramName);
             }
 
             // References consumed by a live region are handled by the verbatim scaffold (which uses the factory
@@ -489,7 +489,7 @@ internal static class TemplateFactoryBuilder
                         IdentifierName("ToSyntax")));
 
                 var syntaxForParamIdentifier = Identifier("syntaxForParam_" + paramName);
-                ctx.Preamble.Add(
+                ctx.Shape.Preamble.Add(
                     LocalDeclarationStatement(
                         VariableDeclaration(
                             additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
@@ -500,11 +500,11 @@ internal static class TemplateFactoryBuilder
                                     EqualsValueClause(conversion))))));
 
                 foreach (var reference in depthZeroReferences)
-                    ctx.UnquotedReplacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
+                    ctx.Plan.Replacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
             }
 
             foreach (var trimNode in stagedParameter.TrimNodes)
-                ctx.TrimNodes.Add(trimNode);
+                ctx.Plan.Trim.Add(trimNode);
         }
     }
 
@@ -522,7 +522,7 @@ internal static class TemplateFactoryBuilder
         {
             // Hoist the runtime local: `var n = <expr>;` (the Unquote(...) carrier is unwrapped to its argument,
             // which is evaluated at factory-build time). Build it fresh so source comments/trivia don't leak.
-            ctx.Preamble.Add(
+            ctx.Shape.Preamble.Add(
                 LocalDeclarationStatement(
                     VariableDeclaration(
                         IdentifierName("var"),
@@ -538,7 +538,7 @@ internal static class TemplateFactoryBuilder
             if (liveLocalDepthZeroReferences.Count > 0)
             {
                 var syntaxForStagedIdentifier = Identifier("syntaxForStaged_" + stagedLocal.Name);
-                ctx.Preamble.Add(
+                ctx.Shape.Preamble.Add(
                     LocalDeclarationStatement(
                         VariableDeclaration(
                             additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
@@ -554,7 +554,7 @@ internal static class TemplateFactoryBuilder
                                                 IdentifierName("ToSyntax")))))))));
 
                 foreach (var reference in liveLocalDepthZeroReferences)
-                    ctx.UnquotedReplacements.Add(reference, IdentifierName(syntaxForStagedIdentifier));
+                    ctx.Plan.Replacements.Add(reference, IdentifierName(syntaxForStagedIdentifier));
             }
 
             // Interpolation staged-fold: a string-typed Unquote<string>(…) local may be baked into surrounding
@@ -564,10 +564,10 @@ internal static class TemplateFactoryBuilder
             if ((semanticModel.GetSymbolInfo(stagedLocal.StagedCall).Symbol as IMethodSymbol)?.TypeArguments[0].SpecialType == SpecialType.System_String)
             {
                 foreach (var reference in stagedLocal.References)
-                    ctx.StringStagedRoots[reference] = IdentifierName(stagedLocal.Name);
+                    ctx.Plan.StringRoots[reference] = IdentifierName(stagedLocal.Name);
             }
 
-            ctx.TrimNodes.Add(stagedLocal.Declaration);
+            ctx.Plan.Trim.Add(stagedLocal.Declaration);
         }
     }
 
@@ -591,7 +591,7 @@ internal static class TemplateFactoryBuilder
         foreach (var stagedParameterRoot in ctx.StagedRootParameters)
         {
             string paramName = stagedParameterRoot.Parameter.Identifier.Text;
-            while (!ctx.ParamNames.Add(paramName))
+            while (!ctx.Names.ParamNames.Add(paramName))
                 paramName += '_';
 
             // The [Unquote] value lift: the supplied value is converted to syntax at factory time and the result
@@ -603,14 +603,14 @@ internal static class TemplateFactoryBuilder
             var paramType = stagedParameterRoot.Type;
 
             // A generic type reference must be declared on the factory method (unless already inlined as a type param).
-            if (paramType is ITypeParameterSymbol typeParam && !ctx.InlinedTypeParams.Contains(typeParam))
+            if (paramType is ITypeParameterSymbol typeParam && !ctx.Shape.InlinedTypeParams.Contains(typeParam))
             {
                 string typeParamName = typeParam.Name;
-                while (!ctx.InlinedTypeParamNames.Add(typeParamName))
+                while (!ctx.Names.InlinedTypeParamNames.Add(typeParamName))
                     typeParamName += '_';
 
                 parameterType = IdentifierName(typeParamName);
-                ctx.TypeParams.Add(TypeParameter(typeParamName));
+                ctx.Shape.TypeParams.Add(TypeParameter(typeParamName));
             }
 
             // The [Unquote] value lift: the supplied value is converted to syntax at factory time and the result
@@ -629,7 +629,7 @@ internal static class TemplateFactoryBuilder
             }
 
             var syntaxForParamIdentifier = Identifier("syntaxForParam_" + paramName);
-            ctx.Preamble.Add(
+            ctx.Shape.Preamble.Add(
                 LocalDeclarationStatement(
                     VariableDeclaration(
                         additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
@@ -639,20 +639,20 @@ internal static class TemplateFactoryBuilder
                                 null,
                                 EqualsValueClause(conversion))))));
 
-            ctx.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
+            ctx.Shape.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
             foreach (var reference in stagedParameterRoot.References)
-                ctx.UnquotedReplacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
+                ctx.Plan.Replacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
 
             // Interpolation staged-fold: a string-typed [Unquote] parameter may be baked into surrounding literal
             // text when used as a bare interpolation hole. The factory parameter is the raw value accessor.
             if (paramType.SpecialType == SpecialType.System_String)
             {
                 foreach (var reference in stagedParameterRoot.References)
-                    ctx.StringStagedRoots[reference] = IdentifierName(paramName);
+                    ctx.Plan.StringRoots[reference] = IdentifierName(paramName);
             }
 
-            ctx.TrimNodes.Add(stagedParameterRoot.Parameter);
+            ctx.Plan.Trim.Add(stagedParameterRoot.Parameter);
         }
     }
 
@@ -670,7 +670,7 @@ internal static class TemplateFactoryBuilder
         foreach (var quoteParameter in QuoteParameterFinder.FindQuoteParameters(semanticModel, ctx.TemplateInfo.Source!.Syntax, ctx.Scope))
         {
             string paramName = quoteParameter.Parameter.Identifier.Text;
-            while (!ctx.ParamNames.Add(paramName))
+            while (!ctx.Names.ParamNames.Add(paramName))
                 paramName += '_';
 
             TypeSyntax parameterType = quoteParameter.Parameter.Type!;
@@ -698,7 +698,7 @@ internal static class TemplateFactoryBuilder
             }
 
             var syntaxForQuoteIdentifier = Identifier("syntaxForQuote_" + paramName);
-            ctx.Preamble.Add(
+            ctx.Shape.Preamble.Add(
                 LocalDeclarationStatement(
                     VariableDeclaration(
                         additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
@@ -708,12 +708,12 @@ internal static class TemplateFactoryBuilder
                                 null,
                                 EqualsValueClause(conversion))))));
 
-            ctx.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
+            ctx.Shape.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
             foreach (var reference in quoteParameter.References)
-                ctx.UnquotedReplacements.Add(reference, IdentifierName(syntaxForQuoteIdentifier));
+                ctx.Plan.Replacements.Add(reference, IdentifierName(syntaxForQuoteIdentifier));
 
-            ctx.TrimNodes.Add(quoteParameter.Parameter);
+            ctx.Plan.Trim.Add(quoteParameter.Parameter);
         }
     }
 
@@ -748,7 +748,7 @@ internal static class TemplateFactoryBuilder
                 continue;
             }
 
-            ctx.UnquotedReplacements[quoteCall.Invocation] = quoteCallConversion;
+            ctx.Plan.Replacements[quoteCall.Invocation] = quoteCallConversion;
         }
     }
 
@@ -776,7 +776,7 @@ internal static class TemplateFactoryBuilder
             // A fresh quoter for the [Quoted] islands inside builder arguments: it carries the lifts collected
             // so far (inline/syntax/live parameter replacements) so an island that references a lifted value
             // quotes correctly. It never descends into a builder invocation (those are not yet in the map).
-            var islandQuoter = TemplateQuoterFactory.Create(ctx.UnquotedReplacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: ctx.StringStagedRoots);
+            var islandQuoter = TemplateQuoterFactory.Create(ctx.Plan.Replacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: ctx.Plan.StringRoots);
 
             foreach (var call in builderResult.Calls)
             {
@@ -799,7 +799,7 @@ internal static class TemplateFactoryBuilder
                             IdentifierName(call.BuilderMethodName)))
                     .WithArgumentList(ArgumentList(SeparatedList(args)));
 
-                ctx.UnquotedReplacements[call.Invocation] = builderInvocation;
+                ctx.Plan.Replacements[call.Invocation] = builderInvocation;
             }
         }
 
@@ -812,7 +812,7 @@ internal static class TemplateFactoryBuilder
     private static void ResolveSpliceCalls(TemplateBuildContext ctx)
     {
         foreach (var spliceCall in SpliceCallFinder.FindSpliceCalls(ctx.SemanticModel, ctx.TemplateInfo.Source!.Syntax, ctx.Scope))
-            ctx.UnquotedReplacements[spliceCall.Invocation] = (ExpressionSyntax)spliceCall.Argument.WithoutTrivia();
+            ctx.Plan.Replacements[spliceCall.Invocation] = (ExpressionSyntax)spliceCall.Argument.WithoutTrivia();
     }
 
     // Post-quote declaration decorations ([Identifier]/[Visibility]/[Sealed]/[Implements<T>]/[Inherits<T>]):
@@ -827,18 +827,18 @@ internal static class TemplateFactoryBuilder
             return;
 
         var decorationResult = DecorationFinder.FindDecorations(
-            ctx.SemanticModel, ctx.TemplateInfo.Source!.Syntax, ctx.Scope, decorationMarkers, ctx.ParamNames, ctx.Diagnostics);
+            ctx.SemanticModel, ctx.TemplateInfo.Source!.Syntax, ctx.Scope, decorationMarkers, ctx.Names.ParamNames, ctx.Diagnostics);
 
-        ctx.DecorationHooks = decorationResult.Hooks;
+        ctx.Plan.DecorationHooks = decorationResult.Hooks;
 
         // Append each injected [Identifier] parameter AFTER the existing holes (ParamNames already updated by
         // the finder, preserving the uniqueness set).
         foreach (var injected in decorationResult.InjectedParameters)
-            ctx.Parameters.Add(Parameter(Identifier(injected.Name)).WithType(injected.Type));
+            ctx.Shape.Parameters.Add(Parameter(Identifier(injected.Name)).WithType(injected.Type));
 
         // Strip the decoration markers from the quoted output (like [Template]/[Splice]).
         foreach (var trimAttribute in decorationResult.TrimAttributes)
-            ctx.TrimNodes.Add(trimAttribute);
+            ctx.Plan.Trim.Add(trimAttribute);
     }
 
     // Unroll the live control regions: each foreach over a live root becomes a verbatim scaffold in the
@@ -853,9 +853,9 @@ internal static class TemplateFactoryBuilder
             ctx.StagedRegions,
             ctx.Partition.StagedSymbols,
             ctx.RootNames,
-            ctx.UnquotedReplacements,
-            ctx.TrimNodes,
-            ctx.StringStagedRoots,
+            ctx.Plan.Replacements,
+            ctx.Plan.Trim,
+            ctx.Plan.StringRoots,
             ref ctx.StagedRegionCounter);
 
         ctx.Diagnostics.AddRange(liveRegionEmission.Diagnostics);
@@ -865,10 +865,10 @@ internal static class TemplateFactoryBuilder
         if (liveRegionEmission.Diagnostics.Count > 0)
             return false;
 
-        ctx.Preamble.AddRange(liveRegionEmission.Preamble);
+        ctx.Shape.Preamble.AddRange(liveRegionEmission.Preamble);
 
         foreach (var containerReplacement in liveRegionEmission.ContainerReplacements)
-            ctx.UnquotedReplacements[containerReplacement.Key] = containerReplacement.Value;
+            ctx.Plan.Replacements[containerReplacement.Key] = containerReplacement.Value;
 
         return true;
     }
@@ -883,8 +883,8 @@ internal static class TemplateFactoryBuilder
         int spliceGeneratorCounter = 0;
         foreach (var generator in ctx.ValidSpliceGenerators)
         {
-            var segment = SpliceMemberGeneratorEmitter.Emit(generator, ctx.SemanticModel, ctx.Preamble, ref spliceGeneratorCounter);
-            ctx.SpliceMemberSegments[generator.Method] = segment;
+            var segment = SpliceMemberGeneratorEmitter.Emit(generator, ctx.SemanticModel, ctx.Shape.Preamble, ref spliceGeneratorCounter);
+            ctx.Plan.MemberSegments[generator.Method] = segment;
         }
     }
 
@@ -893,15 +893,15 @@ internal static class TemplateFactoryBuilder
         var semanticModel = ctx.SemanticModel;
         var additionalUsings = ctx.AdditionalUsings;
 
-        var prunableNodes = BranchPruneIdentifier.FindPrunableNodes(ctx.TrimNodes, ctx.TemplateInfo.Source!.Syntax);
+        var prunableNodes = BranchPruneIdentifier.FindPrunableNodes(ctx.Plan.Trim, ctx.TemplateInfo.Source!.Syntax);
 
         var quoter = TemplateQuoterFactory.Create(
-            ctx.UnquotedReplacements,
+            ctx.Plan.Replacements,
             prunableNodes,
             includeTrivia: ctx.Options.HasFlag(TemplateOption.PreserveTrivia),
-            memberSegments: ctx.SpliceMemberSegments,
-            stringStagedRoots: ctx.StringStagedRoots,
-            decorationHooks: ctx.DecorationHooks);
+            memberSegments: ctx.Plan.MemberSegments,
+            stringStagedRoots: ctx.Plan.StringRoots,
+            decorationHooks: ctx.Plan.DecorationHooks);
 
 
         if (!TemplateSyntaxQuoterInvoker.TryQuote(
@@ -920,14 +920,14 @@ internal static class TemplateFactoryBuilder
         var syntaxFactoryMethod = MethodDeclaration(additionalUsings.GetTypeName(returnType!), ctx.TemplateInfo.Source.Identifier)
             .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.StaticKeyword))
             .WithBody(Block()
-                .AddStatements(ctx.Preamble.ToArray())
+                .AddStatements(ctx.Shape.Preamble.ToArray())
                 .AddStatements(ReturnStatement(syntaxTreeExpr)));
 
-        if (ctx.TypeParams.Count > 0)
-            syntaxFactoryMethod = syntaxFactoryMethod.WithTypeParameterList(TypeParameterList(SeparatedList(ctx.TypeParams)));
+        if (ctx.Shape.TypeParams.Count > 0)
+            syntaxFactoryMethod = syntaxFactoryMethod.WithTypeParameterList(TypeParameterList(SeparatedList(ctx.Shape.TypeParams)));
 
-        if (ctx.Parameters.Count > 0)
-            syntaxFactoryMethod = syntaxFactoryMethod.WithParameterList(ParameterList(SeparatedList(ctx.Parameters)));
+        if (ctx.Shape.Parameters.Count > 0)
+            syntaxFactoryMethod = syntaxFactoryMethod.WithParameterList(ParameterList(SeparatedList(ctx.Shape.Parameters)));
 
         return syntaxFactoryMethod;
     }

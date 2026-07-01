@@ -8,14 +8,13 @@ using Synto.Templating;
 namespace Synto.Generators.Templating;
 
 /// <summary>
-/// Transform-local scratch accumulator threaded through <see cref="TemplateFactoryBuilder"/>'s ordered
-/// per-feature steps. It bundles the constant inputs for one factory build plus every mutable accumulator
-/// the steps populate (replacements, trim set, preamble, factory parameters/type-parameters, the per-build
-/// dedup name sets, the shared lazy <see cref="ValueLift"/> instance, …). It is a plain mutable carrier — it
-/// is NOT equatable and never leaves the transform; nothing here is captured into cached pipeline state (only
-/// the resulting source text flows out). The explicit field set is the single place the cross-step ordering
-/// contract lives: each step reads what earlier steps wrote and writes what later steps read, in the fixed
-/// order <see cref="TemplateFactoryBuilder.Build"/> invokes them.
+/// Transform-local coordinator threaded through <see cref="TemplateFactoryBuilder"/>'s ordered per-feature
+/// steps. It bundles the constant inputs for one factory build, the transient analysis results the discovery
+/// steps share with the emission steps, and the three cohesive accumulators the steps populate:
+/// <see cref="Shape"/> (the factory skeleton), <see cref="Plan"/> (the quoter patches), and <see cref="Names"/>
+/// (name uniqueness). It is a plain mutable carrier — NOT equatable and never leaves the transform; nothing
+/// here is captured into cached pipeline state (only the resulting source text flows out). The step order in
+/// <see cref="TemplateFactoryBuilder.Build"/> is the single place the cross-step ordering contract lives.
 /// </summary>
 internal sealed class TemplateBuildContext
 {
@@ -40,32 +39,10 @@ internal sealed class TemplateBuildContext
     public TemplateInfo TemplateInfo { get; }
     public TemplateOption Options { get; }
 
-    // --- Replacement / trim / fold channels (consumed by the final quoter) ---
-
-    // Which file-local helper(s) the caller emits is decided by SCANNING the finished factory syntax
-    // (see TemplateDocumentBuilder.FindReferencedHelpers), so the builder no longer needs usage flags.
-    public Dictionary<SyntaxNode, ExpressionSyntax> UnquotedReplacements { get; } = new();
-    public HashSet<SyntaxNode> TrimNodes { get; } = new();
-
-    // Interpolation staged-fold channel (spec 2026-06-28): string-typed staged-root REFERENCE nodes mapped to
-    // their factory-time raw value accessor (the factory parameter / hoisted local). Built at EMISSION,
-    // adjacent to where the staged roots are consumed; only the resulting node map leaves this scope.
-    public Dictionary<SyntaxNode, ExpressionSyntax> StringStagedRoots { get; } = new();
-
-    // --- Factory shape accumulators ---
-    public List<StatementSyntax> Preamble { get; } = new();
-
-    // The member segment each valid [Splice] generator contributes to its enclosing type's member list, keyed
-    // at the generator method's declaration node so the quoter splices it at that position.
-    public Dictionary<SyntaxNode, ExpressionSyntax> SpliceMemberSegments { get; } = new();
-
-    // we use these to ensure we generate a unique type name
-    public HashSet<string> ParamNames { get; } = new(StringComparer.Ordinal);
-    public HashSet<string> InlinedTypeParamNames { get; } = new(StringComparer.Ordinal);
-
-    public List<ParameterSyntax> Parameters { get; } = new();
-    public List<TypeParameterSyntax> TypeParams { get; } = new();
-    public HashSet<ITypeParameterSymbol> InlinedTypeParams { get; } = new(SymbolEqualityComparer.Default);
+    // --- The three cohesive accumulators the plan phase populates ---
+    public FactoryShape Shape { get; } = new();
+    public QuotePlan Plan { get; } = new();
+    public NameAllocator Names { get; } = new();
 
     // Maps EVERY declaration-site live-root symbol to the shared factory parameter name so the live-region
     // renamer rewrites each member's local reference to the one factory parameter.
@@ -84,10 +61,6 @@ internal sealed class TemplateBuildContext
     public HashSet<SyntaxNode> RegionConsumedNodes { get; set; } = new();
     public HashSet<SyntaxNode> FoldClaimedReferences { get; } = new();
     public Dictionary<StagedParameter, List<MemberAccessExpressionSyntax>> FoldsByStagedParameter { get; } = new();
-
-    // Post-quote decoration hooks discovered by ResolveDecorations: per-node ordered Apply… chains the final
-    // quoter folds onto each decorated declaration. Null when the decoration surface isn't referenced.
-    public IReadOnlyDictionary<SyntaxNode, ImmutableArray<AppliedDecoration>>? DecorationHooks;
 
     // --- Shared lift policy + counters ---
     public ValueLift ValueLift { get; set; } = null!;
