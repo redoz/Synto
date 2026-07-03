@@ -772,7 +772,7 @@ internal static class TemplateFactoryBuilder
             return false;
 
         // Record each recognized call keyed at its invocation node. Assembly (quoting the [Quoted]/[TypeArg]
-        // islands) is deferred to quote time (BuilderCallMiddleware), where re-entry over the FINAL plan lets
+        // islands) is deferred to quote time (BuilderStep), where re-entry over the FINAL plan lets
         // nested builder calls expand and splice injections inside a builder argument compose — the plan-time
         // island sub-quoter used here previously could not see replacements registered after it was built
         // (splice calls, sibling/nested builders).
@@ -853,7 +853,7 @@ internal static class TemplateFactoryBuilder
     // [Splice] member generators: emit each valid generator's body VERBATIM as a factory-time local function
     // (its Parameter<>() declarations dropped — those fold into the factory parameters above and are in scope
     // as captured factory parameters), and record the member segment it contributes to its enclosing type's
-    // member list (MemberSegmentMiddleware splices it via BuildList<MemberDeclarationSyntax> at the generator's
+    // member list (MemberSegmentStep splices it via BuildList<MemberDeclarationSyntax> at the generator's
     // declaration position).
     private static void EmitSpliceMemberGenerators(TemplateBuildContext ctx)
     {

@@ -54,8 +54,8 @@ public class DecorationTests
     }
 
     // Post-quote hook folding (the decoration feature's quoter branch) is covered at the engine level by
-    // QuoteMiddlewareTest.Decoration_WrapsBaseQuote_InChainedInvocation, exercising DecorationMiddleware over
-    // the MiddlewareSyntaxQuoter engine that replaced the dissolved TemplateSyntaxQuoter.
+    // QuoteMiddlewareTest.Decoration_WrapsBaseQuote_InChainedInvocation, exercising DecorateStep (dispatched by
+    // NodePipelineMiddleware) over the MiddlewareSyntaxQuoter engine that replaced the dissolved TemplateSyntaxQuoter.
 
     // ----- Task 4: decoration round-trip through the factory generator -------------------------------
     // A carrier marked with each decoration marker runs through TemplateFactorySourceGenerator; the

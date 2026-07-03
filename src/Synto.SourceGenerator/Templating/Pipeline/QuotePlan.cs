@@ -25,11 +25,11 @@ internal sealed class QuotePlan
     // Builder-call channel: recognized facade-call invocation nodes mapped to their resolved BuilderCall. The
     // quoter short-circuits at the invocation and assembles the fully-qualified builder invocation, quoting each
     // [Quoted]/[TypeArg] island by RE-ENTERING the full pipeline (so nested builder calls and splice injections
-    // inside builder args compose). Consumed by BuilderCallMiddleware.
+    // inside builder args compose). Consumed by BuilderStep.
     public Dictionary<SyntaxNode, BuilderCall> BuilderCalls { get; } = new();
 
     // Interpolation staged-fold channel: string-typed staged-root REFERENCE nodes mapped to their factory-time
-    // raw value accessor (the factory parameter / hoisted local). Consumed by InterpolationFoldMiddleware to
+    // raw value accessor (the factory parameter / hoisted local). Consumed by InterpolationFoldStep to
     // bake bare staged-string interpolation holes into literal text.
     public Dictionary<SyntaxNode, ExpressionSyntax> StringRoots { get; } = new();
 

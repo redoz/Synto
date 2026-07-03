@@ -41,7 +41,7 @@ internal sealed class StagedEmitContext
     public IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> BaseReplacements { get; }
     public IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> StringStagedRoots { get; }
 
-    /// <summary>Builder-call channel so island quoters inside a live region also expand facade calls (BuilderCallMiddleware).</summary>
+    /// <summary>Builder-call channel so island quoters inside a live region also expand facade calls (BuilderStep).</summary>
     public IReadOnlyDictionary<SyntaxNode, BuilderCall> BuilderCalls { get; }
     public StagedRegionEmission Emission { get; }
 
