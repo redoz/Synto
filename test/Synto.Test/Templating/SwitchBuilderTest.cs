@@ -232,6 +232,82 @@ public class SwitchBuilderTest
             """);
     }
 
+    // Regression (staged builder-projection lift): a staged live-projection argument over a NON-LITERAL collection
+    // type — `EquatableArray<Col>`, which is NOT a built-in literal type — feeding a host `Switch` builder must NOT
+    // emit a spurious depth-zero `columns.ToSyntax()` lift into the factory preamble. The generic `ToSyntax<T>`
+    // fallback binds at COMPILE time for any T, so the other projection tests (which use `IReadOnlyList<Col>` and
+    // only post-gen-COMPILE) never caught this — but at factory RUNTIME `EquatableArray<Col>.ToSyntax()` hits the
+    // `_ => throw new NotImplementedException(...)` arm. This test actually EXECUTES the generated factory over an
+    // `EquatableArray`-typed staged collection and asserts it builds the switch node without throwing.
+    [Fact]
+    public void SwitchStatement_ProjectionOverEquatableArray_ExecutesWithoutSpuriousLift()
+    {
+        var source = Prelude +
+            """
+
+            [Template(typeof(Factory))]
+            public class Reader<[Splice] TRet>
+            {
+                private readonly IEnumerator<TRet> _e;
+                public TRet GetTypedStmt(int i)
+                {
+                    var columns = Parameter<Synto.Generators.EquatableArray<Col>>();
+                    Switch(i, columns.Where(c => c.Ordinal >= 0).Select(c =>
+                        Case(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
+                            Return(Member<TRet>(_e.Current, c.Name)))));
+                    throw new System.Exception();
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var compileErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(compileErrors.Count == 0,
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage())));
+
+        // Emit the generated assembly and run the factory: the injected LiteralSyntaxExtensions.ToSyntax<T> throws
+        // NotImplementedException for a non-literal type, so a spurious `columns.ToSyntax()` in the preamble blows up
+        // here at invocation time (pre-fix). Post-fix the projection runs verbatim and the switch node is built.
+        using var peStream = new System.IO.MemoryStream();
+        var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage())));
+
+        var assembly = Assembly.Load(peStream.ToArray());
+        var readerMethod = assembly.GetType("Factory")!.GetMethod("Reader")!;
+
+        // Args in factory-parameter order: (TypeSyntax TRet, EquatableArray<Col> columns). A default (empty)
+        // EquatableArray<Col> is enough — the spurious preamble lift runs BEFORE the projection, so contents are moot.
+        var columnsType = readerMethod.GetParameters()[1].ParameterType;
+        object? columnsArg = System.Activator.CreateInstance(columnsType);
+        object tretArg = SyntaxFactory.ParseTypeName("int");
+
+        object? built;
+        try
+        {
+            built = readerMethod.Invoke(null, new[] { tretArg, columnsArg });
+        }
+        catch (System.Reflection.TargetInvocationException ex)
+        {
+            Assert.Fail("Executing the generated factory threw (spurious ToSyntax lift over a non-literal collection): "
+                + ex.InnerException?.GetType().Name + ": " + ex.InnerException?.Message);
+            throw; // unreachable
+        }
+
+        var node = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.SyntaxNode>(built!);
+        Assert.Contains("switch", node.NormalizeWhitespace().ToString(), System.StringComparison.Ordinal);
+    }
+
     // Task 3: a hand-written FIXED switch statement + switch expression must quote VERBATIM through a [Template]
     // (no builders, no islands). The quoter handles arbitrary nodes generically; this pins that SwitchStatementSyntax
     // and SwitchExpressionSyntax are among them. Post-gen compile confirms the emitted factory resolves.

@@ -51,6 +51,15 @@ internal static class TemplateFactoryBuilder
         if (!DiscoverStagedRegions(ctx))
             return null;
 
+        // Resolve builder calls BEFORE the depth-zero staged lifts/folds so their STAGED-argument spines are known:
+        // a staged-root reference on such a spine runs verbatim as build-time code and must NOT be depth-zero lifted
+        // (assembly is still deferred to quote time — this only records ctx.Plan.BuilderCalls). Independent of the
+        // value lifts below, so hoisting the record step earlier is behavior-preserving.
+        if (!ResolveBuilderCalls(ctx))
+            return null;
+
+        CollectBuilderStagedConsumedNodes(ctx);
+
         ComputeScalarFolds(ctx);
 
         LiftStagedParameters(ctx);
@@ -61,9 +70,6 @@ internal static class TemplateFactoryBuilder
         LiftQuoteParameters(ctx);
         LiftQuoteCalls(ctx);
         if (ctx.ConverterError)
-            return null;
-
-        if (!ResolveBuilderCalls(ctx))
             return null;
 
         // After builder-call resolution: staged builder arguments (e.g. a `.Where(...).Select(...)` projection
@@ -417,7 +423,7 @@ internal static class TemplateFactoryBuilder
             {
                 if (memberAccess.Expression is not IdentifierNameSyntax receiver)
                     continue;
-                if (ctx.RegionConsumedNodes.Contains(memberAccess) || ctx.SpliceGeneratorNodes.Contains(memberAccess))
+                if (ctx.RegionConsumedNodes.Contains(memberAccess) || ctx.SpliceGeneratorNodes.Contains(memberAccess) || ctx.BuilderStagedConsumedNodes.Contains(memberAccess))
                     continue;
                 if (semanticModel.GetSymbolInfo(receiver).Symbol is not { } receiverSymbol
                     || !rootSymbolToStagedParameter.TryGetValue(receiverSymbol, out var ownerParameter))
@@ -481,10 +487,12 @@ internal static class TemplateFactoryBuilder
                     ctx.Plan.StringRoots[reference] = IdentifierName(paramName);
             }
 
-            // References consumed by a live region are handled by the verbatim scaffold (which uses the factory
-            // parameter directly as a runtime value); only depth-0 references lift via value.ToSyntax() — binds
-            // to the file-local LiteralSyntaxExtensions (built-in types) or the generic ToSyntax<T> fallback.
-            var depthZeroReferences = stagedParameter.References.Where(reference => !ctx.RegionConsumedNodes.Contains(reference) && !ctx.SpliceGeneratorNodes.Contains(reference) && !ctx.FoldClaimedReferences.Contains(reference)).ToList();
+            // References consumed by a live region OR emitted verbatim on a builder call's staged-argument spine are
+            // handled as build-time runtime values (the factory parameter directly); only depth-0 references lift via
+            // value.ToSyntax() — binds to the file-local LiteralSyntaxExtensions (built-in types) or the generic
+            // ToSyntax<T> fallback. Skipping the builder-staged spine is what prevents a spurious `columns.ToSyntax()`
+            // over a non-literal collection type (it would compile but throw NotImplementedException at factory runtime).
+            var depthZeroReferences = stagedParameter.References.Where(reference => !ctx.RegionConsumedNodes.Contains(reference) && !ctx.SpliceGeneratorNodes.Contains(reference) && !ctx.BuilderStagedConsumedNodes.Contains(reference) && !ctx.FoldClaimedReferences.Contains(reference)).ToList();
             if (depthZeroReferences.Count > 0)
             {
                 ExpressionSyntax conversion = InvocationExpression(
@@ -785,6 +793,43 @@ internal static class TemplateFactoryBuilder
             ctx.Plan.BuilderCalls[call.Invocation] = call;
 
         return true;
+    }
+
+    // Record every node on a builder call's STAGED (unmarked) argument spine — the projection/list expression that
+    // BuilderStep emits VERBATIM as factory-build-time code (via NestedBuilderCallRewriter, which re-quotes only
+    // nested builder invocations). A staged-root reference on this spine is a runtime value that resolves to its
+    // factory parameter, so it must be excluded from the depth-zero `value.ToSyntax()` lift and the scalar count-fold,
+    // exactly as a live `foreach` region's consumed nodes are. A nested builder's [Quoted]/[TypeArg] island is an
+    // output-world subtree re-quoted through the pipeline (its own replacements fire), so the walk STOPS at it and
+    // descends only into the nested builder's own Staged args — never marking a quoted-island reference as consumed.
+    private static void CollectBuilderStagedConsumedNodes(TemplateBuildContext ctx)
+    {
+        foreach (var call in ctx.Plan.BuilderCalls.Values)
+            AddStagedSpine(call, ctx.Plan.BuilderCalls, ctx.BuilderStagedConsumedNodes);
+    }
+
+    private static void AddStagedSpine(BuilderCall call, IReadOnlyDictionary<SyntaxNode, BuilderCall> builderCalls, HashSet<SyntaxNode> consumed)
+    {
+        foreach (var binding in call.Args)
+        {
+            if (binding.Kind == BuilderArgKind.Staged && binding.ValueArgument is { } stagedArg)
+                AddVerbatimNodes(stagedArg, builderCalls, consumed);
+        }
+    }
+
+    private static void AddVerbatimNodes(SyntaxNode node, IReadOnlyDictionary<SyntaxNode, BuilderCall> builderCalls, HashSet<SyntaxNode> consumed)
+    {
+        // A nested builder invocation is re-quoted by its own BuilderStep: descend into its Staged args only (its
+        // [Quoted]/[TypeArg] islands are output-world and re-quoted, so their references must still lift normally).
+        if (node is InvocationExpressionSyntax invocation && builderCalls.TryGetValue(invocation, out var nested))
+        {
+            AddStagedSpine(nested, builderCalls, consumed);
+            return;
+        }
+
+        consumed.Add(node);
+        foreach (var child in node.ChildNodes())
+            AddVerbatimNodes(child, builderCalls, consumed);
     }
 
     // Template.Splice(node) body calls (recognized by binding): splice the pre-built ExpressionSyntax

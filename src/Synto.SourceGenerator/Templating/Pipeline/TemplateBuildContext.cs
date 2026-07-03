@@ -59,6 +59,14 @@ internal sealed class TemplateBuildContext
     public BindingTimePartition Partition { get; set; } = null!;
     public List<StagedRegion> StagedRegions { get; set; } = new();
     public HashSet<SyntaxNode> RegionConsumedNodes { get; set; } = new();
+
+    // Nodes on a builder call's STAGED (unmarked) argument spine — the `.Where(...).Select(...)` projection (and any
+    // nested Staged args) that BuilderStep emits VERBATIM as factory-build-time code. A staged-root reference here is
+    // a runtime value, not an output-world reference, so it must be skipped by the depth-zero `value.ToSyntax()` lift
+    // and the scalar count-fold — exactly like a live `foreach` region's consumed nodes. Nested [Quoted]/[TypeArg]
+    // islands are excluded (they are re-quoted through the pipeline, so their references still lift normally).
+    public HashSet<SyntaxNode> BuilderStagedConsumedNodes { get; } = new();
+
     public HashSet<SyntaxNode> FoldClaimedReferences { get; } = new();
     public Dictionary<StagedParameter, List<MemberAccessExpressionSyntax>> FoldsByStagedParameter { get; } = new();
 
