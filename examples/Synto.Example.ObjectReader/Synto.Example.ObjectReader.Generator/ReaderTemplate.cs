@@ -110,9 +110,9 @@ internal class ObjectReaderTemplate<[Splice] T>
         var columns = Parameter<EquatableArray<ColumnInfo>>();
         var clrTypeName = Parameter<string>();
         var typeLabel = Parameter<string>();
-        foreach (var c in columns.Where(c => c.ColumnTypeName == clrTypeName))
-            if (i == c.Ordinal)
-                return Member<TRet>(_e.Current, c.Name);
+        SyntoBuilders.Switch(i, columns.Where(c => c.ColumnTypeName == clrTypeName).Select(c =>
+            SyntoBuilders.Case(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
+                SyntoBuilders.Return(Member<TRet>(_e.Current, c.Name)))));
         throw new global::System.InvalidCastException($"Field {i} is not {typeLabel} column.");
     }
 
