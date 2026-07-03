@@ -53,9 +53,9 @@ public class DecorationTests
         Assert.Contains("internal sealed class InheritsAttribute<TBase>", allGeneratedSource, StringComparison.Ordinal);
     }
 
-    // Post-quote hook folding (the decoration feature's quoter branch) is covered at the engine level by
-    // QuoteMiddlewareTest.Decoration_WrapsBaseQuote_InChainedInvocation, exercising DecorateStep (dispatched by
-    // NodePipelineMiddleware) over the MiddlewareSyntaxQuoter engine that replaced the dissolved TemplateSyntaxQuoter.
+    // Post-quote hook folding (the decoration feature's quoter branch) is covered at the step level by
+    // QuoteMiddlewareTest.Decoration_WrapsBaseQuote_InChainedInvocation, exercising DecorateStep dispatched by
+    // PerNodePipelineQuoter.
 
     // ----- Task 4: decoration round-trip through the factory generator -------------------------------
     // A carrier marked with each decoration marker runs through TemplateFactorySourceGenerator; the

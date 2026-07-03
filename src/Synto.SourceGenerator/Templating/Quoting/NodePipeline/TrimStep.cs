@@ -8,7 +8,7 @@ namespace Synto.Generators.Templating;
 /// global branch-prune already folded fully-trimmed parents into this set). Stateless — one shared instance.
 /// Per-node counterpart of the dissolved TrimMiddleware.
 /// </summary>
-internal sealed class TrimStep : INodeQuoteMiddleware<QuoteContext>
+internal sealed class TrimStep : INodeQuoteMiddleware
 {
     public static readonly TrimStep Instance = new();
 

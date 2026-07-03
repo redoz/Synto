@@ -15,8 +15,8 @@ namespace Synto.Generators.Templating;
 internal static class TemplateQuoterFactory
 {
     public static PerNodePipelineQuoter Create(
-        IReadOnlyDictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware<QuoteContext>>> nodeSteps,
-        IReadOnlyDictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware<QuoteContext>>> listSteps,
+        IReadOnlyDictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware>> nodeSteps,
+        IReadOnlyDictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware>> listSteps,
         bool includeTrivia)
         => new PerNodePipelineQuoter(nodeSteps, listSteps, includeTrivia);
 }

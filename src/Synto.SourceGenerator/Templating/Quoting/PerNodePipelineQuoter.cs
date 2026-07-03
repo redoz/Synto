@@ -7,11 +7,9 @@ namespace Synto.Generators.Templating;
 
 /// <summary>
 /// The templating quoter: a <see cref="CSharpSyntaxQuoter"/> subclass that dispatches per-node and per-owner
-/// step pipelines natively at the two seams the feature model uses (Node and List). It replaces the dissolved
-/// feature-agnostic <c>MiddlewareSyntaxQuoter</c> engine plus its two pipeline adapters
-/// (<c>NodePipelineMiddleware</c> / <c>ListPipelineMiddleware</c>): the adapters' bodies are inlined directly
-/// into the <see cref="Visit(SyntaxNode?)"/> / <see cref="Visit{TNode}(SyntaxList{TNode})"/> overrides, one
-/// dispatch layer instead of two. Feature precedence lives entirely in <see cref="PlanAssembler"/>, which
+/// step pipelines natively at the two seams the feature model uses (Node and List). The per-node step dispatch
+/// is inlined directly into the <see cref="Visit(SyntaxNode?)"/> / <see cref="Visit{TNode}(SyntaxList{TNode})"/>
+/// overrides — a single dispatch layer. Feature precedence lives entirely in <see cref="PlanAssembler"/>, which
 /// hands over the two pre-assembled step maps; steps re-enter the quoter via <see cref="QuoteContext"/>. The
 /// other five base-quoter seams (SeparatedList, Token, TriviaList, TokenList, Kind) are left at their pinned
 /// base behavior. Public-SHAPED but <c>internal</c> for now; a GA flip to <c>public</c> is a pure
@@ -19,13 +17,13 @@ namespace Synto.Generators.Templating;
 /// </summary>
 internal sealed class PerNodePipelineQuoter : CSharpSyntaxQuoter
 {
-    private readonly IReadOnlyDictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware<QuoteContext>>> _nodeSteps;
-    private readonly IReadOnlyDictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware<QuoteContext>>> _listSteps;
+    private readonly IReadOnlyDictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware>> _nodeSteps;
+    private readonly IReadOnlyDictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware>> _listSteps;
     private readonly QuoteContext _context;
 
     public PerNodePipelineQuoter(
-        IReadOnlyDictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware<QuoteContext>>> nodeSteps,
-        IReadOnlyDictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware<QuoteContext>>> listSteps,
+        IReadOnlyDictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware>> nodeSteps,
+        IReadOnlyDictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware>> listSteps,
         bool includeTrivia)
         : base(includeTrivia)
     {
@@ -80,10 +78,9 @@ internal sealed class PerNodePipelineQuoter : CSharpSyntaxQuoter
     }
 
     /// <summary>
-    /// The <see cref="QuoteContext"/> bound to this quoter: re-entry (<see cref="QuoteContext.Quote"/> /
-    /// <see cref="QuoteContext.QuoteList{TNode}"/>) routes back through this quoter's seam dispatch;
-    /// array-literal building defers to the base quoter. Holds only the quoter reference — no live-symbol /
-    /// semantic-model state.
+    /// The <see cref="QuoteContext"/> bound to this quoter: re-entry (<see cref="QuoteContext.Quote"/>) routes
+    /// back through this quoter's seam dispatch; array-literal building defers to the base quoter. Holds only
+    /// the quoter reference — no live-symbol / semantic-model state.
     /// </summary>
     private sealed class PipelineQuoteContext : QuoteContext
     {
@@ -92,8 +89,6 @@ internal sealed class PerNodePipelineQuoter : CSharpSyntaxQuoter
         public PipelineQuoteContext(PerNodePipelineQuoter quoter) => _quoter = quoter;
 
         public override ExpressionSyntax? Quote(SyntaxNode? node) => _quoter.Visit(node);
-
-        public override ExpressionSyntax QuoteList<TNode>(SyntaxList<TNode> list) => _quoter.Visit(list);
 
         public override ExpressionSyntax ToArrayLiteral(IEnumerable<ExpressionSyntax> nodes, TypeSyntax elementType)
             => _quoter.InvokeToArrayLiteral(nodes, elementType);

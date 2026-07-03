@@ -7,7 +7,7 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 namespace Synto.Generators.Templating;
 
 /// <summary>
-/// Owner-keyed List-pipeline step; dispatched by <see cref="ListPipelineMiddleware"/>. When a member list
+/// Owner-keyed List-pipeline step; dispatched by <see cref="PerNodePipelineQuoter"/>. When a member list
 /// contains one or more <c>[Splice]</c> member-generator children (keys in <paramref name="memberSegments"/>),
 /// emit a <c>CollectionSyntaxExtensions.BuildList&lt;TNode&gt;(…)</c> run — each fixed member quoted in place via
 /// <see cref="QuoteContext.Quote"/>, each generator contributing its precomputed segment at its declaration
@@ -16,7 +16,7 @@ namespace Synto.Generators.Templating;
 /// (a type decl's attribute/base lists reach this step and defer). Per-owner counterpart of the dissolved
 /// MemberSegmentMiddleware.
 /// </summary>
-internal sealed class MemberSegmentStep : IListQuoteMiddleware<QuoteContext>
+internal sealed class MemberSegmentStep : IListQuoteMiddleware
 {
     private readonly IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> _memberSegments;
 

@@ -18,7 +18,7 @@ namespace Synto.Generators.Templating;
 /// invocation node itself, so there is no self-recursion. An unmarked parameter receives the live/computed
 /// value verbatim.
 /// </summary>
-internal sealed class BuilderStep : INodeQuoteMiddleware<QuoteContext>
+internal sealed class BuilderStep : INodeQuoteMiddleware
 {
     private readonly BuilderCall _call;
 

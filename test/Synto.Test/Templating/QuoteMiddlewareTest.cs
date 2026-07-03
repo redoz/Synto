@@ -18,25 +18,25 @@ namespace Synto.Test.Templating;
 /// target node/owner key (the other seam's map left empty), asserting that step's effect on a minimal parsed
 /// input. This exercises both the quoter's per-key dispatch (it finds — or defers on — the visited node/owner)
 /// and the per-feature step behavior. A final parity test pins that empty step maps quote identically to the
-/// plain base quoter. The steps live in <c>Synto.SourceGenerator</c> (namespace
-/// <c>Synto.Generators.Templating</c>, internal); the step-model interfaces live in the <c>Synto</c> runtime
-/// copy (reached via the <c>SyntoCore</c> alias).
+/// plain base quoter. The steps and the step-model interfaces both live in <c>Synto.SourceGenerator</c>
+/// (namespace <c>Synto.Generators.Templating</c>, internal); the parity test's base quoter is the
+/// <c>Synto</c> runtime <c>CSharpSyntaxQuoter</c> (reached via the <c>SyntoCore</c> alias).
 /// </summary>
 public class QuoteMiddlewareTest
 {
-    private static readonly Dictionary<SyntaxNode, ImmutableArray<Core.INodeQuoteMiddleware<Core.QuoteContext>>> EmptyNodeMap = new();
-    private static readonly Dictionary<SyntaxNode, ImmutableArray<Core.IListQuoteMiddleware<Core.QuoteContext>>> EmptyListMap = new();
+    private static readonly Dictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware>> EmptyNodeMap = new();
+    private static readonly Dictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware>> EmptyListMap = new();
 
-    private static PerNodePipelineQuoter NodeQuoter(SyntaxNode key, params Core.INodeQuoteMiddleware<Core.QuoteContext>[] steps)
+    private static PerNodePipelineQuoter NodeQuoter(SyntaxNode key, params INodeQuoteMiddleware[] steps)
         => new(
-            new Dictionary<SyntaxNode, ImmutableArray<Core.INodeQuoteMiddleware<Core.QuoteContext>>> { [key] = ImmutableArray.Create(steps) },
+            new Dictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware>> { [key] = ImmutableArray.Create(steps) },
             EmptyListMap,
             includeTrivia: false);
 
-    private static PerNodePipelineQuoter ListQuoter(SyntaxNode key, params Core.IListQuoteMiddleware<Core.QuoteContext>[] steps)
+    private static PerNodePipelineQuoter ListQuoter(SyntaxNode key, params IListQuoteMiddleware[] steps)
         => new(
             EmptyNodeMap,
-            new Dictionary<SyntaxNode, ImmutableArray<Core.IListQuoteMiddleware<Core.QuoteContext>>> { [key] = ImmutableArray.Create(steps) },
+            new Dictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware>> { [key] = ImmutableArray.Create(steps) },
             includeTrivia: false);
 
     // ReplaceStep short-circuits to the supplied expression (the keyed node is NOT quoted); the quoter

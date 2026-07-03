@@ -8,7 +8,7 @@ namespace Synto.Generators.Templating;
 /// (never calls <c>next</c>, so the node's subtree is not descended). Per-node counterpart of the dissolved
 /// ReplacementMiddleware.
 /// </summary>
-internal sealed class ReplaceStep : INodeQuoteMiddleware<QuoteContext>
+internal sealed class ReplaceStep : INodeQuoteMiddleware
 {
     private readonly ExpressionSyntax _replacement;
 

@@ -18,19 +18,19 @@ internal static class PlanAssembler
     // ReplaceStep short-circuits before Builder/Trim/Decorate; a BuilderStep assembles (re-entrant) and
     // short-circuits before Trim/Decorate; a TrimStep drops before Decorate; a DecorateStep wraps the base
     // quote. Across different nodes order is irrelevant (keyed separately).
-    public static Dictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware<QuoteContext>>> BuildNodeSteps(
+    public static Dictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware>> BuildNodeSteps(
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> replacements,
         IReadOnlyDictionary<SyntaxNode, BuilderCall>? builderCalls,
         HashSet<SyntaxNode> trimNodes,
         IReadOnlyDictionary<SyntaxNode, ImmutableArray<AppliedDecoration>>? decorationHooks)
     {
-        var builders = new Dictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware<QuoteContext>>.Builder>();
+        var builders = new Dictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware>.Builder>();
 
-        ImmutableArray<INodeQuoteMiddleware<QuoteContext>>.Builder StepsFor(SyntaxNode node)
+        ImmutableArray<INodeQuoteMiddleware>.Builder StepsFor(SyntaxNode node)
         {
             if (!builders.TryGetValue(node, out var builder))
             {
-                builder = ImmutableArray.CreateBuilder<INodeQuoteMiddleware<QuoteContext>>();
+                builder = ImmutableArray.CreateBuilder<INodeQuoteMiddleware>();
                 builders.Add(node, builder);
             }
             return builder;
@@ -50,7 +50,7 @@ internal static class PlanAssembler
             foreach (var hook in decorationHooks)
                 StepsFor(hook.Key).Add(new DecorateStep(hook.Value));
 
-        var steps = new Dictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware<QuoteContext>>>(builders.Count);
+        var steps = new Dictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware>>(builders.Count);
         foreach (var entry in builders)
             steps.Add(entry.Key, entry.Value.ToImmutable());
         return steps;
@@ -62,17 +62,17 @@ internal static class PlanAssembler
     // is encoded anyway for uniformity. Each owner gets ONE step carrying the FULL channel map (the steps do
     // per-hole / per-child lookup and self-defer), so a keyed owner where nothing folds reproduces exactly
     // what the global middleware did. Across different owners order is irrelevant (keyed separately).
-    public static Dictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware<QuoteContext>>> BuildListSteps(
+    public static Dictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware>> BuildListSteps(
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax>? stringRoots,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax>? memberSegments)
     {
-        var builders = new Dictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware<QuoteContext>>.Builder>();
+        var builders = new Dictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware>.Builder>();
 
-        ImmutableArray<IListQuoteMiddleware<QuoteContext>>.Builder StepsFor(SyntaxNode owner)
+        ImmutableArray<IListQuoteMiddleware>.Builder StepsFor(SyntaxNode owner)
         {
             if (!builders.TryGetValue(owner, out var builder))
             {
-                builder = ImmutableArray.CreateBuilder<IListQuoteMiddleware<QuoteContext>>();
+                builder = ImmutableArray.CreateBuilder<IListQuoteMiddleware>();
                 builders.Add(owner, builder);
             }
             return builder;
@@ -108,7 +108,7 @@ internal static class PlanAssembler
             }
         }
 
-        var steps = new Dictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware<QuoteContext>>>(builders.Count);
+        var steps = new Dictionary<SyntaxNode, ImmutableArray<IListQuoteMiddleware>>(builders.Count);
         foreach (var entry in builders)
             steps.Add(entry.Key, entry.Value.ToImmutable());
         return steps;

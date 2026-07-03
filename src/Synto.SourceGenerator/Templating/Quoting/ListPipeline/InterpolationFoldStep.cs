@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Synto.Generators.Templating;
 
 /// <summary>
-/// Owner-keyed List-pipeline step; dispatched by <see cref="ListPipelineMiddleware"/>. For an interpolated
+/// Owner-keyed List-pipeline step; dispatched by <see cref="PerNodePipelineQuoter"/>. For an interpolated
 /// string's contents list (<c>SyntaxList&lt;InterpolatedStringContentSyntax&gt;</c>), fold bare staged-string
 /// interpolation holes into their flanking literal text via the <see cref="InterpolationFold"/> subsystem;
 /// every other list shape — and every interpolated string with no foldable hole — defers to <c>next</c>. The
@@ -13,7 +13,7 @@ namespace Synto.Generators.Templating;
 /// the owner-key collision residual (a non-target list reaching this step falls through). Per-owner counterpart
 /// of the dissolved InterpolationFoldMiddleware.
 /// </summary>
-internal sealed class InterpolationFoldStep : IListQuoteMiddleware<QuoteContext>
+internal sealed class InterpolationFoldStep : IListQuoteMiddleware
 {
     private readonly IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> _stringStagedRoots;
     private InterpolationFold? _fold;

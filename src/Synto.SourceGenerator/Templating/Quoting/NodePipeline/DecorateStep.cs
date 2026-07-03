@@ -13,7 +13,7 @@ namespace Synto.Generators.Templating;
 /// counterpart of the dissolved DecorationMiddleware. A replaced node never reaches here (a ReplaceStep earlier
 /// in the node's step list short-circuits).
 /// </summary>
-internal sealed class DecorateStep : INodeQuoteMiddleware<QuoteContext>
+internal sealed class DecorateStep : INodeQuoteMiddleware
 {
     private readonly ImmutableArray<AppliedDecoration> _hooks;
 
