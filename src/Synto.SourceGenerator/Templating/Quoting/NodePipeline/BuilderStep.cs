@@ -21,8 +21,13 @@ namespace Synto.Generators.Templating;
 internal sealed class BuilderStep : INodeQuoteMiddleware
 {
     private readonly BuilderCall _call;
+    private readonly IReadOnlyDictionary<SyntaxNode, BuilderCall> _builderCalls;
 
-    public BuilderStep(BuilderCall call) => _call = call;
+    public BuilderStep(BuilderCall call, IReadOnlyDictionary<SyntaxNode, BuilderCall> builderCalls)
+    {
+        _call = call;
+        _builderCalls = builderCalls;
+    }
 
     public ExpressionSyntax? Quote(SyntaxNode? node, QuoteContext ctx, NodeQuoteNext next)
     {
@@ -33,7 +38,13 @@ internal sealed class BuilderStep : INodeQuoteMiddleware
             {
                 BuilderArgKind.Quoted => ctx.Quote(binding.ValueArgument!)!,
                 BuilderArgKind.QuotedTypeArg => ctx.Quote(binding.TypeArgument!)!,
-                _ => binding.ValueArgument!.WithoutTrivia(),
+                // A staged (unmarked) argument is emitted as verbatim build-time code, but any recognized builder
+                // facade call NESTED inside it (e.g. `Case(...)` / `Arm(...)` inside a `.Select(c => ...)` projection
+                // feeding a host builder's staged list) must still be rewritten to its real fully-qualified builder
+                // invocation — otherwise the factory would reference the inert facade. Each nested call re-enters
+                // the pipeline (which expands its own [Quoted] islands + deeper nested builders), leaving the
+                // surrounding staged LINQ/lambda code untouched.
+                _ => (ExpressionSyntax)new NestedBuilderCallRewriter(ctx, _builderCalls).Visit(binding.ValueArgument!)!.WithoutTrivia(),
             };
             args.Add(Argument(argExpr));
         }
@@ -44,5 +55,31 @@ internal sealed class BuilderStep : INodeQuoteMiddleware
                     ParseName(_call.BuilderFullyQualifiedTypeName),
                     IdentifierName(_call.BuilderMethodName)))
             .WithArgumentList(ArgumentList(SeparatedList(args)));
+    }
+
+    /// <summary>
+    /// Rewrites each recognized builder-facade invocation nested inside a staged argument to its real builder call
+    /// by re-entering the node pipeline (<see cref="QuoteContext.Quote"/>) on that invocation — leaving all other
+    /// (LINQ / lambda / literal) staged code verbatim. Re-entry is on the nested invocation subtree, so the outer
+    /// staged expression is never quoted-as-syntax.
+    /// </summary>
+    private sealed class NestedBuilderCallRewriter : CSharpSyntaxRewriter
+    {
+        private readonly QuoteContext _ctx;
+        private readonly IReadOnlyDictionary<SyntaxNode, BuilderCall> _builderCalls;
+
+        public NestedBuilderCallRewriter(QuoteContext ctx, IReadOnlyDictionary<SyntaxNode, BuilderCall> builderCalls)
+        {
+            _ctx = ctx;
+            _builderCalls = builderCalls;
+        }
+
+        public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
+        {
+            if (_builderCalls.ContainsKey(node))
+                return _ctx.Quote(node);
+
+            return base.VisitInvocationExpression(node);
+        }
     }
 }

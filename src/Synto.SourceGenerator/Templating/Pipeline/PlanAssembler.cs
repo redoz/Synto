@@ -41,7 +41,7 @@ internal static class PlanAssembler
 
         if (builderCalls is { Count: > 0 })
             foreach (var call in builderCalls)
-                StepsFor(call.Key).Add(new BuilderStep(call.Value));
+                StepsFor(call.Key).Add(new BuilderStep(call.Value, builderCalls));
 
         foreach (var node in trimNodes)
             StepsFor(node).Add(TrimStep.Instance);

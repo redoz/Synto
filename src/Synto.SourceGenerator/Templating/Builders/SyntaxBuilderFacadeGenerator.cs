@@ -41,6 +41,11 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
         if (shape is null || annotationError is not null || returnShapeError is not null)
             return null; // an invalid builder produces no facade; TemplateFactorySourceGenerator reports the diagnostic.
 
+        if (FacadeMatchesBuilder(builder, shape))
+            return null; // an all-staged, concrete-node-returning builder IS its own facade; synthesizing one
+                         // would collide with the real (injected) method (CS0111). The template binds directly to
+                         // the real builder and TemplateFactorySourceGenerator still rewrites the recognized call.
+
         var sb = new StringBuilder();
         sb.Append("#nullable enable\n");
 
@@ -72,7 +77,13 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
         if (ns is not null)
             sb.Append("}\n");
 
-        string hint = builder.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+        // Include the parameter types so overloaded builders (e.g. the two `Switch` shapes, which differ only by
+        // list element type) get DISTINCT hint names — a method's fully-qualified display omits its parameter list.
+        var hintBuilder = new StringBuilder(builder.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        foreach (var p in builder.Parameters)
+            hintBuilder.Append('_').Append(p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+
+        string hint = hintBuilder.ToString()
             .Replace("global::", "")
             .Replace("<", "_")
             .Replace(">", "_")
@@ -84,6 +95,24 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
             + ".SyntaxBuilderFacade.g.cs";
 
         return (hint, sb.ToString());
+    }
+
+    /// <summary>
+    /// True when the derived facade would be signature-identical to the real builder — an all-staged builder that
+    /// returns a concrete syntax node (no <c>[Quoted]</c>/<c>[TypeArg]</c> island reshaping a parameter, no fresh
+    /// <c>TResult</c>). Such a builder needs no synthesized facade: the real injected method is directly callable
+    /// from the template, and a synthesized twin would be a duplicate member (CS0111).
+    /// </summary>
+    private static bool FacadeMatchesBuilder(IMethodSymbol builder, FacadeShape shape)
+    {
+        if (shape.GenericParameters.Count > 0 || shape.FreshReturnTypeParam)
+            return false;
+        if (shape.ReturnTypeDisplay != builder.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+            return false;
+        foreach (var p in shape.Parameters)
+            if (p.Kind != BuilderArgKind.Staged)
+                return false;
+        return true;
     }
 
     private static void AppendFacadeMethod(StringBuilder sb, FacadeShape shape)
@@ -109,6 +138,7 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
                 continue;
             if (!first) sb.Append(", ");
             first = false;
+            if (p.IsParams) sb.Append("params ");
             sb.Append(p.ValueTypeDisplay).Append(' ').Append(p.ParameterName);
         }
         sb.Append(')');

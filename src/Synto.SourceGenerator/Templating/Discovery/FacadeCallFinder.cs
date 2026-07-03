@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -53,7 +54,11 @@ internal static class FacadeCallFinder
             string? simpleName = GetInvokedSimpleName(invocation);
             if (simpleName is not null && buildersByName.TryGetValue(simpleName, out var candidates))
             {
-                if (candidates.Count > 1)
+                // Same-name overloads are allowed as long as they share a binding shape (e.g. the two `Switch`
+                // overloads are both `[Quoted governing, Staged list]`): bind with the shared shape and let the
+                // C# compiler resolve the real overload from the typed argument at factory-compile time. SY1018
+                // fires only on a genuine shape conflict (differing quoted/staged/type-arg parameter kinds).
+                if (candidates.Count > 1 && !ShareBindingShape(candidates))
                 {
                     diagnostics.Add(TemplateDiagnostics.AmbiguousBuilder(invocation.GetLocation(), simpleName));
                     continue;
@@ -90,6 +95,36 @@ internal static class FacadeCallFinder
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// True when every same-name builder candidate derives the SAME binding shape — the sequence of quoted /
+    /// staged / type-arg parameter kinds (plus fresh-return + generic-parameter count). Such overloads bind
+    /// identically (candidates[0] is representative); the C# compiler resolves the real one from the emitted
+    /// fully-qualified call's argument types. Any candidate that fails to derive a facade is treated as a conflict.
+    /// </summary>
+    private static bool ShareBindingShape(List<IMethodSymbol> candidates)
+    {
+        string? key = null;
+        foreach (var candidate in candidates)
+        {
+            var shape = FacadeShape.Derive(candidate, out var annotationError, out var returnShapeError);
+            if (shape is null || annotationError is not null || returnShapeError is not null)
+                return false;
+
+            var sb = new StringBuilder();
+            sb.Append(shape.FreshReturnTypeParam ? '1' : '0').Append('|').Append(shape.GenericParameters.Count);
+            foreach (var p in shape.Parameters)
+                sb.Append('|').Append((int)p.Kind);
+
+            string candidateKey = sb.ToString();
+            if (key is null)
+                key = candidateKey;
+            else if (!string.Equals(key, candidateKey, System.StringComparison.Ordinal))
+                return false;
+        }
+
+        return true;
     }
 
     private static string? GetInvokedSimpleName(InvocationExpressionSyntax invocation)

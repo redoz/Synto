@@ -50,6 +50,20 @@ internal static class FacadeArgumentBinder
                     break;
 
                 default:
+                    if (p.IsParams)
+                    {
+                        // A `params` collection binds the call's ENTIRE trailing argument run — one binding each,
+                        // so BuilderStep emits them expanded (`Switch(gov, a, b)`); the single-argument projection
+                        // form (`Switch(gov, cols.Select(...))`) naturally binds its one IEnumerable expression.
+                        // Zero trailing arguments is legal (an empty list).
+                        while (valueCursor < valueArgs.Count)
+                        {
+                            bindings.Add(new BuilderArgBinding(p.Kind, p.ParameterName, valueArgs[valueCursor].Expression, null));
+                            valueCursor++;
+                        }
+                        break;
+                    }
+
                     if (valueCursor >= valueArgs.Count)
                     {
                         diagnostics.Add(TemplateDiagnostics.BuilderArgBindingMismatch(invocation.GetLocation(), p.ParameterName, "missing argument"));

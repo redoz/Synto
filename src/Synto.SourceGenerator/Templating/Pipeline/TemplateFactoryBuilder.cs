@@ -51,7 +51,6 @@ internal static class TemplateFactoryBuilder
         if (!DiscoverStagedRegions(ctx))
             return null;
 
-        TransplantCarrierUsings(ctx);
         ComputeScalarFolds(ctx);
 
         LiftStagedParameters(ctx);
@@ -66,6 +65,12 @@ internal static class TemplateFactoryBuilder
 
         if (!ResolveBuilderCalls(ctx))
             return null;
+
+        // After builder-call resolution: staged builder arguments (e.g. a `.Where(...).Select(...)` projection
+        // feeding a host builder's staged list) run VERBATIM in the factory just like a live control region, so the
+        // carrier's namespace usings they rely on must be transplanted too. Runs after ResolveBuilderCalls so the
+        // builder-call presence is known.
+        TransplantCarrierUsings(ctx);
 
         ResolveSpliceCalls(ctx);
 
@@ -373,7 +378,7 @@ internal static class TemplateFactoryBuilder
     // is never pulled into the factory scope where it could collide with the injected internal surface.
     private static void TransplantCarrierUsings(TemplateBuildContext ctx)
     {
-        if (ctx.StagedRegions.Count > 0
+        if ((ctx.StagedRegions.Count > 0 || ctx.Plan.BuilderCalls.Count > 0)
             && ctx.TemplateInfo.Source!.Syntax.SyntaxTree.GetRoot() is CompilationUnitSyntax carrierUnit)
         {
             foreach (var carrierUsing in carrierUnit.Usings)

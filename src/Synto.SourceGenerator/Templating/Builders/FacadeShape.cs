@@ -8,12 +8,13 @@ namespace Synto.Generators.Templating;
 /// <summary>One builder parameter as seen by facade derivation (binding + facade element).</summary>
 internal sealed class FacadeParam
 {
-    public FacadeParam(string parameterName, BuilderArgKind kind, string? genericParameterName, string? valueTypeDisplay)
+    public FacadeParam(string parameterName, BuilderArgKind kind, string? genericParameterName, string? valueTypeDisplay, bool isParams = false)
     {
         ParameterName = parameterName;
         Kind = kind;
         GenericParameterName = genericParameterName;
         ValueTypeDisplay = valueTypeDisplay;
+        IsParams = isParams;
     }
 
     public string ParameterName { get; }
@@ -24,6 +25,10 @@ internal sealed class FacadeParam
 
     /// <summary>The synthesized facade value-parameter type (for <see cref="BuilderArgKind.Quoted"/>/<see cref="BuilderArgKind.Staged"/>).</summary>
     public string? ValueTypeDisplay { get; }
+
+    /// <summary>True when the builder parameter is a <c>params</c> collection — the facade re-emits the modifier and
+    /// the binder collects the call's trailing (expanded) arguments into this parameter.</summary>
+    public bool IsParams { get; }
 }
 
 /// <summary>One synthesized facade generic type parameter: its name and an optional base-type constraint.</summary>
@@ -87,8 +92,11 @@ internal sealed class FacadeShape
         string returnDisplay = builder.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         bool returnsExpression = IsNamed(builder.ReturnType, "Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax");
         bool returnsType = IsNamed(builder.ReturnType, "Microsoft.CodeAnalysis.CSharp.Syntax.TypeSyntax");
+        // A concrete Roslyn syntax-node return type (e.g. SwitchStatementSyntax / SwitchSectionSyntax) is also
+        // accepted, and its facade returns that concrete type VERBATIM (see the return-display block below).
+        bool returnsSyntaxNode = IsSyntaxNode(builder.ReturnType);
 
-        if (!returnsExpression && !returnsType)
+        if (!returnsExpression && !returnsType && !returnsSyntaxNode)
         {
             returnShapeError = returnDisplay;
             return null;
@@ -136,8 +144,8 @@ internal sealed class FacadeShape
                 continue;
             }
 
-            // Unmarked (staged): facade value param, same type as the builder param.
-            parameters.Add(new FacadeParam(p.Name, BuilderArgKind.Staged, null, p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+            // Unmarked (staged): facade value param, same type as the builder param (preserving any `params`).
+            parameters.Add(new FacadeParam(p.Name, BuilderArgKind.Staged, null, p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), p.IsParams));
         }
 
         if (returnTypeParamCount > 1)
@@ -156,10 +164,17 @@ internal sealed class FacadeShape
         {
             returnTypeDisplay = returnTypeParamName;
         }
-        else
+        else if (returnsExpression)
         {
             freshReturnTypeParam = true;
             returnTypeDisplay = FreshReturnTypeParamName;
+        }
+        else
+        {
+            // A concrete syntax-node return type (e.g. SwitchStatementSyntax): the facade returns it VERBATIM,
+            // NOT a fresh TResult — otherwise overloaded builders (the two `Switch` shapes) would become
+            // return-type-generic and overload resolution would collapse.
+            returnTypeDisplay = returnDisplay;
         }
 
         // The fresh TResult is the FIRST facade generic parameter.
@@ -172,6 +187,14 @@ internal sealed class FacadeShape
     private static bool IsNamed(ITypeSymbol type, string fullyQualifiedMetadata)
     {
         return type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::" + fullyQualifiedMetadata;
+    }
+
+    private static bool IsSyntaxNode(ITypeSymbol type)
+    {
+        for (ITypeSymbol? t = type; t is not null; t = t.BaseType)
+            if (t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Microsoft.CodeAnalysis.SyntaxNode")
+                return true;
+        return false;
     }
 
     private static string Pascal(string name)
