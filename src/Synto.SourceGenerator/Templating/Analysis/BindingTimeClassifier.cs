@@ -208,7 +208,7 @@ internal sealed class BindingTimeClassifier
                 case ForEachStatementSyntax forEach when ReferencesStaged(forEach.Expression):
                 case ForEachVariableStatementSyntax forEachVar when ReferencesStaged(forEachVar.Expression):
                 case WhileStatementSyntax whileStatement when ReferencesStaged(whileStatement.Condition):
-                case ForStatementSyntax forStatement when forStatement.Condition is { } condition && ReferencesStaged(condition):
+                case ForStatementSyntax { Condition: { } condition } when ReferencesStaged(condition):
                 case IfStatementSyntax ifStatement when ReferencesStaged(ifStatement.Condition):
                     classification[node] = BindingTime.StagedControl;
                     break;
