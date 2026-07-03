@@ -59,13 +59,15 @@ internal sealed class FacadeShape
         IReadOnlyList<FacadeParam> parameters,
         IReadOnlyList<FacadeGenericParam> genericParameters,
         bool freshReturnTypeParam,
-        string returnTypeDisplay)
+        string returnTypeDisplay,
+        bool returnsStatement)
     {
         MethodName = methodName;
         Parameters = parameters;
         GenericParameters = genericParameters;
         FreshReturnTypeParam = freshReturnTypeParam;
         ReturnTypeDisplay = returnTypeDisplay;
+        ReturnsStatement = returnsStatement;
     }
 
     public string MethodName { get; }
@@ -81,6 +83,11 @@ internal sealed class FacadeShape
 
     /// <summary>The synthesized facade's return type.</summary>
     public string ReturnTypeDisplay { get; }
+
+    /// <summary>True when the builder returns a <see cref="StatementSyntax"/>-derived node (e.g. the statement
+    /// <c>Switch</c> → <c>SwitchStatementSyntax</c>). Such a call, written as a bare statement, must splice the
+    /// built statement node directly (no <c>ExpressionStatement</c> wrapper). Plain equatable bool — no symbol leaks.</summary>
+    public bool ReturnsStatement { get; }
 
     private const string FreshReturnTypeParamName = "TResult";
 
@@ -181,7 +188,11 @@ internal sealed class FacadeShape
         if (freshReturnTypeParam)
             genericParameters.Insert(0, new FacadeGenericParam(FreshReturnTypeParamName, null));
 
-        return new FacadeShape(builder.Name, parameters, genericParameters, freshReturnTypeParam, returnTypeDisplay);
+        // A StatementSyntax-derived return (not ExpressionSyntax/TypeSyntax) makes the call statement-position
+        // spliceable: a bare-statement builder call emits the built statement node directly.
+        bool returnsStatement = !returnsExpression && !returnsType && IsStatementSyntax(builder.ReturnType);
+
+        return new FacadeShape(builder.Name, parameters, genericParameters, freshReturnTypeParam, returnTypeDisplay, returnsStatement);
     }
 
     private static bool IsNamed(ITypeSymbol type, string fullyQualifiedMetadata)
@@ -193,6 +204,14 @@ internal sealed class FacadeShape
     {
         for (ITypeSymbol? t = type; t is not null; t = t.BaseType)
             if (t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Microsoft.CodeAnalysis.SyntaxNode")
+                return true;
+        return false;
+    }
+
+    private static bool IsStatementSyntax(ITypeSymbol type)
+    {
+        for (ITypeSymbol? t = type; t is not null; t = t.BaseType)
+            if (t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Microsoft.CodeAnalysis.CSharp.Syntax.StatementSyntax")
                 return true;
         return false;
     }

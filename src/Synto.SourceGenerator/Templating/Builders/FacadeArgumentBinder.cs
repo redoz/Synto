@@ -76,7 +76,7 @@ internal static class FacadeArgumentBinder
         }
 
         string builderType = builder.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        return new BuilderCall(invocation, builderType, builder.Name, bindings);
+        return new BuilderCall(invocation, builderType, builder.Name, bindings, shape.ReturnsStatement);
     }
 
     private static SeparatedSyntaxList<TypeSyntax> GetTypeArguments(InvocationExpressionSyntax invocation)

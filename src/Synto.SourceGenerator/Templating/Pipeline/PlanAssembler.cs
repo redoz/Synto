@@ -41,7 +41,17 @@ internal static class PlanAssembler
 
         if (builderCalls is { Count: > 0 })
             foreach (var call in builderCalls)
+            {
                 StepsFor(call.Key).Add(new BuilderStep(call.Value, builderCalls));
+
+                // Statement-position splice: a statement-returning builder call that IS the sole expression of an
+                // ExpressionStatement emits the built statement node directly (no ExpressionStatement wrapper).
+                // Keyed on the wrapper node so quoting it short-circuits to the inner builder invocation.
+                if (call.Value.ReturnsStatement
+                    && call.Value.Invocation.Parent is ExpressionStatementSyntax exprStatement
+                    && exprStatement.Expression == call.Value.Invocation)
+                    StepsFor(exprStatement).Add(new StatementBuilderSpliceStep(call.Value.Invocation));
+            }
 
         foreach (var node in trimNodes)
             StepsFor(node).Add(TrimStep.Instance);

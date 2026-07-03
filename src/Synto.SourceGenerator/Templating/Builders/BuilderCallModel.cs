@@ -46,18 +46,23 @@ internal sealed class BuilderArgBinding
 /// </summary>
 internal sealed class BuilderCall
 {
-    public BuilderCall(InvocationExpressionSyntax invocation, string builderFullyQualifiedTypeName, string builderMethodName, IReadOnlyList<BuilderArgBinding> args)
+    public BuilderCall(InvocationExpressionSyntax invocation, string builderFullyQualifiedTypeName, string builderMethodName, IReadOnlyList<BuilderArgBinding> args, bool returnsStatement = false)
     {
         Invocation = invocation;
         BuilderFullyQualifiedTypeName = builderFullyQualifiedTypeName;
         BuilderMethodName = builderMethodName;
         Args = args;
+        ReturnsStatement = returnsStatement;
     }
 
     public InvocationExpressionSyntax Invocation { get; }
     public string BuilderFullyQualifiedTypeName { get; }
     public string BuilderMethodName { get; }
     public IReadOnlyList<BuilderArgBinding> Args { get; }
+
+    /// <summary>True when the builder returns a <see cref="StatementSyntax"/>-derived node: a bare-statement call
+    /// splices the built statement node directly (no <c>ExpressionStatement</c> wrapper). Plain equatable bool.</summary>
+    public bool ReturnsStatement { get; }
 }
 
 /// <summary>The result of discovering facade calls: the resolved calls plus any builder/binding diagnostics.</summary>

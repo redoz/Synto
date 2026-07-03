@@ -66,32 +66,29 @@ partial class Factory
                                    Token(OpenBraceToken), 
                                    List<StatementSyntax>(
                                        new StatementSyntax[] { 
-                                           ExpressionStatement(
-                                               List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
-                                               global::Synto.Templating.SyntoBuilders.Switch(
-                                                   IdentifierName("i"), 
-                                                   global::Synto.Templating.SyntoBuilders.Case(
-                                                       LiteralExpression(
-                                                           NumericLiteralExpression, 
-                                                           Literal(0)), 
-                                                       global::Synto.Templating.SyntoBuilders.Return(
-                                                           global::Synto.Templating.SyntoBuilders.Member(
-                                                               MemberAccessExpression(
-                                                                   SimpleMemberAccessExpression, 
-                                                                   IdentifierName("_e"), 
-                                                                   Token(DotToken), 
-                                                                   IdentifierName("Current")), 
-                                                               "A"))), 
-                                                   global::Synto.Templating.SyntoBuilders.Default(
-                                                       global::Synto.Templating.SyntoBuilders.Return(
-                                                           global::Synto.Templating.SyntoBuilders.Member(
-                                                               MemberAccessExpression(
-                                                                   SimpleMemberAccessExpression, 
-                                                                   IdentifierName("_e"), 
-                                                                   Token(DotToken), 
-                                                                   IdentifierName("Current")), 
-                                                               "B")))), 
-                                               Token(SemicolonToken)), 
+                                           global::Synto.Templating.SyntoBuilders.Switch(
+                                               IdentifierName("i"), 
+                                               global::Synto.Templating.SyntoBuilders.Case(
+                                                   LiteralExpression(
+                                                       NumericLiteralExpression, 
+                                                       Literal(0)), 
+                                                   global::Synto.Templating.SyntoBuilders.Return(
+                                                       global::Synto.Templating.SyntoBuilders.Member(
+                                                           MemberAccessExpression(
+                                                               SimpleMemberAccessExpression, 
+                                                               IdentifierName("_e"), 
+                                                               Token(DotToken), 
+                                                               IdentifierName("Current")), 
+                                                           "A"))), 
+                                               global::Synto.Templating.SyntoBuilders.Default(
+                                                   global::Synto.Templating.SyntoBuilders.Return(
+                                                       global::Synto.Templating.SyntoBuilders.Member(
+                                                           MemberAccessExpression(
+                                                               SimpleMemberAccessExpression, 
+                                                               IdentifierName("_e"), 
+                                                               Token(DotToken), 
+                                                               IdentifierName("Current")), 
+                                                           "B")))), 
                                            ThrowStatement(
                                                List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
                                                Token(ThrowKeyword), 

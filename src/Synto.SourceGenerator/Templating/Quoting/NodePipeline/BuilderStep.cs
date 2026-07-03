@@ -83,3 +83,21 @@ internal sealed class BuilderStep : INodeQuoteMiddleware
         }
     }
 }
+
+/// <summary>
+/// Terminal Node-pipeline step keyed on an <see cref="ExpressionStatementSyntax"/> whose sole expression is a
+/// statement-returning <c>[SyntaxBuilder]</c> call (e.g. statement <c>Switch</c> → <c>SwitchStatementSyntax</c>).
+/// Instead of quoting the wrapper (which would emit <c>ExpressionStatement(&lt;builder call&gt;)</c> — a CS1503
+/// since a <c>SwitchStatementSyntax</c> is not an <c>ExpressionSyntax</c>), it emits the builder invocation
+/// DIRECTLY by re-entering the pipeline on the inner invocation (<see cref="QuoteContext.Quote"/>), whose own
+/// <see cref="BuilderStep"/> assembles the real builder call. The built statement node then sits verbatim in the
+/// enclosing statement list. Never calls <c>next</c> (the wrapper is never quoted-as-syntax).
+/// </summary>
+internal sealed class StatementBuilderSpliceStep : INodeQuoteMiddleware
+{
+    private readonly InvocationExpressionSyntax _innerInvocation;
+
+    public StatementBuilderSpliceStep(InvocationExpressionSyntax innerInvocation) => _innerInvocation = innerInvocation;
+
+    public ExpressionSyntax? Quote(SyntaxNode? node, QuoteContext ctx, NodeQuoteNext next) => ctx.Quote(_innerInvocation);
+}

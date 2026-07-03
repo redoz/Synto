@@ -181,14 +181,14 @@ public class SwitchBuilderTest
             """);
     }
 
-    // Task 2 surface: a trailing Default section appended after a Case, feeding the STATEMENT Switch overload. Like
-    // SwitchStatement_CaseProjection, post-gen compile is skipped — a SwitchStatementSyntax island has no expression
-    // slot to be spliced into as an output statement (statement-position splicing is a deferred follow-up capability);
-    // the section-builder BINDING (Case + Default + Return) is fully proven by the snapshot.
+    // Task 2 surface: a trailing Default section appended after a Case, feeding the STATEMENT Switch overload. The
+    // statement-returning Switch call in statement position splices the built SwitchStatement directly (no
+    // ExpressionStatement wrapper), so it post-gen compiles. Proves the section-builder BINDING (Case + Default +
+    // Return) plus statement-position placement.
     [Fact]
     public Task SwitchStatement_TrailingDefault()
     {
-        return VerifySwitchTemplate(postGenCompile: false, source: Prelude +
+        return VerifySwitchTemplate(Prelude +
             """
 
             [Template(typeof(Factory))]
@@ -208,13 +208,12 @@ public class SwitchBuilderTest
 
     // Unknown #1 (section projection): Case + Return over the live projection, feeding the STATEMENT Switch overload.
     // Proves the section builders (Case/Return) + the SwitchSectionSyntax/SwitchStatementSyntax return-shapes BIND
-    // and rewrite correctly (snapshot). Post-gen compile is skipped: the resulting SwitchStatementSyntax has no
-    // expression slot to be spliced into as an output statement — statement-position splicing is a follow-up
-    // capability (out of this spike's three unknowns), so the statement Switch's OUTPUT placement is deferred.
+    // and rewrite correctly (snapshot). The statement-returning Switch call in statement position splices the built
+    // SwitchStatement directly (no ExpressionStatement wrapper), so it post-gen compiles.
     [Fact]
     public Task SwitchStatement_CaseProjection()
     {
-        return VerifySwitchTemplate(postGenCompile: false, source: Prelude +
+        return VerifySwitchTemplate(Prelude +
             """
 
             [Template(typeof(Factory))]

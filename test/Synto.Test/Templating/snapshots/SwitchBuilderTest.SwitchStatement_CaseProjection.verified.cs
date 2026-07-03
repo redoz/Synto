@@ -69,24 +69,21 @@ partial class Factory
                                    Token(OpenBraceToken), 
                                    List<StatementSyntax>(
                                        new StatementSyntax[] { 
-                                           ExpressionStatement(
-                                               List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
-                                               global::Synto.Templating.SyntoBuilders.Switch(
-                                                   IdentifierName("i"), 
-                                                   cols.Where(c => c.Ordinal >= 0).Select(
-                                                       c => global::Synto.Templating.SyntoBuilders.Case(
-                                                           LiteralExpression(
-                                                               NumericLiteralExpression, 
-                                                               Literal(c.Ordinal)), 
-                                                           global::Synto.Templating.SyntoBuilders.Return(
-                                                               global::Synto.Templating.SyntoBuilders.Member(
-                                                                   MemberAccessExpression(
-                                                                       SimpleMemberAccessExpression, 
-                                                                       IdentifierName("_e"), 
-                                                                       Token(DotToken), 
-                                                                       IdentifierName("Current")), 
-                                                                   c.Name))))), 
-                                               Token(SemicolonToken)), 
+                                           global::Synto.Templating.SyntoBuilders.Switch(
+                                               IdentifierName("i"), 
+                                               cols.Where(c => c.Ordinal >= 0).Select(
+                                                   c => global::Synto.Templating.SyntoBuilders.Case(
+                                                       LiteralExpression(
+                                                           NumericLiteralExpression, 
+                                                           Literal(c.Ordinal)), 
+                                                       global::Synto.Templating.SyntoBuilders.Return(
+                                                           global::Synto.Templating.SyntoBuilders.Member(
+                                                               MemberAccessExpression(
+                                                                   SimpleMemberAccessExpression, 
+                                                                   IdentifierName("_e"), 
+                                                                   Token(DotToken), 
+                                                                   IdentifierName("Current")), 
+                                                               c.Name))))), 
                                            ThrowStatement(
                                                List<AttributeListSyntax>(Array.Empty<AttributeListSyntax>()), 
                                                Token(ThrowKeyword), 
