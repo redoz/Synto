@@ -1,9 +1,34 @@
 # Switch builders — list-shaped `[SyntaxBuilder]` helpers (user-facing design)
 
 **Date:** 2026-06-28
-**Status:** Design (user-facing surface). Data-driven `switch` statement + expression scoped to
-ship first via the existing `[SyntaxBuilder]` mechanism; richer patterns (type/property) and the
-implicit if-chain→switch peephole designed-out / deferred.
+**Status:** **Shipped** (2026-07-03, `experimental/switch-builders`). The data-driven `switch`
+statement + expression surface (`Switch`/`Case`/`Default`/`Arm`/`WhenArm`/`DefaultArm`/`Return`)
+ships via the existing `[SyntaxBuilder]` mechanism in `src/Synto/Templating/Builders/SyntoBuilders.cs`,
+with the bounded generator widening the spike proved necessary. Richer patterns (type/property) and
+the implicit if-chain→switch peephole remain designed-out / deferred.
+
+> **Settled by the Task 1 spike (what actually shipped):**
+> - **Label/pattern marker shape (defaulted to STAGED):** `Case`'s label and the arm pattern are
+>   *unmarked* (staged) `ExpressionSyntax` — the author passes an already-built constant (e.g.
+>   `LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal))`). `Return`'s value, `Arm`/
+>   `WhenArm`/`DefaultArm`'s value, and `WhenArm`'s guard are `[Quoted]` islands (so a nested
+>   `Member(...)` builder expands via re-entry); `Switch`'s governing expression is `[Quoted]`.
+> - **`params` was KEPT** and the facade generator taught to emit + bind it (not degraded to
+>   projection-only): both the projection form `Switch(i, cols.Select(...))` and the expanded comma
+>   form `Switch(i, Arm(...), Arm(...))` work.
+> - **Bounded generator widening done (all file-capped):** return-shape acceptance widened to accept
+>   concrete Roslyn syntax-node return types verbatim (`freshReturnTypeParam=false`, keeping the two
+>   `Switch` overloads distinguishable); overload disambiguation by *shared binding-shape* (same-name
+>   builders sharing a binding shape bind with the shared shape and let the C# compiler pick the
+>   overload; SY1018 fires only on a genuine shape conflict); `params` synthesis + expanded-form
+>   binding.
+> - **Deferred (not a builder-surface gap):** the statement `Switch` returns `SwitchStatementSyntax`,
+>   which has no expression slot, so PLACING it as an output statement needs statement-position
+>   splicing — out of scope for this surface. The section-builder BINDING is proven by snapshot;
+>   the expression `Switch` places fine.
+> - **Dog-food (ObjectReader typed getters, Task 5):** deferred — child-templates has landed so it is
+>   no longer a blocker; deferral is a pure scope/sequencing choice and the shipped feature is
+>   documented independently (this note).
 
 ## Context
 
@@ -181,8 +206,10 @@ work.)
   (`Switch`/`Arm`/`WhenArm`/`DefaultArm`), plus `Return`, all as runtime `[SyntaxBuilder]` methods;
   the verbatim round-trip test; the ObjectReader getter dog-food.
 - **v1 pattern coverage:** constant-label cases + `default` (statements); constant/`_` arms + `when`
-  guards (expressions). Type patterns / property patterns are additional `[Quoted(AsTypeArg = true)]`
-  / pattern-builder overloads added later — **not v1**.
+  guards (expressions). Type patterns / property patterns are additional `[TypeArg]`-typed type-island
+  / pattern-builder overloads added later — **not v1**. (`[Quoted(AsTypeArg = true)]` is dead API,
+  replaced by the standalone `[TypeArg]` attribute + `BuilderArgKind.QuotedTypeArg` in the
+  marker-taxonomy cleanup, 2026-07-01.)
 - **Designed-out:** the implicit if-chain→switch **peephole** (recognize `foreach + if (x == const)`
   and emit a switch). Zero authoring surface but magic, narrow (constant dispatch only), no rich
   patterns, no switch-expression story, and deep generator work. Explicitly out of scope.
