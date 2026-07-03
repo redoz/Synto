@@ -6,7 +6,7 @@ resource: src/Synto
 project: projects/synto-runtime
 entrypoints: ["src/Synto/Quoting/CSharpSyntaxQuoter.cs:21", "src/Synto/Quoting/CSharpSyntaxQuoter.cs:204"]
 tags: [quoting, quoter, runtime]
-timestamp: 2026-06-28T00:00:00Z
+timestamp: 2026-07-03T00:00:00Z
 ---
 
 # Responsibility
@@ -35,8 +35,9 @@ and [matching](/subsystems/matching.md) build on.
 # Entry points
 
 - `src/Synto/Quoting/CSharpSyntaxQuoter.cs:204` — the concrete quoter.
-- Templating extends this via the `MiddlewareSyntaxQuoter<TContext>` engine
-  (`Quoting/MiddlewareSyntaxQuoter.cs:19`), composed from feature middleware by
+- Templating extends this via `PerNodePipelineQuoter`
+  (`src/Synto.SourceGenerator/Templating/Quoting/PerNodePipelineQuoter.cs:18`) — a subclass that
+  dispatches per-node / per-owner step pipelines natively at the Node/List seams, built by
   `TemplateQuoterFactory` (see [templating](/subsystems/templating.md)).
 
 # Invariants

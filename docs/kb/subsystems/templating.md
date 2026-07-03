@@ -6,7 +6,7 @@ resource: src/Synto.SourceGenerator/Templating
 project: projects/synto-sourcegenerator
 entrypoints: ["src/Synto.SourceGenerator/Templating/Pipeline/TemplateFactorySourceGenerator.cs:17"]
 tags: [templating, staging, binding-time, pipeline]
-timestamp: 2026-06-29T00:00:00Z
+timestamp: 2026-07-03T00:00:00Z
 ---
 
 # Responsibility
@@ -70,12 +70,13 @@ The ordered steps run inside `TemplateFactoryBuilder.Build` (`Pipeline/TemplateF
 | 18 | Emit staged regions (unroll → `BuildList`) | `Staging/StagedRegionEmitter.cs:20` → `Analysis/StagedLivenessAnalysis.cs`, `Staging/RootRenameRewriter.cs`, `Staging/StagedScaffoldBuilder.cs:19`, `Staging/StagedHelperCallFactory.cs` |
 | 19 | `[Splice]` member generators → local functions | `Staging/SpliceMemberGeneratorEmitter.cs:24` |
 | 20 | Branch pruning | `Analysis/BranchPruneIdentifier.cs` |
-| 21 | Compose the middleware quoter, quote the source | `Quoting/TemplateQuoterFactory.cs:19`, `Quoting/TemplateSyntaxQuoterInvoker.cs:20`, `src/Synto/Quoting/MiddlewareSyntaxQuoter.cs:19` (engine, Core) |
+| 21 | Build the per-node quoter, quote the source | `Quoting/TemplateQuoterFactory.cs:17`, `Quoting/TemplateSyntaxQuoterInvoker.cs:20`, `Quoting/PerNodePipelineQuoter.cs:18` (per-node/-owner step dispatch) |
 | 22 | Assemble factory + helpers + unit; `AddSource` | `Pipeline/TemplateDocumentBuilder.cs:22` |
 
 Staged-string interpolation bare holes are fused into literal text during quoting by
-`InterpolationFold` (`Quoting/InterpolationFold.cs:41`), which `InterpolationFoldMiddleware`
-(`Quoting/Middleware/InterpolationFoldMiddleware.cs:23`) delegates to via the engine's `Quote` callback.
+`InterpolationFold` (`Quoting/InterpolationFold.cs:41`), which the owner-keyed
+`InterpolationFoldStep` (`Quoting/ListPipeline/InterpolationFoldStep.cs:16`) delegates to via the
+quoter's `QuoteContext` re-entry callback.
 
 # Scope: child templates
 
