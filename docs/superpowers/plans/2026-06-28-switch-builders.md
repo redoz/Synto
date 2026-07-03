@@ -19,7 +19,7 @@
 - **Trivia / formatting.** Built nodes must normalize byte-identically after `dotnet format whitespace --verify-no-changes`. Builders emit minimally-trivia'd nodes and rely on the formatter; snapshot gates assume the formatter has run.
 - **Bounded generator work is expected, and is scoped to Task 1.** This surface *requires* bounded generator widening (return-shape acceptance, overload disambiguation, and `params` emission/binding); the spike is the empirical gate that proves and lands it. The **authorized files** are `FacadeShape.cs`, `FacadeCallFinder.cs`, `FacadeArgumentBinder.cs`, `SyntaxBuilderFacadeGenerator.cs`, plus the runtime surface `SyntoBuilders.cs`. (The former monolithic `SyntaxBuilderFinder.cs` was split during the 2026-06-29 source-generator modularization: builder discovery + the `buildersByName` index + SY1018 now live in `FacadeCallFinder.cs`; per-call argument binding — formerly `TryUser` — now lives in `FacadeArgumentBinder.cs`; builder *enumeration* lives in `SyntaxBuilderRegistry.cs`. A subsequent 2026-06-30 structural move (`docs/superpowers/plans/2026-06-30-sourcegen-structure.md`) placed these under namespace `Synto.Generators.Templating` in subfolders: `FacadeShape.cs`, `FacadeArgumentBinder.cs`, `SyntaxBuilderFacadeGenerator.cs`, `SyntaxBuilderRegistry.cs` live in `src/Synto.SourceGenerator/Templating/Builders/`; `FacadeCallFinder.cs` in `src/Synto.SourceGenerator/Templating/Discovery/`; the SY-descriptors in `src/Synto.SourceGenerator/Templating/Diagnostics/TemplateDiagnostics.cs`; and the runtime surface at `src/Synto/Templating/Builders/SyntoBuilders.cs`.) **Emission-path cluster (added by the 2026-07-03 re-validation):** since the quote-action-pipeline merge, builder-call *emission* is a step pipeline — if the spike proves a bounded fix is needed there (e.g. a builder call nested in a staged `params`/projection arg not emitting), the authorized emission files are `src/Synto.SourceGenerator/Templating/Quoting/NodePipeline/BuilderStep.cs`, `Templating/Pipeline/PlanAssembler.cs`, and `Templating/Staging/StagedRegionEmitter.cs` (+ its `StagedEmitContext.cs`/`StagedScaffoldBuilder.cs` helpers). **STOP and re-scope only if a change goes beyond the five discovery/binding/facade files above OR this emission cluster** — do not silently widen.
 - **Out of scope (v1):** type patterns / property patterns (would need `[TypeArg]` type-island parameters / pattern-builder overloads — later; note `[Quoted(AsTypeArg = true)]` is dead API, replaced by the standalone `[TypeArg]` attribute + `BuilderArgKind.QuotedTypeArg` when the marker-taxonomy cleanup shipped 2026-07-01); implicit if-chain→switch peephole (designed-out); the interpolated-string constant-folding gap (recorded as the next list-shaped-builder candidate, not built here).
-- **Tests run under MTP (SDK 10).** Invoke tests as raw `dotnet test --project <csproj>` — do **NOT** route `dotnet test` through `rtk` (it mangles the MTP args) and do **NOT** use a bare `--filter`; to scope a run, append `-- --filter-class "*Name*"` / `--filter-method "*Name*"`. Snapshot-accepting runs set `$env:DiffEngine_Disabled='true'` first (PowerShell). `rtk` is still fine for `dotnet build` / `dotnet format`.
+- **Tests run under MTP (SDK 10).** Invoke tests as raw `dotnet test --project <csproj>` — do **NOT** route `dotnet test` through `rtk` (it mangles the MTP args) and do **NOT** use a bare `--filter`; to scope a run, append `-- --filter-method "*Name*"` (note: `--filter-class` runs **zero** tests under this MTP host — use `--filter-method`). Snapshot-accepting runs set `$env:DiffEngine_Disabled='true'` first (PowerShell). `rtk` is still fine for `dotnet build` / `dotnet format`.
 - **Green gate (every task):** `rtk dotnet build`, `dotnet test --project <touched csproj>`, `rtk dotnet format whitespace --verify-no-changes` for the touched projects. A task is not done until all three are green for what it touched.
 
 ## The v1 builder surface (the contract — exact bodies are the implementer's choice)
@@ -89,7 +89,7 @@ This is the gate for the whole plan. Before ANY runtime surface is finalized, a 
 
   Run:
   ```
-  dotnet test --project test/Synto.Test/Synto.Test.csproj -- --filter-class "*SwitchBuilderTest*"
+  dotnet test --project test/Synto.Test/Synto.Test.csproj -- --filter-method "*SwitchBuilder*"
   ```
   **Decision tree:**
   - If it fails ONLY because Verify has no `.verified.cs` yet (new received snapshot) AND the post-generation compile is clean ⇒ the mechanism already holds; go to Step 4.
@@ -107,7 +107,7 @@ This is the gate for the whole plan. Before ANY runtime surface is finalized, a 
 - [ ] **Step 5: Confirm PASS, then green-gate**
 
   ```
-  dotnet test --project test/Synto.Test/Synto.Test.csproj -- --filter-class "*SwitchBuilderTest*"
+  dotnet test --project test/Synto.Test/Synto.Test.csproj -- --filter-method "*SwitchBuilder*"
   rtk dotnet build
   dotnet test --project test/Synto.Test/Synto.Test.csproj
   rtk dotnet format whitespace --verify-no-changes
@@ -139,7 +139,7 @@ Land the complete v1 surface (all overloads + element builders + `Return`) in `S
 - Consumes: the Task-1 substrate (return-shape acceptance, overload disambiguation, facade synthesis).
 - Produces: the public `SyntoBuilders.Switch/Case/Default/Arm/WhenArm/DefaultArm/Return` surface, injected `internal` into consumer generators. Task 5 (dog-food) calls exactly these.
 
-- [ ] **Step 1: Write the new snapshot tests (failing)** — one `[Fact]` per uncovered shape (expression `Switch` over `Arm` projection; `WhenArm` guard; `DefaultArm`; statement `Switch` with appended `Default`). Reuse the Task-1 harness helpers. Run `dotnet test --project test/Synto.Test/Synto.Test.csproj -- --filter-class "*SwitchBuilderTest*"`; expect new-received-snapshot failures (generation must be clean — if not, it's a Task-1 regression; fix there).
+- [ ] **Step 1: Write the new snapshot tests (failing)** — one `[Fact]` per uncovered shape (expression `Switch` over `Arm` projection; `WhenArm` guard; `DefaultArm`; statement `Switch` with appended `Default`). Reuse the Task-1 harness helpers. Run `dotnet test --project test/Synto.Test/Synto.Test.csproj -- --filter-method "*SwitchBuilder*"`; expect new-received-snapshot failures (generation must be clean — if not, it's a Task-1 regression; fix there).
 - [ ] **Step 2: Add the remaining builders to `SyntoBuilders.cs`** so every facade call in the new tests resolves. Keep bodies minimal `SyntaxFactory` one-liners; rely on the formatter for trivia.
 - [ ] **Step 3: Review + accept** each received snapshot (governing quoted, arms/sections staged, `when`/`_` rendered correctly, byte-identical after format).
 - [ ] **Step 4: Re-accept the SurfaceInjection snapshot** (`SyntoBuilders.g.verified.cs`) — verify the diff is purely the new builder methods, nothing else.
@@ -171,7 +171,7 @@ Cheap confirmation that a hand-written **fixed** `switch` statement and switch *
 - Consumes: nothing new — the quoter handles arbitrary nodes generically; this just pins that `SwitchStatementSyntax`/`SwitchExpressionSyntax` are among them.
 - Produces: regression coverage.
 
-- [ ] **Step 1:** Write the round-trip `[Fact]`(s). Run `dotnet test --project test/Synto.Test/Synto.Test.csproj -- --filter-class "*SwitchBuilderTest*"` (or the sibling class name); expect new-received-snapshot failure.
+- [ ] **Step 1:** Write the round-trip `[Fact]`(s). Run `dotnet test --project test/Synto.Test/Synto.Test.csproj -- --filter-method "*SwitchBuilder*"` (or the sibling class name); expect new-received-snapshot failure.
 - [ ] **Step 2:** Review + accept. **Decision:** if a fixed switch does NOT round-trip verbatim (generation error / malformed output), that is a pre-existing quoter bug — STOP, file it separately, and mark this test `Skip` with the bug reference. It is NOT part of the builder work and must not pull scope into this plan.
 - [ ] **Step 3: Green-gate**
   ```
@@ -210,7 +210,41 @@ Mark the switch-builder surface shipped, **correct the spec's two now-false desi
 
 ---
 
-## Task 5: Dog-food — collapse ObjectReader typed getters to the switch builders (LAST)
+## Task 5: Statement-position splicing for statement-returning builders
+
+> **Surfaced by the Task-1 spike (2026-07-03).** The section-builder *binding* is fully proven, but a statement-returning builder call cannot yet be *placed* as a statement: `Switch(i, sections);` written as a bare statement quotes to `ExpressionStatement(SyntoBuilders.Switch(...))` → **CS1503** (a `SwitchStatementSyntax` is not an expression). This is why `SwitchStatement_CaseProjection` and `SwitchStatement_TrailingDefault` run with `postGenCompile: false`. This task builds the missing capability, unblocking the statement `Switch`/`Case`/`Default` surface (Task 2) and the Task 6 dog-food. **Bounded generator work in the pre-authorized emission cluster** (see Global Constraints).
+
+**Goal:** A statement-returning `[SyntaxBuilder]` call (e.g. statement `Switch` → `SwitchStatementSyntax`, or any `StatementSyntax`-returning builder) in statement position inside a `[Template]` body emits the built statement node directly — no `ExpressionStatement` wrapper — and post-gen compiles.
+
+**Contract (mechanism — exact bodies are the implementer's choice):**
+- Surface a **returns-statement** signal on the resolved `BuilderCall` (or its `FacadeShape`): true when the builder's return type is a `StatementSyntax`-derived node (not `ExpressionSyntax`/`TypeSyntax`). `FacadeShape.Derive` already *accepts* statement-node returns (Task-1 return-shape widening); this exposes the classification.
+- When an `ExpressionStatementSyntax` whose **sole** expression is a statement-returning builder call is quoted, emit the **builder invocation directly** (`ctx.Quote(innerInvocation)` — the `BuilderStep` output) instead of `ExpressionStatement(<builder call>)`. Add this as a node-pipeline step / extend the ExpressionStatement quoting path.
+- **Scope:** `BuilderCallModel.cs` (flag) + `FacadeShape.cs` (derive) + `BuilderStep.cs`/`PlanAssembler.cs` (unwrap step). STOP/re-scope only if it reaches beyond the discovery/binding/facade + emission clusters.
+
+**Files:**
+- Modify: `src/Synto.SourceGenerator/Templating/Builders/BuilderCallModel.cs`, `.../Builders/FacadeShape.cs`, `.../Quoting/NodePipeline/BuilderStep.cs` and/or `.../Pipeline/PlanAssembler.cs`.
+- Modify: `test/Synto.Test/Templating/SwitchBuilderTest.cs` — flip `SwitchStatement_CaseProjection` + `SwitchStatement_TrailingDefault` to `postGenCompile: true` (drop the deferred-gap comments).
+- Re-accept: the two statement snapshots (`SwitchBuilderTest.SwitchStatement_*.verified.cs`) if the factory output shifts (it should: the `ExpressionStatement` wrapper disappears).
+
+**Interfaces:**
+- Consumes: the Task-1/2 switch surface + return-shape widening.
+- Produces: statement-position placement for statement-returning builders — Task 6 dog-food consumes it.
+
+- [ ] **Step 1: Make the gate fail.** Flip the two statement tests to `postGenCompile: true`. Run `dotnet test --project test/Synto.Test/Synto.Test.csproj -- --filter-method "*SwitchBuilder*"`; expect a post-gen compile error (CS1503 — `ExpressionStatement` wrapping a `SwitchStatementSyntax`) on exactly those two.
+- [ ] **Step 2: Classify + fix** (use superpowers:systematic-debugging). Derive the returns-statement flag; add the ExpressionStatement-unwrap step so a sole-expression statement-builder call emits the builder invocation directly. Keep changes in the named files.
+- [ ] **Step 3: Green + re-accept snapshots.** Both statement tests now post-gen compile; review the shifted factory snapshots (the `SwitchStatement(...)` is now emitted directly in statement position, no `ExpressionStatement`) and accept. All 6 prior SwitchBuilder tests + `SyntaxBuilderTest`/`SpliceMemberGeneratorTest` stay green.
+- [ ] **Step 4: Green-gate.** `rtk dotnet build`, `dotnet test --project test/Synto.Test/Synto.Test.csproj`, `rtk dotnet format whitespace --verify-no-changes`.
+- [ ] **Step 5: Commit.**
+  ```
+  rtk jj commit -m "feat(templating): statement-position splicing for statement-returning [SyntaxBuilder]s
+
+  Plan: docs/superpowers/plans/2026-06-28-switch-builders.md
+  Plan-Tasks: 5"
+  ```
+
+---
+
+## Task 6: Dog-food — collapse ObjectReader typed getters to the switch builders (LAST)
 
 Refactor the ObjectReader typed-getter body from `foreach + if (i == c.Ordinal) return …` into the switch-builder form, behavior-preserving against the ObjectReader snapshot gate. This mines getter friction per the dog-food principle.
 
@@ -249,7 +283,7 @@ Refactor the ObjectReader typed-getter body from `foreach + if (i == c.Ordinal) 
   rtk jj commit -m "refactor(objectreader): build typed-getter lookup via switch builders (dog-food)
 
   Plan: docs/superpowers/plans/2026-06-28-switch-builders.md
-  Plan-Tasks: 5"
+  Plan-Tasks: 6"
   ```
 
 ---
