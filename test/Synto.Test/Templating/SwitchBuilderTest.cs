@@ -232,4 +232,39 @@ public class SwitchBuilderTest
             }
             """);
     }
+
+    // Task 3: a hand-written FIXED switch statement + switch expression must quote VERBATIM through a [Template]
+    // (no builders, no islands). The quoter handles arbitrary nodes generically; this pins that SwitchStatementSyntax
+    // and SwitchExpressionSyntax are among them. Post-gen compile confirms the emitted factory resolves.
+    [Fact]
+    public Task FixedSwitch_RoundTrip()
+    {
+        return VerifySwitchTemplate(Prelude +
+            """
+
+            [Template(typeof(Factory))]
+            public class Reader
+            {
+                public int GetStmt(int x)
+                {
+                    switch (x)
+                    {
+                        case 1:
+                            return 10;
+                        default:
+                            return 0;
+                    }
+                }
+
+                public int GetExpr(int x)
+                {
+                    return x switch
+                    {
+                        1 => 10,
+                        _ => 0,
+                    };
+                }
+            }
+            """);
+    }
 }
