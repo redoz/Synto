@@ -156,6 +156,56 @@ public class SwitchBuilderTest
             """);
     }
 
+    // Task 2 surface: the guarded arm (WhenArm -> `pattern when guard =>`) and the discard arm (DefaultArm -> `_ =>`),
+    // both feeding the EXPRESSION Switch overload. The pattern is a staged constant; the guard and value are [Quoted]
+    // islands (the guard `i > 0` references the in-scope parameter, the value expands a nested Member(...) builder).
+    [Fact]
+    public Task SwitchExpression_WhenArmAndDefaultArm()
+    {
+        return VerifySwitchTemplate(Prelude +
+            """
+
+            [Template(typeof(Factory))]
+            public class Reader<[Splice] TRet>
+            {
+                private readonly IEnumerator<TRet> _e;
+                public TRet GetTypedExpr(int i)
+                {
+                    var built = Switch(i,
+                        WhenArm(LiteralExpression(NumericLiteralExpression, Literal(0)), i > 0, Member<TRet>(_e.Current, "A")),
+                        DefaultArm(Member<TRet>(_e.Current, "B")));
+                    System.Console.WriteLine(built);
+                    throw new System.Exception();
+                }
+            }
+            """);
+    }
+
+    // Task 2 surface: a trailing Default section appended after a Case, feeding the STATEMENT Switch overload. Like
+    // SwitchStatement_CaseProjection, post-gen compile is skipped — a SwitchStatementSyntax island has no expression
+    // slot to be spliced into as an output statement (statement-position splicing is a deferred follow-up capability);
+    // the section-builder BINDING (Case + Default + Return) is fully proven by the snapshot.
+    [Fact]
+    public Task SwitchStatement_TrailingDefault()
+    {
+        return VerifySwitchTemplate(postGenCompile: false, source: Prelude +
+            """
+
+            [Template(typeof(Factory))]
+            public class Reader<[Splice] TRet>
+            {
+                private readonly IEnumerator<TRet> _e;
+                public TRet GetTypedStmt(int i)
+                {
+                    Switch(i,
+                        Case(LiteralExpression(NumericLiteralExpression, Literal(0)), Return(Member<TRet>(_e.Current, "A"))),
+                        Default(Return(Member<TRet>(_e.Current, "B"))));
+                    throw new System.Exception();
+                }
+            }
+            """);
+    }
+
     // Unknown #1 (section projection): Case + Return over the live projection, feeding the STATEMENT Switch overload.
     // Proves the section builders (Case/Return) + the SwitchSectionSyntax/SwitchStatementSyntax return-shapes BIND
     // and rewrite correctly (snapshot). Post-gen compile is skipped: the resulting SwitchStatementSyntax has no

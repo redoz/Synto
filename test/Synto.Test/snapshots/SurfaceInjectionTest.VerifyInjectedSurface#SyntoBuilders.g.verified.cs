@@ -48,10 +48,25 @@ internal static partial class SyntoBuilders
     public static SwitchSectionSyntax Case(ExpressionSyntax label, params IEnumerable<StatementSyntax> body) =>
         SwitchSection().AddLabels(CaseSwitchLabel(label)).WithStatements(List(body));
 
+    /// <summary>Builds <c>default: body...</c> — the trailing default switch section (staged statement body).</summary>
+    [SyntaxBuilder]
+    public static SwitchSectionSyntax Default(params IEnumerable<StatementSyntax> body) =>
+        SwitchSection().AddLabels(DefaultSwitchLabel()).WithStatements(List(body));
+
     /// <summary>Builds <c>pattern =&gt; value</c> — one switch-expression arm (staged constant pattern + quoted value island).</summary>
     [SyntaxBuilder]
     public static SwitchExpressionArmSyntax Arm(ExpressionSyntax pattern, [Quoted] ExpressionSyntax value) =>
         SwitchExpressionArm(ConstantPattern(pattern), value);
+
+    /// <summary>Builds <c>pattern when guard =&gt; value</c> — a guarded switch-expression arm (staged pattern + quoted guard/value islands).</summary>
+    [SyntaxBuilder]
+    public static SwitchExpressionArmSyntax WhenArm(ExpressionSyntax pattern, [Quoted] ExpressionSyntax guard, [Quoted] ExpressionSyntax value) =>
+        SwitchExpressionArm(ConstantPattern(pattern), WhenClause(guard), value);
+
+    /// <summary>Builds <c>_ =&gt; value</c> — the discard (default) switch-expression arm (quoted value island).</summary>
+    [SyntaxBuilder]
+    public static SwitchExpressionArmSyntax DefaultArm([Quoted] ExpressionSyntax value) =>
+        SwitchExpressionArm(DiscardPattern(), value);
 
     /// <summary>Builds <c>return value;</c> — a trivial statement body builder (quoted value island).</summary>
     [SyntaxBuilder]
