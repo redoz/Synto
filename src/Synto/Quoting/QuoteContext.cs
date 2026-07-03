@@ -5,9 +5,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Synto;
 
 /// <summary>
-/// The cooperation surface a <see cref="IQuoteMiddleware"/> uses to re-enter the quoting engine: quote a
-/// child node, quote a child list, or build an array literal — all routed back through the same
-/// <see cref="MiddlewareSyntaxQuoter{TContext}"/> instance that is running the middleware chain. A middleware
+/// The cooperation surface a <see cref="IQuoteMiddleware"/> uses to re-enter the quoter: quote a
+/// child node, quote a child list, or build an array literal — all routed back through the same quoter
+/// instance that is running the step chain. A middleware
 /// receives the context as a parameter; it never holds <see cref="SemanticModel"/> / <see cref="ISymbol"/> /
 /// <see cref="Compilation"/> state, so nothing here leaks into cached incremental-generator pipeline state.
 /// Public-SHAPED but <c>internal</c> for now (see the middleware-quoter-engine plan); a future GA flip to

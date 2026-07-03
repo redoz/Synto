@@ -13,48 +13,53 @@ using Synto.Generators.Templating;
 namespace Synto.Test.Templating;
 
 /// <summary>
-/// Per-feature behavior tests for the templating quote steps, each routed through its pipeline middleware. Each
-/// test builds the Core <see cref="SyntoCore::Synto.MiddlewareSyntaxQuoter{TContext}"/> engine (reached via the
-/// <c>SyntoCore</c> alias) with EXACTLY one pipeline middleware (<see cref="NodePipelineMiddleware"/> or
-/// <see cref="ListPipelineMiddleware"/>) whose plan map attaches a single step to the target key, asserting that
-/// step's effect on a minimal parsed input. This exercises both per-key dispatch (the pipeline middleware finds —
-/// or defers on — the visited node/owner) and the per-feature step behavior it dissolved from. The steps and
-/// pipeline middleware live in <c>Synto.SourceGenerator</c> (global <c>Synto</c> namespace, internal).
+/// Per-feature behavior tests for the templating quote steps, dispatched through
+/// <see cref="PerNodePipelineQuoter"/>. Each test constructs the quoter with a single step attached to the
+/// target node/owner key (the other seam's map left empty), asserting that step's effect on a minimal parsed
+/// input. This exercises both the quoter's per-key dispatch (it finds — or defers on — the visited node/owner)
+/// and the per-feature step behavior. A final parity test pins that empty step maps quote identically to the
+/// plain base quoter. The steps live in <c>Synto.SourceGenerator</c> (namespace
+/// <c>Synto.Generators.Templating</c>, internal); the step-model interfaces live in the <c>Synto</c> runtime
+/// copy (reached via the <c>SyntoCore</c> alias).
 /// </summary>
 public class QuoteMiddlewareTest
 {
-    private static Core.MiddlewareSyntaxQuoter<Core.QuoteContext> Engine(params Core.IQuoteMiddleware[] middleware)
-        => new(middleware, includeTrivia: false);
+    private static readonly Dictionary<SyntaxNode, ImmutableArray<Core.INodeQuoteMiddleware<Core.QuoteContext>>> EmptyNodeMap = new();
+    private static readonly Dictionary<SyntaxNode, ImmutableArray<Core.IListQuoteMiddleware<Core.QuoteContext>>> EmptyListMap = new();
 
-    private static Dictionary<SyntaxNode, ImmutableArray<Core.INodeQuoteMiddleware<Core.QuoteContext>>> NodeMap(
-        SyntaxNode key, params Core.INodeQuoteMiddleware<Core.QuoteContext>[] steps)
-        => new() { [key] = ImmutableArray.Create(steps) };
+    private static PerNodePipelineQuoter NodeQuoter(SyntaxNode key, params Core.INodeQuoteMiddleware<Core.QuoteContext>[] steps)
+        => new(
+            new Dictionary<SyntaxNode, ImmutableArray<Core.INodeQuoteMiddleware<Core.QuoteContext>>> { [key] = ImmutableArray.Create(steps) },
+            EmptyListMap,
+            includeTrivia: false);
 
-    private static Dictionary<SyntaxNode, ImmutableArray<Core.IListQuoteMiddleware<Core.QuoteContext>>> ListMap(
-        SyntaxNode key, params Core.IListQuoteMiddleware<Core.QuoteContext>[] steps)
-        => new() { [key] = ImmutableArray.Create(steps) };
+    private static PerNodePipelineQuoter ListQuoter(SyntaxNode key, params Core.IListQuoteMiddleware<Core.QuoteContext>[] steps)
+        => new(
+            EmptyNodeMap,
+            new Dictionary<SyntaxNode, ImmutableArray<Core.IListQuoteMiddleware<Core.QuoteContext>>> { [key] = ImmutableArray.Create(steps) },
+            includeTrivia: false);
 
-    // ReplaceStep short-circuits to the supplied expression (the keyed node is NOT quoted); the node pipeline
+    // ReplaceStep short-circuits to the supplied expression (the keyed node is NOT quoted); the quoter
     // dispatches it for the keyed node.
     [Fact]
     public void Replacement_ReturnsReplacement_ForKeyedNode()
     {
         var node = ParseExpression("a + b");
-        var steps = NodeMap(node, new ReplaceStep(IdentifierName("REPLACED")));
+        var quoter = NodeQuoter(node, new ReplaceStep(IdentifierName("REPLACED")));
 
-        var result = Engine(new NodePipelineMiddleware(steps)).Visit(node);
+        var result = quoter.Visit(node);
 
         Assert.Equal("REPLACED", result!.NormalizeWhitespace().ToFullString());
     }
 
-    // TrimStep drops the keyed node (the node pipeline returns null for it).
+    // TrimStep drops the keyed node (the quoter returns null for it).
     [Fact]
     public void Trim_ReturnsNull_ForKeyedNode()
     {
         var node = ParseExpression("a");
-        var steps = NodeMap(node, TrimStep.Instance);
+        var quoter = NodeQuoter(node, TrimStep.Instance);
 
-        var result = Engine(new NodePipelineMiddleware(steps)).Visit(node);
+        var result = quoter.Visit(node);
 
         Assert.Null(result);
     }
@@ -65,43 +70,57 @@ public class QuoteMiddlewareTest
     {
         var node = ParseExpression("a");
         var hooks = ImmutableArray.Create(new AppliedDecoration("ApplyX", ImmutableArray<ExpressionSyntax>.Empty));
-        var steps = NodeMap(node, new DecorateStep(hooks));
+        var quoter = NodeQuoter(node, new DecorateStep(hooks));
 
-        var result = Engine(new NodePipelineMiddleware(steps)).Visit(node);
+        var result = quoter.Visit(node);
 
         Assert.Contains(".ApplyX(", result!.NormalizeWhitespace().ToFullString());
     }
 
     // MemberSegmentStep emits a CollectionSyntaxExtensions.BuildList<TNode> run when a keyed generator child is in
-    // the list; the list pipeline keys on the list's owner (the enclosing type declaration).
+    // the list; the quoter keys the list on its owner (the enclosing type declaration).
     [Fact]
     public void MemberSegment_EmitsBuildList_WhenChildHasSegment()
     {
         var classDecl = (ClassDeclarationSyntax)ParseMemberDeclaration("class C { void M() { } }")!;
         var method = classDecl.Members[0];
         var memberSegments = new Dictionary<SyntaxNode, ExpressionSyntax> { [method] = IdentifierName("SEGMENT") };
-        var steps = ListMap(classDecl, new MemberSegmentStep(memberSegments));
+        var quoter = ListQuoter(classDecl, new MemberSegmentStep(memberSegments));
 
-        var result = Engine(new ListPipelineMiddleware(steps)).Visit(classDecl.Members);
+        var result = quoter.Visit(classDecl.Members);
 
         Assert.Contains("CollectionSyntaxExtensions.BuildList<", result.NormalizeWhitespace().ToFullString());
     }
 
     // InterpolationFoldStep defers when the visited list has no keyed owner: identical to the base quote. The
-    // parentless statement list has a null owner, so the list pipeline finds nothing and falls through to next.
+    // parentless statement list has a null owner, so the quoter finds nothing and falls through to base.
     [Fact]
     public void InterpolationFold_DefersToNext_ForNonInterpolatedList()
     {
         var statement = ParseStatement("a();");
         var list = SingletonList(statement);
         var stringStagedRoots = new Dictionary<SyntaxNode, ExpressionSyntax>();
-        var steps = ListMap(ParseExpression("unrelated"), new InterpolationFoldStep(stringStagedRoots));
+        var quoter = ListQuoter(ParseExpression("unrelated"), new InterpolationFoldStep(stringStagedRoots));
 
-        var engineQuote = Engine(new ListPipelineMiddleware(steps)).Visit(list);
+        var pipelineQuote = quoter.Visit(list);
         var baseQuote = new Core.CSharpSyntaxQuoter(includeTrivia: false).Visit(list);
 
         Assert.Equal(
             baseQuote.NormalizeWhitespace().ToFullString(),
-            engineQuote.NormalizeWhitespace().ToFullString());
+            pipelineQuote.NormalizeWhitespace().ToFullString());
+    }
+
+    // Parity (ported from the deleted engine smoke test): empty step maps quote a representative node identically
+    // to a plain base quoter — the quoter's zero-step fast path is genuinely a pass-through.
+    [Fact]
+    public void EmptyStepMaps_QuoteIdenticallyToBase()
+    {
+        var node = ParseExpression("a + b * c");
+        var baseQuote = new Core.CSharpSyntaxQuoter(includeTrivia: false).Visit(node);
+        var pipelineQuote = new PerNodePipelineQuoter(EmptyNodeMap, EmptyListMap, includeTrivia: false).Visit(node);
+
+        Assert.Equal(
+            baseQuote!.NormalizeWhitespace().ToFullString(),
+            pipelineQuote!.NormalizeWhitespace().ToFullString());
     }
 }
