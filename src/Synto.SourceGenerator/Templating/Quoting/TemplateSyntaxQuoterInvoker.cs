@@ -8,16 +8,16 @@ namespace Synto.Generators.Templating;
 
 internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
 {
-    private readonly MiddlewareSyntaxQuoter<QuoteContext> _quoter;
+    private readonly CSharpSyntaxQuoter _quoter;
     private readonly TemplateInfo _template;
 
-    private TemplateSyntaxQuoterInvoker(MiddlewareSyntaxQuoter<QuoteContext> quoter, TemplateInfo template) : base(SyntaxWalkerDepth.Node)
+    private TemplateSyntaxQuoterInvoker(CSharpSyntaxQuoter quoter, TemplateInfo template) : base(SyntaxWalkerDepth.Node)
     {
         _quoter = quoter;
         _template = template;
     }
 
-    public static bool TryQuote(MiddlewareSyntaxQuoter<QuoteContext> quoter, TemplateInfo template, out ExpressionSyntax? expressionSyntax, out TypeSyntax? returnType, out DiagnosticInfo? error)
+    public static bool TryQuote(CSharpSyntaxQuoter quoter, TemplateInfo template, out ExpressionSyntax? expressionSyntax, out TypeSyntax? returnType, out DiagnosticInfo? error)
     {
         var selector = new TemplateSyntaxQuoterInvoker(quoter, template);
         selector.Visit(template.Source!.Syntax);
