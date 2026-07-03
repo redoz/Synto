@@ -162,7 +162,9 @@ internal static class StagedScaffoldBuilder
                 liftMap[pair.Key] = pair.Value;
             CollectLiftPoints(semanticModel, statement, stagedSet, renamer, liftMap);
 
-            var islandQuoter = TemplateQuoterFactory.Create(liftMap, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: context.StringStagedRoots, builderCalls: context.BuilderCalls);
+            var islandNodeSteps = PlanAssembler.BuildNodeSteps(liftMap, context.BuilderCalls, new HashSet<SyntaxNode>(), null);
+            var islandListSteps = PlanAssembler.BuildListSteps(context.StringStagedRoots, null);
+            var islandQuoter = TemplateQuoterFactory.Create(islandNodeSteps, islandListSteps, includeTrivia: false);
             if (islandQuoter.Visit(statement) is not { } island)
             {
                 emission.Diagnostics.Add(TemplateDiagnostics.UnsupportedStagedShape(body.GetLocation(), "staged region body could not be quoted"));

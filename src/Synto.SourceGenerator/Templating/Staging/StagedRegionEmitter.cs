@@ -65,7 +65,9 @@ internal static class StagedRegionEmitter
                 {
                     // A fixed quoted sibling of the region (e.g. a trailing throw): quote it verbatim and add it
                     // as a single-node segment (implicit TNode -> ListSegment conversion).
-                    var fixedQuoter = TemplateQuoterFactory.Create(baseReplacements, new HashSet<SyntaxNode>(), includeTrivia: false, stringStagedRoots: stringStagedRoots, builderCalls: builderCalls);
+                    var fixedNodeSteps = PlanAssembler.BuildNodeSteps(baseReplacements, builderCalls, new HashSet<SyntaxNode>(), null);
+                    var fixedListSteps = PlanAssembler.BuildListSteps(stringStagedRoots, null);
+                    var fixedQuoter = TemplateQuoterFactory.Create(fixedNodeSteps, fixedListSteps, includeTrivia: false);
                     if (fixedQuoter.Visit(statement) is { } quote)
                         segments.Add(quote);
                 }

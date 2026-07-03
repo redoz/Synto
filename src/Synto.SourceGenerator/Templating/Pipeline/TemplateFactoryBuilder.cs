@@ -872,14 +872,9 @@ internal static class TemplateFactoryBuilder
 
         var prunableNodes = BranchPruneIdentifier.FindPrunableNodes(ctx.Plan.Trim, ctx.TemplateInfo.Source!.Syntax);
 
-        var quoter = TemplateQuoterFactory.Create(
-            ctx.Plan.Replacements,
-            prunableNodes,
-            includeTrivia: ctx.Options.HasFlag(TemplateOption.PreserveTrivia),
-            memberSegments: ctx.Plan.MemberSegments,
-            stringStagedRoots: ctx.Plan.StringRoots,
-            decorationHooks: ctx.Plan.DecorationHooks,
-            builderCalls: ctx.Plan.BuilderCalls);
+        var nodeSteps = PlanAssembler.BuildNodeSteps(ctx.Plan.Replacements, ctx.Plan.BuilderCalls, prunableNodes, ctx.Plan.DecorationHooks);
+        var listSteps = PlanAssembler.BuildListSteps(ctx.Plan.StringRoots, ctx.Plan.MemberSegments);
+        var quoter = TemplateQuoterFactory.Create(nodeSteps, listSteps, includeTrivia: ctx.Options.HasFlag(TemplateOption.PreserveTrivia));
 
 
         if (!TemplateSyntaxQuoterInvoker.TryQuote(
