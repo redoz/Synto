@@ -32,7 +32,10 @@ internal sealed class TemplateInfo
             return null;
 
 
-        if (attr.ApplicationSyntaxReference!.GetSyntax() is not AttributeSyntax attrSyntax)
+        if (attr.ApplicationSyntaxReference is null)
+            return null;
+
+        if (attr.ApplicationSyntaxReference.GetSyntax() is not AttributeSyntax attrSyntax)
             return null;
 
         if (attr.ConstructorArguments.Length != 1)
@@ -57,7 +60,13 @@ internal sealed class TemplateInfo
         {
             if (StringComparer.Ordinal.Equals(namedArgs.Key, nameof(TemplateAttribute.Options)))
             {
-                options = (TemplateOption)namedArgs.Value.Value!;
+                // A mid-keystroke / unresolvable Options expression yields an error-kind constant (Value == null);
+                // an enum constant boxes to its underlying int. Anything that is not a plain int is skipped so a
+                // malformed argument defaults to None instead of NRE-ing the transform.
+                if (namedArgs.Value.Kind != TypedConstantKind.Error && namedArgs.Value.Value is int optionValue)
+                {
+                    options = (TemplateOption)optionValue;
+                }
             }
         }
 

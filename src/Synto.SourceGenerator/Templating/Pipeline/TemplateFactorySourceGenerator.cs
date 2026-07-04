@@ -36,10 +36,6 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
     private static TemplateGenerationResult? GenerateTemplate(GeneratorAttributeSyntaxContext syntaxContext)
     {
-        var templateInfo = TemplateInfo.Create(syntaxContext);
-        if (templateInfo is null)
-            return null;
-
         var assemblyName = syntaxContext.SemanticModel.Compilation.AssemblyName;
         if (assemblyName is null)
             return null;
@@ -51,6 +47,10 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
         try
         {
+            var templateInfo = TemplateInfo.Create(syntaxContext);
+            if (templateInfo is null)
+                return null;
+
             if (TemplateValidator.Validate(diagnostics, assemblyName, templateInfo)
                 && TemplateDocumentBuilder.Build(
                     diagnostics,
