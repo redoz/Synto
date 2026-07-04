@@ -726,4 +726,70 @@ public class SyntaxBuilderTest
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1029");
         AssertHasRealSpan(diag);
     }
+
+    private static string RunAndGetGeneratedText(string source)
+    {
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var runResult = driver.RunGenerators(compilation).GetRunResult();
+        return string.Concat(runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .Select(s => s.SourceText.ToString()));
+    }
+
+    // #12a: a carrier `using` whose namespace merely STARTS WITH "Synto" (e.g. `SyntoX.Helpers`) is a legitimate
+    // third-party namespace and must transplant normally — the Synto-surface exclusion is exact-or-dotted-prefix
+    // (`== "Synto"` or `StartsWith("Synto.")`), not a bare `StartsWith("Synto")`. A built-in facade call (Member,
+    // whose `name` argument is a STAGED binding) triggers the carrier-usings transplant.
+    [Fact]
+    public void CarrierUsing_SyntoPrefixedButNotSyntoNamespace_IsTransplanted()
+    {
+        var generated = RunAndGetGeneratedText(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+            using SyntoX.Helpers;
+            partial class Factory {}
+
+            namespace SyntoX.Helpers { public static class H {} }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build<[Splice] T>(T instance) {
+                    var x = Member<object>(instance, "Foo");
+                    System.Console.WriteLine(x);
+                }
+            }
+            """);
+
+        Assert.Contains("SyntoX.Helpers", generated, System.StringComparison.Ordinal);
+    }
+
+    // #12b: a builder call whose arguments are PURELY quoted (no staged/verbatim binding) does NOT drag the
+    // carrier's usings into the factory — the transplant trigger is gated on a builder call carrying at least one
+    // staged argument binding. `Wrap([Quoted] ExpressionSyntax x)` has only a quoted arg, so `using System.Linq;`
+    // on the carrier is not transplanted.
+    [Fact]
+    public void QuotedOnlyBuilderCall_DoesNotTransplantCarrierUsings()
+    {
+        var generated = RunAndGetGeneratedText(
+            """
+            using System.Linq;
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Builders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] object x) => System.Console.WriteLine(Builders.Wrap(x));
+            }
+            """);
+
+        Assert.DoesNotContain("using System.Linq;", generated, System.StringComparison.Ordinal);
+    }
 }

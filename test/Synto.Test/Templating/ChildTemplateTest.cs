@@ -239,6 +239,61 @@ public class ChildTemplateTest
         Assert.NotEmpty(ret.Files);
     }
 
+    // #11: a nested child [Template] whose body carries a facade-call error (here a named argument on a built-in
+    // Member facade -> SY1029) must have that error reported EXACTLY ONCE — against the child's own factory pass.
+    // Before FacadeCallFinder was template-scoped, the PARENT carrier's builder pass LINQ-scanned the whole carrier
+    // (including the foreign child subtree), re-reporting the child's SY1029 a second time AND bailing the parent's
+    // own factory. Scoping the finder skips the foreign child subtree: SY1029 fires once and the parent still
+    // generates.
+    private const string NestedChildBuilderErrorComposition =
+        """
+        using System;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+        partial class Factory {}
+
+        [Template(typeof(Factory))]
+        public class Reader
+        {
+            private readonly object _obj = default!;
+
+            // Child template: its body has a NAMED-ARG facade call (unsupported) -> SY1029.
+            [Template(typeof(Factory))]
+            public object Child([Splice] object instance)
+            {
+                return Member<object>(instance: instance, name: "Foo");
+            }
+
+            // The parent carrier's own (facade-clean) body — should still quote to a factory.
+            void ParentBody()
+            {
+                System.Console.WriteLine(_obj);
+            }
+        }
+        """;
+
+    [Fact]
+    public void ChildTemplate_BuilderErrorInChild_ReportedOnce_ParentStillGenerates()
+    {
+        var compilation = CompilationWithSource(NestedChildBuilderErrorComposition);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var result = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        var runResult = result.GetRunResult();
+
+        // The child's builder-arg error is reported exactly once (against the child), not doubled by the parent scan.
+        Assert.Single(runResult.Diagnostics, d => d.Id == "SY1029");
+
+        var sources = runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .ToDictionary(s => s.HintName, s => s.SourceText.ToString(), StringComparer.Ordinal);
+
+        // The parent factory still generates — the child's error no longer poisons the parent's builder pass.
+        Assert.Contains("Factory.Reader.g.cs", sources.Keys);
+    }
+
     [Fact]
     public void ChildTemplate_SpliceValueParam_DoesNotLeakIntoParentFactory()
     {

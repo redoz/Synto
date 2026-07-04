@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -12,89 +11,116 @@ namespace Synto.Generators.Templating;
 /// present in the compilation the generator analyzes) in a <c>[Template]</c> body, and resolves each to its
 /// factory-time builder invocation with per-argument binding (plan Task 3). All discovery runs inside the
 /// <c>ForAttributeWithMetadataName</c> transform; nothing is captured into pipeline state.
+/// <para>
+/// The finder is a <see cref="TemplateScopedWalker"/> (Capability 1): a foreign nested child <c>[Template]</c>
+/// subtree is SKIPPED wholesale, so the parent carrier's builder pass never re-reports the child's facade errors
+/// nor pulls the child's staged spine into the parent's <c>BuilderStagedConsumedNodes</c>.
+/// </para>
 /// </summary>
-internal static class FacadeCallFinder
+internal sealed class FacadeCallFinder : TemplateScopedWalker
 {
     private const string BuiltInBuilderType = "global::Synto.Templating.SyntoBuilders";
 
-    public static BuilderCallResult FindBuilderCalls(SemanticModel semanticModel, SyntaxNode body)
+    private readonly SemanticModel _semanticModel;
+    private readonly INamedTypeSymbol? _templateSymbol;
+    private readonly Dictionary<string, List<IMethodSymbol>> _buildersByName;
+    private readonly List<BuilderCall> _calls = new();
+    private readonly List<DiagnosticInfo> _diagnostics = new();
+
+    private FacadeCallFinder(SemanticModel semanticModel, TemplateScope scope)
+        : base(scope)
     {
+        _semanticModel = semanticModel;
+
         var compilation = semanticModel.Compilation;
-        var templateSymbol = compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);
+        _templateSymbol = compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);
         var syntaxBuilderAttribute = compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.SyntaxBuilderAttribute).FullName!);
 
         var builders = SyntaxBuilderRegistry.FindBuilders(compilation, syntaxBuilderAttribute);
 
         // Facade identity for a user builder = its method name. Index by name; >1 with the same name is
         // ambiguous (SY1018) once a matching call is found.
-        var buildersByName = new Dictionary<string, List<IMethodSymbol>>(System.StringComparer.Ordinal);
+        _buildersByName = new Dictionary<string, List<IMethodSymbol>>(System.StringComparer.Ordinal);
         foreach (var b in builders)
         {
-            if (!buildersByName.TryGetValue(b.Name, out var list))
-                buildersByName[b.Name] = list = new List<IMethodSymbol>();
+            if (!_buildersByName.TryGetValue(b.Name, out var list))
+                _buildersByName[b.Name] = list = new List<IMethodSymbol>();
             list.Add(b);
         }
+    }
 
-        var calls = new List<BuilderCall>();
-        var diagnostics = new List<DiagnosticInfo>();
+    public static BuilderCallResult FindBuilderCalls(SemanticModel semanticModel, SyntaxNode body, TemplateScope scope)
+    {
+        var finder = new FacadeCallFinder(semanticModel, scope);
+        finder.Visit(body);
+        return new BuilderCallResult(finder._calls, finder._diagnostics);
+    }
 
-        foreach (var invocation in body.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+    public override void VisitInvocationExpression(InvocationExpressionSyntax invocation)
+    {
+        var boundSymbol = _semanticModel.GetSymbolInfo(invocation).Symbol;
+
+        // Built-in facade calls bind to Template.Member / Template.TypeOf.
+        if (_templateSymbol is not null
+            && boundSymbol is IMethodSymbol bound
+            && SymbolEqualityComparer.Default.Equals(bound.ContainingType, _templateSymbol)
+            && IsBuiltInFacadeName(bound.Name))
         {
-            var boundSymbol = semanticModel.GetSymbolInfo(invocation).Symbol;
-
-            // Built-in facade calls bind to Template.Member / Template.TypeOf.
-            if (templateSymbol is not null
-                && boundSymbol is IMethodSymbol bound
-                && SymbolEqualityComparer.Default.Equals(bound.ContainingType, templateSymbol)
-                && IsBuiltInFacadeName(bound.Name))
+            // Named arguments are unsupported on facade calls (v1 policy: diagnose, do not reorder).
+            if (TryGetNamedArgument(invocation, out var builtInNamedArg))
             {
-                // Named arguments are unsupported on facade calls (v1 policy: diagnose, do not reorder).
-                if (TryGetNamedArgument(invocation, out var builtInNamedArg))
-                {
-                    diagnostics.Add(TemplateDiagnostics.NamedArgumentOnFacade(builtInNamedArg.GetLocation(), bound.Name));
-                    continue;
-                }
-                if (TryBuiltIn(invocation, bound, calls))
-                    continue;
+                _diagnostics.Add(TemplateDiagnostics.NamedArgumentOnFacade(builtInNamedArg.GetLocation(), bound.Name));
+                base.VisitInvocationExpression(invocation);
+                return;
             }
-
-            // User facade calls are recognized structurally by the simple name. The synthesized facade is not in
-            // the analyzed compilation, so a genuine facade call is UNBOUND. The only legal bound case is the
-            // self-facade — a call that binds directly to one of the registered builder methods (e.g. a
-            // fully-qualified `MyBuilders.Wrap(...)`). A call that binds to any OTHER method (`settings.Wrap()`
-            // on the user's own type) is a real invocation and must be quoted verbatim, never hijacked.
-            string? simpleName = GetInvokedSimpleName(invocation);
-            if (simpleName is not null && buildersByName.TryGetValue(simpleName, out var candidates))
+            if (TryBuiltIn(invocation, bound, _calls))
             {
-                // Recognition rule (#1): reject a successfully-bound, unrelated method — only an unbound call or
-                // one binding to the registered builder itself (self-facade) is treated as a facade.
-                if (boundSymbol is not null && !IsRegisteredBuilder(boundSymbol, candidates))
-                    continue;
-
-                // Named arguments are unsupported on facade calls (v1 policy: diagnose, do not reorder).
-                if (TryGetNamedArgument(invocation, out var userNamedArg))
-                {
-                    diagnostics.Add(TemplateDiagnostics.NamedArgumentOnFacade(userNamedArg.GetLocation(), simpleName));
-                    continue;
-                }
-
-                // Same-name overloads are allowed as long as they share a binding shape (e.g. the two `Switch`
-                // overloads are both `[Quoted governing, Staged list]`): bind with the shared shape and let the
-                // C# compiler resolve the real overload from the typed argument at factory-compile time. SY1018
-                // fires only on a genuine shape conflict (differing quoted/staged/type-arg parameter kinds).
-                if (candidates.Count > 1 && !ShareBindingShape(candidates))
-                {
-                    diagnostics.Add(TemplateDiagnostics.AmbiguousBuilder(invocation.GetLocation(), simpleName));
-                    continue;
-                }
-
-                var match = FacadeArgumentBinder.Bind(semanticModel, invocation, candidates[0], diagnostics);
-                if (match is not null)
-                    calls.Add(match);
+                base.VisitInvocationExpression(invocation);
+                return;
             }
         }
 
-        return new BuilderCallResult(calls, diagnostics);
+        // User facade calls are recognized structurally by the simple name. The synthesized facade is not in
+        // the analyzed compilation, so a genuine facade call is UNBOUND. The only legal bound case is the
+        // self-facade — a call that binds directly to one of the registered builder methods (e.g. a
+        // fully-qualified `MyBuilders.Wrap(...)`). A call that binds to any OTHER method (`settings.Wrap()`
+        // on the user's own type) is a real invocation and must be quoted verbatim, never hijacked.
+        string? simpleName = GetInvokedSimpleName(invocation);
+        if (simpleName is not null && _buildersByName.TryGetValue(simpleName, out var candidates))
+        {
+            // Recognition rule (#1): reject a successfully-bound, unrelated method — only an unbound call or
+            // one binding to the registered builder itself (self-facade) is treated as a facade.
+            if (boundSymbol is not null && !IsRegisteredBuilder(boundSymbol, candidates))
+            {
+                base.VisitInvocationExpression(invocation);
+                return;
+            }
+
+            // Named arguments are unsupported on facade calls (v1 policy: diagnose, do not reorder).
+            if (TryGetNamedArgument(invocation, out var userNamedArg))
+            {
+                _diagnostics.Add(TemplateDiagnostics.NamedArgumentOnFacade(userNamedArg.GetLocation(), simpleName));
+                base.VisitInvocationExpression(invocation);
+                return;
+            }
+
+            // Same-name overloads are allowed as long as they share a binding shape (e.g. the two `Switch`
+            // overloads are both `[Quoted governing, Staged list]`): bind with the shared shape and let the
+            // C# compiler resolve the real overload from the typed argument at factory-compile time. SY1018
+            // fires only on a genuine shape conflict (differing quoted/staged/type-arg parameter kinds).
+            if (candidates.Count > 1 && !ShareBindingShape(candidates))
+            {
+                _diagnostics.Add(TemplateDiagnostics.AmbiguousBuilder(invocation.GetLocation(), simpleName));
+                base.VisitInvocationExpression(invocation);
+                return;
+            }
+
+            var match = FacadeArgumentBinder.Bind(_semanticModel, invocation, candidates[0], _diagnostics);
+            if (match is not null)
+                _calls.Add(match);
+        }
+
+        base.VisitInvocationExpression(invocation);
     }
 
     private static bool TryBuiltIn(InvocationExpressionSyntax invocation, IMethodSymbol bound, List<BuilderCall> calls)

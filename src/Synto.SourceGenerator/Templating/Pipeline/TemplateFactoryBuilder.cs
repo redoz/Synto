@@ -384,14 +384,38 @@ internal static class TemplateFactoryBuilder
     // is never pulled into the factory scope where it could collide with the injected internal surface.
     private static void TransplantCarrierUsings(TemplateBuildContext ctx)
     {
-        if ((ctx.StagedRegions.Count > 0 || ctx.Plan.BuilderCalls.Count > 0)
+        // Trigger (#12b): a live control region always runs verbatim, but a builder call only needs the carrier's
+        // usings when it carries a STAGED (verbatim) argument binding — a quoted-only builder call assembles its
+        // island through the pipeline and pulls in no carrier scope.
+        bool anyStagedBuilderCall = false;
+        foreach (var call in ctx.Plan.BuilderCalls.Values)
+        {
+            foreach (var binding in call.Args)
+            {
+                if (binding.Kind == BuilderArgKind.Staged)
+                {
+                    anyStagedBuilderCall = true;
+                    break;
+                }
+            }
+            if (anyStagedBuilderCall)
+                break;
+        }
+
+        if ((ctx.StagedRegions.Count > 0 || anyStagedBuilderCall)
             && ctx.TemplateInfo.Source!.Syntax.SyntaxTree.GetRoot() is CompilationUnitSyntax carrierUnit)
         {
             foreach (var carrierUsing in carrierUnit.Usings)
             {
                 if (!carrierUsing.StaticKeyword.IsKind(SyntaxKind.None) || carrierUsing.Alias is not null)
                     continue;
-                if (carrierUsing.Name is not { } usingName || usingName.ToString().StartsWith("Synto", StringComparison.Ordinal))
+                // Exclusion (#12a): only the Synto surface itself (`Synto` or `Synto.*`) is skipped — a legitimate
+                // third-party namespace that merely starts with "Synto" (e.g. `Syntonic.Helpers`, `SyntoX.*`)
+                // transplants normally.
+                if (carrierUsing.Name is not { } usingName)
+                    continue;
+                string usingText = usingName.ToString();
+                if (usingText == "Synto" || usingText.StartsWith("Synto.", StringComparison.Ordinal))
                     continue;
 
                 ctx.AdditionalUsings.AddNamespace(usingName);
@@ -776,7 +800,7 @@ internal static class TemplateFactoryBuilder
     {
         var semanticModel = ctx.SemanticModel;
 
-        var builderResult = FacadeCallFinder.FindBuilderCalls(semanticModel, ctx.TemplateInfo.Source!.Syntax);
+        var builderResult = FacadeCallFinder.FindBuilderCalls(semanticModel, ctx.TemplateInfo.Source!.Syntax, ctx.Scope);
         ctx.Diagnostics.AddRange(builderResult.Diagnostics);
 
         // A builder facade-synthesis / argument-binding / ambiguity error is a usage error: bail with the
