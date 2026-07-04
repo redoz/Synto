@@ -511,4 +511,81 @@ public class SyntaxBuilderTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
     }
+
+    // #1: a call whose simple name COLLIDES with a registered builder but which BINDS to a real, unrelated
+    // user method must NOT be hijacked as a builder facade — it is quoted verbatim. Today the finder matches by
+    // simple name alone and mis-binds `settings.Wrap()` (0 args) to the 1-param builder, emitting SY1016.
+    [Fact]
+    public void BoundUserMethodCollidingWithBuilderName_NotHijacked_NoDiagnostics()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Builders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class Settings {
+                public int Wrap() => 0; // real method, same simple name as the builder facade
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build() {
+                    var settings = new Settings();
+                    System.Console.WriteLine(settings.Wrap()); // binds to Settings.Wrap -> quote verbatim
+                }
+            }
+            """);
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+    }
+
+    // #7: named arguments on a built-in facade call (Template.Member) are reported SY1029, not silently
+    // mispaired. (v1 policy: diagnose, do not reorder.)
+    [Fact]
+    public void NamedArgumentsOnBuiltInFacade_ReportsSY1029()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] object instance) {
+                    var x = Member<object>(instance: instance, name: "Foo");
+                }
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1029");
+        AssertHasRealSpan(diag);
+    }
+
+    // #7: named arguments on a user [SyntaxBuilder] facade call are reported SY1029.
+    [Fact]
+    public void NamedArgumentsOnUserFacade_ReportsSY1029()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Builders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] object x) => System.Console.WriteLine(Builders.Wrap(x: x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1029");
+        AssertHasRealSpan(diag);
+    }
 }

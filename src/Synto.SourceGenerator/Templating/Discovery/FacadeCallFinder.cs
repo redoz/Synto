@@ -40,20 +40,44 @@ internal static class FacadeCallFinder
 
         foreach (var invocation in body.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
         {
+            var boundSymbol = semanticModel.GetSymbolInfo(invocation).Symbol;
+
             // Built-in facade calls bind to Template.Member / Template.TypeOf.
             if (templateSymbol is not null
-                && semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol bound
-                && SymbolEqualityComparer.Default.Equals(bound.ContainingType, templateSymbol))
+                && boundSymbol is IMethodSymbol bound
+                && SymbolEqualityComparer.Default.Equals(bound.ContainingType, templateSymbol)
+                && IsBuiltInFacadeName(bound.Name))
             {
+                // Named arguments are unsupported on facade calls (v1 policy: diagnose, do not reorder).
+                if (TryGetNamedArgument(invocation, out var builtInNamedArg))
+                {
+                    diagnostics.Add(TemplateDiagnostics.NamedArgumentOnFacade(builtInNamedArg.GetLocation(), bound.Name));
+                    continue;
+                }
                 if (TryBuiltIn(invocation, bound, calls))
                     continue;
             }
 
-            // User facade calls are recognized structurally by the simple name (the synthesized facade is not
-            // in the analyzed compilation, so they do not bind).
+            // User facade calls are recognized structurally by the simple name. The synthesized facade is not in
+            // the analyzed compilation, so a genuine facade call is UNBOUND. The only legal bound case is the
+            // self-facade — a call that binds directly to one of the registered builder methods (e.g. a
+            // fully-qualified `MyBuilders.Wrap(...)`). A call that binds to any OTHER method (`settings.Wrap()`
+            // on the user's own type) is a real invocation and must be quoted verbatim, never hijacked.
             string? simpleName = GetInvokedSimpleName(invocation);
             if (simpleName is not null && buildersByName.TryGetValue(simpleName, out var candidates))
             {
+                // Recognition rule (#1): reject a successfully-bound, unrelated method — only an unbound call or
+                // one binding to the registered builder itself (self-facade) is treated as a facade.
+                if (boundSymbol is not null && !IsRegisteredBuilder(boundSymbol, candidates))
+                    continue;
+
+                // Named arguments are unsupported on facade calls (v1 policy: diagnose, do not reorder).
+                if (TryGetNamedArgument(invocation, out var userNamedArg))
+                {
+                    diagnostics.Add(TemplateDiagnostics.NamedArgumentOnFacade(userNamedArg.GetLocation(), simpleName));
+                    continue;
+                }
+
                 // Same-name overloads are allowed as long as they share a binding shape (e.g. the two `Switch`
                 // overloads are both `[Quoted governing, Staged list]`): bind with the shared shape and let the
                 // C# compiler resolve the real overload from the typed argument at factory-compile time. SY1018
@@ -125,6 +149,36 @@ internal static class FacadeCallFinder
         }
 
         return true;
+    }
+
+    private static bool IsBuiltInFacadeName(string name) =>
+        name == nameof(global::Synto.Templating.Template.Member)
+        || name == nameof(global::Synto.Templating.Template.TypeOf);
+
+    private static bool IsRegisteredBuilder(ISymbol boundSymbol, List<IMethodSymbol> candidates)
+    {
+        var def = (boundSymbol as IMethodSymbol)?.OriginalDefinition ?? boundSymbol;
+        foreach (var candidate in candidates)
+        {
+            if (SymbolEqualityComparer.Default.Equals(candidate, def))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool TryGetNamedArgument(InvocationExpressionSyntax invocation, out ArgumentSyntax namedArgument)
+    {
+        foreach (var argument in invocation.ArgumentList.Arguments)
+        {
+            if (argument.NameColon is not null)
+            {
+                namedArgument = argument;
+                return true;
+            }
+        }
+
+        namedArgument = null!;
+        return false;
     }
 
     private static string? GetInvokedSimpleName(InvocationExpressionSyntax invocation)

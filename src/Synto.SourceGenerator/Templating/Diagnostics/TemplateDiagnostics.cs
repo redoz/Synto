@@ -207,6 +207,20 @@ internal static class TemplateDiagnostics
             new EquatableArray<string>(ImmutableArray.Create(facadeName)));
     }
 
+    private static readonly DiagnosticDescriptor _namedArgumentOnFacade = new(IdPrefix + "1029",
+        "Named Arguments Not Supported On Facade Call",
+        "Named arguments are not supported on builder facade call '{0}'; pass its arguments positionally",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo NamedArgumentOnFacade(Location? location, string builderName)
+    {
+        return new DiagnosticInfo(_namedArgumentOnFacade,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(builderName)));
+    }
+
     private static readonly DiagnosticDescriptor _spliceMethodMustBeStatic = new(IdPrefix + "1019",
         "Invalid Splice Member Generator",
         "[Splice] member generator '{0}' must be static (it runs at factory-build time; an instance method could reach output-world members).",
