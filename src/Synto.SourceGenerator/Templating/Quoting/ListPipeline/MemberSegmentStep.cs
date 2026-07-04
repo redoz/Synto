@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -23,22 +24,14 @@ internal sealed class MemberSegmentStep : IListQuoteMiddleware
     public MemberSegmentStep(IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> memberSegments)
         => _memberSegments = memberSegments;
 
+    // The quoter only dispatches this step for member lists (central element-type guard). A member list is
+    // keyed to its owner only when that owner declares at least one [Splice] segment member, so this step no
+    // longer scans the list to decide whether to defer — the (owner, element type) key already guarantees it.
+    public Type ElementType => typeof(MemberDeclarationSyntax);
+
     public ExpressionSyntax Quote<TNode>(SyntaxList<TNode> list, QuoteContext ctx, ListQuoteNext<TNode> next)
         where TNode : SyntaxNode
     {
-        bool hasSegment = false;
-        foreach (var node in list)
-        {
-            if (_memberSegments.ContainsKey(node))
-            {
-                hasSegment = true;
-                break;
-            }
-        }
-
-        if (!hasSegment)
-            return next(list);
-
         TypeSyntax elementType = ParseTypeName(typeof(TNode).Name);
 
         var arguments = new List<ArgumentSyntax>();

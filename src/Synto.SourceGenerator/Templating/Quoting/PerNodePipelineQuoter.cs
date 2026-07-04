@@ -60,8 +60,12 @@ internal sealed class PerNodePipelineQuoter : CSharpSyntaxQuoter
 
     public override ExpressionSyntax Visit<TNode>(SyntaxList<TNode> nodeList)
     {
-        // Keyed by the visited list's owner node (list[0].Parent). Lists with no owner, or an unkeyed owner,
-        // defer straight to base. Composed per call because the continuation is generic over TNode.
+        // Dispatch keyed on (owner, element type): the owner node (list[0].Parent) selects the candidate step
+        // set, then TNode selects which of those actually run. One owner exposes several SyntaxList<T> (e.g. a
+        // type declaration's AttributeLists AND Members both key on the type node), so the element-type match is
+        // load-bearing — it centralizes the "is this the list this step targets?" guard the steps used to carry
+        // individually. Lists with no owner, or an unkeyed owner, defer straight to base. Composed per call
+        // because the continuation is generic over TNode.
         var owner = nodeList.Count > 0 ? nodeList[0].Parent : null;
         if (owner is null || !_listSteps.TryGetValue(owner, out var steps))
             return base.Visit(nodeList);
@@ -70,6 +74,8 @@ internal sealed class PerNodePipelineQuoter : CSharpSyntaxQuoter
         for (int i = steps.Length - 1; i >= 0; i--)
         {
             var step = steps[i];
+            if (step.ElementType != typeof(TNode))
+                continue;
             var localNext = chain;
             chain = l => step.Quote(l, _context, localNext);
         }

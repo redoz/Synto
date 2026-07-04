@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -21,19 +22,20 @@ internal sealed class InterpolationFoldStep : IListQuoteMiddleware
     public InterpolationFoldStep(IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots)
         => _stringStagedRoots = stringStagedRoots;
 
+    // The quoter only dispatches this step for interpolated-string content lists (central element-type guard),
+    // so the body no longer re-checks TNode.
+    public Type ElementType => typeof(InterpolatedStringContentSyntax);
+
     public ExpressionSyntax Quote<TNode>(SyntaxList<TNode> list, QuoteContext ctx, ListQuoteNext<TNode> next)
         where TNode : SyntaxNode
     {
-        if (typeof(TNode) == typeof(InterpolatedStringContentSyntax))
-        {
-            // Build the fold lazily from the engine's cooperation surface (same context across all calls).
-            _fold ??= new InterpolationFold(_stringStagedRoots, ctx.Quote, ctx.ToArrayLiteral);
+        // Build the fold lazily from the engine's cooperation surface (same context across all calls).
+        _fold ??= new InterpolationFold(_stringStagedRoots, ctx.Quote, ctx.ToArrayLiteral);
 
-            if (_fold.TryFoldInterpolatedContents(
-                    (SyntaxList<InterpolatedStringContentSyntax>)(object)list, out var folded))
-            {
-                return folded;
-            }
+        if (_fold.TryFoldInterpolatedContents(
+                (SyntaxList<InterpolatedStringContentSyntax>)(object)list, out var folded))
+        {
+            return folded;
         }
 
         return next(list);

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Linq;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -239,6 +240,60 @@ public class SpliceMemberGeneratorTest
             }
         }
         """;
+
+    // #24 regression (list-seam dispatch keyed on (owner, element type)): a [Splice] member generator's owner
+    // type declaration exposes BOTH a (non-empty) AttributeLists list and a Members list keyed on the same
+    // owner node. The central element-type guard must route ONLY the member list through MemberSegmentStep; the
+    // sibling attribute list must fall through to base quoting. This carrier keeps a surviving user attribute
+    // ([System.Obsolete]) so the attribute list is non-empty and actually reaches the owner's step set — pinning
+    // that deleting the per-step self-guards keeps the sibling list correct.
+    private const string SpliceCarrierWithSurvivingAttributeTemplate =
+        """
+        using System;
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+
+        partial class Factory {}
+
+        public readonly record struct Col(int Ordinal, string Name);
+
+        [Obsolete]
+        [Template(typeof(Factory))]
+        public class Reader {
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Accessors() {
+                var columns = Parameter<IReadOnlyList<Col>>();
+                foreach (var c in columns)
+                    yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
+                        .AddModifiers(Token(PublicKeyword))
+                        .WithExpressionBody(ArrowExpressionClause(
+                            LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal))))
+                        .WithSemicolonToken(Token(SemicolonToken));
+            }
+        }
+        """;
+
+    [Fact]
+    public void SpliceMemberList_DispatchesWhileSiblingAttributeListFallsThrough()
+    {
+        var compilation = CompilationWithSource(SpliceCarrierWithSurvivingAttributeTemplate);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var runResult = driver.RunGenerators(compilation, TestContext.Current.CancellationToken).GetRunResult();
+
+        Assert.Empty(runResult.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var generated = Assert.Single(runResult.GeneratedTrees).ToString();
+
+        // Member list still routes through the segment step.
+        Assert.Contains("BuildList<MemberDeclarationSyntax>", generated);
+        // The sibling (non-empty) attribute list fell through to base quoting, NOT the segment step — the
+        // surviving [Obsolete] attribute is quoted as an AttributeList, never wrapped in a BuildList run.
+        Assert.Contains("Obsolete", generated);
+        Assert.DoesNotContain("BuildList<AttributeListSyntax>", generated);
+    }
 
     private static Compilation CompilationWithSource(string source)
     {
