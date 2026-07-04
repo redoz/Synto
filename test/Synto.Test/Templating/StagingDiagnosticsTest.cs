@@ -75,6 +75,74 @@ public class StagingDiagnosticsTest
         AssertHasRealSpan(diag);
     }
 
+    // A lambda parameter declared INSIDE the binding expression (e.g. LINQ Select(x => ...)) is local to that
+    // expression, not an output-world value the cut crosses. It must NOT be mistaken for an impossible cut.
+    [Fact]
+    public void ImpossibleCut_LinqLambdaLocal_NotFlagged()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using System.Linq;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build() {
+                    var items = Parameter<IReadOnlyList<string>>();
+                    var total = Unquote(items.Select(x => x.Length).Sum());
+                    System.Console.WriteLine(total);
+                }
+            }
+            """);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SY1013");
+    }
+
+    // An out-var declared inside the binding expression is local to it, not an output-world cut.
+    [Fact]
+    public void ImpossibleCut_OutVarLocal_NotFlagged()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build() {
+                    var items = Parameter<IReadOnlyList<string>>();
+                    var parsed = Unquote(int.TryParse(items[0], out var n) ? n : 0);
+                    System.Console.WriteLine(parsed);
+                }
+            }
+            """);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SY1013");
+    }
+
+    // A pattern variable declared inside the binding expression is local to it, not an output-world cut.
+    [Fact]
+    public void ImpossibleCut_PatternVariableLocal_NotFlagged()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build() {
+                    var items = Parameter<IReadOnlyList<string>>();
+                    var count = Unquote(items is { Count: var c } ? c : 0);
+                    System.Console.WriteLine(count);
+                }
+            }
+            """);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SY1013");
+    }
+
     // A live region nested inside another live region's body is not unrolled in v1.
     [Fact]
     public void UnsupportedStagedShape_ReportsSY1014()

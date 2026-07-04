@@ -239,7 +239,7 @@ internal sealed class BindingTimeClassifier
             foreach (var identifier in expression.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
             {
                 var symbol = _semanticModel.GetSymbolInfo(identifier).Symbol;
-                if (symbol is ILocalSymbol or IParameterSymbol && !_live.Contains(symbol))
+                if (symbol is ILocalSymbol or IParameterSymbol && !_live.Contains(symbol) && !IsDeclaredWithin(symbol, expression))
                 {
                     cuts.Add((expression, $"staged binding depends on output-world value '{symbol.Name}'"));
                     break;
@@ -248,5 +248,22 @@ internal sealed class BindingTimeClassifier
         }
 
         return cuts;
+    }
+
+    /// <summary>
+    /// True if <paramref name="symbol"/> is declared inside <paramref name="expression"/> itself — a lambda
+    /// parameter, an <c>out var</c>, or a pattern variable local to the binding — rather than an output-world
+    /// value the cut crosses. Such symbols never escape the expression, so they can never be an impossible cut.
+    /// (Query <c>IRangeVariableSymbol</c>s are already excluded by the caller's local/parameter type check.)
+    /// </summary>
+    private static bool IsDeclaredWithin(ISymbol symbol, ExpressionSyntax expression)
+    {
+        foreach (var reference in symbol.DeclaringSyntaxReferences)
+        {
+            if (reference.SyntaxTree == expression.SyntaxTree && expression.FullSpan.Contains(reference.Span))
+                return true;
+        }
+
+        return false;
     }
 }
