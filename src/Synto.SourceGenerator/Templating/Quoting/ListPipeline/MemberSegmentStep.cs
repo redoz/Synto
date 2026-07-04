@@ -12,10 +12,10 @@ namespace Synto.Generators.Templating;
 /// contains one or more <c>[Splice]</c> member-generator children (keys in <paramref name="memberSegments"/>),
 /// emit a <c>CollectionSyntaxExtensions.BuildList&lt;TNode&gt;(…)</c> run — each fixed member quoted in place via
 /// <see cref="QuoteContext.Quote"/>, each generator contributing its precomputed segment at its declaration
-/// position (so declaration order is preserved). Any other <see cref="SyntaxList{TNode}"/> falls through to
-/// <c>next</c> — this scan-children self-check is load-bearing: it resolves the owner-key collision residual
-/// (a type decl's attribute/base lists reach this step and defer). Per-owner counterpart of the dissolved
-/// MemberSegmentMiddleware.
+/// position (so declaration order is preserved). Dispatched only for member lists whose owner declares at
+/// least one <c>[Splice]</c> segment — the central (owner, element type) key in <see cref="PerNodePipelineQuoter"/>
+/// guarantees it, so no per-step self-check is needed (see the note on <see cref="ElementType"/>). Per-owner
+/// counterpart of the dissolved MemberSegmentMiddleware.
 /// </summary>
 internal sealed class MemberSegmentStep : IListQuoteMiddleware
 {
