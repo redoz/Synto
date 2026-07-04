@@ -79,21 +79,51 @@ internal static class MatchRunAligner
 
         bool hasVariable = run.Any(element => element is HoleElement { Hole.IsVariableLength: true });
 
+        // Fixed width AFTER the variable element (0 when there is none / no variable). A variable with fixed
+        // elements after it AND no end-anchor must SCAN its length: otherwise _var absorbs all remaining slack
+        // and pins those trailing fixed elements to the block end, under-matching the intended "contains"
+        // semantics (#17). When after == 0 (variable at the tail) or the run is end-anchored, the variable still
+        // greedily absorbs to the (block/anchor) end and _var stays pinned.
+        int afterWidth = 0;
+        {
+            int variableIndex = -1;
+            for (int i = 0; i < run.Count; i++)
+                if (run[i] is HoleElement { Hole.IsVariableLength: true }) { variableIndex = i; break; }
+            if (variableIndex >= 0)
+                for (int i = variableIndex + 1; i < run.Count; i++)
+                    afterWidth += FixedWidth(run[i]);
+        }
+
+        bool scanVar = hasVariable && afterWidth > 0 && !anchorEnd;
+
         string matchType = ctx.Info.Name + "Match";
 
         var attemptBody = new List<StatementSyntax>();
-        EmitRunElementsAt(attemptBody, run, ctx);
+        EmitRunElementsAt(attemptBody, run, ctx, varIsParameter: scanVar);
         attemptBody.Add(ParseStatement($"return new {matchType}({MatchNodeWalker.RenderCaptureArguments(ctx)});"));
 
-        var attempt = ((LocalFunctionStatementSyntax)ParseStatement($"{matchType}? _TryAt(int _o) {{ }}"))
+        string tryParams = scanVar ? "int _o, int _var" : "int _o";
+        var attempt = ((LocalFunctionStatementSyntax)ParseStatement($"{matchType}? _TryAt({tryParams}) {{ }}"))
             .WithBody(Block(attemptBody.ToArray()));
         body.Add(attempt);
 
         if (!anchorStart && !anchorEnd)
         {
-            // No-anchor (Bare contains / statement-Single): leftmost scan over offsets 0 .. Count - fixedWidth.
-            body.Add(ParseStatement(
-                $"for (int _o = 0; _o <= _blk.Statements.Count - {fixedWidth}; _o++) {{ if (_TryAt(_o) is {{ }} _m) return _m; }}"));
+            if (scanVar)
+            {
+                // No-anchor with fixed elements after the variable: scan BOTH the run offset and the variable
+                // length (greedy: the longest variable first) so the trailing fixed elements float to their real
+                // position instead of pinning to the block end (#17 contains).
+                body.Add(ParseStatement(
+                    $"for (int _o = 0; _o <= _blk.Statements.Count - {fixedWidth}; _o++) for (int _var = _blk.Statements.Count - _o - {fixedWidth}; _var >= 0; _var--) {{ if (_TryAt(_o, _var) is {{ }} _m) return _m; }}"));
+            }
+            else
+            {
+                // No-anchor (Bare contains / statement-Single): leftmost scan over offsets 0 .. Count - fixedWidth.
+                // A variable at the tail (or none) absorbs to the block end via the pinned _var.
+                body.Add(ParseStatement(
+                    $"for (int _o = 0; _o <= _blk.Statements.Count - {fixedWidth}; _o++) {{ if (_TryAt(_o) is {{ }} _m) return _m; }}"));
+            }
             body.Add(ParseStatement("return null;"));
         }
         else if (anchorStart && anchorEnd)
@@ -110,19 +140,41 @@ internal static class MatchRunAligner
             body.Add(ParseStatement("if (_TryAt(_o) is { } _m) return _m;"));
             body.Add(ParseStatement("return null;"));
         }
+        else if (anchorStart)
+        {
+            // anchorStart only: the run is pinned to the block start (_o = 0). With fixed elements after the
+            // variable the run END floats, so scan the variable length (greedy); otherwise the variable absorbs
+            // to the block end via the pinned _var.
+            body.Add(ParseStatement($"if (_blk.Statements.Count < {fixedWidth}) return null;"));
+            if (scanVar)
+            {
+                body.Add(ParseStatement(
+                    $"for (int _var = _blk.Statements.Count - {fixedWidth}; _var >= 0; _var--) {{ if (_TryAt(0, _var) is {{ }} _m) return _m; }}"));
+            }
+            else
+            {
+                body.Add(ParseStatement("int _o = 0;"));
+                body.Add(ParseStatement("if (_TryAt(_o) is { } _m) return _m;"));
+            }
+            body.Add(ParseStatement("return null;"));
+        }
         else
         {
-            // Exactly one anchor. anchorStart pins the run to the block start (_o = 0); anchorEnd pins it to the
-            // block end — for a fixed-only run that is _o = Count - fixedWidth, while a variable element already
-            // ends the run at the last statement (via _var), so _o = 0 and the variable absorbs the lead.
-            body.Add(ParseStatement($"if (_blk.Statements.Count < {fixedWidth}) return null;"));
-
-            string offset = anchorStart
-                ? "0"
-                : hasVariable ? "0" : $"_blk.Statements.Count - {fixedWidth}";
-
-            body.Add(ParseStatement($"int _o = {offset};"));
-            body.Add(ParseStatement("if (_TryAt(_o) is { } _m) return _m;"));
+            // anchorEnd only. A variable element absorbs the LEAD (its tail is pinned to the block's last
+            // statement via _var), so scan the run OFFSET: any fixed lead before the variable floats to its real
+            // offset instead of pinning to the block start (#17). A fixed-only run has no slack — it pins to the
+            // block end at _o = Count - fixedWidth.
+            if (hasVariable)
+            {
+                body.Add(ParseStatement(
+                    $"for (int _o = 0; _o <= _blk.Statements.Count - {fixedWidth}; _o++) {{ if (_TryAt(_o) is {{ }} _m) return _m; }}"));
+            }
+            else
+            {
+                body.Add(ParseStatement($"if (_blk.Statements.Count < {fixedWidth}) return null;"));
+                body.Add(ParseStatement($"int _o = _blk.Statements.Count - {fixedWidth};"));
+                body.Add(ParseStatement("if (_TryAt(_o) is { } _m) return _m;"));
+            }
             body.Add(ParseStatement("return null;"));
         }
     }
@@ -147,7 +199,7 @@ internal static class MatchRunAligner
     /// <c>_var</c>-relative tail <c>_o + before + _var + afterSlot</c>. A fixed-only run is the special case
     /// where there is no variable element (identical output to the pre-Task-11 fixed path).
     /// </summary>
-    private static void EmitRunElementsAt(List<StatementSyntax> attemptBody, List<RunElement> run, MatchContext ctx)
+    private static void EmitRunElementsAt(List<StatementSyntax> attemptBody, List<RunElement> run, MatchContext ctx, bool varIsParameter)
     {
         int variableIndex = -1;
         for (int i = 0; i < run.Count; i++)
@@ -186,7 +238,9 @@ internal static class MatchRunAligner
         for (int i = 0; i < variableIndex; i++)
             beforeSlot += EmitFixedElement(attemptBody, run[i], Offset(beforeSlot), ctx);
 
-        if (needsVar)
+        // When the driver scans the variable length it passes _var as a parameter of _TryAt; otherwise the
+        // variable absorbs to the (block/anchor) end and _var is derived here from the offset.
+        if (needsVar && !varIsParameter)
             attemptBody.Add(ParseStatement($"int _var = _blk.Statements.Count - _o - {before} - {after};"));
 
         EmitVariableElement(attemptBody, variable, before, ctx);

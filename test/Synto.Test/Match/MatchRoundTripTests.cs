@@ -366,4 +366,42 @@ public partial class MatchRoundTripTests
 
         Assert.Null(M.RunThenReturnAnchored(ParseStatement("{ A(); return; B(); }")));   // return not last
     }
+
+    [Fact]
+    public void Bare_VariableBetweenFixed_ScansContainedRun()
+    {
+        // No anchors + a fixed element on BOTH flanks of the variable: the run `if(lead){} <mid> if(trail){}`
+        // must be found wherever it sits — the trailing `if(trail){}` is NOT pinned to the block's last
+        // statement (#17 "contains"). A block whose trailing `if` is followed by extra statements still matches
+        // (the extra tail is uncovered slack). The fixed flanks are `if` literals so the wrong split (tail pinned
+        // to the last statement) genuinely fails to match instead of a capture silently absorbing it.
+        [Match<M>(MatchOption.Bare)]
+        static void MiddleRun([Capture] bool lead, [Capture] Stmt mid, [Capture] bool trail)
+        { if (lead) { } mid.Some(); if (trail) { } }
+
+        var m = M.MiddleRun(ParseStatement("{ if (p) { } X(); if (q) { } Y(); }"));
+        Assert.NotNull(m);
+        Assert.Equal(1, m!.Mid.Count);              // mid = [X()] — the trailing `if` floats to index 2, not the last
+        MatchTestHarness.AssertCapture("X();", m.Mid[0]);
+
+        Assert.Null(M.MiddleRun(ParseStatement("{ if (p) { } X(); Y(); }")));   // no trailing `if` after lead+one
+    }
+
+    [Fact]
+    public void Anchor_End_FixedLeadBeforeVariable_FloatsToOffset()
+    {
+        // anchorEnd + a fixed lead BEFORE the variable: the lead `if(head){}` must float to its real offset (it
+        // is NOT pinned to the block start), the variable absorbs the middle, and the anchored `if(tail){}` is
+        // the block's last statement (#17 anchorEnd-only lead float).
+        [Match<M>(MatchOption.Bare)]
+        static void LeadThenRunAnchored([Capture] bool head, [Capture] Stmt mid, [Capture] bool tail)
+        { if (head) { } mid.Some(); if (tail) { } Synto.Matching.Block.End(); }
+
+        var m = M.LeadThenRunAnchored(ParseStatement("{ Z(); if (p) { } M(); if (q) { } }"));
+        Assert.NotNull(m);
+        Assert.Equal(1, m!.Mid.Count);              // lead `if` floated to index 1; mid = [M()]
+        MatchTestHarness.AssertCapture("M();", m.Mid[0]);
+
+        Assert.Null(M.LeadThenRunAnchored(ParseStatement("{ Z(); if (p) { } M(); if (q) { } W(); }")));   // tail `if` not last
+    }
 }
