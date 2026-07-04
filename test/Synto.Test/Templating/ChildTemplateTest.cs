@@ -95,9 +95,10 @@ public class ChildTemplateTest
 
     // Same composition, but the child [Template] (TypedGetter) and its inert `_e` live INSIDE the Reader
     // carrier (which still hosts the [Splice] Getters() member-generator that invokes Factory.TypedGetter).
-    // Exercises Capability 1: a method-level [Template] nested in a class-level [Template] is a sibling child
-    // template — trimmed from the parent's quoted output, and its inner Parameter<…>() calls (clrType,
-    // typeLabel) must NOT leak into the parent factory's parameter list.
+    // The child now carries a BARE [Template] (Phase 2): it is a parent-driven private sub-template, built by the
+    // parent and folded into the parent's SINGLE document as a `private static` method on the shared target —
+    // not an independent public sibling in its own document. Its inner Parameter<…>() calls (clrType, typeLabel)
+    // still must NOT leak into the PARENT factory's parameter list.
     private const string NestedChildComposition =
         """
         using System;
@@ -119,7 +120,7 @@ public class ChildTemplateTest
         {
             private readonly System.Collections.IEnumerator _e = default!;
 
-            [Template<Factory>]
+            [Template]
             public TRet TypedGetter<[Splice] TRet>(int i)
             {
                 var columns = Parameter<IReadOnlyList<Col>>();
@@ -213,30 +214,43 @@ public class ChildTemplateTest
             .SelectMany(r => r.GeneratedSources)
             .ToDictionary(s => s.HintName, s => s.SourceText.ToString(), StringComparer.Ordinal);
 
-        // A factory IS generated for the nested child template.
-        Assert.Contains("Factory.TypedGetter.g.cs", sources.Keys);
-
-        // The parent factory IS generated.
+        // The bare [Template] child is a PRIVATE SUB-TEMPLATE folded into the parent's single document — NOT an
+        // independent public sibling. So there is exactly ONE generated document (the parent's) and NO separate
+        // Factory.TypedGetter.g.cs.
         Assert.Contains("Factory.Reader.g.cs", sources.Keys);
-        var readerFactory = sources["Factory.Reader.g.cs"];
+        Assert.DoesNotContain("Factory.TypedGetter.g.cs", sources.Keys);
+        Assert.Single(sources);
 
-        // (b) The child template is NOT quoted as a member of the parent's output: neither its quoted method
-        // declaration (Identifier("TypedGetter")) nor its body marker (the InvalidCastException it throws) nor
-        // any residual Parameter<…> call from the child body appears. NOTE: the retained [Splice] Getters()
-        // member-generator legitimately CALLS Factory.TypedGetter(...) at factory time, so a bare "TypedGetter"
-        // substring is expected — what must be absent is the child quoted AS a member declaration.
-        Assert.DoesNotContain("Identifier(\"TypedGetter\")", readerFactory, StringComparison.Ordinal);
-        Assert.DoesNotContain("InvalidCastException", readerFactory, StringComparison.Ordinal);
-        Assert.DoesNotContain("Parameter<", readerFactory, StringComparison.Ordinal);
+        var readerDocument = sources["Factory.Reader.g.cs"];
 
-        // (c) The child's Parameter<string>() roots (clrType, typeLabel) do NOT leak into the parent factory's
-        // parameter list (they appear nowhere in the parent factory). The shared columns parameter (also declared
-        // in the parent's Getters member-generator) is legitimately present and is NOT asserted away.
-        Assert.DoesNotContain("clrType", readerFactory, StringComparison.Ordinal);
-        Assert.DoesNotContain("typeLabel", readerFactory, StringComparison.Ordinal);
+        // The parent factory is public; the sub-template is emitted as a `private static` method named after the
+        // child template (TypedGetter) on the shared target — proving the parent-driven private-sub-template shape.
+        Assert.Contains("public static", readerDocument, StringComparison.Ordinal);
+        Assert.Contains("private static", readerDocument, StringComparison.Ordinal);
+        Assert.Contains("TypedGetter", readerDocument, StringComparison.Ordinal);
+
+        // The child's Parameter<string>() roots (clrType, typeLabel) belong to the CHILD sub-template's own
+        // parameter list; they must NEVER leak into the PARENT factory's signature. (They may legitimately appear
+        // inside the sub-template method body region, so this is asserted against the parent factory method only.)
+        var parentFactory = ParentFactoryRegion(readerDocument);
+        Assert.DoesNotContain("clrType", parentFactory, StringComparison.Ordinal);
+        Assert.DoesNotContain("typeLabel", parentFactory, StringComparison.Ordinal);
 
         var ret = await Verify(result).UseDirectory("snapshots");
         Assert.NotEmpty(ret.Files);
+    }
+
+    // Returns the text of the public parent factory method (from `public static` up to the first `private static`
+    // sub-template that follows it) so leak assertions can target the parent's signature without matching the
+    // folded-in child sub-template body.
+    private static string ParentFactoryRegion(string document)
+    {
+        var start = document.IndexOf("public static", StringComparison.Ordinal);
+        if (start < 0)
+            return document;
+
+        var privateStart = document.IndexOf("private static", start, StringComparison.Ordinal);
+        return privateStart < 0 ? document.Substring(start) : document.Substring(start, privateStart - start);
     }
 
     // #11: a nested child [Template] whose body carries a facade-call error (here a named argument on a built-in

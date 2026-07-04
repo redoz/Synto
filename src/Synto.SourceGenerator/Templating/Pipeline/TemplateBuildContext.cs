@@ -59,6 +59,13 @@ internal sealed class TemplateBuildContext
     public List<SpliceMemberGenerator> ValidSpliceGenerators { get; } = new();
     public HashSet<SyntaxNode> SpliceGeneratorNodes { get; } = new();
     public TemplateScope Scope { get; set; } = null!;
+
+    // Parent-driven private sub-templates built from this carrier's nested bare [Template] children (Phase 2).
+    // Populated during ResolveScopeAndTrimForeignChildren by recursively building each such child (visibility
+    // private, target pinned to this carrier's), then handed to the document builder alongside the parent factory
+    // so they all land in the single generated document. Empty for a carrier with no nested bare children — the
+    // non-nested path returns just the parent factory, byte-identical to before.
+    public List<MethodDeclarationSyntax> SubTemplates { get; } = new();
     public IReadOnlyList<StagedParameter> StagedParameters { get; set; } = System.Array.Empty<StagedParameter>();
     public IReadOnlyList<StagedLocal> StagedLocals { get; set; } = System.Array.Empty<StagedLocal>();
     public IReadOnlyList<StagedParameterRoot> StagedRootParameters { get; set; } = System.Array.Empty<StagedParameterRoot>();

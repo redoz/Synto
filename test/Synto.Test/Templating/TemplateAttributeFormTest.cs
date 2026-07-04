@@ -74,29 +74,50 @@ public class TemplateAttributeFormTest
     }
 
     [Fact]
-    public void NestedBareTemplate_InGenericCarrier_ProducesNoOutputNoDiagnostic()
+    public void NestedBareTemplate_InGenericCarrier_BuildsPrivateSubTemplate()
     {
-        // Interim characterization pin: the bare child inside a [Template<Factory>] carrier is exempt from SY1033
-        // (nested), yet Phase 1 does not yet build it as a sub-template — so it emits no diagnostic and no document.
+        // Phase 2: a bare [Template] nested inside a [Template<Factory>] carrier is a PARENT-DRIVEN private
+        // sub-template — exempt from SY1033 (nested), never SY1034 (it pins no target of its own), and built by
+        // the parent into the parent's single document as a `private static` method (no independent sibling).
         var runResult = Run(
             """
             using System;
+            using System.Collections.Generic;
             using Synto.Templating;
+            using static Synto.Templating.Template;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
             partial class Factory {}
 
             [Template<Factory>]
             public class Reader
             {
+                // A real member so the PARENT carrier has a quotable body of its own (an empty carrier is a
+                // separate degenerate case); the nested bare [Template] rides in as a private sub-template.
+                public void Hello() { System.Console.WriteLine("hi"); }
+
                 [Template]
-                void Child()
+                public ExpressionSyntax Child()
                 {
-                    Console.WriteLine("child");
+                    var name = Parameter<string>();
+                    return IdentifierName(name);
                 }
             }
             """);
 
         Assert.DoesNotContain(runResult.Diagnostics, d => d.Id == "SY1033");
         Assert.DoesNotContain(runResult.Diagnostics, d => d.Id == "SY1034");
+        Assert.DoesNotContain(runResult.Diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+
+        var sources = runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .ToDictionary(s => s.HintName, s => s.SourceText.ToString(), StringComparer.Ordinal);
+
+        // Exactly one document (the parent's) — no separate Factory.Child.g.cs sibling — and the child is folded
+        // into it as a `private static` sub-template.
+        Assert.Contains("Factory.Reader.g.cs", sources.Keys);
+        Assert.DoesNotContain("Factory.Child.g.cs", sources.Keys);
+        Assert.Contains("private static", sources["Factory.Reader.g.cs"], StringComparison.Ordinal);
     }
 }

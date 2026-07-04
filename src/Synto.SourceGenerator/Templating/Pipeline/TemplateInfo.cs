@@ -51,6 +51,46 @@ internal sealed class TemplateInfo
 
         var source = new Source(syntaxContext.TargetNode, syntaxContext.TargetSymbol.Name);
 
+        return new TemplateInfo(syntaxContext.SemanticModel, attrSyntax, source, target, ReadOptions(attr));
+    }
+
+    /// <summary>
+    /// Second construction path: a nested BARE <c>[Template]</c> child folded into its parent as a private
+    /// sub-template. The child's factory <see cref="Target"/> is PINNED to the parent's target (same class);
+    /// its <see cref="Source"/> is the child method node; its <see cref="AttributeSyntax"/> is the child's own
+    /// <c>[Template]</c> so the child build trims that attribute exactly as the parent build trims its own.
+    /// A nested generic <c>[Template&lt;X&gt;]</c> child is NOT a parent-driven sub-template — it still emits its
+    /// own public sibling in the interim — so this returns <see langword="null"/> for it. Runs entirely inside the
+    /// parent's transform (shared <see cref="SemanticModel"/>); nothing is captured into pipeline state.
+    /// </summary>
+    public static TemplateInfo? CreateSubTemplate(SemanticModel semanticModel, TargetType parentTarget, MethodDeclarationSyntax childMethod)
+    {
+        var templateAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(TemplateAttribute).FullName!);
+        if (templateAttributeSymbol is null)
+            return null;
+
+        if (semanticModel.GetDeclaredSymbol(childMethod) is not { } childSymbol)
+            return null;
+
+        foreach (var attr in childSymbol.GetAttributes())
+        {
+            // Only the parameterless (non-generic) [Template] is a parent-driven sub-template. A constructed
+            // generic [Template<X>] is not equal to the unbound non-generic symbol, so it is skipped here.
+            if (!SymbolEqualityComparer.Default.Equals(attr.AttributeClass, templateAttributeSymbol))
+                continue;
+
+            if (attr.ApplicationSyntaxReference?.GetSyntax() is not AttributeSyntax attrSyntax)
+                continue;
+
+            var source = new Source(childMethod, childSymbol.Name);
+            return new TemplateInfo(semanticModel, attrSyntax, source, parentTarget, ReadOptions(attr));
+        }
+
+        return null;
+    }
+
+    private static TemplateOption ReadOptions(AttributeData attr)
+    {
         var options = TemplateOption.None;
 
         foreach (var namedArgs in attr.NamedArguments)
@@ -67,7 +107,7 @@ internal sealed class TemplateInfo
             }
         }
 
-        return new TemplateInfo(syntaxContext.SemanticModel, attrSyntax, source, target, options);
+        return options;
     }
 }
 

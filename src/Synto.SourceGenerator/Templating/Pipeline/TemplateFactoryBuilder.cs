@@ -21,7 +21,7 @@ namespace Synto.Generators.Templating;
 /// </summary>
 internal static class TemplateFactoryBuilder
 {
-    public static MethodDeclarationSyntax? Build(
+    public static IReadOnlyList<MethodDeclarationSyntax>? Build(
         List<DiagnosticInfo> diagnostics,
         SemanticModel semanticModel,
         UsingDirectiveSet additionalUsings,
@@ -88,7 +88,15 @@ internal static class TemplateFactoryBuilder
 
         EmitSpliceMemberGenerators(ctx);
 
-        return QuoteAndAssemble(ctx);
+        if (QuoteAndAssemble(ctx) is not { } parentFactory)
+            return null;
+
+        // The parent factory leads, followed by any parent-driven private sub-templates built from nested bare
+        // [Template] children (empty for a non-nested carrier — the returned list is just [parentFactory], which
+        // the document builder folds identically to the pre-list single-method path).
+        var methods = new List<MethodDeclarationSyntax>(1 + ctx.SubTemplates.Count) { parentFactory };
+        methods.AddRange(ctx.SubTemplates);
+        return methods;
     }
 
     // [Splice] member generators (static methods returning MemberDeclarationSyntax / IEnumerable<…>):
@@ -157,7 +165,28 @@ internal static class TemplateFactoryBuilder
     {
         ctx.Scope = TemplateScope.ForCarrier(ctx.SemanticModel, ctx.TemplateInfo.Source!.Syntax);
         foreach (var child in ctx.Scope.ForeignChildren)
+        {
+            // Every foreign child is trimmed from THIS parent's quoted output (unchanged).
             ctx.Plan.Trim.Add(child);
+
+            // A nested BARE [Template] child is a parent-driven private sub-template: build it recursively with
+            // private visibility and its target PINNED to this carrier's, then collect its emitted method(s) so
+            // they fold into the parent's single document. A nested generic [Template<X>] child returns null from
+            // CreateSubTemplate — it still generates its own public sibling in the interim (until SY1034 lands),
+            // so it stays trim-only, exactly as before. Recursion is one level: a child method carrier resolves to
+            // an empty scope, so it never descends into grandchildren.
+            var childInfo = TemplateInfo.CreateSubTemplate(ctx.SemanticModel, ctx.TemplateInfo.Target, child);
+            if (childInfo is null)
+                continue;
+
+            var childMethods = Build(ctx.Diagnostics, ctx.SemanticModel, ctx.AdditionalUsings, childInfo, childInfo.Options, SyntaxKind.PrivateKeyword);
+
+            // A failing child build has already reported its (child-located) diagnostics into the shared list; it
+            // is simply omitted from the method list and the parent factory still emits (independent-failure
+            // isolation, mirroring the pre-Phase-2 sibling behavior).
+            if (childMethods is not null)
+                ctx.SubTemplates.AddRange(childMethods);
+        }
     }
 
     private static void LiftStagedTypeParameters(TemplateBuildContext ctx)

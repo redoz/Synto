@@ -89,10 +89,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
                 && TemplateDocumentBuilder.Build(
                     diagnostics,
                     templateInfo,
-                    additionalUsings =>
-                        TemplateFactoryBuilder.Build(diagnostics, templateInfo.SemanticModel, additionalUsings, templateInfo, templateInfo.Options) is { } factory
-                            ? new List<MethodDeclarationSyntax> { factory }
-                            : null) is { } generated)
+                    additionalUsings => TemplateFactoryBuilder.Build(diagnostics, templateInfo.SemanticModel, additionalUsings, templateInfo, templateInfo.Options)) is { } generated)
             {
                 fileName = generated.FileName;
                 source = generated.Source;
