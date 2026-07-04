@@ -53,23 +53,6 @@ public class GenericTemplateAttributeTest
             .ToDictionary(s => s.HintName, s => s.SourceText.ToString(), StringComparer.Ordinal);
     }
 
-    private const string TypeofForm =
-        """
-        using System;
-        using Synto.Templating;
-
-        partial class Factory {}
-
-        public class TestClass
-        {
-            [Template(typeof(Factory))]
-            static void Sample()
-            {
-                Console.WriteLine("Hello world");
-            }
-        }
-        """;
-
     private const string GenericForm =
         """
         using System;
@@ -80,23 +63,6 @@ public class GenericTemplateAttributeTest
         public class TestClass
         {
             [Template<Factory>]
-            static void Sample()
-            {
-                Console.WriteLine("Hello world");
-            }
-        }
-        """;
-
-    private const string TypeofBareForm =
-        """
-        using System;
-        using Synto.Templating;
-
-        partial class Factory {}
-
-        public class TestClass
-        {
-            [Template(typeof(Factory), Options = TemplateOption.Bare)]
             static void Sample()
             {
                 Console.WriteLine("Hello world");
@@ -165,23 +131,24 @@ public class GenericTemplateAttributeTest
         """;
 
     [Fact]
-    public void GenericForm_ProducesFactory_IdenticalToTypeofForm()
+    public void GenericForm_ProducesFactory()
     {
-        var typeofSources = RunGenerator(TypeofForm);
+        // The ctor form [Template(typeof(T))] is gone (Phase 1 clean break), so the generic form is now the only
+        // way to pin a target. It must still generate a factory document.
         var genericSources = RunGenerator(GenericForm);
 
         Assert.NotEmpty(genericSources);
-        Assert.Equal(typeofSources, genericSources);
     }
 
     [Fact]
-    public void GenericForm_HonorsBareOption_IdenticalToTypeofForm()
+    public void GenericForm_HonorsBareOption()
     {
-        var typeofSources = RunGenerator(TypeofBareForm);
-        var genericSources = RunGenerator(GenericBareForm);
+        // Options = Bare changes the generated factory body, so the Bare form's output differs from the default.
+        var defaultSources = RunGenerator(GenericForm);
+        var bareSources = RunGenerator(GenericBareForm);
 
-        Assert.NotEmpty(genericSources);
-        Assert.Equal(typeofSources, genericSources);
+        Assert.NotEmpty(bareSources);
+        Assert.NotEqual(defaultSources, bareSources);
     }
 
     [Fact]

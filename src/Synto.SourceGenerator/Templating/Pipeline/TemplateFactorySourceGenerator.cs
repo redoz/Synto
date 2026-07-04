@@ -23,10 +23,14 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         // an equatable TemplateGenerationResult (just generated text + diagnostic data). This keeps the
         // SemanticModel / symbols / syntax nodes out of the cached pipeline state, which restores
         // incrementality and avoids rooting the compilation in memory across edits.
+        // The parameterless [Template] form carries no target. A top-level bare [Template] is misuse (SY1033);
+        // a bare [Template] nested inside a [Template]/[Template<T>] carrier is an interim no-op (the parent takes
+        // ownership as a private sub-template in Phase 2). Either way it never derives a target, so it flows through
+        // its own arity-0 transform rather than GenerateTemplate.
         var results = context.SyntaxProvider.ForAttributeWithMetadataName(
                 typeof(TemplateAttribute).FullName!,
                 static (node, cancellationToken) => true,
-                static (syntaxContext, cancellationToken) => GenerateTemplate(syntaxContext))
+                static (syntaxContext, cancellationToken) => GenerateBareTemplate(syntaxContext))
             .WithTrackingName(TemplateTrackingNames.Transform)
             .Where(static result => result is not null)
             .WithTrackingName(TemplateTrackingNames.Result);
@@ -46,6 +50,22 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             .WithTrackingName(TemplateTrackingNames.GenericResult);
 
         context.RegisterSourceOutput(genericResults, static (context, result) => Emit(context, result!.Value));
+    }
+
+    private static TemplateGenerationResult? GenerateBareTemplate(GeneratorAttributeSyntaxContext syntaxContext)
+    {
+        // Nested inside a [Template]/[Template<T>] carrier: interim no-op — the parent will own this as a private
+        // sub-template in Phase 2. Nothing is emitted and no diagnostic is raised (characterized pin).
+        if (NestedTemplateCheck.IsNestedInTemplateCarrier(syntaxContext.SemanticModel, syntaxContext.TargetNode))
+            return null;
+
+        // Top-level bare [Template]: no target can be derived, so report SY1033 (use [Template<T>]). Located on the
+        // attribute application so the squiggle lands on the offending [Template].
+        var diagnostics = new List<DiagnosticInfo>();
+        var location = syntaxContext.Attributes.FirstOrDefault()?.ApplicationSyntaxReference?.GetSyntax().GetLocation();
+        diagnostics.Add(TemplateDiagnostics.BareTemplateRequiresTarget(location));
+
+        return new TemplateGenerationResult(null, null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
     private static TemplateGenerationResult? GenerateTemplate(GeneratorAttributeSyntaxContext syntaxContext)

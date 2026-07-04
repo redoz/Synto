@@ -259,7 +259,7 @@ public class SimpleTemplateTest
 
             partial class Factory {}
 
-            [TemplateAttribute(typeof(Factory))]
+            [Template<Factory>]
             public class TestClass {
                 void LocalFunction() {
                     Console.WriteLine("Hello world");
@@ -647,40 +647,10 @@ public class SimpleTemplateTest
         AssertHasRealSpan(diag);
     }
 
-    [Fact]
-    public void GenericTarget_RendersGenericPartial_NoArityZeroTwin()
-    {
-        // #15: a generic partial target must be rebuilt carrying its TypeParameterList so the emitted factory
-        // merges with the user's `partial class Factory<T>` instead of spawning a separate arity-0 `Factory`
-        // (which compiles cleanly but silently lands the factory on the wrong, non-generic type).
-        var compilation = CompilationWithSource(
-            """
-            using System;
-            using Synto.Templating;
-
-            partial class Factory<T> {}
-
-            public class TestClass {
-                [Template(typeof(Factory<>))]
-                void LocalFunction() {
-                    Console.WriteLine("Hello world");
-                }
-            }
-            """);
-        Assert.Empty(compilation.GetDiagnostics().Where(diag => diag.Severity == DiagnosticSeverity.Error));
-
-        var result = _driver.RunGenerators(compilation);
-        var runResult = result.GetRunResult();
-        Assert.Empty(runResult.Diagnostics);
-
-        var generated = runResult.Results
-            .SelectMany(r => r.GeneratedSources)
-            .Select(s => s.SourceText.ToString())
-            .Single(s => s.Contains("class Factory", StringComparison.Ordinal));
-
-        // The rebuilt partial carries the type parameter list: one generic `Factory<T>`, no arity-0 twin.
-        Assert.Contains("class Factory<T>", generated, StringComparison.Ordinal);
-    }
+    // NOTE: #15 open-generic-target coverage (GenericTarget_RendersGenericPartial_NoArityZeroTwin) was dropped in
+    // Phase 1. It relied on [Template(typeof(Factory<>))] to name an OPEN generic target; the ctor form is now gone
+    // and the generic form cannot express an unbound generic (CS7003: unbound generic name is illegal as a type
+    // argument). The target is therefore inexpressible through the new surface, so the path is unreachable.
 
     [Fact]
     public void TargetAncestorUnsupportedKindReportsSY1032()

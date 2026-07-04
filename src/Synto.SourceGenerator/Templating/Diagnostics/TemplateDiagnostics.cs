@@ -367,6 +367,39 @@ internal static class TemplateDiagnostics
                 constructorArgCount.ToString(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
+    // ----- Two-form [Template] surface (SY1033 / SY1034) ---------------------------------------------
+    // SY1033: a top-level bare [Template] carries no target — the generic [Template<T>] form is required to
+    // pin the factory target. SY1034: a nested [Template<T>] must not pin a target (it inherits the parent's);
+    // authored here, wired into the generic transform in Phase 2 (Task 7).
+
+    private static readonly DiagnosticDescriptor _bareTemplateRequiresTarget = new(IdPrefix + "1033",
+        "Template Requires Target",
+        "A top-level [Template] must pin a target; use the generic form [Template<T>] to name the factory target",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo BareTemplateRequiresTarget(Location? location)
+    {
+        return new DiagnosticInfo(_bareTemplateRequiresTarget,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray<string>.Empty));
+    }
+
+    private static readonly DiagnosticDescriptor _nestedTemplateMustNotPinTarget = new(IdPrefix + "1034",
+        "Nested Template Must Not Pin Target",
+        "A nested [Template<T>] must not pin a target; a nested [Template] inherits its parent carrier's target",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo NestedTemplateMustNotPinTarget(Location? location)
+    {
+        return new DiagnosticInfo(_nestedTemplateMustNotPinTarget,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray<string>.Empty));
+    }
+
     private static readonly DiagnosticDescriptor _decorationApplyNonComposing = new(IdPrefix + "1028",
         "Non-composing Decoration Hook",
         "Decoration hook 'Apply{0}' returns '{1}', which differs from its this-parameter type '{2}'; decoration hooks must be type-preserving",
