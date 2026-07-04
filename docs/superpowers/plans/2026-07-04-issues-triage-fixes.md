@@ -573,6 +573,7 @@ Closes **#23** (medium, testability). No test invokes a *generated* decorated fa
 - **Reference-driven usings transplant** (#12's "better" fix — collect the namespaces the verbatim spine actually references): the prefix fix + staged-arg gating close the reported defects; the reference-driven collector is a follow-up.
 - **Repo-wide post-init no-CR sweep** beyond `DiagnosticsGenerator` (#21 optional extension): only the Diagnostics generator's output is normalized + guarded here.
 - **`(owner, list identity)` full disambiguation** for same-element-type sibling lists and empty-list dispatch (#24 residual): documented limitation; no current step requires it.
+- **#20 Synto.Core public-surface audit — HELD for owner review**; spec in `drafts/2026-07-04-synto-core-surface-audit.md`; do not implement here. It is a 1.0 one-way-door decision (which public types Synto.Core freezes vs internalizes) the repo owner wants to sign off before it lands, so Task 21 records the deferral only and makes no `src/**` change.
 - **KB refresh** (`refresh-kb` skill) after this plan lands — several `docs/kb` path:line anchors will drift (FacadeCallFinder, MatchRunAligner, TemplateOption). Run it as a follow-up, not inside a task.
 
 ## Self-Review
