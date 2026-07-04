@@ -221,8 +221,35 @@ internal static class StagedScaffoldBuilder
         if (target is null)
             return false;
 
+        // The mutation target may be an element/member access rooted on a live symbol (`counts[i]`, `acc.Total`,
+        // `acc.Sub[i].Total`) — its own symbol is the indexer/member (never in the staged set). Walk down to the
+        // root expression so the mutation is recognized as staged when that root is live.
+        target = WalkToAccessRoot(target);
+
         var symbol = semanticModel.GetSymbolInfo(target).Symbol;
         return symbol is not null && stagedSet.Contains(symbol);
+    }
+
+    /// <summary>
+    /// Peels element- and member-access layers off an assignment/increment target to reach the root expression
+    /// whose symbol identifies the mutated storage (`counts[i]` → `counts`; `acc.Total` → `acc`).
+    /// </summary>
+    private static ExpressionSyntax WalkToAccessRoot(ExpressionSyntax target)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case ElementAccessExpressionSyntax elementAccess:
+                    target = elementAccess.Expression;
+                    continue;
+                case MemberAccessExpressionSyntax memberAccess:
+                    target = memberAccess.Expression;
+                    continue;
+                default:
+                    return target;
+            }
+        }
     }
 
     /// <summary>
@@ -252,6 +279,19 @@ internal static class StagedScaffoldBuilder
         // to a literal — even when all its operands are live. Force descent so the live operands lift instead.
         if (expression.DescendantNodesAndSelf().Any(n => n is InvocationExpressionSyntax or BaseObjectCreationExpressionSyntax))
             return false;
+
+        // An assignment / increment / decrement is a MUTATION, not a value: lifting it as `.ToSyntax()` would emit
+        // the assigned value into the output while running the mutation as a factory-time side effect (silent
+        // nonsense). Refuse it as a lift candidate — such a shape is either recognized as a staged mutation
+        // (kept verbatim) or bailed as an unsupported staged shape (SY1014), never mis-emitted as a value.
+        if (expression is AssignmentExpressionSyntax
+            || expression.IsKind(SyntaxKind.PostIncrementExpression)
+            || expression.IsKind(SyntaxKind.PostDecrementExpression)
+            || expression.IsKind(SyntaxKind.PreIncrementExpression)
+            || expression.IsKind(SyntaxKind.PreDecrementExpression))
+        {
+            return false;
+        }
 
         bool hasStaged = false;
         foreach (var identifier in expression.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())

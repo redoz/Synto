@@ -116,6 +116,58 @@ public class RunCollectShapesTest
             """);
     }
 
+    // element-access mutation of a live target: `totals[c.Ordinal] = …` — the mutation target resolves to the
+    // array indexer (not a bare live identifier), yet all roots (`totals`, `columns`, the loop var) are live, so
+    // the whole statement must stay VERBATIM in the scaffold (a factory-time side effect) rather than being
+    // lifted as an assignment value into the run. (Task 8 / #8.)
+    [Fact]
+    public async Task ElementAccessMutationOfLiveTarget_StaysVerbatim()
+    {
+        await VerifyTemplate(
+            """
+            using Synto.Templating;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public readonly record struct Col(int Ordinal, string Name);
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build() {
+                    var columns = Parameter<IReadOnlyList<Col>>();
+                    var totals = Parameter<int[]>();
+                    foreach (var c in columns)
+                        totals[c.Ordinal] = c.Ordinal * 2;   // element-access mutation of a live target
+                }
+            }
+            """);
+    }
+
+    // member-access mutation of a live target: `acc.Total += …` — the target resolves to a field/property symbol
+    // (not a bare live identifier); all roots live, so the compound-assignment mutation must stay VERBATIM in the
+    // scaffold rather than being lifted as a value. (Task 8 / #8.)
+    [Fact]
+    public async Task MemberAccessMutationOfLiveTarget_StaysVerbatim()
+    {
+        await VerifyTemplate(
+            """
+            using Synto.Templating;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public sealed class Acc { public int Total; }
+            public readonly record struct Col(int Ordinal, string Name);
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build() {
+                    var columns = Parameter<IReadOnlyList<Col>>();
+                    var acc = Parameter<Acc>();
+                    foreach (var c in columns)
+                        acc.Total += c.Ordinal;              // member-access mutation of a live target
+                }
+            }
+            """);
+    }
+
     // mutable accumulation across iterations: `sum` is an accumulator declared before the loop, mutated inside,
     // and read by each island (lifting to its current literal value).
     [Fact]
