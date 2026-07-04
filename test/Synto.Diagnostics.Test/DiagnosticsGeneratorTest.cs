@@ -266,6 +266,51 @@ public class DiagnosticsGeneratorTest
         Assert.Equal(2, hints.Count(h => h.Contains("Dup")));
     }
 
+    [Fact]
+    public void GeneratedPartial_IsCleanShell_NoClonedAttributesBaseListOrPrimaryCtor()
+    {
+        // The container carries an AllowMultiple=false attribute, a base list, and a C# 12 primary constructor.
+        // Cloning parent.WithMembers would replicate all three into the generated partial: CS0579 (duplicate
+        // ExcludeFromCodeCoverage) plus a duplicate primary constructor. The generated partial must be a clean
+        // shell — identifier + modifiers (+ type params/constraints) only.
+        const string source =
+            """
+            using Microsoft.CodeAnalysis;
+            using Synto.Diagnostics;
+            using System.Diagnostics.CodeAnalysis;
+
+            namespace X;
+
+            public interface IMarker {}
+
+            [ExcludeFromCodeCoverage]
+            internal partial class Diags(int seed) : IMarker {
+                private readonly int _seed = seed;
+
+                [Diagnostic("TST0001", "Title", "msg {0}", "Cat", DiagnosticSeverity.Error, true)]
+                public static partial Diagnostic Report(Location location, string arg);
+            }
+            """;
+
+        var compilation = CreateCompilation(source);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new DiagnosticsGenerator());
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out _);
+
+        // The generated partial must not re-clone the container's attribute / base list / primary-constructor.
+        var runResult = driver.GetRunResult().Results.Single();
+        var generated = runResult.GeneratedSources.Single(s => s.SourceText.ToString().Contains("Report")).SourceText.ToString();
+        Assert.DoesNotContain("ExcludeFromCodeCoverage", generated);
+        Assert.DoesNotContain("IMarker", generated);
+        Assert.DoesNotContain("seed", generated);
+
+        // Post-generation, the two partials must compile together: none of the duplicate-declaration errors the
+        // clone produced (CS0579 duplicate attribute, CS8863 duplicate primary ctor) may appear. (Unrelated
+        // reference/entry-point diagnostics from this bare compilation are ignored — not this task's concern.)
+        var errors = outputCompilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.DoesNotContain(errors, d => d.Id is "CS0579" or "CS8863");
+    }
+
     static ImmutableArray<Diagnostic> RunAndGetDiagnostics(string source)
     {
         var compilation = CreateCompilation(source);

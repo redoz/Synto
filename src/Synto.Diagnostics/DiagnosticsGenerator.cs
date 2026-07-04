@@ -323,8 +323,15 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
                 )));
 
 
-        // clone the parent but with the new member
-        var classDecl = parent.WithMembers(List(members));
+        // Rebuild a clean partial shell (mirroring MatchComposer) rather than cloning the user's declaration.
+        // Cloning kept the parent's AttributeLists (an AllowMultiple=false attribute duplicates -> CS0579),
+        // BaseList, and C# 12 primary-constructor ParameterList (a duplicate primary ctor). Keep only the
+        // identifier, modifiers, and type parameters/constraints (the latter also carries generic containers).
+        var classDecl = ClassDeclaration(parent.Identifier)
+            .WithModifiers(parent.Modifiers)
+            .WithTypeParameterList(parent.TypeParameterList)
+            .WithConstraintClauses(parent.ConstraintClauses)
+            .WithMembers(List(members));
 
         var targetSyntax = classDecl.WithAncestryFrom(parentSymbol!);
 
