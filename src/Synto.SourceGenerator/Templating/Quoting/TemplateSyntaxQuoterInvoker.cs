@@ -17,6 +17,12 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
         _template = template;
     }
 
+    /// <summary>
+    /// Quotes the template carrier into a factory-body expression. Contract: returning <c>false</c>
+    /// (no quoted <paramref name="expressionSyntax"/>) ALWAYS yields a non-null <paramref name="error"/>
+    /// — every failure path is explained by a diagnostic, never a silent no-output. Callers therefore
+    /// report <paramref name="error"/> unconditionally when this returns <c>false</c>.
+    /// </summary>
     public static bool TryQuote(CSharpSyntaxQuoter quoter, TemplateInfo template, out ExpressionSyntax? expressionSyntax, out TypeSyntax? returnType, out DiagnosticInfo? error)
     {
         var selector = new TemplateSyntaxQuoterInvoker(quoter, template);
@@ -25,6 +31,10 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
         expressionSyntax = selector.Expression;
         returnType = selector.ReturnType;
         error = selector.Error;
+
+        // Contract guard: no quoted expression must be accompanied by a diagnostic (no silent failure).
+        Debug.Assert(expressionSyntax is not null || error is not null,
+            "TryQuote returned false without a diagnostic — a silent no-output path was reached.");
 
         return expressionSyntax is not null;
     }
@@ -54,6 +64,13 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
             {
                 Expression = _quoter.Visit(expressionBody.Expression);
                 ReturnType = TypeNameOf(expressionBody.Expression);
+            }
+            else
+            {
+                // Bodyless carrier (partial-definition / extern / abstract): there is nothing to quote in
+                // Bare mode. Surface it as the SY1005 "empty Bare source" diagnostic rather than falling
+                // through with both Expression and Error null (which the caller reads as a silent no-output).
+                Error = TemplateDiagnostics.BareSourceCannotBeEmpty(_template.Source!);
             }
         }
         else

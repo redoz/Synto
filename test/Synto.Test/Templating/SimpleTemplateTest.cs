@@ -671,6 +671,31 @@ public class SimpleTemplateTest
     }
 
     [Fact]
+    public void BodylessBareTemplateReportsSY1005()
+    {
+        // A Bare template on a bodyless method (partial-definition/extern — no block body, no expression
+        // body) previously hit neither quoting branch: Expression and Error both stayed null, TryQuote
+        // returned false with error == null, and the caller reported nothing — silent no-output. The
+        // tightened contract (TryQuote false => error != null) surfaces the both-null fall-through as the
+        // SY1005 "Source can not be empty when Bare is specified" family diagnostic, exactly one, located.
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using System;
+            using Synto.Templating;
+
+            partial class Factory {}
+
+            public partial class TestClass {
+                [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                partial void BodylessMethod();
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1005");
+        AssertHasRealSpan(diag);
+    }
+
+    [Fact]
     public void MultipleMembersAsSingleReportsSY1007()
     {
         // TemplateOption.Single (== Single|Bare) on a class with >1 member hits MultipleMembersNotAllowed.
