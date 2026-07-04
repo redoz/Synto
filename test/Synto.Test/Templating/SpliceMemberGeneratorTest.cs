@@ -111,6 +111,106 @@ public class SpliceMemberGeneratorTest
         Assert.Single(diagnostics, d => d.Id == "SY1021");
     }
 
+    // --- #9 characterization: non-foldable Parameter<T>() shapes inside a [Splice] member generator body are
+    // caught by the unquote-axis StagedParameterFinder and reported as a located, fatal SY1010 BEFORE the
+    // splice-member emitter ever runs, so no factory is produced. This pins that the "residue reaches the
+    // emitter verbatim" leak scenario (#9) is unreachable: the shape is diagnosed, never silent. If these
+    // facts ever regress (SY1010 stops firing / a factory appears), a splice-specific diagnostic is warranted.
+
+    // Inline zero-arg Parameter<int>() with no enclosing variable declaration and no explicit name.
+    private const string InlineZeroArgParameterGenerator =
+        """
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+        partial class Factory {}
+        [Template(typeof(Factory))]
+        public class Reader {
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Gen() {
+                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + Parameter<int>()))
+                    .WithSemicolonToken(Token(SemicolonToken));
+            }
+        }
+        """;
+
+    // Compound initializer: Parameter<int>() is not the sole initializer, so no name can be folded from it.
+    private const string CompoundInitializerParameterGenerator =
+        """
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+        partial class Factory {}
+        [Template(typeof(Factory))]
+        public class Reader {
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Gen() {
+                int n = Parameter<int>() + 1;
+                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + n))
+                    .WithSemicolonToken(Token(SemicolonToken));
+            }
+        }
+        """;
+
+    // Non-constant name argument: a non-const local is not a foldable constant-string parameter name.
+    private const string NonConstantNameParameterGenerator =
+        """
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+        partial class Factory {}
+        [Template(typeof(Factory))]
+        public class Reader {
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Gen() {
+                string nm = "col";
+                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + Parameter<int>(nm)))
+                    .WithSemicolonToken(Token(SemicolonToken));
+            }
+        }
+        """;
+
+    private static (ImmutableArray<Diagnostic> Diagnostics, int FactoryTreeCount) RunFactoryOnly(string source)
+    {
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var runResult = driver.RunGenerators(compilation, TestContext.Current.CancellationToken).GetRunResult();
+        return (runResult.Diagnostics, runResult.GeneratedTrees.Length);
+    }
+
+    [Fact]
+    public void InlineZeroArgParameterInSplice_ReportsSY1010_AndEmitsNoFactory()
+    {
+        var (diagnostics, factoryTreeCount) = RunFactoryOnly(InlineZeroArgParameterGenerator);
+        Assert.Single(diagnostics, d => d.Id == "SY1010" && d.Location != Location.None);
+        Assert.Equal(0, factoryTreeCount);
+    }
+
+    [Fact]
+    public void CompoundInitializerParameterInSplice_ReportsSY1010_AndEmitsNoFactory()
+    {
+        var (diagnostics, factoryTreeCount) = RunFactoryOnly(CompoundInitializerParameterGenerator);
+        Assert.Single(diagnostics, d => d.Id == "SY1010" && d.Location != Location.None);
+        Assert.Equal(0, factoryTreeCount);
+    }
+
+    [Fact]
+    public void NonConstantNameParameterInSplice_ReportsSY1010_AndEmitsNoFactory()
+    {
+        var (diagnostics, factoryTreeCount) = RunFactoryOnly(NonConstantNameParameterGenerator);
+        Assert.Single(diagnostics, d => d.Id == "SY1010" && d.Location != Location.None);
+        Assert.Equal(0, factoryTreeCount);
+    }
+
     private const string MemberPerColumnTemplate =
         """
         using System;
