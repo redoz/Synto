@@ -110,6 +110,23 @@ public partial class MatchRoundTripTests
     }
 
     [Fact]
+    public void ReusedStatementCapture_CollapsesToOneMember_AndRequiresEquivalence()
+    {
+        // Two `only.One()` hole sites reuse ONE statement capture. A fixed reuse-temp name would re-declare
+        // cap_only (CS0128) and duplicate the record member; the reuse branch narrows a unique temp and requires
+        // structural equivalence with the first site, adding no second member.
+        [Match<M>(MatchOption.Bare)]
+        static void TwinStmt([Capture] Stmt only)
+        { only.One(); only.One(); }
+
+        var m = M.TwinStmt(ParseStatement("{ A(); A(); }"));
+        Assert.NotNull(m);
+        MatchTestHarness.AssertCapture("A();", m!.Only);   // single member, first-site value
+
+        Assert.Null(M.TwinStmt(ParseStatement("{ A(); B(); }")));   // the two sites differ structurally
+    }
+
+    [Fact]
     public void StatementSingle_FindsLeftmostReturn_InABlock()
     {
         // A block body with one core statement -> statement-Single: root on the candidate block, scan its

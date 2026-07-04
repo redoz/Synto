@@ -152,6 +152,12 @@ internal static class MatchNodeWalker
     /// (<c>One</c>): a wildcard asserts <c>is StatementSyntax</c> (no capture); a capture binds a
     /// <c>StatementSyntax cap_{name}</c> local and records the member. Tasks 11+ add the variable quantifiers.
     /// </summary>
+    /// <remarks>
+    /// Non-linear equality (Task 15): a REUSED statement capture adds no new member — mirroring the
+    /// expression-capture reuse branch, at a site whose <c>cap_{name}</c> local is already bound, narrow a
+    /// UNIQUE temp (so 3+ reuse sites don't re-declare a fixed name → CS0128 and don't duplicate the record
+    /// member → CS0100/CS0102) and require it <c>IsEquivalentTo</c> the first-site local.
+    /// </remarks>
     public static void EmitStatementCapture(List<StatementSyntax> body, string accessor, StatementHole hole, MatchContext ctx)
     {
         if (hole.Kind == StatementHoleKind.Wildcard)
@@ -161,6 +167,18 @@ internal static class MatchNodeWalker
         }
 
         string local = "cap_" + hole.ParameterName;
+
+        if (ctx.BoundCaptureLocals.Contains(local))
+        {
+            // Reuse site: narrow into a unique temp and require structural equality with the first-site
+            // capture. No new member. topLevel:false is load-bearing (single-arg IsEquivalentTo defaults to
+            // topLevel:true, which is signature-only / trivia-sensitive on a sub-node).
+            string temp = ctx.NextTmp();
+            body.Add(ParseStatement($"if ({accessor} is not StatementSyntax {temp}) return null;"));
+            body.Add(ParseStatement($"if (!{temp}.IsEquivalentTo({local}, topLevel: false)) return null;"));
+            return;
+        }
+
         body.Add(ParseStatement($"if ({accessor} is not StatementSyntax {local}) return null;"));
         ctx.BoundCaptureLocals.Add(local);
         ctx.Captures.Add(new Capture(hole.Ordinal, hole.MemberName, "StatementSyntax", local));

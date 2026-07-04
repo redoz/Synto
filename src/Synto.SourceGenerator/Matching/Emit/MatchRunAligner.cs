@@ -269,6 +269,18 @@ internal static class MatchRunAligner
 
         ctx.NeedsLinq = true;
         string local = "cap_" + hole.ParameterName;
+
+        if (ctx.BoundCaptureLocals.Contains(local))
+        {
+            // Reuse site: slice into a unique temp and require element-wise structural equality with the
+            // first-site capture. No new member (mirrors EmitStatementCapture / EmitCapture reuse).
+            string temp = ctx.NextTmp();
+            attemptBody.Add(ParseStatement($"SyntaxList<StatementSyntax> {temp} = new SyntaxList<StatementSyntax>(_blk.Statements.Skip({startExpr}).Take({countExpr}));"));
+            attemptBody.Add(ParseStatement($"if ({temp}.Count != {local}.Count) return null;"));
+            attemptBody.Add(ParseStatement($"if (!{temp}.Zip({local}, (_a, _b) => _a.IsEquivalentTo(_b, false)).All(_e => _e)) return null;"));
+            return;
+        }
+
         attemptBody.Add(ParseStatement($"SyntaxList<StatementSyntax> {local} = new SyntaxList<StatementSyntax>(_blk.Statements.Skip({startExpr}).Take({countExpr}));"));
         ctx.Captures.Add(new Capture(hole.Ordinal, hole.MemberName, "SyntaxList<StatementSyntax>", local));
         ctx.BoundCaptureLocals.Add(local);
