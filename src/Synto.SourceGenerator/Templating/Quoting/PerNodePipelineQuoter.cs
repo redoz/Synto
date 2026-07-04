@@ -33,7 +33,7 @@ internal sealed class PerNodePipelineQuoter : CSharpSyntaxQuoter
     }
 
     /// <summary>Bridge so the nested context can reach the base's <c>protected static</c> array-literal builder.</summary>
-    private ExpressionSyntax InvokeToArrayLiteral(IEnumerable<ExpressionSyntax> nodes, TypeSyntax elementType)
+    private static ExpressionSyntax InvokeToArrayLiteral(IEnumerable<ExpressionSyntax> nodes, TypeSyntax elementType)
         => ToArrayLiteral(nodes, elementType);
 
     // base.* cannot be captured inside a lambda, so each seam's terminal continuation is a tiny helper.
@@ -97,6 +97,6 @@ internal sealed class PerNodePipelineQuoter : CSharpSyntaxQuoter
         public override ExpressionSyntax? Quote(SyntaxNode? node) => _quoter.Visit(node);
 
         public override ExpressionSyntax ToArrayLiteral(IEnumerable<ExpressionSyntax> nodes, TypeSyntax elementType)
-            => _quoter.InvokeToArrayLiteral(nodes, elementType);
+            => PerNodePipelineQuoter.InvokeToArrayLiteral(nodes, elementType);
     }
 }

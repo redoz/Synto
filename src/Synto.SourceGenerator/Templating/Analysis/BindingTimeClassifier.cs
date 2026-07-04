@@ -227,7 +227,7 @@ internal sealed class BindingTimeClassifier
     /// A bound root whose binding expression references an output-world value — a parameter/local that is NOT
     /// live (it exists only in the generated output) — cannot be evaluated at factory time: an impossible cut.
     /// </summary>
-    private IReadOnlyList<(SyntaxNode Node, string Reason)> FindImpossibleCuts()
+    private List<(SyntaxNode Node, string Reason)> FindImpossibleCuts()
     {
         var cuts = new List<(SyntaxNode, string)>();
 

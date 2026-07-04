@@ -557,7 +557,7 @@ internal static class DecorationFinder
             return true;
         }
 
-        private static ExpressionSyntax StringLiteral(string value) =>
+        private static LiteralExpressionSyntax StringLiteral(string value) =>
             LiteralExpression(SyntaxKind.StringLiteralExpression, Literal(value));
 
         /// <summary>Renders a decoration constructor argument (string/primitive/enum) as a literal expression.</summary>

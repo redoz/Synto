@@ -84,7 +84,7 @@ public class ChildTemplateTest
         }
         """;
 
-    private static Compilation CompilationWithSource(string source)
+    private static CSharpCompilation CompilationWithSource(string source)
     {
         MetadataReference[] references = [.. References, MetadataReference.CreateFromFile(SyntoCoreAssembly.Location)];
         return CSharpCompilation.Create("ChildTemplateSnapshotTest",

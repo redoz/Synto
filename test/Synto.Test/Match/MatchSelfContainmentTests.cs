@@ -69,7 +69,7 @@ public class MatchSelfContainmentTests
         // IsExternalInit-less closure.
         var compilation = MatchTestHarness.CreateNetStandardClosure(matcher, forMatch, polyfill);
 
-        Assert.Empty(compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(compilation.GetDiagnostics(Xunit.TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class MatchSelfContainmentTests
 
         var compilation = MatchTestHarness.CreateNetStandardClosure(matcher, forMatch);
 
-        Assert.Contains(compilation.GetDiagnostics(),
+        Assert.Contains(compilation.GetDiagnostics(Xunit.TestContext.Current.CancellationToken),
             d => d.Severity == DiagnosticSeverity.Error && d.Id == "CS0518");
     }
 
@@ -99,6 +99,6 @@ public class MatchSelfContainmentTests
         // redundant-but-harmless (at most CS0436, a warning; the source copy wins) — zero ERROR diagnostics.
         var compilation = MatchTestHarness.CreateNetWithBclClosure(matcher, forMatch, polyfill);
 
-        Assert.Empty(compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(compilation.GetDiagnostics(Xunit.TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
     }
 }

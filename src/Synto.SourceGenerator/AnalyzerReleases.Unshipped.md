@@ -23,6 +23,16 @@ SY1015 | Synto.Usage | Error | Diagnostics
 SY1016 | Synto.Usage | Error | Diagnostics
 SY1017 | Synto.Usage | Error | Diagnostics
 SY1018 | Synto.Usage | Error | Diagnostics
+SY1019 | Synto.Usage | Error | Diagnostics
+SY1020 | Synto.Usage | Error | Diagnostics
+SY1021 | Synto.Usage | Error | Diagnostics
+SY1022 | Synto.Usage | Error | Diagnostics
+SY1023 | Synto.Usage | Error | Diagnostics
+SY1024 | Synto.Usage | Error | Diagnostics
+SY1025 | Synto.Usage | Error | Diagnostics
+SY1026 | Synto.Usage | Error | Diagnostics
+SY1027 | Synto.Usage | Error | Diagnostics
+SY1028 | Synto.Usage | Error | Diagnostics
 SY1029 | Synto.Usage | Error | Diagnostics
 SY1031 | Synto.Usage | Error | Diagnostics
 SY1032 | Synto.Usage | Error | Diagnostics

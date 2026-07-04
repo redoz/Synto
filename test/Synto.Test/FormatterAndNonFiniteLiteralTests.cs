@@ -39,8 +39,8 @@ public class FormatterAndNonFiniteLiteralTests
         var formatted = CoreFormatter.Format(expr);
 
         var text = formatted.ToFullString();
-        Assert.Contains("$\"plain\"", text);
-        Assert.DoesNotContain("$\"\n", text);
+        Assert.Contains("$\"plain\"", text, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("$\"\n", text, System.StringComparison.Ordinal);
     }
 
     // ----- #19: non-finite float/double render as member access, not bare identifiers -----

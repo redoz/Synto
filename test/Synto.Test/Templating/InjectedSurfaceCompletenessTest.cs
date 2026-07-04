@@ -190,7 +190,7 @@ public class InjectedSurfaceCompletenessTest
     public void RenamedStagedRoot_ReferencedByValueInRegion_Compiles()
     {
         var compilation = CSharpCompilation.Create("RenamedStagedRootInRegionTest",
-            [CSharpSyntaxTree.ParseText(RenamedRootInRegionTemplate)],
+            [CSharpSyntaxTree.ParseText(RenamedRootInRegionTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -213,7 +213,7 @@ public class InjectedSurfaceCompletenessTest
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.RenamedRoot"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.RenamedRoot", System.StringComparison.Ordinal));
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
@@ -222,7 +222,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a renamed live root referenced by value inside a region reported errors "
             + "(the island lift did not rename the live root to its factory parameter): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     /// <summary>
@@ -253,7 +253,7 @@ public class InjectedSurfaceCompletenessTest
     public void SpliceGenericTypeArg_InTypePosition_Compiles()
     {
         var compilation = CSharpCompilation.Create("SpliceTypeArgCompileTest",
-            [CSharpSyntaxTree.ParseText(SpliceTypeArgTemplate)],
+            [CSharpSyntaxTree.ParseText(SpliceTypeArgTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -276,7 +276,7 @@ public class InjectedSurfaceCompletenessTest
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build", System.StringComparison.Ordinal));
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
@@ -285,7 +285,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a [Splice] generic type parameter used in type position reported errors "
             + "(the spliced type was not emitted as TypeSyntax): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     /// <summary>
@@ -316,7 +316,7 @@ public class InjectedSurfaceCompletenessTest
     public void QuoteParam_InLoopCondition_KeepsRuntimeLoop_Compiles()
     {
         var compilation = CSharpCompilation.Create("QuoteLoopCompileTest",
-            [CSharpSyntaxTree.ParseText(QuoteLoopTemplate)],
+            [CSharpSyntaxTree.ParseText(QuoteLoopTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -340,7 +340,7 @@ public class InjectedSurfaceCompletenessTest
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Loop"));
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Loop", System.StringComparison.Ordinal));
         Assert.NotNull(factoryTree);
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
@@ -350,7 +350,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a [Quote] loop-bound parameter reported errors "
             + "([Quote] was not recognized -> `count` left as a free identifier / no factory parameter): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var factorySource = factoryTree.ToString();
 
@@ -392,7 +392,7 @@ public class InjectedSurfaceCompletenessTest
     public void QuoteCall_OverComputedBound_KeepsRuntimeLoop_Compiles()
     {
         var compilation = CSharpCompilation.Create("QuoteCallLoopCompileTest",
-            [CSharpSyntaxTree.ParseText(QuoteCallLoopTemplate)],
+            [CSharpSyntaxTree.ParseText(QuoteCallLoopTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -416,7 +416,7 @@ public class InjectedSurfaceCompletenessTest
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Loop"));
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Loop", System.StringComparison.Ordinal));
         Assert.NotNull(factoryTree);
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
@@ -426,7 +426,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of an inline Quote(computed-bound) loop reported errors "
             + "(Quote(...) was not recognized / not shielded -> the loop unrolled or `Quote` left unbound): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var factorySource = factoryTree.ToString();
 
@@ -476,7 +476,7 @@ public class InjectedSurfaceCompletenessTest
     public void SpliceMemberGenerator_EmitsMemberPerColumn_Compiles()
     {
         var compilation = CSharpCompilation.Create("SpliceMemberGeneratorCompileTest",
-            [CSharpSyntaxTree.ParseText(SpliceMemberGeneratorTemplate)],
+            [CSharpSyntaxTree.ParseText(SpliceMemberGeneratorTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -500,7 +500,7 @@ public class InjectedSurfaceCompletenessTest
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Reader"));
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Reader", System.StringComparison.Ordinal));
         Assert.NotNull(factoryTree);
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
@@ -510,7 +510,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a [Splice] member generator reported errors "
             + "(the generator was not emitted / its members were not spliced): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var factorySource = factoryTree.ToString();
 
@@ -524,7 +524,7 @@ public class InjectedSurfaceCompletenessTest
     public void InjectedSurfaceIsCompleteForStagedTemplate()
     {
         var compilation = CSharpCompilation.Create("InjectedSurfaceCompletenessStagedTest",
-            [CSharpSyntaxTree.ParseText(StagedRichTemplate)],
+            [CSharpSyntaxTree.ParseText(StagedRichTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -552,7 +552,7 @@ public class InjectedSurfaceCompletenessTest
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.StagedKitchenSink"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.StagedKitchenSink", System.StringComparison.Ordinal));
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
@@ -561,14 +561,14 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a STAGED template against ONLY the injected surface reported errors "
             + "(the injected staging surface — markers, SyntoBuilders, BuildList/ToSyntax helpers — is incomplete): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     [Fact]
     public void InjectedSurfaceIsCompleteForRichTemplate()
     {
         var compilation = CSharpCompilation.Create("InjectedSurfaceCompletenessTest",
-            [CSharpSyntaxTree.ParseText(RichTemplate)],
+            [CSharpSyntaxTree.ParseText(RichTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -607,7 +607,7 @@ public class InjectedSurfaceCompletenessTest
 
         // The generator must actually have produced the factory (markers from post-init are added too, so
         // require strictly more than just the marker files: assert a Factory file specifically exists).
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.KitchenSink"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.KitchenSink", System.StringComparison.Ordinal));
 
         // Compile the POST-GENERATION output and assert there are NO error diagnostics. If the injected
         // surface were incomplete for anything the rich template emits, this is where it fails:
@@ -620,7 +620,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation against ONLY the injected surface reported errors (the injected "
             + "surface is incomplete for what the template emits): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     /// <summary>
@@ -637,7 +637,7 @@ public class InjectedSurfaceCompletenessTest
     public void InjectedSurfaceIsCompleteForNamespacedNestedTemplate()
     {
         var compilation = CSharpCompilation.Create("InjectedSurfaceCompletenessNamespacedTest",
-            [CSharpSyntaxTree.ParseText(NamespacedNestedTemplate)],
+            [CSharpSyntaxTree.ParseText(NamespacedNestedTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -675,7 +675,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
         // The generator must actually have produced the namespaced factory file.
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build", System.StringComparison.Ordinal));
 
         // Compile the POST-GENERATION output and assert there are NO error diagnostics. If the
         // helpers were not placed inside the namespace (or were dropped entirely), the generated
@@ -688,7 +688,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation against ONLY the injected surface reported errors (the injected "
             + "surface is incomplete or misplaced for the namespaced/nested template): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     /// <summary>
@@ -727,7 +727,7 @@ public class InjectedSurfaceCompletenessTest
     public void SpliceMemberGenerator_EmitsNestedType_Compiles()
     {
         var compilation = CSharpCompilation.Create("SpliceNestedTypeCompileTest",
-            [CSharpSyntaxTree.ParseText(SpliceNestedTypeTemplate)],
+            [CSharpSyntaxTree.ParseText(SpliceNestedTypeTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -751,7 +751,7 @@ public class InjectedSurfaceCompletenessTest
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Shapes"));
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Shapes", System.StringComparison.Ordinal));
         Assert.NotNull(factoryTree);
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
@@ -761,7 +761,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a [Splice] member generator yielding a NESTED TYPE reported errors "
             + "(the emission assumes MethodDeclarationSyntax rather than the MemberDeclarationSyntax base): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var factorySource = factoryTree.ToString();
 
@@ -810,7 +810,7 @@ public class InjectedSurfaceCompletenessTest
     public void SpliceMemberGenerator_PreservesDeclarationOrder_Compiles()
     {
         var compilation = CSharpCompilation.Create("SpliceOrderCompileTest",
-            [CSharpSyntaxTree.ParseText(SpliceOrderTemplate)],
+            [CSharpSyntaxTree.ParseText(SpliceOrderTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -834,7 +834,7 @@ public class InjectedSurfaceCompletenessTest
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Reader"));
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Reader", System.StringComparison.Ordinal));
         Assert.NotNull(factoryTree);
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
@@ -843,7 +843,7 @@ public class InjectedSurfaceCompletenessTest
 
         Assert.True(errors.Count == 0,
             "Post-generation compilation of an order-preserving [Splice] member generator reported errors: "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var factorySource = factoryTree.ToString();
 

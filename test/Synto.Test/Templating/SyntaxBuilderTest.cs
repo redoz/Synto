@@ -37,7 +37,7 @@ public class SyntaxBuilderTest
         MetadataReference.CreateFromFile(SyntoCoreAssembly.Location),
     ];
 
-    private static Compilation CompilationWithSource(string source) =>
+    private static CSharpCompilation CompilationWithSource(string source) =>
         CSharpCompilation.Create("Test",
             [CSharpSyntaxTree.ParseText(source)],
             references: References,
@@ -82,7 +82,7 @@ public class SyntaxBuilderTest
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
         Assert.True(errors.Count == 0,
-            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     private ImmutableArray<Diagnostic> RunAndGetDiagnostics(string source)
@@ -203,7 +203,7 @@ public class SyntaxBuilderTest
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
         Assert.True(errors.Count == 0,
-            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     // [TypeArg(Constraint = ...)] emits a `where T : Constraint` clause on the facade, so a consumer type
@@ -285,7 +285,7 @@ public class SyntaxBuilderTest
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
         Assert.True(errors.Count == 0,
-            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     // META: an UNMARKED ExpressionSyntax builder parameter receives a LIVE ExpressionSyntax passed through
@@ -509,7 +509,7 @@ public class SyntaxBuilderTest
 
         Assert.DoesNotContain(errors, d => d.Id == "CS0121");
         Assert.True(errors.Count == 0,
-            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     // #1: a call whose simple name COLLIDES with a registered builder but which BINDS to a real, unrelated
@@ -827,11 +827,11 @@ public class SyntaxBuilderTest
             generators: new[] { new SyntaxBuilderFacadeGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
@@ -877,11 +877,11 @@ public class SyntaxBuilderTest
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
         Assert.True(compileErrors.Count == 0,
-            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage())));
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         using var peStream = new System.IO.MemoryStream();
         var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage())));
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var assembly = Assembly.Load(peStream.ToArray());
         var readerFactory = assembly.GetType("Factory")!.GetMethod("Reader")!;

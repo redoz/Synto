@@ -14,3 +14,8 @@ dotnet_diagnostic.CA2007.severity = none
 # scenario), which CA1707 flags. Suppress it for the test project only — the underscores are
 # intentional readability, not an API-naming concern.
 dotnet_diagnostic.CA1707.severity = none
+
+# PipelineEquatabilityTests builds a throwaway DiagnosticDescriptor ("SY9999") as a value-equality
+# fixture. RS2008 asks to enable analyzer release tracking for it, but this test project is not a
+# shipped analyzer — the rule misfires on the fixture descriptor, so it is disabled here.
+dotnet_diagnostic.RS2008.severity = none

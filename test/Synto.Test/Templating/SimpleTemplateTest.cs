@@ -454,9 +454,9 @@ public class SimpleTemplateTest
             """;
 
         var compilation = CompilationWithSource(source);
-        Assert.Empty(compilation.GetDiagnostics().Where(diag => diag.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(compilation.GetDiagnostics(Xunit.TestContext.Current.CancellationToken).Where(diag => diag.Severity == DiagnosticSeverity.Error));
 
-        var result = _driver.RunGenerators(compilation);
+        var result = _driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
         var runResult = result.GetRunResult();
         Assert.Empty(runResult.Diagnostics);
 
@@ -509,11 +509,11 @@ public class SimpleTemplateTest
             generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
@@ -554,11 +554,11 @@ public class SimpleTemplateTest
             generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
@@ -772,8 +772,8 @@ public class SimpleTemplateTest
 
         Assert.Equal("SY0000", diag.Id);
         Assert.Equal(Location.None, diag.Location); // internal errors are not tied to a source location
-        Assert.Contains("boom", diag.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains(nameof(InvalidOperationException), diag.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("boom", diag.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains(nameof(InvalidOperationException), diag.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     // ----- incremental caching (T1) ----------------------------------------------------------------
@@ -808,13 +808,13 @@ public class SimpleTemplateTest
             generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         // An unrelated edit in a separate tree: the [Template] tree is byte-identical, so its pipeline
         // results must come from cache.
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
@@ -859,11 +859,11 @@ public class SimpleTemplateTest
             generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 

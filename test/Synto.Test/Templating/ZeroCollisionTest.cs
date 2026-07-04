@@ -48,7 +48,7 @@ public class ZeroCollisionTest
             """;
 
         var compilation = CSharpCompilation.Create("ZeroCollisionTest",
-            [CSharpSyntaxTree.ParseText(source)],
+            [CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -73,7 +73,7 @@ public class ZeroCollisionTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         // Sanity: the input itself is valid before generation.
-        Assert.Empty(compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(compilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
 
         var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
@@ -82,7 +82,7 @@ public class ZeroCollisionTest
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
         // The generator must actually have produced the factory (otherwise the test proves nothing).
-        Assert.True(output.SyntaxTrees.Count() > compilation.SyntaxTrees.Count(),
+        Assert.True(output.SyntaxTrees.Count() > compilation.SyntaxTrees.Length,
             "Expected the generator to add at least one generated syntax tree.");
 
         // Compile the POST-GENERATION output and assert there are no ERROR diagnostics. A CS0436 *warning*
@@ -95,6 +95,6 @@ public class ZeroCollisionTest
 
         Assert.DoesNotContain(errors, d => d.Id == "CS0121");
         Assert.True(errors.Count == 0,
-            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 }

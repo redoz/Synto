@@ -20,7 +20,7 @@ namespace Synto.Test;
 
 public partial class RoundTripTests
 {
-    private partial class Factory { };
+    private abstract partial class Factory { };
 
     // Normalize line endings so the assertions are stable regardless of how the
     // source file was checked out (LF vs CRLF) or which platform the test runs on.
@@ -259,6 +259,13 @@ public partial class RoundTripTests
     // into the produced `Reader` type's member list. Contrast the statement-level unroll (Test5's [Unquote] `for`
     // that emits four `ret++` *statements* into a block): here the live loop yields *members* of the type, not
     // statements of a body. The generator method itself is trimmed from the produced type.
+    // Reader/Counter are [Template<Factory>] carriers: Synto quotes them and the `public class …`
+    // shape below is the exact round-trip contract asserted in the tests. The carrier-shape analyzer
+    // rules are therefore false positives here and are disabled through the end of Counter.
+#pragma warning disable CA1515 // public type could be internal
+#pragma warning disable CA1034 // nested type is externally visible
+#pragma warning disable CA1852 // type can be sealed
+#pragma warning disable CA1812 // apparently never instantiated (invoked only via generated Factory.*)
     [Template<Factory>]
     public class Reader
     {
@@ -302,7 +309,7 @@ public partial class RoundTripTests
     public class Counter
     {
         [Splice]
-        static MemberDeclarationSyntax Count()
+        static MethodDeclarationSyntax Count()
         {
             var count = Parameter<int>();
             return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Count"))
@@ -312,6 +319,10 @@ public partial class RoundTripTests
                 .WithSemicolonToken(Token(SemicolonToken));
         }
     }
+#pragma warning restore CA1812
+#pragma warning restore CA1852
+#pragma warning restore CA1034
+#pragma warning restore CA1515
 
     [Fact]
     public void SpliceSingleMember()
@@ -331,15 +342,10 @@ public partial class RoundTripTests
 }
 
 /// <summary>A fixed column descriptor for the <c>[Splice]</c> member-generator round-trip.</summary>
-public readonly record struct Col(int Ordinal, string Name);
+internal readonly record struct Col(int Ordinal, string Name);
 
 /// <summary>A user type that has no built-in value-to-syntax conversion.</summary>
-public readonly struct Rgb
-{
-    public Rgb(int value) => Value = value;
-
-    public int Value { get; }
-}
+internal readonly record struct Rgb(int Value);
 
 /// <summary>A user-authored [Runtime] converter for <see cref="Rgb"/>, discovered and called by the generator.</summary>
 [Runtime]

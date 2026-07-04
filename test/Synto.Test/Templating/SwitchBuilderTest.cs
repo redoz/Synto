@@ -38,7 +38,7 @@ public class SwitchBuilderTest
         MetadataReference.CreateFromFile(SyntoCoreAssembly.Location),
     ];
 
-    private static Compilation CompilationWithSource(string source) =>
+    private static CSharpCompilation CompilationWithSource(string source) =>
         CSharpCompilation.Create("Test",
             [CSharpSyntaxTree.ParseText(source)],
             references: References,
@@ -61,7 +61,7 @@ public class SwitchBuilderTest
         var runResult = snapDriver.RunGenerators(compilation, TestContext.Current.CancellationToken).GetRunResult();
 
         var factory = runResult.Results.Single(r => r.Generator.GetGeneratorType() == typeof(TemplateFactorySourceGenerator));
-        var diag = string.Join("; ", runResult.Diagnostics.Select(d => d.Id + ":" + d.GetMessage()));
+        var diag = string.Join("; ", runResult.Diagnostics.Select(d => d.Id + ":" + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture)));
         var hints = string.Join(", ", factory.GeneratedSources.Select(g => g.HintName));
         Assert.True(factory.GeneratedSources.Any(g => g.HintName.StartsWith("Factory.", StringComparison.Ordinal)),
             $"No Factory.* source. Hints=[{hints}] Diagnostics=[{diag}]");
@@ -87,7 +87,7 @@ public class SwitchBuilderTest
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
         Assert.True(errors.Count == 0,
-            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     private const string Prelude =
@@ -274,14 +274,14 @@ public class SwitchBuilderTest
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
         Assert.True(compileErrors.Count == 0,
-            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage())));
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         // Emit the generated assembly and run the factory: the injected LiteralSyntaxExtensions.ToSyntax<T> throws
         // NotImplementedException for a non-literal type, so a spurious `columns.ToSyntax()` in the preamble blows up
         // here at invocation time (pre-fix). Post-fix the projection runs verbatim and the switch node is built.
         using var peStream = new System.IO.MemoryStream();
         var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage())));
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var assembly = Assembly.Load(peStream.ToArray());
         var readerMethod = assembly.GetType("Factory")!.GetMethod("Reader")!;

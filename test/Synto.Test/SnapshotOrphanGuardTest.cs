@@ -54,7 +54,7 @@ public class SnapshotOrphanGuardTest
     {
         string stem;
 
-        int hash = name.IndexOf('#');
+        int hash = name.IndexOf('#', System.StringComparison.Ordinal);
         if (hash >= 0)
         {
             stem = name.Substring(0, hash);
@@ -68,7 +68,7 @@ public class SnapshotOrphanGuardTest
         }
 
         // stem == "{SimpleTypeName}.{MethodName}"; the simple type name carries no dot.
-        int dot = stem.IndexOf('.');
+        int dot = stem.IndexOf('.', System.StringComparison.Ordinal);
         return (stem.Substring(0, dot), stem.Substring(dot + 1));
     }
 

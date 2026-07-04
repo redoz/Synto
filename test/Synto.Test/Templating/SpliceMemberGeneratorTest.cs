@@ -288,14 +288,14 @@ public class SpliceMemberGeneratorTest
         var generated = Assert.Single(runResult.GeneratedTrees).ToString();
 
         // Member list still routes through the segment step.
-        Assert.Contains("BuildList<MemberDeclarationSyntax>", generated);
+        Assert.Contains("BuildList<MemberDeclarationSyntax>", generated, StringComparison.Ordinal);
         // The sibling (non-empty) attribute list fell through to base quoting, NOT the segment step — the
         // surviving [Obsolete] attribute is quoted as an AttributeList, never wrapped in a BuildList run.
-        Assert.Contains("Obsolete", generated);
-        Assert.DoesNotContain("BuildList<AttributeListSyntax>", generated);
+        Assert.Contains("Obsolete", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildList<AttributeListSyntax>", generated, StringComparison.Ordinal);
     }
 
-    private static Compilation CompilationWithSource(string source)
+    private static CSharpCompilation CompilationWithSource(string source)
     {
         // The snapshot / cacheability runs reference the public Synto.Core surface (so the markers + Template
         // facade bind) and run ONLY TemplateFactorySourceGenerator, so the snapshot captures just the factory
@@ -342,7 +342,7 @@ public class SpliceMemberGeneratorTest
         driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: TestContext.Current.CancellationToken));
         driver = driver.RunGenerators(modified, TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();

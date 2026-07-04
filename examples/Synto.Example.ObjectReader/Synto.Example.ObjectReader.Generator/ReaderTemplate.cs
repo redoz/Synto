@@ -6,6 +6,8 @@ using Synto.Templating;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 using static Synto.Templating.Template;
+using static Synto.Templating.SyntoBuilders;
+
 
 namespace Synto.Example.ObjectReader.Generator;
 
@@ -23,6 +25,9 @@ namespace Synto.Example.ObjectReader.Generator;
 #pragma warning disable CA1812 // ObjectReaderTemplate is a template carrier, only ever quoted — never instantiated.
 #pragma warning disable CA1852 // ObjectReaderTemplate need not be sealed; the carrier is quoted, never subclassed.
 #pragma warning disable CA1024 // GetSchemaTable etc. mirror the IDataReader signatures verbatim.
+#pragma warning disable CA1822 // These model INSTANCE members of the generated IDataReader; they must stay instance.
+#pragma warning disable CA2201 // IDataReader field-index-out-of-range conventionally throws IndexOutOfRangeException (matches SqlDataReader); the generated reader intentionally mirrors that.
+#pragma warning disable CS8604 // Carrier is inert (live-staged holes return default!); the argument syntax is spliced into generated output, so no null-forgiving operator is added here.
 
 [Template<Factory>]
 [Identifier]
@@ -74,7 +79,7 @@ internal class ObjectReaderTemplate<[Splice] T>
         var columns = Parameter<EquatableArray<ColumnInfo>>();
         foreach (var c in columns)
             if (i == c.Ordinal)
-                return TypeOf(c.ColumnTypeName);   // type-name hole → typeof(<that type>)
+                return Template.TypeOf(c.ColumnTypeName);   // type-name hole → typeof(<that type>); qualified: both Template and SyntoBuilders are `using static`-imported and each define TypeOf(string)
         throw OutOfRange(i);
     }
 
@@ -209,13 +214,18 @@ internal class ObjectReaderTemplate<[Splice] T>
         => new global::System.IndexOutOfRangeException($"Column '{name}' was not found.");
 }
 
+#pragma warning restore CS8604
+#pragma warning restore CA2201
+#pragma warning restore CA1822
 #pragma warning restore CA1024
 #pragma warning restore CA1852
-#pragma warning restore CA1812
 
 /// <summary>Synto template factory target. The injected <c>TemplateFactorySourceGenerator</c> fills the other
 /// partial with <c>ObjectReaderTemplate(TypeSyntax T, EquatableArray&lt;ColumnInfo&gt; columns)</c> returning the
 /// skeleton's <c>ClassDeclarationSyntax</c> (the column count is derived from <c>columns.Count</c>).</summary>
-internal partial class Factory
+// CA1812: Factory is a Synto template-factory target (static members only, used solely as the
+// [Template<Factory>] type argument); it is never instantiated, so the warning does not apply here.
+internal sealed partial class Factory
 {
 }
+#pragma warning restore CA1812

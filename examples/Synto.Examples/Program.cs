@@ -56,7 +56,7 @@ sealed record Choice(string Name, Func<string> Example)
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1052:Static holder types should be Static or NotInheritable", Justification = "This is just an example")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1050:Declare types in namespaces", Justification = "This is just an example")]
-internal class Examples
+internal sealed class Examples
 {
 #pragma warning disable CS8321 // Local function is declared but never used
     public static string Test0()
@@ -220,8 +220,9 @@ internal class Examples
         return source;
     }
 
+#pragma warning disable CA1812 // Instantiated indirectly by Synto-generated Factory code, not directly in source
     [Template<Factory>]
-    private class Test7Class<[Unquote] T1, T2>
+    private sealed class Test7Class<[Unquote] T1, T2>
     {
         static void InlinedTypeArg<[Unquote] T3, T4>([Unquote] T3 inlinedValue)
         {
@@ -241,6 +242,7 @@ internal class Examples
             return list.First();
         }
     }
+#pragma warning restore CA1812
 
     public static string Test7()
     {
@@ -252,16 +254,17 @@ internal class Examples
     }
 
     /// <summary>A fixed column descriptor consumed by the <see cref="DataRecord"/> member generator.</summary>
-    public readonly record struct Column(int Ordinal, string Name);
+    internal readonly record struct Column(int Ordinal, string Name);
 
     // An ObjectReader-shaped [Splice] member generator: the static `Accessors` method runs at factory-build time;
     // its `foreach` over the lifted column list (folded into the factory signature via Parameter<…>()) yields ONE
     // `int GetXxx() => <ordinal>;` MEMBER per column, which Synto splices into the produced `DataRecord` type. The
     // fixed `FieldCount` member is quoted verbatim; the generated accessors land at the generator's position.
+#pragma warning disable CA1812 // Instantiated indirectly by Synto-generated Factory code, not directly in source
     [Template<Factory>]
-    public class DataRecord
+    internal sealed class DataRecord
     {
-        public int FieldCount => 0;
+        public static int FieldCount => 0;
 
         [Splice]
         static IEnumerable<MemberDeclarationSyntax> Accessors()
@@ -275,6 +278,7 @@ internal class Examples
                     .WithSemicolonToken(Token(SemicolonToken));
         }
     }
+#pragma warning restore CA1812
 
     public static string TestSplice()
     {
@@ -291,7 +295,9 @@ internal class Examples
 }
 
 
-partial class Factory { };
+#pragma warning disable CA1812 // Container for Synto-generated static members; referenced by name in [Template<Factory>], never instantiated
+sealed partial class Factory { };
+#pragma warning restore CA1812
 
 
 

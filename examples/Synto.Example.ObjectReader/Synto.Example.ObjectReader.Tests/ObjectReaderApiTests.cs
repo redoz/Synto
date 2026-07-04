@@ -20,7 +20,11 @@ public class ObjectReaderApiTests
         var data = new[] { new Widget("A", 1) };
         string[] members = GetMembers(); // runtime value -> not compile-time constant
 
+        // Intentionally non-constant member list: this exercises the runtime-fallback path, so the generator's
+        // SOR0002 fires here on purpose — suppress it narrowly at this call site.
+#pragma warning disable SOR0002
         var ex = Assert.Throws<NotSupportedException>(() => ObjectReader.Create(data, members));
+#pragma warning restore SOR0002
         Assert.Contains("constant", ex.Message, System.StringComparison.OrdinalIgnoreCase);
     }
 

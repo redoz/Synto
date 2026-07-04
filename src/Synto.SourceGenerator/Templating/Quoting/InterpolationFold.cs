@@ -131,7 +131,7 @@ internal sealed class InterpolationFold
     /// concatenation (literal runs verbatim, each hole as <c>accessor.ToInterpolatedText()</c>); its VALUE-TEXT is
     /// the decoded concatenation (literal value-text, each hole as the raw <c>accessor</c>).
     /// </summary>
-    private ExpressionSyntax BuildFusedText(List<InterpolatedStringContentSyntax> group)
+    private InvocationExpressionSyntax BuildFusedText(List<InterpolatedStringContentSyntax> group)
     {
         ExpressionSyntax? textExpr = null;
         ExpressionSyntax? valueExpr = null;

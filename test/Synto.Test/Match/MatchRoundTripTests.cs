@@ -24,7 +24,7 @@ public partial class MatchRoundTripTests
     // The shared matcher target. The generator emits the matcher method + its nested result record into this
     // partial as M.{Pattern}(SyntaxNode) -> {Pattern}Match?. NON-static: a static type cannot be a generic
     // type argument (CS0718), and [Match<M>] takes M as a type argument.
-    private partial class M { }
+    private sealed partial class M { }
 
     [Fact]
     public void LiteralOne_MatchesOne_RejectsTwo()
@@ -204,7 +204,7 @@ public partial class MatchRoundTripTests
 
         var none = M.GuardThenRest(ParseStatement("{ if (ok) Go(); }"));
         Assert.NotNull(none);
-        Assert.Equal(0, none!.Rest.Count);   // All = 0+
+        Assert.Empty(none!.Rest);   // All = 0+
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public partial class MatchRoundTripTests
 
         var m = M.GuardThenSome(ParseStatement("{ if (ok) Go(); A(); }"));
         Assert.NotNull(m);
-        Assert.Equal(1, m!.Body.Count);
+        Assert.Single(m!.Body);
 
         Assert.Null(M.GuardThenSome(ParseStatement("{ if (ok) Go(); }")));   // Some needs >= 1
     }
@@ -330,7 +330,7 @@ public partial class MatchRoundTripTests
 
         var one = M.FirstThenRest(ParseMemberDeclaration("void F() { A(); }")!);
         Assert.NotNull(one);
-        Assert.Equal(0, one!.Rest.Count);
+        Assert.Empty(one!.Rest);
 
         var three = M.FirstThenRest(ParseMemberDeclaration("void F() { A(); B(); C(); }")!);
         Assert.NotNull(three);
@@ -381,7 +381,7 @@ public partial class MatchRoundTripTests
 
         var m = M.MiddleRun(ParseStatement("{ if (p) { } X(); if (q) { } Y(); }"));
         Assert.NotNull(m);
-        Assert.Equal(1, m!.Mid.Count);              // mid = [X()] — the trailing `if` floats to index 2, not the last
+        Assert.Single(m!.Mid);              // mid = [X()] — the trailing `if` floats to index 2, not the last
         MatchTestHarness.AssertCapture("X();", m.Mid[0]);
 
         Assert.Null(M.MiddleRun(ParseStatement("{ if (p) { } X(); Y(); }")));   // no trailing `if` after lead+one
@@ -399,7 +399,7 @@ public partial class MatchRoundTripTests
 
         var m = M.LeadThenRunAnchored(ParseStatement("{ Z(); if (p) { } M(); if (q) { } }"));
         Assert.NotNull(m);
-        Assert.Equal(1, m!.Mid.Count);              // lead `if` floated to index 1; mid = [M()]
+        Assert.Single(m!.Mid);              // lead `if` floated to index 1; mid = [M()]
         MatchTestHarness.AssertCapture("M();", m.Mid[0]);
 
         Assert.Null(M.LeadThenRunAnchored(ParseStatement("{ Z(); if (p) { } M(); if (q) { } W(); }")));   // tail `if` not last

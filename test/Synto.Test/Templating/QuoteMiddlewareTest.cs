@@ -74,7 +74,7 @@ public class QuoteMiddlewareTest
 
         var result = quoter.Visit(node);
 
-        Assert.Contains(".ApplyX(", result!.NormalizeWhitespace().ToFullString());
+        Assert.Contains(".ApplyX(", result!.NormalizeWhitespace().ToFullString(), System.StringComparison.Ordinal);
     }
 
     // MemberSegmentStep emits a CollectionSyntaxExtensions.BuildList<TNode> run when a keyed generator child is in
@@ -89,7 +89,7 @@ public class QuoteMiddlewareTest
 
         var result = quoter.Visit(classDecl.Members);
 
-        Assert.Contains("CollectionSyntaxExtensions.BuildList<", result.NormalizeWhitespace().ToFullString());
+        Assert.Contains("CollectionSyntaxExtensions.BuildList<", result.NormalizeWhitespace().ToFullString(), System.StringComparison.Ordinal);
     }
 
     // InterpolationFoldStep defers when the visited list has no keyed owner: identical to the base quote. The

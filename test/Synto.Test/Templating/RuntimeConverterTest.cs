@@ -36,7 +36,7 @@ public class RuntimeConverterTest
         MetadataReference.CreateFromFile(SyntoCoreAssembly.Location),
     ];
 
-    private static Compilation CompilationWithSource(string source)
+    private static CSharpCompilation CompilationWithSource(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
         Assert.Empty(syntaxTree.GetDiagnostics());
@@ -97,7 +97,7 @@ public class RuntimeConverterTest
 
         // The discovered converter is called directly by its fully-qualified name (no file-local copy).
         var generated = driver.GetRunResult().GeneratedTrees
-            .Single(t => t.FilePath.Contains("Factory.Build"))
+            .Single(t => t.FilePath.Contains("Factory.Build", StringComparison.Ordinal))
             .ToString();
         Assert.Contains("global::ColorConverter.ToSyntax(color)", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("class ColorConverter", generated, StringComparison.Ordinal);
@@ -153,7 +153,7 @@ public class RuntimeConverterTest
             .RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         var generated = driver.GetRunResult().GeneratedTrees
-            .Single(t => t.FilePath.Contains("Factory.Build"))
+            .Single(t => t.FilePath.Contains("Factory.Build", StringComparison.Ordinal))
             .ToString();
 
         // The quoted custom-type value is lifted via the discovered converter (called fully-qualified), NOT as a
@@ -177,7 +177,7 @@ public class RuntimeConverterTest
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build", StringComparison.Ordinal));
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
@@ -185,7 +185,7 @@ public class RuntimeConverterTest
 
         Assert.DoesNotContain(errors, d => d.Id == "CS0121");
         Assert.True(errors.Count == 0,
-            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public class RuntimeConverterTest
         driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: TestContext.Current.CancellationToken));
         driver = driver.RunGenerators(modified, TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();

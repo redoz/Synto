@@ -237,7 +237,7 @@ internal static class TemplateDiagnostics
 
     private static readonly DiagnosticDescriptor _spliceMethodMustBeStatic = new(IdPrefix + "1019",
         "Invalid Splice Member Generator",
-        "[Splice] member generator '{0}' must be static (it runs at factory-build time; an instance method could reach output-world members).",
+        "[Splice] member generator '{0}' must be static (it runs at factory-build time; an instance method could reach output-world members)",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -251,7 +251,7 @@ internal static class TemplateDiagnostics
 
     private static readonly DiagnosticDescriptor _spliceMethodBadReturnType = new(IdPrefix + "1020",
         "Invalid Splice Member Generator",
-        "[Splice] member generator '{0}' returns '{1}', which is not a supported shape (expected MemberDeclarationSyntax or IEnumerable<MemberDeclarationSyntax>).",
+        "[Splice] member generator '{0}' returns '{1}', which is not a supported shape (expected MemberDeclarationSyntax or IEnumerable<MemberDeclarationSyntax>)",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -265,7 +265,7 @@ internal static class TemplateDiagnostics
 
     private static readonly DiagnosticDescriptor _spliceMethodHasParameters = new(IdPrefix + "1021",
         "Invalid Splice Member Generator",
-        "[Splice] member generator '{0}' must be parameterless (inputs are supplied via Parameter<T>(); the generator is auto-invoked with no caller).",
+        "[Splice] member generator '{0}' must be parameterless (inputs are supplied via Parameter<T>(); the generator is auto-invoked with no caller)",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);

@@ -221,6 +221,6 @@ public class BindingTimeClassifierTest
 
         var cut = Assert.Single(partition.ImpossibleCuts);
         Assert.Same(bindingExpression, cut.Node);
-        Assert.Contains("generatedWorld", cut.Reason);
+        Assert.Contains("generatedWorld", cut.Reason, System.StringComparison.Ordinal);
     }
 }

@@ -32,7 +32,7 @@ public class HintNameSanitizationTest
         MetadataReference.CreateFromFile(SyntoCoreAssembly.Location),
     ];
 
-    private static Compilation CompilationWithSource(string source) =>
+    private static CSharpCompilation CompilationWithSource(string source) =>
         CSharpCompilation.Create("Test",
             [CSharpSyntaxTree.ParseText(source)],
             references: References,
@@ -58,10 +58,10 @@ public class HintNameSanitizationTest
             """);
 
         var driver = CSharpGeneratorDriver.Create(new SyntaxBuilderFacadeGenerator());
-        var runResult = driver.RunGenerators(compilation).GetRunResult().Results.Single();
+        var runResult = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken).GetRunResult().Results.Single();
 
         Assert.Null(runResult.Exception);
         Assert.NotEmpty(runResult.GeneratedSources);
-        Assert.DoesNotContain(runResult.GeneratedSources, s => s.HintName.Contains('?'));
+        Assert.DoesNotContain(runResult.GeneratedSources, s => s.HintName.Contains('?', System.StringComparison.Ordinal));
     }
 }

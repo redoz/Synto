@@ -33,7 +33,7 @@ public class GenericTemplateAttributeTest
         MetadataReference.CreateFromFile(Assembly.Load("System.Runtime.Extensions, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location),
     ];
 
-    private static Compilation CompilationWithSource(string source)
+    private static CSharpCompilation CompilationWithSource(string source)
     {
         MetadataReference[] references = [.. References, MetadataReference.CreateFromFile(SyntoCoreAssembly.Location)];
         return CSharpCompilation.Create("GenericTemplateAttributeTest",

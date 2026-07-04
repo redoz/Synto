@@ -31,7 +31,7 @@ public class PreserveTriviaTest
         MetadataReference.CreateFromFile(SyntoCoreAssembly.Location),
     ];
 
-    private static Compilation CompilationWithSource(string source) =>
+    private static CSharpCompilation CompilationWithSource(string source) =>
         CSharpCompilation.Create("Test",
             [CSharpSyntaxTree.ParseText(source)],
             references: References,
@@ -71,12 +71,12 @@ public class PreserveTriviaTest
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
         Assert.True(compileErrors.Count == 0,
-            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage())));
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         using var peStream = new System.IO.MemoryStream();
         var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(emit.Success,
-            "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage())));
+            "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var assembly = Assembly.Load(peStream.ToArray());
         var built = assembly.GetType("Factory")!.GetMethod("Build")!.Invoke(null, null);

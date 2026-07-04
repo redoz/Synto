@@ -14,17 +14,17 @@ namespace Synto.Test.Match;
 public partial class MatchReplaceTests
 {
     // Shared matcher target — the generator emits M.Sum / M.SumCouldMatch / M.SumPattern / M.SumMatch into it.
-    private partial class M { }
+    private sealed partial class M { }
 
     // Template factory target (mirrors RoundTripTests / examples/Synto.Examples): the generator emits the
     // Factory.{Name} static factory methods into this partial.
-    private partial class Factory { }
+    private abstract partial class Factory { }
 
     // Sum matches `a + b` and captures both operands (A, B : ExpressionSyntax).
     [global::Synto.Matching.Match<M>(global::Synto.Matching.MatchOption.Single)]
     private static object Sum([global::Synto.Matching.Capture] int a, [global::Synto.Matching.Capture] int b) => a + b;
 
-    private static ExpressionSyntax Mul(global::Synto.Matching.Matched<M.SumMatch> m) =>
+    private static BinaryExpressionSyntax Mul(global::Synto.Matching.Matched<M.SumMatch> m) =>
         SyntaxFactory.BinaryExpression(SyntaxKind.MultiplyExpression, m.Captures.A, m.Captures.B);
 
     [Fact]
@@ -88,7 +88,7 @@ public partial class MatchReplaceTests
         var root = SyntaxFactory.ParseCompilationUnit("class C { int F() => g(1 + 2, 3 + 4); }");
         var rewritten = M.SumPattern.Replace(root, static m => Mul(m));
         Assert.Equal("class C { int F() => g(1 * 2, 3 * 4); }",
-            rewritten.NormalizeWhitespace(indentation: "", eol: " ").ToString().Replace("  ", " ").Trim());
+            rewritten.NormalizeWhitespace(indentation: "", eol: " ").ToString().Replace("  ", " ", System.StringComparison.Ordinal).Trim());
     }
 
     [Fact]
@@ -99,6 +99,9 @@ public partial class MatchReplaceTests
         [global::Synto.Templating.Template<Factory>(Options = global::Synto.Templating.TemplateOption.Single)]
         static void MulT([global::Synto.Templating.Splice] int a, [global::Synto.Templating.Splice] int b)
         { _ = a * b; }
+        // MulT is a phantom [Template] source: the generator lowers it into Factory.MulT (invoked below), so the
+        // local itself is never called directly. Reference it so the compiler treats it as used (CS8321).
+        _ = (System.Action<int, int>)MulT;
 
         var root = SyntaxFactory.ParseExpression("g(1 + 2)");
         // Factory.MulT(...) returns the `_ = a * b;`-shaped statement; reach its right-hand multiply expression.

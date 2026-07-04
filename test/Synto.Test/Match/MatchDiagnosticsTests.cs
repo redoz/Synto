@@ -230,13 +230,13 @@ public class MatchDiagnosticsTests
             generators: new[] { new MatchFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         // An unrelated edit in a separate tree: the [Match] tree is byte-identical, so its pipeline results
         // must come from cache.
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
@@ -290,12 +290,12 @@ public class MatchDiagnosticsTests
             generators: new[] { new MatchFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         var modified = compilation.ReplaceSyntaxTree(
             compilation.SyntaxTrees.Single(),
-            CSharpSyntaxTree.ParseText(after));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText(after, cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 

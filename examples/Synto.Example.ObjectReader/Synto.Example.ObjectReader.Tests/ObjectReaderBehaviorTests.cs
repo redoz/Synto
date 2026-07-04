@@ -59,7 +59,7 @@ public class ObjectReaderBehaviorTests
     public void Create_FeedsDataTableLoad() // C-3 functional bar via a real ADO.NET sink
     {
         using IDataReader reader = ObjectReader.Create(Sample(), "Name", "Age");
-        var table = new DataTable();
+        using var table = new DataTable();
         table.Load(reader);
 
         Assert.Equal(2, table.Columns.Count);

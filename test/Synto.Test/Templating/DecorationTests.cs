@@ -137,8 +137,8 @@ public class DecorationTests
             }
             """;
         var generated = RunFactoryAndGetSource(src);
-        Assert.Contains("ApplyIdentifierAttribute(identifier)", generated);
-        Assert.Contains("string identifier", generated); // injected factory parameter
+        Assert.Contains("ApplyIdentifierAttribute(identifier)", generated, System.StringComparison.Ordinal);
+        Assert.Contains("string identifier", generated, System.StringComparison.Ordinal); // injected factory parameter
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public class DecorationTests
             }
             """;
         var generated = RunFactoryAndGetSource(src);
-        Assert.Contains(".ApplySealedAttribute()", generated);
+        Assert.Contains(".ApplySealedAttribute()", generated, System.StringComparison.Ordinal);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public class DecorationTests
             }
             """;
         var generated = RunFactoryAndGetSource(src);
-        Assert.Contains("ApplyVisibilityAttribute(global::Synto.Templating.Access.File)", generated);
+        Assert.Contains("ApplyVisibilityAttribute(global::Synto.Templating.Access.File)", generated, System.StringComparison.Ordinal);
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public class DecorationTests
             }
             """;
         var generated = RunFactoryAndGetSource(src);
-        Assert.Contains("ApplyImplementsAttribute(\"global::System.IDisposable\")", generated);
+        Assert.Contains("ApplyImplementsAttribute(\"global::System.IDisposable\")", generated, System.StringComparison.Ordinal);
     }
 
     [Fact]
@@ -230,12 +230,12 @@ public class DecorationTests
             """;
         var generated = RunFactoryAndGetSource(src);
 
-        Assert.Contains("ApplyIdentifierAttribute(identifier)", generated);
-        Assert.Contains("ApplyVisibilityAttribute(global::Synto.Templating.Access.Internal)", generated);
-        Assert.Contains(".ApplySealedAttribute()", generated);
-        Assert.Contains("ApplyInheritsAttribute(\"global::System.Exception\")", generated);
-        Assert.Contains("ApplyImplementsAttribute(\"global::System.IDisposable\")", generated);
-        Assert.Contains("string identifier", generated);
+        Assert.Contains("ApplyIdentifierAttribute(identifier)", generated, System.StringComparison.Ordinal);
+        Assert.Contains("ApplyVisibilityAttribute(global::Synto.Templating.Access.Internal)", generated, System.StringComparison.Ordinal);
+        Assert.Contains(".ApplySealedAttribute()", generated, System.StringComparison.Ordinal);
+        Assert.Contains("ApplyInheritsAttribute(\"global::System.Exception\")", generated, System.StringComparison.Ordinal);
+        Assert.Contains("ApplyImplementsAttribute(\"global::System.IDisposable\")", generated, System.StringComparison.Ordinal);
+        Assert.Contains("string identifier", generated, System.StringComparison.Ordinal);
     }
 
     // ----- Task 6: scope isolation + user-defined extensibility proof ----------------------------------
@@ -334,7 +334,7 @@ public class DecorationTests
         var generated = RunFactoryAndGetSource(src);
 
         // The user-defined hook must be emitted with the constructor argument as a string literal.
-        Assert.Contains("ApplyFooAttribute(\"hi\")", generated);
+        Assert.Contains("ApplyFooAttribute(\"hi\")", generated, System.StringComparison.Ordinal);
     }
 
     // ----- Task 20 (#23): executed end-to-end decoration proof --------------------------------------
@@ -356,8 +356,8 @@ public class DecorationTests
             }
             """;
 
-        var compilation = _factoryBaseCompilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(src));
-        Assert.Empty(compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+        var compilation = _factoryBaseCompilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(src, cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        Assert.Empty(compilation.GetDiagnostics(Xunit.TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
 
         // Only TemplateFactorySourceGenerator: the [Sealed]/[Visibility] markers and the Apply* extension
         // methods resolve against the referenced public Synto.Core surface (running SurfaceInjectionGenerator
@@ -370,11 +370,11 @@ public class DecorationTests
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
         Assert.True(compileErrors.Count == 0,
-            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage())));
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         using var peStream = new System.IO.MemoryStream();
         var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage())));
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var assembly = Assembly.Load(peStream.ToArray());
         var shellFactory = assembly.GetType("Factory")!.GetMethod("Shell")!;

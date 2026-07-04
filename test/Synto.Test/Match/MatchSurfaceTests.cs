@@ -61,13 +61,13 @@ public class MatchSurfaceTests
             }
             """);
 
-        var errors = compilation.GetDiagnostics()
+        var errors = compilation.GetDiagnostics(Xunit.TestContext.Current.CancellationToken)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
 
         Assert.True(errors.Count == 0,
             "Consumer snippet using the public Synto.Core matching markers failed to bind: "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     [Fact]
@@ -87,13 +87,13 @@ public class MatchSurfaceTests
             }
             """);
 
-        var errors = compilation.GetDiagnostics()
+        var errors = compilation.GetDiagnostics(Xunit.TestContext.Current.CancellationToken)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
 
         Assert.True(errors.Count == 0,
             "Consumer snippet using the public Synto.Core [Capture] markers failed to bind: "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     [Fact]
@@ -122,12 +122,12 @@ public class MatchSurfaceTests
             }
             """);
 
-        var errors = compilation.GetDiagnostics()
+        var errors = compilation.GetDiagnostics(Xunit.TestContext.Current.CancellationToken)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
 
         Assert.True(errors.Count == 0,
             "Consumer snippet using the public Synto.Core quantifier/wildcard/anchor markers failed to bind: "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 }

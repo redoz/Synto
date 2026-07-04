@@ -1,6 +1,7 @@
 extern alias SyntoCore;
 
 using System.Linq;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static SyntoCore::Synto.IdentifierAttributeExtensions;
@@ -14,6 +15,8 @@ namespace Synto.Test.Templating;
 
 public class ApplyHelperTests
 {
+    private static readonly string[] ExpectedOrderedBases = { "global::B", "global::I1", "global::I2" };
+
     static ClassDeclarationSyntax Parse(string src) =>
         CSharpSyntaxTree.ParseText(src).GetRoot().DescendantNodes()
             .OfType<ClassDeclarationSyntax>().First();
@@ -32,9 +35,9 @@ public class ApplyHelperTests
     {
         var c = Parse("internal sealed class Foo {}");
         var r = c.ApplyVisibilityAttribute(Access.File);
-        Assert.Contains("file", r.Modifiers.ToString());
-        Assert.DoesNotContain("internal", r.Modifiers.ToString());
-        Assert.Contains("sealed", r.Modifiers.ToString()); // non-access modifier preserved
+        Assert.Contains("file", r.Modifiers.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("internal", r.Modifiers.ToString(), StringComparison.Ordinal);
+        Assert.Contains("sealed", r.Modifiers.ToString(), StringComparison.Ordinal); // non-access modifier preserved
     }
 
     [Fact]
@@ -66,7 +69,7 @@ public class ApplyHelperTests
     {
         var once = Parse("class Foo {}").ApplySealedAttribute();
         var twice = once.ApplySealedAttribute();
-        Assert.Single(twice.Modifiers, m => m.Kind() == SyntaxKind.SealedKeyword);
+        Assert.Single(twice.Modifiers, m => m.IsKind(SyntaxKind.SealedKeyword));
     }
 
     // #6: sealed must be inserted BEFORE partial. Appending yields "public partial sealed class" -> CS0267 in
@@ -91,6 +94,6 @@ public class ApplyHelperTests
             .ApplyImplementsAttribute("global::I1")
             .ApplyImplementsAttribute("global::I2");
         var bases = c.BaseList!.Types.Select(t => t.ToString().Trim()).ToArray();
-        Assert.Equal(new[] { "global::B", "global::I1", "global::I2" }, bases);
+        Assert.Equal(ExpectedOrderedBases, bases);
     }
 }
