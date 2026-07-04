@@ -182,8 +182,41 @@ internal abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionS
 
     public virtual ExpressionSyntax Visit(SyntaxTriviaList triviaList)
     {
-        // TODO this isn't really supported, we always generate an empty trivia list
-        return SyntaxFactoryInvocation(nameof(TriviaList));
+        // Only the trivia-carrying token overloads (Visit(SyntaxToken) under _includeTrivia) call this; when the
+        // flag is off tokens are quoted bare and this is unreachable, so an empty list keeps the default path
+        // byte-identical. Under PreserveTrivia we reconstruct each SUPPORTED trivia (whitespace, end-of-line, and
+        // // single-line / /* */ multi-line comments) into its SyntaxFactory call. Structured / directive trivia
+        // (XML doc, #region, preprocessor, disabled text, ...) is SKIPPED — dropped from the list, never thrown on —
+        // matching the observable pre-fix behavior for those kinds.
+        if (!_includeTrivia)
+            return SyntaxFactoryInvocation(nameof(TriviaList));
+
+        var quoted = new List<ExpressionSyntax>();
+        foreach (var trivia in triviaList)
+        {
+            ExpressionSyntax? quotedTrivia = QuoteTrivia(trivia);
+            if (quotedTrivia is not null)
+                quoted.Add(quotedTrivia);
+        }
+
+        return SyntaxFactoryInvocation(nameof(TriviaList), quoted.ToArray());
+    }
+
+    private static ExpressionSyntax? QuoteTrivia(SyntaxTrivia trivia)
+    {
+        switch (trivia.Kind())
+        {
+            case SyntaxKind.WhitespaceTrivia:
+                return SyntaxFactoryInvocation(nameof(Whitespace), trivia.ToString().ToSyntax());
+            case SyntaxKind.EndOfLineTrivia:
+                return SyntaxFactoryInvocation(nameof(EndOfLine), trivia.ToString().ToSyntax());
+            case SyntaxKind.SingleLineCommentTrivia:
+            case SyntaxKind.MultiLineCommentTrivia:
+                return SyntaxFactoryInvocation(nameof(Comment), trivia.ToString().ToSyntax());
+            default:
+                // Unsupported (structured / directive) trivia is skipped.
+                return null;
+        }
     }
 
     public virtual ExpressionSyntax Visit(SyntaxTokenList tokenList)
