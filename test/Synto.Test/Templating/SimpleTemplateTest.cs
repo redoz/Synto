@@ -648,6 +648,71 @@ public class SimpleTemplateTest
     }
 
     [Fact]
+    public void GenericTarget_RendersGenericPartial_NoArityZeroTwin()
+    {
+        // #15: a generic partial target must be rebuilt carrying its TypeParameterList so the emitted factory
+        // merges with the user's `partial class Factory<T>` instead of spawning a separate arity-0 `Factory`
+        // (which compiles cleanly but silently lands the factory on the wrong, non-generic type).
+        var compilation = CompilationWithSource(
+            """
+            using System;
+            using Synto.Templating;
+
+            partial class Factory<T> {}
+
+            public class TestClass {
+                [Template(typeof(Factory<>))]
+                void LocalFunction() {
+                    Console.WriteLine("Hello world");
+                }
+            }
+            """);
+        Assert.Empty(compilation.GetDiagnostics().Where(diag => diag.Severity == DiagnosticSeverity.Error));
+
+        var result = _driver.RunGenerators(compilation);
+        var runResult = result.GetRunResult();
+        Assert.Empty(runResult.Diagnostics);
+
+        var generated = runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .Select(s => s.SourceText.ToString())
+            .Single(s => s.Contains("class Factory", StringComparison.Ordinal));
+
+        // The rebuilt partial carries the type parameter list: one generic `Factory<T>`, no arity-0 twin.
+        Assert.Contains("class Factory<T>", generated, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TargetAncestorUnsupportedKindReportsSY1032()
+    {
+        // #15: a [Template] target nested in a partial STRUCT can't be honored by the ancestry rebuild
+        // (WithAncestryFrom hard-casts each ancestor to ClassDeclarationSyntax). The validator must reject it
+        // up-front with a located SY1032 rather than let the cast throw an opaque SY0000.
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using System;
+            using Synto.Templating;
+
+            partial struct Outer {
+                public partial class Factory {}
+            }
+
+            public class TestClass {
+                public void TestMethod() {
+                    [Template(typeof(Outer.Factory))]
+                    void LocalFunction() {
+                        Console.WriteLine("hi");
+                    }
+                }
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1032");
+        AssertHasRealSpan(diag);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SY0000");
+    }
+
+    [Fact]
     public void EmptyBareBodyReportsSY1005()
     {
         var diagnostics = RunAndGetDiagnostics(

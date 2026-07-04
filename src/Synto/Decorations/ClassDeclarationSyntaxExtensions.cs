@@ -20,8 +20,14 @@ internal static class ClassDeclarationSyntaxExtensions
         {
             var classDecls = (ClassDeclarationSyntax)current.DeclaringSyntaxReferences[0].GetSyntax();
 
+            // Carry the ancestor's type parameters + constraints: a generic ancestor (partial class Outer<T>)
+            // must be rebuilt as `Outer<T>` so the emitted nesting merges with the user's declaration instead
+            // of declaring a distinct arity-0 twin beside it. WithTypeParameterList(null)/empty constraints is
+            // a no-op for a non-generic ancestor, so arity-0 goldens stay byte-identical.
             targetSyntax = ClassDeclaration(current.Name)
                 .WithModifiers(classDecls.Modifiers)
+                .WithTypeParameterList(classDecls.TypeParameterList)
+                .WithConstraintClauses(classDecls.ConstraintClauses)
                 .AddMembers(targetSyntax);
 
             current = current.ContainingSymbol;

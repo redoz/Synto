@@ -105,4 +105,22 @@ internal static class Diagnostics
                                     new EquatableArray<string>(ImmutableArray.Create(targetName, ancestorName)));
     }
 
+    private static readonly DiagnosticDescriptor _targetAncestorUnsupportedKind = new(IdPrefix + "1032",
+                                                                                    "Invalid Target Ancestor",
+                                                                                    "Template/match target '{0}' has an unsupported ancestor '{1}' ({2}); only (partial) class ancestors are supported",
+                                                                                    "Synto.Usage",
+                                                                                    DiagnosticSeverity.Error,
+                                                                                    isEnabledByDefault: true);
+
+    // Located at the ancestor's own identifier (both templating and matching pass the offending ancestor's
+    // syntax): the ancestry rebuild (WithAncestryFrom) hard-casts every ancestor to ClassDeclarationSyntax, so
+    // a non-class ancestor (partial struct/record/interface) must be rejected up-front instead of surfacing as
+    // an opaque SY0000 InvalidCastException. Shared by both features (single message text / ID).
+    public static DiagnosticInfo TargetAncestorUnsupportedKind(LocationInfo? location, string targetName, string ancestorName, string ancestorKind)
+    {
+        return new DiagnosticInfo(_targetAncestorUnsupportedKind,
+                                    location,
+                                    new EquatableArray<string>(ImmutableArray.Create(targetName, ancestorName, ancestorKind)));
+    }
+
 }

@@ -104,6 +104,58 @@ public class MatchDiagnosticsTests
     }
 
     [Fact]
+    public void TargetAncestorUnsupportedKind_ReportsSY1032()
+    {
+        // #15 (matching sibling): M is a partial class nested in a partial STRUCT. WithAncestryFrom hard-casts
+        // each ancestor to ClassDeclarationSyntax, so ValidateTarget must reject the struct ancestor up-front
+        // with a located SY1032 rather than let the cast throw an opaque SY0000.
+        var result = MatchTestHarness.Run(
+            """
+            using Synto.Matching;
+
+            partial struct Outer
+            {
+                public partial class M { }
+            }
+
+            public class Consumer
+            {
+                [Match<Outer.M>(MatchOption.Single)]
+                static object One() => 1;
+            }
+            """);
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1032");
+        AssertHasRealSpan(diag);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "SY0000");
+    }
+
+    [Fact]
+    public void GenericTarget_RendersGenericPartial_NoArityZeroTwin()
+    {
+        // #15 (matching sibling): a [Match] target on a generic containing class must land the matcher on the
+        // generic `M<T>` — the rebuilt partial + its ancestry carry the TypeParameterList, so no arity-0 twin.
+        var result = MatchTestHarness.Run(
+            """
+            using Synto.Matching;
+
+            partial class M<T> { }
+
+            public class Consumer
+            {
+                [Match<M<int>>(MatchOption.Single)]
+                static object One() => 1;
+            }
+            """);
+
+        Assert.Empty(result.Diagnostics);
+
+        var matcher = Assert.Single(
+            result.GeneratedTrees.Where(t => t.ToString().Contains("class M", StringComparison.Ordinal)));
+        Assert.Contains("class M<T>", matcher.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WellFormedMatch_ReadsTypeArg_PassesValidation()
     {
         // The type arg is read off AttributeClass.TypeArguments[0]; a well-formed partial-class target

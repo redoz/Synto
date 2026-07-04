@@ -51,8 +51,13 @@ internal static class MatchComposer
 
         var targetClassDecl = (ClassDeclarationSyntax)info.Target.DeclaringSyntaxReferences[0].GetSyntax();
 
+        // Carry the target's type parameters + constraints so a matcher on a generic containing class lands on
+        // `M<T>` (merging with the user's partial) rather than a distinct arity-0 `M`. Additive no-op for a
+        // non-generic target (goldens byte-identical).
         MemberDeclarationSyntax targetSyntax = ClassDeclaration(targetClassDecl.Identifier)
             .WithModifiers(targetClassDecl.Modifiers)
+            .WithTypeParameterList(targetClassDecl.TypeParameterList)
+            .WithConstraintClauses(targetClassDecl.ConstraintClauses)
             .AddMembers(record, method, couldMatch, pattern);
 
         targetSyntax = targetSyntax.WithAncestryFrom(info.Target);

@@ -33,8 +33,13 @@ internal static class TemplateDocumentBuilder
 
         var targetClassDecl = (ClassDeclarationSyntax)template.Target.Type!.DeclaringSyntaxReferences[0].GetSyntax();
 
+        // Carry the target's type parameters + constraints so a generic partial target (partial class
+        // Factory<T>) is rebuilt as `Factory<T>` and merges with the user's declaration — not a distinct
+        // arity-0 `Factory`. Additive no-op for a non-generic target (goldens byte-identical).
         MemberDeclarationSyntax targetSyntax = ClassDeclaration(targetClassDecl.Identifier)
             .WithModifiers(targetClassDecl.Modifiers)
+            .WithTypeParameterList(targetClassDecl.TypeParameterList)
+            .WithConstraintClauses(targetClassDecl.ConstraintClauses)
             .AddMembers(syntaxFactoryMethod);
 
         targetSyntax = targetSyntax.WithAncestryFrom(template.Target.Type);

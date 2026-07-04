@@ -35,12 +35,25 @@ internal static class TemplateValidator
             return false;
         }
 
-        bool EnsureAncestryIsPartial(ClassDeclarationSyntax classDeclarationSyntax)
+        bool EnsureAncestrySupported(ClassDeclarationSyntax classDeclarationSyntax)
         {
             bool ret = true;
             var parent = classDeclarationSyntax.Parent;
-            while (parent is ClassDeclarationSyntax parentClass)
+            while (parent is TypeDeclarationSyntax parentType)
             {
+                if (parentType is not ClassDeclarationSyntax parentClass)
+                {
+                    // A struct/record/interface ancestor cannot be honored: WithAncestryFrom hard-casts every
+                    // ancestor to ClassDeclarationSyntax. Reject it up-front (located at the ancestor's own
+                    // identifier) before that cast throws an opaque SY0000 InvalidCastException.
+                    diagnostics.Add(Diagnostics.TargetAncestorUnsupportedKind(
+                        LocationInfo.CreateFrom(parentType.Identifier.GetLocation()),
+                        template.Target.FullName,
+                        parentType.Identifier.Text,
+                        parentType.Keyword.ValueText));
+                    return false;
+                }
+
                 if (!parentClass.Modifiers.Any(SyntaxKind.PartialKeyword))
                 {
                     diagnostics.Add(Diagnostics.TargetAncestorNotPartial(template.Target, parentClass.Identifier.Text));
@@ -53,7 +66,7 @@ internal static class TemplateValidator
             return ret;
         }
 
-        if (!EnsureAncestryIsPartial(classSyntax))
+        if (!EnsureAncestrySupported(classSyntax))
             return false;
 
         return true;
