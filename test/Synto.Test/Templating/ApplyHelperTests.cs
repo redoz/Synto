@@ -69,6 +69,20 @@ public class ApplyHelperTests
         Assert.Single(twice.Modifiers, m => m.Kind() == SyntaxKind.SealedKeyword);
     }
 
+    // #6: sealed must be inserted BEFORE partial. Appending yields "public partial sealed class" -> CS0267 in
+    // the consumer's generated file.
+    [Fact]
+    public void ApplySealed_InsertsBeforePartial_LegalModifierOrder()
+    {
+        var r = Parse("public partial class Foo {}").ApplySealedAttribute();
+
+        // sealed BEFORE partial is the legal C# order (partial must be immediately before 'class'); the reverse
+        // order would render "public partial sealed class" -> CS0267 in the consumer's generated file.
+        Assert.Equal(
+            new[] { SyntaxKind.PublicKeyword, SyntaxKind.SealedKeyword, SyntaxKind.PartialKeyword },
+            r.Modifiers.Select(m => m.Kind()).ToArray());
+    }
+
     [Fact]
     public void ApplyInheritsThenImplements_OrdersBaseList()
     {
