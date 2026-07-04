@@ -1,8 +1,9 @@
 # Sub-templates + generic `Template<T>` attribute — design
 
-**Status: DESIGN / approved-for-planning.** Pitched at contracts and behaviours, not exact
+**Status: SHIPPED (experimental/sub-templates, 2026-07-04).** Pitched at contracts and behaviours, not exact
 code. Supersedes the just-shipped "child-template narrow case" generation model for *nested*
-`[Template]`s.
+`[Template]`s. Implemented by `docs/superpowers/plans/2026-07-04-sub-templates-and-generic-template-attribute.md`
+(Tasks 1–8). §8.1 and §8.2 open decisions are now closed — see §8.
 
 > **AMENDMENT (owner, 2026-07-04) — sub-templates are `internal static`, not `private static`.**
 > §5.3/§2/§4 below say `private static`, but §2's own non-goal requires the member to remain reachable
@@ -187,8 +188,15 @@ Mechanical but wide (this is why it is Phase 1):
    Phase 1 still emit a public sibling (smaller, reversible steps) or does Phase 1 already suppress
    it (fewer intermediate snapshot churns)? Recommend: keep the sibling path alive through Phase 1
    so the phase is a pure surface swap, then delete it in Phase 2.
+   **RESOLVED (shipped):** the sibling path stayed alive through Phase 1 (pure surface swap); Phase 2
+   made nested bare `[Template]` parent-driven and Task 7 removed the nested-generic sibling path,
+   replacing it with the SY1034 diagnostic.
 2. **SY-code numbers** SY1029/SY1030 assume nothing else claims them first; confirm against the
    registry at implementation.
+   **RESOLVED (shipped):** SY1029 was already taken (named-args-on-facade) and SY1030–SY1032 are
+   reserved by the in-flight `issues-triage-fixes` plan, so the two new diagnostics landed as
+   **SY1033** (top-level bare `[Template]` requires a target) and **SY1034** (nested `[Template<T>]`
+   must not pin a target).
 3. **C# 11 floor** for consumers (generic attributes). Acceptable pre-GA; documented.
 4. **In-flight branch:** `experimental/quote-action-pipeline` touches `Templating/Quoting/`; this
    design touches `Templating/Pipeline/` (builder, document builder, discovery) and the surface —
