@@ -197,18 +197,38 @@ file static class LiteralSyntaxExtensions
 
     public static ExpressionSyntax ToSyntax(this float value)
     {
-        return SF.LiteralExpression(
-                   SyntaxKind.NumericLiteralExpression, 
-                   SF.Literal(value));
+        // SF.Literal(float.NaN).Text is the bare identifier "NaN" — a numeric literal cannot carry a
+        // non-finite value, so emit the well-known member access (float.NaN / float.PositiveInfinity /
+        // float.NegativeInfinity) instead, which round-trips to legal C#.
+        var member = NonFiniteMember(
+                         float.IsNaN(value), 
+                         float.IsPositiveInfinity(value), 
+                         float.IsNegativeInfinity(value));
+        return member is null ? SF.LiteralExpression(
+                                    SyntaxKind.NumericLiteralExpression, 
+                                    SF.Literal(value)) : NonFiniteMemberAccess(
+                                                                                                                   SyntaxKind.FloatKeyword, 
+                                                                                                                   member);
     }
 
     public static ExpressionSyntax ToSyntax(this double value)
     {
-        return SF.LiteralExpression(
-                   SyntaxKind.NumericLiteralExpression, 
-                   SF.Literal(value));
+        var member = NonFiniteMember(
+                         double.IsNaN(value), 
+                         double.IsPositiveInfinity(value), 
+                         double.IsNegativeInfinity(value));
+        return member is null ? SF.LiteralExpression(
+                                    SyntaxKind.NumericLiteralExpression, 
+                                    SF.Literal(value)) : NonFiniteMemberAccess(
+                                                                                                                   SyntaxKind.DoubleKeyword, 
+                                                                                                                   member);
     }
 
+    private static string? NonFiniteMember(bool isNaN, bool isPositiveInfinity, bool isNegativeInfinity) => isNaN ? "NaN" : isPositiveInfinity ? "PositiveInfinity" : isNegativeInfinity ? "NegativeInfinity" : null;
+    private static ExpressionSyntax NonFiniteMemberAccess(SyntaxKind keyword, string member) => SF.MemberAccessExpression(
+                                                                                                    SyntaxKind.SimpleMemberAccessExpression, 
+                                                                                                    SF.PredefinedType(SF.Token(keyword)), 
+                                                                                                    SF.IdentifierName(member));
     public static ExpressionSyntax ToSyntax(this char value)
     {
         return SF.LiteralExpression(

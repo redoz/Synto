@@ -80,4 +80,18 @@ internal class SyntaxFormatter : CSharpSyntaxRewriter
         _depth--;
         return ret;
     }
+
+    // Non-separated lists route their elements through VisitListElement too, so they must maintain the
+    // same _listCount discipline as the separated overload. Without this, VisitListElement.Peek() either
+    // throws on an empty stack (a plain list reached before any separated list) or reads the enclosing
+    // list's count (spurious indentation).
+    public override SyntaxList<TNode> VisitList<TNode>(SyntaxList<TNode> list)
+    {
+        _depth++;
+        _listCount.Push(list.Count);
+        var ret = base.VisitList(list);
+        _listCount.Pop();
+        _depth--;
+        return ret;
+    }
 }
