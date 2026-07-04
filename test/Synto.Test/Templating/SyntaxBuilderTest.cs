@@ -839,4 +839,56 @@ public class SyntaxBuilderTest
             result,
             new[] { BuilderTrackingNames.Transform, BuilderTrackingNames.Result });
     }
+
+    // Task 20 (#23): executed end-to-end proof that a user [SyntaxBuilder]'s [Quoted] parameter receives the
+    // QUOTE of the call argument at factory run time. The other builder facts only post-gen-COMPILE; this one
+    // emits the generated assembly, Assembly.Load()s it, invokes the factory, and renders the returned node —
+    // the builder must have run and produced `(int)42` from the quoted literal.
+    [Fact]
+    public void UserBuilder_Executed_QuotedArgumentReachesBuilder()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Cast([TypeArg, ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => CastExpression(t, x);
+            }
+
+            [Template(typeof(Factory))]
+            public class Reader {
+                public int Build() => MyBuilders.Cast<int>(42);
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var compileErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(compileErrors.Count == 0,
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage())));
+
+        using var peStream = new System.IO.MemoryStream();
+        var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage())));
+
+        var assembly = Assembly.Load(peStream.ToArray());
+        var readerFactory = assembly.GetType("Factory")!.GetMethod("Reader")!;
+        var built = readerFactory.Invoke(null, null);
+
+        var node = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.SyntaxNode>(built!);
+        var rendered = node.NormalizeWhitespace().ToString();
+        Assert.Contains("(int)42", rendered, System.StringComparison.Ordinal);
+    }
 }

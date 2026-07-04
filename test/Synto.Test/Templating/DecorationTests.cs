@@ -318,4 +318,52 @@ public class DecorationTests
         // The user-defined hook must be emitted with the constructor argument as a string literal.
         Assert.Contains("ApplyFooAttribute(\"hi\")", generated);
     }
+
+    // ----- Task 20 (#23): executed end-to-end decoration proof --------------------------------------
+    // The other decoration facts only assert the generated factory TEXT. This one compiles the generated
+    // factory, Assembly.Load()s it, invokes it, and renders the returned declaration — proving at the
+    // consumer-visible layer that [Visibility(Public)] + [Sealed] on a `partial class` yield a LEGAL modifier
+    // order `public sealed partial class` (the Task 6 / #6 fix; appending `sealed` would be CS0267).
+    [Fact]
+    public void DecoratedPartial_Executed_RendersPublicSealedPartial()
+    {
+        var src = """
+            using Synto.Templating;
+            partial class Factory {}
+            public class Holder {
+                [Template(typeof(Factory))]
+                [Visibility(Access.Public)]
+                [Sealed]
+                partial class Shell { public Shell() {} }
+            }
+            """;
+
+        var compilation = _factoryBaseCompilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(src));
+        Assert.Empty(compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        // Only TemplateFactorySourceGenerator: the [Sealed]/[Visibility] markers and the Apply* extension
+        // methods resolve against the referenced public Synto.Core surface (running SurfaceInjectionGenerator
+        // too would inject internal marker twins and make `[Sealed]` ambiguous).
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var compileErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(compileErrors.Count == 0,
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage())));
+
+        using var peStream = new System.IO.MemoryStream();
+        var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage())));
+
+        var assembly = Assembly.Load(peStream.ToArray());
+        var shellFactory = assembly.GetType("Factory")!.GetMethod("Shell")!;
+        var built = shellFactory.Invoke(null, null);
+
+        var node = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.SyntaxNode>(built!);
+        var rendered = node.NormalizeWhitespace().ToString();
+        Assert.Contains("public sealed partial class", rendered, StringComparison.Ordinal);
+    }
 }
