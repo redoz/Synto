@@ -370,7 +370,7 @@ internal static class TemplateDiagnostics
     // ----- Two-form [Template] surface (SY1033 / SY1034) ---------------------------------------------
     // SY1033: a top-level bare [Template] carries no target — the generic [Template<T>] form is required to
     // pin the factory target. SY1034: a nested [Template<T>] must not pin a target (it inherits the parent's);
-    // authored here, wired into the generic transform in Phase 2 (Task 7).
+    // reported by the generic transform, which then emits no factory (no sibling document).
 
     private static readonly DiagnosticDescriptor _bareTemplateRequiresTarget = new(IdPrefix + "1033",
         "Template Requires Target",

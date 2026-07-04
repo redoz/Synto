@@ -8,11 +8,11 @@ using Synto.Generators.Templating;
 namespace Synto.Test.Templating;
 
 /// <summary>
-/// Phase-1 declaration-rules facts for the two-form <c>[Template]</c> surface. A top-level parameterless
+/// Declaration-rules facts for the two-form <c>[Template]</c> surface (spec §4). A top-level parameterless
 /// <c>[Template]</c> carries no target and is misuse — it reports <c>SY1033</c>. A parameterless <c>[Template]</c>
-/// nested inside a <c>[Template&lt;T&gt;]</c> carrier is exempt (interim no-op: the parent takes ownership as a
-/// internal sub-template in Phase 2), so it produces neither output nor diagnostic. (SY1034 — nested
-/// <c>[Template&lt;T&gt;]</c> pinning a target — is authored now but only enforced in Phase 2.)
+/// nested inside a <c>[Template&lt;T&gt;]</c> carrier is a parent-driven <c>internal</c> sub-template, folded into
+/// the parent's single document. A generic <c>[Template&lt;T&gt;]</c> nested inside a carrier illegally pins its own
+/// target — it reports <c>SY1034</c> and produces no sibling document.
 /// </summary>
 public class TemplateAttributeFormTest
 {
@@ -119,5 +119,51 @@ public class TemplateAttributeFormTest
         Assert.Contains("Factory.Reader.g.cs", sources.Keys);
         Assert.DoesNotContain("Factory.Child.g.cs", sources.Keys);
         Assert.Contains("internal static", sources["Factory.Reader.g.cs"], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NestedGenericTemplate_InGenericCarrier_ReportsSY1034_NoSibling_ParentStillBuilds()
+    {
+        // Phase 2 (SY-B): a generic [Template<Factory>] nested inside a [Template<Factory>] carrier illegally pins a
+        // target of its own. It must report exactly one SY1034 and produce NO sibling document — a nested template
+        // inherits its parent carrier's target and rides in as a bare [Template] sub-template instead. The parent
+        // carrier is unaffected: the offending child stays a trimmed foreign child (never a built sub-template), so
+        // the parent's single document still emits.
+        var runResult = Run(
+            """
+            using System;
+            using System.Collections.Generic;
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+
+            partial class Factory {}
+
+            [Template<Factory>]
+            public class Reader
+            {
+                public void Hello() { System.Console.WriteLine("hi"); }
+
+                [Template<Factory>]
+                public ExpressionSyntax Child()
+                {
+                    var name = Parameter<string>();
+                    return IdentifierName(name);
+                }
+            }
+            """);
+
+        var diag = Assert.Single(runResult.Diagnostics, d => d.Id == "SY1034");
+        Assert.NotEqual(Location.None, diag.Location);
+        Assert.False(diag.Location.SourceSpan.IsEmpty);
+
+        var sources = runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .ToDictionary(s => s.HintName, s => s.SourceText.ToString(), StringComparer.Ordinal);
+
+        // Parent factory still emits; the nested generic child produces NO independent sibling document.
+        Assert.Contains("Factory.Reader.g.cs", sources.Keys);
+        Assert.DoesNotContain("Factory.Child.g.cs", sources.Keys);
     }
 }

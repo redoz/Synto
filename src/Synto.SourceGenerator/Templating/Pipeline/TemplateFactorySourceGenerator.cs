@@ -70,6 +70,18 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
 
     private static TemplateGenerationResult? GenerateTemplate(GeneratorAttributeSyntaxContext syntaxContext)
     {
+        // A generic [Template<T>] nested inside a [Template]/[Template<T>] carrier illegally pins a target of its
+        // own — a nested template inherits its parent carrier's target and must be authored as a bare [Template]
+        // sub-template. Report SY1034 and produce no factory: the parent leaves this child a trimmed foreign child
+        // (never built as a sub-template, since CreateSubTemplate only adopts the bare form), so no sibling document
+        // is emitted and the error stands alone against the child.
+        if (NestedTemplateCheck.IsNestedInTemplateCarrier(syntaxContext.SemanticModel, syntaxContext.TargetNode))
+        {
+            var location = syntaxContext.Attributes.FirstOrDefault()?.ApplicationSyntaxReference?.GetSyntax().GetLocation();
+            var nestedDiagnostics = new List<DiagnosticInfo> { TemplateDiagnostics.NestedTemplateMustNotPinTarget(location) };
+            return new TemplateGenerationResult(null, null, new EquatableArray<DiagnosticInfo>(nestedDiagnostics.ToImmutableArray()));
+        }
+
         var assemblyName = syntaxContext.SemanticModel.Compilation.AssemblyName;
         if (assemblyName is null)
             return null;

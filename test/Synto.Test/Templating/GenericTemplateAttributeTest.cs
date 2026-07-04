@@ -10,7 +10,8 @@ namespace Synto.Test.Templating;
 /// the existing <c>[Template(typeof(T))]</c> ctor form: it must derive the factory target from its type argument
 /// and flow through the identical <c>GenerateTemplate</c>/<c>Emit</c> shape, so a top-level generic template is
 /// byte-identical to the same template written with the <c>typeof</c> ctor. Also proves carrier/child recognition
-/// (<see cref="ChildTemplateFinder"/>/<c>TemplateScope</c>) recognizes the generic carrier + generic nested child.
+/// (<see cref="ChildTemplateFinder"/>/<c>TemplateScope</c>) recognizes a generic carrier and folds its nested bare
+/// <c>[Template]</c> sub-template (a nested <c>[Template&lt;T&gt;]</c> would be SY1034).
 /// </summary>
 public class GenericTemplateAttributeTest
 {
@@ -87,9 +88,11 @@ public class GenericTemplateAttributeTest
         }
         """;
 
-    // Generic-form clone of ChildTemplateTest.NestedChildSpliceValueComposition: carrier + nested child both on
-    // [Template<Factory>]. Proves ChildTemplateFinder/TemplateScope recognize the GENERIC carrier + generic nested
-    // child (matched on the attribute's original definition), so the child's [Splice] value param never leaks.
+    // Generic-CARRIER clone of ChildTemplateTest.NestedChildSpliceValueComposition: a [Template<Factory>] carrier
+    // with a nested bare [Template] sub-template. Proves ChildTemplateFinder/TemplateScope recognize the GENERIC
+    // carrier (matched on the attribute's original definition) and fold the nested bare child into the parent's
+    // single document, so the child's [Splice] value param never leaks into the parent factory. (A nested
+    // [Template<T>] here would be illegal — SY1034 — so the child rides the bare sub-template surface.)
     private const string GenericNestedChildSpliceValueComposition =
         """
         using System;
@@ -108,7 +111,7 @@ public class GenericTemplateAttributeTest
         [Template<Factory>]
         public class Reader
         {
-            [Template<Factory>]
+            [Template]
             public TRet TypedGetter<[Splice] TRet>(int i, [Splice] object childOnlySplice)
             {
                 var columns = Parameter<IReadOnlyList<Col>>();
@@ -157,6 +160,24 @@ public class GenericTemplateAttributeTest
         var sources = RunGenerator(GenericNestedChildSpliceValueComposition);
 
         Assert.Contains("Factory.Reader.g.cs", sources.Keys);
-        Assert.DoesNotContain("childOnlySplice", sources["Factory.Reader.g.cs"], StringComparison.Ordinal);
+
+        // The nested bare [Template] folds into the parent's single document as an `internal static` sub-template,
+        // so its own [Splice] param (childOnlySplice) legitimately lives in the CHILD region. Scope the leak guard
+        // to the PARENT factory method region to prove it does not leak into the parent factory's signature.
+        var parentFactory = ParentFactoryRegion(sources["Factory.Reader.g.cs"]);
+        Assert.DoesNotContain("childOnlySplice", parentFactory, StringComparison.Ordinal);
+    }
+
+    // Returns the text of the public parent factory method (from `public static` up to the first `internal static`
+    // sub-template that follows it) so leak assertions target the parent's signature without the folded-in child
+    // sub-template body.
+    private static string ParentFactoryRegion(string document)
+    {
+        var start = document.IndexOf("public static", StringComparison.Ordinal);
+        if (start < 0)
+            return document;
+
+        var subTemplateStart = document.IndexOf("internal static", start, StringComparison.Ordinal);
+        return subTemplateStart < 0 ? document.Substring(start) : document.Substring(start, subTemplateStart - start);
     }
 }
