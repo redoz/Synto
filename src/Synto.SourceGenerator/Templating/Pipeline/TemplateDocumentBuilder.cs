@@ -22,13 +22,15 @@ internal static class TemplateDocumentBuilder
     public static (string FileName, string Source)? Build(
         List<DiagnosticInfo> diagnostics,
         TemplateInfo template,
-        Func<UsingDirectiveSet, MethodDeclarationSyntax?> buildFactory)
+        Func<UsingDirectiveSet, IReadOnlyList<MethodDeclarationSyntax>?> buildFactory)
     {
         // we use this to collect additional usings that are required throughout the source-generation process
         UsingDirectiveSet additionalUsings = new UsingDirectiveSet(CSharpSyntaxQuoter.RequiredUsings());
 
-        // this is null if the template processing failed, but then diagnostics should have been added, so we just exit
-        if (buildFactory(additionalUsings) is not { } syntaxFactoryMethod)
+        // The seam yields ALL methods this document should carry: the parent factory plus any parent-driven
+        // private sub-templates. A null/empty result means processing failed (diagnostics already added), so
+        // we just exit — matching the pre-list single-null bail exactly.
+        if (buildFactory(additionalUsings) is not { Count: > 0 } factoryMethods)
             return null;
 
         var targetClassDecl = (ClassDeclarationSyntax)template.Target.Type!.DeclaringSyntaxReferences[0].GetSyntax();
@@ -40,7 +42,7 @@ internal static class TemplateDocumentBuilder
             .WithModifiers(targetClassDecl.Modifiers)
             .WithTypeParameterList(targetClassDecl.TypeParameterList)
             .WithConstraintClauses(targetClassDecl.ConstraintClauses)
-            .AddMembers(syntaxFactoryMethod);
+            .AddMembers(factoryMethods.ToArray());
 
         targetSyntax = targetSyntax.WithAncestryFrom(template.Target.Type);
 
@@ -56,7 +58,7 @@ internal static class TemplateDocumentBuilder
         // known helper method, rather than by flags the factory-builder happens to set. This is robust by
         // construction: any helper a template's output references is detected and injected, so the
         // injected surface is complete for whatever the generator emits.
-        var helpers = FindReferencedHelpers(syntaxFactoryMethod);
+        var helpers = FindReferencedHelpers(factoryMethods);
 
         // Place the helper classes in the same scope as the factory: inside its (file-scoped or block)
         // namespace if it has one, otherwise directly in the global compilation unit.
@@ -118,7 +120,7 @@ internal static class TemplateDocumentBuilder
     }
 
     /// <summary>
-    /// Scans a generated factory method for real calls to a known runtime helper and returns the
+    /// Scans the generated factory methods for real calls to a known runtime helper and returns the
     /// <c>file static class</c> for each referenced helper (deduplicated, at most one per helper).
     /// </summary>
     /// <remarks>
@@ -128,14 +130,16 @@ internal static class TemplateDocumentBuilder
     /// template's own body references such a name, the quoter emits it as a string literal argument
     /// (<c>IdentifierName("ToSyntax")</c>), not as a member-access identifier, so quoted content never
     /// triggers a spurious injection (and a template literally calling <c>.ToSyntax()</c> in its body is
-    /// not double-injected).
+    /// not double-injected). ALL emitted methods are scanned (completeness-by-scanning): a helper referenced
+    /// only by a folded-in private sub-template is still detected and injected.
     /// </remarks>
-    private static List<FileLocalHelpers.Helper> FindReferencedHelpers(MethodDeclarationSyntax factoryMethod)
+    private static List<FileLocalHelpers.Helper> FindReferencedHelpers(IReadOnlyList<MethodDeclarationSyntax> factoryMethods)
     {
         var referencedMethodNames = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var memberAccess in factoryMethod.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
-            referencedMethodNames.Add(memberAccess.Name.Identifier.ValueText);
+        foreach (var factoryMethod in factoryMethods)
+            foreach (var memberAccess in factoryMethod.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
+                referencedMethodNames.Add(memberAccess.Name.Identifier.ValueText);
 
         var helpers = new List<FileLocalHelpers.Helper>();
         foreach (var entry in FileLocalHelpers.Entries)

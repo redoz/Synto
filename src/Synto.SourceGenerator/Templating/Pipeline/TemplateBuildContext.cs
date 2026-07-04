@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Templating;
 
@@ -23,13 +24,15 @@ internal sealed class TemplateBuildContext
         SemanticModel semanticModel,
         UsingDirectiveSet additionalUsings,
         TemplateInfo templateInfo,
-        TemplateOption options)
+        TemplateOption options,
+        SyntaxKind visibility)
     {
         Diagnostics = diagnostics;
         SemanticModel = semanticModel;
         AdditionalUsings = additionalUsings;
         TemplateInfo = templateInfo;
         Options = options;
+        Visibility = visibility;
     }
 
     // --- Constant inputs for this build ---
@@ -38,6 +41,10 @@ internal sealed class TemplateBuildContext
     public UsingDirectiveSet AdditionalUsings { get; }
     public TemplateInfo TemplateInfo { get; }
     public TemplateOption Options { get; }
+
+    // The access modifier the emitted factory method carries (PublicKeyword for a top-level template;
+    // PrivateKeyword for a parent-driven sub-template folded onto the parent's target in Phase 2).
+    public SyntaxKind Visibility { get; }
 
     // --- The three cohesive accumulators the plan phase populates ---
     public FactoryShape Shape { get; } = new();

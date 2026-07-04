@@ -26,9 +26,10 @@ internal static class TemplateFactoryBuilder
         SemanticModel semanticModel,
         UsingDirectiveSet additionalUsings,
         TemplateInfo templateInfo,
-        TemplateOption options)
+        TemplateOption options,
+        SyntaxKind visibility = SyntaxKind.PublicKeyword)
     {
-        var ctx = new TemplateBuildContext(diagnostics, semanticModel, additionalUsings, templateInfo, options);
+        var ctx = new TemplateBuildContext(diagnostics, semanticModel, additionalUsings, templateInfo, options, visibility);
 
         // trim the template attribute
         ctx.Plan.Trim.Add(templateInfo.AttributeSyntax);
@@ -965,7 +966,7 @@ internal static class TemplateFactoryBuilder
 
 
         var syntaxFactoryMethod = MethodDeclaration(additionalUsings.GetTypeName(returnType!), ctx.TemplateInfo.Source.Identifier)
-            .AddModifiers(Token(SyntaxKind.PublicKeyword), Token(SyntaxKind.StaticKeyword))
+            .AddModifiers(Token(ctx.Visibility), Token(SyntaxKind.StaticKeyword))
             .WithBody(Block()
                 .AddStatements(ctx.Shape.Preamble.ToArray())
                 .AddStatements(ReturnStatement(syntaxTreeExpr)));
