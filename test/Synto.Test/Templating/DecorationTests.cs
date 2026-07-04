@@ -250,9 +250,12 @@ public class DecorationTests
     public void DecorationOnNestedChild_DoesNotLeakToParentFactory()
     {
         // Carrier Reader has [Sealed] and a field (so the parent's quoted output is non-empty).
-        // A nested child method Impl has [Template] + [Visibility(Access.Public)] — it is a foreign child,
-        // trimmed from the parent's quoted output AND never visited by the parent's walker.
-        // If TemplateScopedWalker correctly skips the child, the parent factory contains ApplySealedAttribute
+        // A nested child method Impl has bare [Template] + [Visibility(Access.Public)] — it is a foreign child,
+        // trimmed from the parent's quoted output AND never visited by the parent's walker. As a bare [Template]
+        // it is now a parent-driven sub-template folded into the parent's SINGLE document (an internal static
+        // member), so its own [Visibility(Access.Public)] decoration legitimately emits ApplyVisibilityAttribute
+        // inside the CHILD sub-template's region of that document.
+        // If TemplateScopedWalker correctly skips the child, the parent factory METHOD contains ApplySealedAttribute
         // (from its own [Sealed]) but NOT ApplyVisibilityAttribute (which belongs to the child only).
         var src = """
             using Synto.Templating;
@@ -263,7 +266,7 @@ public class DecorationTests
             public class Reader
             {
                 public string Name { get; } = "";
-                [Template<Factory>]
+                [Template]
                 [Visibility(Access.Public)]
                 public void Impl()
                 {
@@ -275,16 +278,31 @@ public class DecorationTests
 
         var sources = RunFactoryAndGetSources(src);
 
-        // The parent factory (Reader) is generated.
+        // The parent factory (Reader) is generated. The bare-[Template] child folds into this SAME document as a
+        // private/internal sub-template, so scope the leak assertions to the parent factory METHOD region only —
+        // the public parent method up to the first `internal static` sub-template that follows it.
         Assert.Contains("Factory.Reader.g.cs", sources.Keys);
-        var parentFactory = sources["Factory.Reader.g.cs"];
+        var document = sources["Factory.Reader.g.cs"];
+        var parentFactory = ParentFactoryMethodRegion(document);
 
         // The parent factory carries [Sealed]'s own ApplySealedAttribute (proof the parent is processed).
         Assert.Contains("ApplySealedAttribute", parentFactory, StringComparison.Ordinal);
 
-        // The child's [Visibility(Access.Public)] decoration must NOT appear in the parent factory.
-        // It belongs exclusively to the child's own factory (Factory.TypedGetter.g.cs).
+        // The child's [Visibility(Access.Public)] decoration must NOT appear in the parent factory method.
+        // It belongs exclusively to the child sub-template's own region of the shared document.
         Assert.DoesNotContain("ApplyVisibilityAttribute", parentFactory, StringComparison.Ordinal);
+    }
+
+    // Returns the text of the public parent factory method (from `public static` up to the first `internal static`
+    // sub-template that follows it) so leak assertions target the parent's own body, not a folded-in child.
+    private static string ParentFactoryMethodRegion(string document)
+    {
+        var start = document.IndexOf("public static", StringComparison.Ordinal);
+        if (start < 0)
+            return document;
+
+        var subTemplateStart = document.IndexOf("internal static", start, StringComparison.Ordinal);
+        return subTemplateStart < 0 ? document.Substring(start) : document.Substring(start, subTemplateStart - start);
     }
 
     /// <summary>

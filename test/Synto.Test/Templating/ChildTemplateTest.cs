@@ -166,7 +166,7 @@ public class ChildTemplateTest
         [Template<Factory>]
         public class Reader
         {
-            [Template<Factory>]
+            [Template]
             public TRet TypedGetter<[Splice] TRet>(int i, [Splice] object childOnlySplice)
             {
                 var columns = Parameter<IReadOnlyList<Col>>();
@@ -275,7 +275,7 @@ public class ChildTemplateTest
             private readonly object _obj = default!;
 
             // Child template: its body has a NAMED-ARG facade call (unsupported) -> SY1029.
-            [Template<Factory>]
+            [Template]
             public object Child([Splice] object instance)
             {
                 return Member<object>(instance: instance, name: "Foo");
@@ -325,13 +325,15 @@ public class ChildTemplateTest
             .SelectMany(r => r.GeneratedSources)
             .ToDictionary(s => s.HintName, s => s.SourceText.ToString(), StringComparer.Ordinal);
 
-        // The parent factory IS generated.
+        // The parent factory IS generated. The bare-[Template] child folds into this SAME document as a sub-template
+        // whose own method signature legitimately carries `childOnlySplice`, so scope the leak assertion to the
+        // parent factory METHOD region only.
         Assert.Contains("Factory.Reader.g.cs", sources.Keys);
-        var readerFactory = sources["Factory.Reader.g.cs"];
+        var readerFactory = ParentFactoryRegion(sources["Factory.Reader.g.cs"]);
 
-        // The child's [Splice] VALUE parameter belongs to the CHILD's own factory; it must NEVER surface in the
-        // parent factory. Before the structural ownership boundary, the unguarded SpliceParameterFinder walked the
-        // child subtree and leaked `childOnlySplice` into the parent factory's parameter list.
+        // The child's [Splice] VALUE parameter belongs to the CHILD sub-template's own signature; it must NEVER
+        // surface in the parent factory method. Before the structural ownership boundary, the unguarded
+        // SpliceParameterFinder walked the child subtree and leaked `childOnlySplice` into the parent's param list.
         Assert.DoesNotContain("childOnlySplice", readerFactory, StringComparison.Ordinal);
     }
 }

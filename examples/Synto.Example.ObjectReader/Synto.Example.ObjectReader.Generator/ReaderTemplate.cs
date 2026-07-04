@@ -98,13 +98,15 @@ internal class ObjectReaderTemplate<[Splice] T>
     // per getter — supplying the return-type TypeSyntax, the CLR-type filter, and the exception label — then renames
     // each result via .WithIdentifier(...). Generated output is byte-identical to the former hand-written getters.
     //
-    // The child [Template] now lives HERE, co-located inside the parent carrier (nested child template, Capability 1):
-    // a method-level [Template] nested in a class-level [Template] is a sibling child template — it is independently
-    // picked up by the generator (its own Factory.TypedGetter factory) and excluded from the parent's quoted output
-    // and staging. It binds the real `_e` (`IEnumerator<T>`); only `_e.Current` is quoted, exactly as the standalone
+    // The child [Template] now lives HERE, co-located inside the parent carrier (parent-driven sub-template):
+    // a bare method-level [Template] nested in a class-level [Template<Factory>] carrier is built BY the parent —
+    // emitted as an `internal static` member on the shared Factory target, folded into the parent's SINGLE generated
+    // document, and excluded from the parent's own quoted output and staging. `internal` (not private) is what lets
+    // the carrier's [Splice] source below keep naming `Factory.TypedGetter(...)` across the class boundary in the
+    // same assembly. It binds the real `_e` (`IEnumerator<T>`); only `_e.Current` is quoted, exactly as the standalone
     // carrier did. The return type is supplied per call as a `TypeSyntax` via the `[Splice] TRet` param.
 
-    [Template<Factory>]
+    [Template]
     public TRet TypedGetter<[Splice] TRet>(int i)
     {
         var columns = Parameter<EquatableArray<ColumnInfo>>();
