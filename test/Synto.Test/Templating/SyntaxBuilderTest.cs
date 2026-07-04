@@ -792,4 +792,51 @@ public class SyntaxBuilderTest
 
         Assert.DoesNotContain("using System.Linq;", generated, System.StringComparison.Ordinal);
     }
+
+    // Cacheability guard (#22): the facade generator's pipeline carries only the equatable
+    // FacadeGenerationResult (no captured Compilation/SemanticModel/SyntaxNode), so an unrelated edit must
+    // leave EVERY tracked step Cached/Unchanged. Fails first because the pipeline steps are untracked; passes
+    // once WithTrackingName is wired. Iterating ALL steps closes the upstream blind spot a terminal-only guard
+    // has (a future Combine/symbol capture would re-run here and fail).
+    [Fact]
+    public void FacadeGenerator_IsIncremental_OnUnrelatedEdit()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Cast([TypeArg, ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => CastExpression(t, x);
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] object x) {
+                    System.Console.WriteLine(MyBuilders.Cast<int>(x));
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new SyntaxBuilderFacadeGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation);
+
+        var modified = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
+        driver = driver.RunGenerators(modified);
+
+        var result = driver.GetRunResult().Results.Single();
+
+        CacheabilityAssert.AllStepsCachedOrUnchanged(
+            result,
+            new[] { BuilderTrackingNames.Transform, BuilderTrackingNames.Result });
+    }
 }

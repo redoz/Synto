@@ -30,7 +30,9 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
                 typeof(global::Synto.Templating.SyntaxBuilderAttribute).FullName!,
                 static (node, _) => node is MethodDeclarationSyntax,
                 static (ctx, _) => Build(ctx))
-            .Where(static facade => facade.HintName is not null || facade.Diagnostics.Count > 0);
+            .WithTrackingName(BuilderTrackingNames.Transform)
+            .Where(static facade => facade.HintName is not null || facade.Diagnostics.Count > 0)
+            .WithTrackingName(BuilderTrackingNames.Result);
 
         context.RegisterSourceOutput(facades, static (spc, facade) => Emit(spc, facade));
     }
