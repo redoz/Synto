@@ -62,7 +62,7 @@ public class SharedStagedParameterTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public readonly record struct Col(int Ordinal, string Name);
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public class Reader {
                 public string GetName(int i) {
                     var columns = Parameter<IReadOnlyList<Col>>();

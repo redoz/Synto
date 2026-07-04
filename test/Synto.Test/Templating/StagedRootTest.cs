@@ -61,7 +61,7 @@ public class StagedRootTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var n = Unquote(2 + 3);           // runs at factory time -> 5
                     System.Console.WriteLine(n);   // lifts to literal 5 in the OUTPUT
@@ -79,7 +79,7 @@ public class StagedRootTest
             using Synto.Templating;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Unquote] int count) {
                     System.Console.WriteLine(count);
                 }

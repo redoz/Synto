@@ -116,7 +116,7 @@ public class SwitchBuilderTest
         return VerifySwitchTemplate(Prelude +
             """
 
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public class Reader<[Splice] TRet>
             {
                 private readonly IEnumerator<TRet> _e;
@@ -140,7 +140,7 @@ public class SwitchBuilderTest
         return VerifySwitchTemplate(Prelude +
             """
 
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public class Reader<[Splice] TRet>
             {
                 private readonly IEnumerator<TRet> _e;
@@ -165,7 +165,7 @@ public class SwitchBuilderTest
         return VerifySwitchTemplate(Prelude +
             """
 
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public class Reader<[Splice] TRet>
             {
                 private readonly IEnumerator<TRet> _e;
@@ -191,7 +191,7 @@ public class SwitchBuilderTest
         return VerifySwitchTemplate(Prelude +
             """
 
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public class Reader<[Splice] TRet>
             {
                 private readonly IEnumerator<TRet> _e;
@@ -216,7 +216,7 @@ public class SwitchBuilderTest
         return VerifySwitchTemplate(Prelude +
             """
 
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public class Reader<[Splice] TRet>
             {
                 private readonly IEnumerator<TRet> _e;
@@ -245,7 +245,7 @@ public class SwitchBuilderTest
         var source = Prelude +
             """
 
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public class Reader<[Splice] TRet>
             {
                 private readonly IEnumerator<TRet> _e;
@@ -317,7 +317,7 @@ public class SwitchBuilderTest
         return VerifySwitchTemplate(Prelude +
             """
 
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public class Reader
             {
                 public int GetStmt(int x)

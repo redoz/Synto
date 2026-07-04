@@ -79,7 +79,7 @@ public class RuntimeConverterTest
         }
 
         public class TestClass {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             void Build([Unquote] Color color, [Unquote] int count) {
                 Console.WriteLine(color);
                 Console.WriteLine(count);
@@ -137,7 +137,7 @@ public class RuntimeConverterTest
         }
 
         public class TestClass {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             void Build([Quote] Color color) {
                 Console.WriteLine(color);
             }
@@ -204,7 +204,7 @@ public class RuntimeConverterTest
             public readonly struct Color { public int Argb { get; init; } }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Unquote] Color color) {
                     Console.WriteLine(color);
                 }
@@ -244,7 +244,7 @@ public class RuntimeConverterTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Unquote] Color color) {
                     Console.WriteLine(color);
                 }
@@ -278,7 +278,7 @@ public class RuntimeConverterTest
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 
     private static void AssertHasRealSpan(Diagnostic diag)

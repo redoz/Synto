@@ -61,7 +61,7 @@ internal class Examples
 #pragma warning disable CS8321 // Local function is declared but never used
     public static string Test0()
     {
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Simple()
         {
             Console.WriteLine("Hello World");
@@ -77,7 +77,7 @@ internal class Examples
 
     public static string Test1()
     {
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Hello([Unquote] string message)
         {
             Console.WriteLine("Hello " + message);
@@ -93,14 +93,14 @@ internal class Examples
 
     public static string Test2()
     {
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Inner()
         {
             new StringBuilder("Something").Append("Foo").ToString();
         }
 
 
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Outer([Splice] string message)
         {
             Console.WriteLine("Hello " + message);
@@ -117,7 +117,7 @@ internal class Examples
     public static string Test3()
     {
 
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
 
         static void Greeting([Unquote] string message)
         {
@@ -125,7 +125,7 @@ internal class Examples
         }
 
 
-        [Template(typeof(Factory), Options = TemplateOption.Bare)]
+        [Template<Factory>(Options = TemplateOption.Bare)]
         static void Repeater(Syntax statement)
         {
             statement();
@@ -142,7 +142,7 @@ internal class Examples
 
     public static string Test4()
     {
-        [Template(typeof(Factory), Options = TemplateOption.None)]
+        [Template<Factory>(Options = TemplateOption.None)]
         static void FullMethod()
         {
             Console.WriteLine("Hello World");
@@ -160,7 +160,7 @@ internal class Examples
     public static string Test5()
     {
 
-        [Template(typeof(Factory), Options = TemplateOption.Bare)]
+        [Template<Factory>(Options = TemplateOption.Bare)]
         static void Loop([Unquote] int count)
         {
             int ret = 0;
@@ -183,7 +183,7 @@ internal class Examples
         // Sibling of Test5: same `for` driven by `count`, but `count` is a [Quote] parameter — a value lift that
         // is NEVER a staging root (spec §3). So instead of unrolling at factory-build time (Test5's four `ret++`),
         // the loop is emitted verbatim with a literal bound: `for (int i = 0; i < 4; i++) { ret++; }`.
-        [Template(typeof(Factory), Options = TemplateOption.Bare)]
+        [Template<Factory>(Options = TemplateOption.Bare)]
         static void QuoteLoop([Quote] int count)
         {
             int ret = 0;
@@ -203,7 +203,7 @@ internal class Examples
     public static string Test6()
     {
 #pragma warning disable CS8321 // Local function is declared but never used
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         static T InlinedTypeArg<[Unquote] T, T2>()
         {
             List<T> list = new List<T>();
@@ -220,7 +220,7 @@ internal class Examples
         return source;
     }
 
-    [Template(typeof(Factory))]
+    [Template<Factory>]
     private class Test7Class<[Unquote] T1, T2>
     {
         static void InlinedTypeArg<[Unquote] T3, T4>([Unquote] T3 inlinedValue)
@@ -258,7 +258,7 @@ internal class Examples
     // its `foreach` over the lifted column list (folded into the factory signature via Parameter<…>()) yields ONE
     // `int GetXxx() => <ordinal>;` MEMBER per column, which Synto splices into the produced `DataRecord` type. The
     // fixed `FieldCount` member is quoted verbatim; the generated accessors land at the generator's position.
-    [Template(typeof(Factory))]
+    [Template<Factory>]
     public class DataRecord
     {
         public int FieldCount => 0;
@@ -291,7 +291,7 @@ internal class Examples
 }
 
 
-static partial class Factory { };
+partial class Factory { };
 
 
 

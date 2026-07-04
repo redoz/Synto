@@ -60,7 +60,7 @@ public class SpliceMemberGeneratorTest
         using static Synto.Templating.Template;
         using Microsoft.CodeAnalysis.CSharp.Syntax;
         partial class Factory {}
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice]                                                   // instance -> SY1019
             IEnumerable<MemberDeclarationSyntax> Gen() { yield break; }
@@ -72,7 +72,7 @@ public class SpliceMemberGeneratorTest
         using Synto.Templating;
         using static Synto.Templating.Template;
         partial class Factory {}
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice] static int Gen() => 0;                            // bad return -> SY1020
         }
@@ -85,7 +85,7 @@ public class SpliceMemberGeneratorTest
         using static Synto.Templating.Template;
         using Microsoft.CodeAnalysis.CSharp.Syntax;
         partial class Factory {}
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice] static IEnumerable<MemberDeclarationSyntax> Gen(int x) { yield break; }  // params -> SY1021
         }
@@ -128,7 +128,7 @@ public class SpliceMemberGeneratorTest
         using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
         using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
         partial class Factory {}
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Gen() {
@@ -148,7 +148,7 @@ public class SpliceMemberGeneratorTest
         using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
         using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
         partial class Factory {}
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Gen() {
@@ -169,7 +169,7 @@ public class SpliceMemberGeneratorTest
         using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
         using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
         partial class Factory {}
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Gen() {
@@ -226,7 +226,7 @@ public class SpliceMemberGeneratorTest
 
         public readonly record struct Col(int Ordinal, string Name);
 
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Accessors() {
@@ -262,7 +262,7 @@ public class SpliceMemberGeneratorTest
         public readonly record struct Col(int Ordinal, string Name);
 
         [Obsolete]
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Accessors() {
@@ -349,6 +349,6 @@ public class SpliceMemberGeneratorTest
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 }

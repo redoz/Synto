@@ -55,7 +55,7 @@ public class ChildTemplateTest
         {
             private readonly System.Collections.IEnumerator _e = default!;
 
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public TRet TypedGetter<[Splice] TRet>(int i)
             {
                 var columns = Parameter<IReadOnlyList<Col>>();
@@ -69,7 +69,7 @@ public class ChildTemplateTest
         }
 
         // Parent carrier: a [Splice] member-generator invokes the child factory per getter and renames each result.
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader
         {
             [Splice]
@@ -114,12 +114,12 @@ public class ChildTemplateTest
         public readonly record struct Col(int Ordinal, string Name, string ClrType);
 
         // Parent carrier with the child [Template] nested INSIDE it; the real `_e` binds here.
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader
         {
             private readonly System.Collections.IEnumerator _e = default!;
 
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public TRet TypedGetter<[Splice] TRet>(int i)
             {
                 var columns = Parameter<IReadOnlyList<Col>>();
@@ -162,10 +162,10 @@ public class ChildTemplateTest
 
         public readonly record struct Col(int Ordinal, string Name, string ClrType);
 
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader
         {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public TRet TypedGetter<[Splice] TRet>(int i, [Splice] object childOnlySplice)
             {
                 var columns = Parameter<IReadOnlyList<Col>>();
@@ -254,13 +254,13 @@ public class ChildTemplateTest
 
         partial class Factory {}
 
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader
         {
             private readonly object _obj = default!;
 
             // Child template: its body has a NAMED-ARG facade call (unsupported) -> SY1029.
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public object Child([Splice] object instance)
             {
                 return Member<object>(instance: instance, name: "Foo");

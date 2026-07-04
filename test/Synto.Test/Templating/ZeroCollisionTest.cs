@@ -39,7 +39,7 @@ public class ZeroCollisionTest
             partial class Factory {}
 
             public class TestClass {
-               [Template(typeof(Factory))]
+               [Template<Factory>]
                 void LocalFunction<[Unquote] T>([Unquote] int value) {
                     List<T> list = new();
                     Console.WriteLine($"Hello world {value}");

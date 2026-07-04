@@ -20,7 +20,7 @@ namespace Synto.Test;
 
 public partial class RoundTripTests
 {
-    private static partial class Factory { };
+    private partial class Factory { };
 
     // Normalize line endings so the assertions are stable regardless of how the
     // source file was checked out (LF vs CRLF) or which platform the test runs on.
@@ -33,7 +33,7 @@ public partial class RoundTripTests
     [Fact]
     public void Test0()
     {
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Simple()
         {
             Console.WriteLine("Hello World");
@@ -47,7 +47,7 @@ public partial class RoundTripTests
     [Fact]
     public void Test1()
     {
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Hello([Unquote] string message)
         {
             Console.WriteLine("Hello " + message);
@@ -68,7 +68,7 @@ public partial class RoundTripTests
         // the result back, so a stable-but-wrong escaping/fusion regression fails here even though the snapshot
         // would still match. The value "a{b}\"" carries every brace/quote escape hazard: ToInterpolatedText
         // must double the braces ({{ }}) and escape the quote (\") so the fused literal text is well-formed.
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Interp([Unquote] string label)
         {
             Console.WriteLine($"Field {label} column");
@@ -84,14 +84,14 @@ public partial class RoundTripTests
     {
         // Syntax<T> composition: the expression produced by one template is spliced into a Syntax<string>
         // splice point (message()) of another, round-tripping to the composed call.
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Inner()
         {
             new StringBuilder("Something").Append("Foo").ToString();
         }
 
 
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Outer(Syntax<string> message)
         {
             Console.WriteLine("Hello " + message());
@@ -109,14 +109,14 @@ public partial class RoundTripTests
     {
         // Bare-block repeater: a scalar Syntax splice point (item()) used twice in a Bare (multi-statement)
         // body, each replaced by the same spliced expression, round-tripping to the repeated block.
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Greeting([Unquote] string message)
         {
             Console.WriteLine("Hello " + message);
         }
 
 
-        [Template(typeof(Factory), Options = TemplateOption.Bare)]
+        [Template<Factory>(Options = TemplateOption.Bare)]
         static void Repeater(Syntax item)
         {
             item();
@@ -137,7 +137,7 @@ public partial class RoundTripTests
     [Fact]
     public void Test4()
     {
-        [Template(typeof(Factory), Options = TemplateOption.None)]
+        [Template<Factory>(Options = TemplateOption.None)]
         static void FullMethod()
         {
             Console.WriteLine("Hello World");
@@ -158,7 +158,7 @@ public partial class RoundTripTests
     public void Test5()
     {
 
-        [Template(typeof(Factory), Options = TemplateOption.Bare)]
+        [Template<Factory>(Options = TemplateOption.Bare)]
         static void Loop([Unquote] int count)
         {
             int ret = 0;
@@ -191,7 +191,7 @@ public partial class RoundTripTests
     public void QuoteLoop()
     {
 
-        [Template(typeof(Factory), Options = TemplateOption.Bare)]
+        [Template<Factory>(Options = TemplateOption.Bare)]
         static void QuoteLoop([Quote] int count)
         {
             int ret = 0;
@@ -222,7 +222,7 @@ public partial class RoundTripTests
     [Fact]
     public void InlinedGenericTypeArgument()
     {
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Make<[Unquote] T>()
         {
             List<T> list = new List<T>();
@@ -243,7 +243,7 @@ public partial class RoundTripTests
         // End-to-end proof of [Runtime] converter pluggability: the generator (running on THIS project)
         // discovers RgbConverter from the inlined parameter's type and emits a direct call to it, so the
         // built factory actually converts the custom Rgb value to `new Rgb(255)` syntax at runtime.
-        [Template(typeof(Factory), Options = TemplateOption.Single)]
+        [Template<Factory>(Options = TemplateOption.Single)]
         static void Use([Unquote] Rgb color)
         {
             Console.WriteLine(color);
@@ -259,7 +259,7 @@ public partial class RoundTripTests
     // into the produced `Reader` type's member list. Contrast the statement-level unroll (Test5's [Unquote] `for`
     // that emits four `ret++` *statements* into a block): here the live loop yields *members* of the type, not
     // statements of a body. The generator method itself is trimmed from the produced type.
-    [Template(typeof(Factory))]
+    [Template<Factory>]
     public class Reader
     {
         [Splice]
@@ -298,7 +298,7 @@ public partial class RoundTripTests
     // `BuildList<MemberDeclarationSyntax>(call)` arg relying on the `MemberDeclarationSyntax -> ListSegment`
     // implicit conversion — a DISTINCT emission branch from the enumerable `ListSegment.Run(...)` shape in
     // SpliceMembers above. The lifted `Parameter<int>()` folds into the factory's `count` argument.
-    [Template(typeof(Factory))]
+    [Template<Factory>]
     public class Counter
     {
         [Splice]

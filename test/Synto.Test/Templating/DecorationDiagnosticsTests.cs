@@ -65,7 +65,7 @@ public class DecorationDiagnosticsTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Implements<global::System.IDisposable>]
                 void Build() { System.Console.WriteLine("hi"); }
             }
@@ -85,7 +85,7 @@ public class DecorationDiagnosticsTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 class Shell {
                     [Visibility(Access.File)]
                     class Inner {}
@@ -106,7 +106,7 @@ public class DecorationDiagnosticsTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Implements<global::System.String>]
                 class Shell {}
             }
@@ -126,7 +126,7 @@ public class DecorationDiagnosticsTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Visibility(Access.Internal)]
                 [Visibility(Access.Public)]
                 class Shell {}
@@ -160,7 +160,7 @@ public class DecorationDiagnosticsTests
 
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Foo("hi")]
                 class Shell {}
             }
@@ -194,7 +194,7 @@ public class DecorationDiagnosticsTests
 
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Foo("hi")]
                 class Shell {}
             }
@@ -227,7 +227,7 @@ public class DecorationDiagnosticsTests
 
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Foo("hi")]
                 class Shell {}
             }

@@ -73,7 +73,7 @@ public class StagedParameterTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var count = Parameter<int>();   // -> factory param `int count`; used as a value below
                     System.Console.WriteLine(count);
@@ -92,7 +92,7 @@ public class StagedParameterTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() => System.Console.WriteLine(Parameter<int>("fieldCount"));
             }
             """);
@@ -108,7 +108,7 @@ public class StagedParameterTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() => System.Console.WriteLine(Parameter<int>());
             }
             """);
@@ -126,7 +126,7 @@ public class StagedParameterTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     System.Console.WriteLine(Parameter<int>("dup"));
                     System.Console.WriteLine(Parameter<int>("dup"));
@@ -147,7 +147,7 @@ public class StagedParameterTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var a = Parameter<int>("x");
                     var b = Parameter<string>("x");

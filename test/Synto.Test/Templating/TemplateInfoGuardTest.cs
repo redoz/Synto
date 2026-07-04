@@ -50,7 +50,7 @@ public class TemplateInfoGuardTest
             using Synto.Templating;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory), Options = (Synto.Templating.TemplateOption)nonexistent)]
+                [Template<Factory>(Options = (Synto.Templating.TemplateOption)nonexistent)]
                 void Build() {}
             }
             """);
@@ -68,7 +68,7 @@ public class TemplateInfoGuardTest
             using Synto.Templating;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                [Template<Factory>(Options = TemplateOption.Bare)]
                 int Build() => 1 + 2;
             }
             """);

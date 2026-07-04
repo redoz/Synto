@@ -64,7 +64,7 @@ public class InjectedSurfaceCompletenessTest
         partial class Factory {}
 
         public class TestClass {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             void KitchenSink<[Unquote] T>([Unquote] int count, Syntax<int> spliced) {
                 List<T> list = new List<T>();
                 var span = (1..count);
@@ -101,7 +101,7 @@ public class InjectedSurfaceCompletenessTest
             {
                 public partial class Factory { }
 
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 static void Build<[Unquote] T>([Unquote] int count, Syntax<int> extra)
                 {
                     List<T> list = new List<T>();
@@ -139,7 +139,7 @@ public class InjectedSurfaceCompletenessTest
         public readonly record struct Col(int Ordinal, string Name);
 
         public class TestClass {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             object StagedKitchenSink([Splice] object row, int i, [Unquote] int bump) {
                 var columns = Parameter<IReadOnlyList<Col>>();   // live Parameter root -> factory parameter
                 var offset = Unquote(bump + 1);                      // live local fed by the [Unquote] parameter
@@ -175,7 +175,7 @@ public class InjectedSurfaceCompletenessTest
         public readonly record struct Col(int Ordinal, string Name);
 
         public class TestClass {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             object RenamedRoot(int i) {
                 var cols = Parameter<IReadOnlyList<Col>>("columns");  // factory param `columns` != local `cols`
                 foreach (var c in cols)
@@ -242,7 +242,7 @@ public class InjectedSurfaceCompletenessTest
         partial class Factory {}
 
         public class TestClass {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             void Build<[Splice] T>(T instance) {
                 System.Console.WriteLine(instance);
             }
@@ -304,7 +304,7 @@ public class InjectedSurfaceCompletenessTest
         partial class Factory {}
 
         public class TestClass {
-            [Template(typeof(Factory), Options = TemplateOption.Bare)]
+            [Template<Factory>(Options = TemplateOption.Bare)]
             static void Loop([Quote] int count) {
                 int ret = 0;
                 for (int i = 0; i < count; i++) ret++;
@@ -378,7 +378,7 @@ public class InjectedSurfaceCompletenessTest
         partial class Factory {}
 
         public class TestClass {
-            [Template(typeof(Factory), Options = TemplateOption.Bare)]
+            [Template<Factory>(Options = TemplateOption.Bare)]
             static void Loop([Unquote] int count) {
                 int ret = 0;
                 var bound = Unquote(count);
@@ -457,7 +457,7 @@ public class InjectedSurfaceCompletenessTest
 
         public readonly record struct Col(int Ordinal, string Name);
 
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Accessors() {
@@ -712,7 +712,7 @@ public class InjectedSurfaceCompletenessTest
 
         public readonly record struct Col(int Ordinal, string Name);
 
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Shapes {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Nested() {
@@ -789,7 +789,7 @@ public class InjectedSurfaceCompletenessTest
 
         public readonly record struct Col(int Ordinal, string Name);
 
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             public int First() => 0;
             [Splice]

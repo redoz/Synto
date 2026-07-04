@@ -64,7 +64,7 @@ public class StagingDiagnosticsTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build(int generatedWorld) {
                     var bad = Unquote(generatedWorld + 1);  // live fragment needs a value that exists only in OUTPUT
                     System.Console.WriteLine(bad);
@@ -88,7 +88,7 @@ public class StagingDiagnosticsTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var items = Parameter<IReadOnlyList<string>>();
                     var total = Unquote(items.Select(x => x.Length).Sum());
@@ -110,7 +110,7 @@ public class StagingDiagnosticsTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var items = Parameter<IReadOnlyList<string>>();
                     var parsed = Unquote(int.TryParse(items[0], out var n) ? n : 0);
@@ -132,7 +132,7 @@ public class StagingDiagnosticsTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var items = Parameter<IReadOnlyList<string>>();
                     var count = Unquote(items is { Count: var c } ? c : 0);
@@ -154,7 +154,7 @@ public class StagingDiagnosticsTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var rows = Parameter<IReadOnlyList<int>>();
                     var cols = Parameter<IReadOnlyList<int>>();
@@ -181,7 +181,7 @@ public class StagingDiagnosticsTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build(int i) {
                     var cols = Parameter<IReadOnlyList<int>>();
                     if (i > 0)                      // output-world if (i quoted) -> stays output, not a region

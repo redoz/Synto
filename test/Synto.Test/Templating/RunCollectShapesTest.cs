@@ -60,7 +60,7 @@ public class RunCollectShapesTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var n = Parameter<int>();
                     for (int k = 0; k < n; k++)        // live for -> unrolls in the factory
@@ -81,7 +81,7 @@ public class RunCollectShapesTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var n = Parameter<int>();
                     var k = Unquote(0);
@@ -104,7 +104,7 @@ public class RunCollectShapesTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var n = Parameter<int>();
                     if (n > 0)                                  // live condition -> picks a branch at factory time
@@ -131,7 +131,7 @@ public class RunCollectShapesTest
             partial class Factory {}
             public readonly record struct Col(int Ordinal, string Name);
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var columns = Parameter<IReadOnlyList<Col>>();
                     var totals = Parameter<int[]>();
@@ -157,7 +157,7 @@ public class RunCollectShapesTest
             public sealed class Acc { public int Total; }
             public readonly record struct Col(int Ordinal, string Name);
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var columns = Parameter<IReadOnlyList<Col>>();
                     var acc = Parameter<Acc>();
@@ -181,7 +181,7 @@ public class RunCollectShapesTest
             partial class Factory {}
             public readonly record struct Col(int Ordinal, string Name);
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var columns = Parameter<IReadOnlyList<Col>>();
                     int sum = 0;                            // accumulator (live: mutated with a live value)

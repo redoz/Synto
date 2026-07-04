@@ -108,7 +108,7 @@ public class SyntaxBuilderTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build<[Splice] T>(T instance) {
                     var x = Member<object>(instance, "Name");   // -> instance.Name in OUTPUT (identifier, not "Name")
                     System.Console.WriteLine(x);
@@ -129,7 +129,7 @@ public class SyntaxBuilderTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] ExpressionSyntax node) {
                     System.Console.WriteLine(Splice(node));   // -> Console.WriteLine(node) in OUTPUT
                 }
@@ -155,7 +155,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) {
                     System.Console.WriteLine(MyBuilders.Cast<int>(x));
                 }
@@ -183,7 +183,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) {
                     System.Console.WriteLine(MyBuilders.Cast<int>(x));
                 }
@@ -225,7 +225,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) {
                     System.Console.WriteLine(MyBuilders.Cast<object>(x)); // object does NOT satisfy `where T : IComparable`
                 }
@@ -265,7 +265,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) {
                     System.Console.WriteLine(MyBuilders.Cast<string>(x)); // string satisfies `where T : IComparable`
                 }
@@ -307,7 +307,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var node = Parameter<ExpressionSyntax>("node");
                     System.Console.WriteLine(MetaBuilders.Splice(node));
@@ -336,7 +336,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] ExpressionSyntax node) {
                     System.Console.WriteLine(MyBuilders.Wrap(Splice(node)));   // -> Wrap(node) in OUTPUT
                 }
@@ -364,7 +364,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] ExpressionSyntax x) {
                     System.Console.WriteLine(MyBuilders.Wrap(MyBuilders.Wrap(x)));   // -> Wrap(Wrap(x)) in OUTPUT
                 }
@@ -389,7 +389,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Bad.Foo(x));
             }
             """);
@@ -413,7 +413,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Builders.Cast(x)); // no <int> type arg
             }
             """);
@@ -438,7 +438,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Bad.Nope(x));
             }
             """);
@@ -465,7 +465,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Builders.Wrap(x));
             }
             """);
@@ -485,7 +485,7 @@ public class SyntaxBuilderTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object instance) {
                     var x = Member<object>(instance, "Name");
                     System.Console.WriteLine(x);
@@ -534,7 +534,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
                     var settings = new Settings();
                     System.Console.WriteLine(settings.Wrap()); // binds to Settings.Wrap -> quote verbatim
@@ -555,7 +555,7 @@ public class SyntaxBuilderTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object instance) {
                     var x = Member<object>(instance: instance, name: "Foo");
                 }
@@ -593,7 +593,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Bad.Combo(x));
             }
             """);
@@ -617,7 +617,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Bad.Two(x, x));
             }
             """);
@@ -641,7 +641,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Bad.Many(x));
             }
             """);
@@ -719,7 +719,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Builders.Wrap(x: x));
             }
             """);
@@ -754,7 +754,7 @@ public class SyntaxBuilderTest
             namespace SyntoX.Helpers { public static class H {} }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build<[Splice] T>(T instance) {
                     var x = Member<object>(instance, "Foo");
                     System.Console.WriteLine(x);
@@ -785,7 +785,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Builders.Wrap(x));
             }
             """);
@@ -814,7 +814,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) {
                     System.Console.WriteLine(MyBuilders.Cast<int>(x));
                 }
@@ -859,7 +859,7 @@ public class SyntaxBuilderTest
                 public static ExpressionSyntax Cast([TypeArg, ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => CastExpression(t, x);
             }
 
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             public class Reader {
                 public int Build() => MyBuilders.Cast<int>(42);
             }

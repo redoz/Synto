@@ -18,7 +18,7 @@ public partial class MatchReplaceTests
 
     // Template factory target (mirrors RoundTripTests / examples/Synto.Examples): the generator emits the
     // Factory.{Name} static factory methods into this partial.
-    private static partial class Factory { }
+    private partial class Factory { }
 
     // Sum matches `a + b` and captures both operands (A, B : ExpressionSyntax).
     [global::Synto.Matching.Match<M>(global::Synto.Matching.MatchOption.Single)]
@@ -96,7 +96,7 @@ public partial class MatchReplaceTests
     {
         // The replacement is built by a Synto [Template] factory rather than raw SyntaxFactory — proving the
         // open Func<Matched<T>, SyntaxNode> lets Templating compose with Matching for free.
-        [global::Synto.Templating.Template(typeof(Factory), Options = global::Synto.Templating.TemplateOption.Single)]
+        [global::Synto.Templating.Template<Factory>(Options = global::Synto.Templating.TemplateOption.Single)]
         static void MulT([global::Synto.Templating.Splice] int a, [global::Synto.Templating.Splice] int b)
         { _ = a * b; }
 

@@ -62,7 +62,7 @@ public class RunCollectTest
             partial class Factory {}
             public readonly record struct Col(int Ordinal, string Name);
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 string GetName(int i) {
                     var columns = Parameter<IReadOnlyList<Col>>();
                     foreach (var c in columns)            // live control -> unrolls in the factory

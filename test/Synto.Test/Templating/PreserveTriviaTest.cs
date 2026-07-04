@@ -53,7 +53,7 @@ public class PreserveTriviaTest
             "partial class Factory {}\n" +
             "\n" +
             "public class TestClass {\n" +
-            "    [Template(typeof(Factory)" + optionsArg + ")]\n" +
+            "    [Template<Factory>" + optionsArg + "]\n" +
             "    static void Build() {\n" +
             "        Console.WriteLine(\"one\"); // marker comment\n" +
             "        Console.WriteLine(\"two\"); /* block comment */\n" +
@@ -87,7 +87,7 @@ public class PreserveTriviaTest
     [Fact]
     public void PreserveTrivia_RoundTrip_KeepsCommentsAndWhitespace()
     {
-        var rendered = RenderExecutedFactory(", Options = TemplateOption.PreserveTrivia");
+        var rendered = RenderExecutedFactory("(Options = TemplateOption.PreserveTrivia)");
 
         // The comment texts survive the quote/re-emit round-trip (leading trivia of `Console`, trailing
         // trivia of `;`), and the whitespace/newline shape is retained (not collapsed onto one line).

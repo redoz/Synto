@@ -74,7 +74,7 @@ public class InterpolationFoldTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void LocalFunction(int i) {
                     var label = Parameter<string>();
                     Console.WriteLine($"Field {i} is not {label} column.");
@@ -98,7 +98,7 @@ public class InterpolationFoldTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void LocalFunction(int i) {
                     var label = Unquote<string>("Boolean");
                     Console.WriteLine($"Field {i} is not {label} column.");
@@ -125,7 +125,7 @@ public class InterpolationFoldTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void LocalFunction() {
                     var label = Parameter<string>();
                     Console.WriteLine($"pre {{ }} \" \\ {label} post");
@@ -149,7 +149,7 @@ public class InterpolationFoldTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void LocalFunction(int i) {
                     Console.WriteLine($"x {i} y");
                 }
@@ -173,7 +173,7 @@ public class InterpolationFoldTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void LocalFunction() {
                     var n = Parameter<int>();
                     var flag = Unquote<bool>(true);
@@ -199,7 +199,7 @@ public class InterpolationFoldTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void LocalFunction() {
                     var label = Parameter<string>();
                     Console.WriteLine($"fmt {label:N2} align {label,5} end");
@@ -222,7 +222,7 @@ public class InterpolationFoldTest
             "partial class Factory {}\n" +
             "\n" +
             "public class TestClass {\n" +
-            "    [Template(typeof(Factory))]\n" +
+            "    [Template<Factory>]\n" +
             "    void LocalFunction() {\n" +
             "        var label = Parameter<string>();\n" +
             "        Console.WriteLine($@\"verbatim {label} text\");\n" +
@@ -246,7 +246,7 @@ public class InterpolationFoldTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void LocalFunction(int runtime) {
                     var label = Parameter<string>();
                     Console.WriteLine($"a {runtime} b {label} c");
@@ -272,7 +272,7 @@ public class InterpolationFoldTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void LocalFunction(int i) {
                     var a = Parameter<string>();
                     var b = Parameter<string>();

@@ -84,7 +84,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Single)]
+                    [Template<Factory>(Options = TemplateOption.Single)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -106,7 +106,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                    [Template<Factory>(Options = TemplateOption.Bare)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -128,7 +128,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.None)]
+                    [Template<Factory>(Options = TemplateOption.None)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -150,7 +150,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Single)]
+                    [Template<Factory>(Options = TemplateOption.Single)]
                     static void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -172,7 +172,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                    [Template<Factory>(Options = TemplateOption.Bare)]
                     static void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -194,7 +194,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.None)]
+                    [Template<Factory>(Options = TemplateOption.None)]
                     static void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -217,7 +217,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Single)]
+                    [Template<Factory>(Options = TemplateOption.Single)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                         Console.WriteLine("Hello world");
@@ -239,7 +239,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory), Options = TemplateOption.Single)]
+                [Template<Factory>(Options = TemplateOption.Single)]
                 void LocalFunction() {
                     Console.WriteLine("Hello world");
                 }
@@ -282,7 +282,7 @@ public class SimpleTemplateTest
 
 
             public class TestClass {
-               [Template(typeof(Factory))]
+               [Template<Factory>]
                 void LocalFunction<T>([Unquote]T value) {
                     Console.WriteLine($"Hello world {value}");
                 }
@@ -303,7 +303,7 @@ public class SimpleTemplateTest
 
 
             public class TestClass {
-               [Template(typeof(Factory))]
+               [Template<Factory>]
                 void LocalFunction<T>([Splice]T value) {
                     Console.WriteLine($"Hello world {value}");
                 }
@@ -325,7 +325,7 @@ public class SimpleTemplateTest
 
 
             public class TestClass {
-               [Template(typeof(Factory))]
+               [Template<Factory>]
                 void LocalFunction<[Unquote]T>() {
                     List<T> list = new();
                 }
@@ -346,7 +346,7 @@ public class SimpleTemplateTest
 
 
             public class TestClass {
-               [Template(typeof(Factory))]
+               [Template<Factory>]
                 void LocalFunction<[Splice]T>(T value) {
                     Console.WriteLine($"Hello world {value}");
                 }
@@ -368,7 +368,7 @@ public class SimpleTemplateTest
 
 
             public class TestClass {
-               [Template(typeof(Factory))]
+               [Template<Factory>]
                 void LocalFunction(Syntax<string> value) {
                     Console.WriteLine($"Hello world" + value());
                 }
@@ -391,7 +391,7 @@ public class SimpleTemplateTest
 
             partial class Factory {}
 
-            [Template(typeof(Factory), Options = TemplateOption.Bare)]
+            [Template<Factory>(Options = TemplateOption.Bare)]
             public class TestClass {
                 void First() {
                     Console.WriteLine("first");
@@ -420,7 +420,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void LocalFunction([Quote] int count) {
                     Console.WriteLine($"Hello world {count}");
                 }
@@ -445,7 +445,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 int N() {
                     var xs = Parameter<IReadOnlyList<int>>();
                     return xs.Count;
@@ -495,7 +495,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                [Template<Factory>(Options = TemplateOption.Bare)]
                 static void Loop([Quote] int count) {
                     int ret = 0;
                     for (int i = 0; i < count; i++) ret++;
@@ -519,7 +519,7 @@ public class SimpleTemplateTest
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 
     [Fact]
@@ -538,7 +538,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                [Template<Factory>(Options = TemplateOption.Bare)]
                 static void Loop([Unquote] int count) {
                     int ret = 0;
                     var bound = Unquote(count);
@@ -564,7 +564,7 @@ public class SimpleTemplateTest
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 
     // ----- diagnostics / error paths (T2) -----------------------------------------------------------
@@ -583,7 +583,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory))]
+                    [Template<Factory>]
                     void LocalFunction() {
                         Console.WriteLine("hi");
                     }
@@ -607,7 +607,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory))]
+                    [Template<Factory>]
                     void LocalFunction() {
                         Console.WriteLine("hi");
                     }
@@ -635,7 +635,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Outer.Factory))]
+                    [Template<Outer.Factory>]
                     void LocalFunction() {
                         Console.WriteLine("hi");
                     }
@@ -699,7 +699,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Outer.Factory))]
+                    [Template<Outer.Factory>]
                     void LocalFunction() {
                         Console.WriteLine("hi");
                     }
@@ -724,7 +724,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                    [Template<Factory>(Options = TemplateOption.Bare)]
                     void LocalFunction() {
                     }
                 }
@@ -751,7 +751,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public partial class TestClass {
-                [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                [Template<Factory>(Options = TemplateOption.Bare)]
                 partial void BodylessMethod();
             }
             """);
@@ -771,7 +771,7 @@ public class SimpleTemplateTest
 
             partial class Factory {}
 
-            [Template(typeof(Factory), Options = TemplateOption.Single)]
+            [Template<Factory>(Options = TemplateOption.Single)]
             public class TestClass {
                 void First() {
                     Console.WriteLine("first");
@@ -824,7 +824,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Single)]
+                    [Template<Factory>(Options = TemplateOption.Single)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -850,7 +850,7 @@ public class SimpleTemplateTest
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 
     [Fact]
@@ -872,7 +872,7 @@ public class SimpleTemplateTest
             public readonly record struct Col(int Ordinal, string Name);
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 object GetMember<[Splice] TRow>(TRow row, int i) {
                     var columns = Parameter<IReadOnlyList<Col>>();
                     foreach (var c in columns)            // live foreach -> unrolls in the factory
@@ -899,7 +899,7 @@ public class SimpleTemplateTest
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 
     private static void AssertHasRealSpan(Diagnostic diag)

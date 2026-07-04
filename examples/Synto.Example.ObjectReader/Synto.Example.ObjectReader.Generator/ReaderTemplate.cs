@@ -24,7 +24,7 @@ namespace Synto.Example.ObjectReader.Generator;
 #pragma warning disable CA1852 // ObjectReaderTemplate need not be sealed; the carrier is quoted, never subclassed.
 #pragma warning disable CA1024 // GetSchemaTable etc. mirror the IDataReader signatures verbatim.
 
-[Template(typeof(Factory))]
+[Template<Factory>]
 [Identifier]
 [Visibility(Access.File)]
 [Sealed]
@@ -104,7 +104,7 @@ internal class ObjectReaderTemplate<[Splice] T>
     // and staging. It binds the real `_e` (`IEnumerator<T>`); only `_e.Current` is quoted, exactly as the standalone
     // carrier did. The return type is supplied per call as a `TypeSyntax` via the `[Splice] TRet` param.
 
-    [Template(typeof(Factory))]
+    [Template<Factory>]
     public TRet TypedGetter<[Splice] TRet>(int i)
     {
         var columns = Parameter<EquatableArray<ColumnInfo>>();
@@ -214,6 +214,6 @@ internal class ObjectReaderTemplate<[Splice] T>
 /// <summary>Synto template factory target. The injected <c>TemplateFactorySourceGenerator</c> fills the other
 /// partial with <c>ObjectReaderTemplate(TypeSyntax T, EquatableArray&lt;ColumnInfo&gt; columns)</c> returning the
 /// skeleton's <c>ClassDeclarationSyntax</c> (the column count is derived from <c>columns.Count</c>).</summary>
-internal static partial class Factory
+internal partial class Factory
 {
 }

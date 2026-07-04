@@ -131,7 +131,7 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Identifier]
                 class Shell { public Shell() {} }
             }
@@ -148,7 +148,7 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Sealed]
                 class Shell { public Shell() {} }
             }
@@ -164,7 +164,7 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Visibility(Access.File)]
                 class Shell { public Shell() {} }
             }
@@ -180,7 +180,7 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Implements<global::System.IDisposable>]
                 class Shell { public Shell() {} }
             }
@@ -196,7 +196,7 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Inherits<global::System.Exception>]
                 [Implements<global::System.IDisposable>]
                 class Shell { public Shell() {} }
@@ -219,7 +219,7 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Identifier]
                 [Visibility(Access.Internal)]
                 [Sealed]
@@ -258,12 +258,12 @@ public class DecorationTests
             using Synto.Templating;
             using static Synto.Templating.Template;
             partial class Factory {}
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             [Sealed]
             public class Reader
             {
                 public string Name { get; } = "";
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Visibility(Access.Public)]
                 public void Impl()
                 {
@@ -307,7 +307,7 @@ public class DecorationTests
             }
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Foo("hi")]
                 class Shell { public Shell() {} }
             }
@@ -331,7 +331,7 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Visibility(Access.Public)]
                 [Sealed]
                 partial class Shell { public Shell() {} }
