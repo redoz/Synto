@@ -4,6 +4,13 @@
 code. Supersedes the just-shipped "child-template narrow case" generation model for *nested*
 `[Template]`s.
 
+> **AMENDMENT (owner, 2026-07-04) — sub-templates are `internal static`, not `private static`.**
+> §5.3/§2/§4 below say `private static`, but §2's own non-goal requires the member to remain reachable
+> by "sibling carriers targeting the same class" — which a real C# `private` member is not, and which broke
+> ObjectReader's self-compiling dog-food (carrier `[Splice]` source names `Factory.TypedGetter(...)` across a
+> class boundary → CS0122). Resolution: emit sub-templates **`internal static`** (same-assembly reachable).
+> Everywhere this spec says `private static` / `private` for a *sub-template*, read `internal static`.
+
 ## 1. Context — what exists today
 
 - **`[Template(typeof(Target))]` mandates a target.** The attribute has a single constructor

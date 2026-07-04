@@ -4,6 +4,17 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-04-sub-templates-and-generic-template-attribute-design.md` (approved-for-planning).
 
+> **DECISION (owner, 2026-07-04) — sub-template visibility is `internal static`, NOT `private static`.**
+> Task 6's ObjectReader migration exposed a spec-internal contradiction: spec §5.3 said `private static`, but
+> §2 states as a non-goal that this must *not* be "invisible to sibling carriers targeting the same class" —
+> only `internal` satisfies that, and ObjectReader is a self-compiling dog-food whose carrier `[Splice]` source
+> names `Factory.TypedGetter(...)` across a class boundary (`private` → CS0122). Resolution: sub-templates emit
+> **`internal static`**. This flip — the `TemplateFactoryBuilder` recursion call (`SyntaxKind.InternalKeyword`)
+> plus the landed Task 5 assertions/snapshot (`ChildTemplateTest`, `TemplateAttributeFormTest`) — **already
+> landed** in the prep commit that precedes Task 6. **Wherever this plan or the spec says `private static` / "private"
+> for a *sub-template*, read `internal static`.** With `internal`, Task 6 (ObjectReader nested-bare migration)
+> and Task 7 (SY1034) are both feasible as written.
+
 **Goal:** Replace the single `[Template(typeof(T))]` surface with two marker attributes — `TemplateAttribute<T>` (generic; carries the target) and parameterless `TemplateAttribute` (targetless) — and make a nested `[Template]` inside a `[Template]` carrier a **parent-driven private sub-template**: built by the parent's own build, emitted `private static` on the parent's target, folded into the parent's single generated document. This supersedes the shipped "child-template narrow case" *sibling* generation model for nested templates (the nested method today independently generates its own `public static` factory in its own `.g.cs`).
 
 **Architecture:** Everything stays inside the existing generator architecture — all semantic work inside the `ForAttributeWithMetadataName` transform, the only pipeline state the equatable `TemplateGenerationResult`, failures as located `SY*` diagnostics. The plan is pitched at **contracts, behaviors, and interfaces**: each task states the behavior change, the seams it touches (`path:line`), and the green-gate test; the TDD implementer writes the bodies. The spec's §8.1 open decision is **encoded as the recommended option**: the sibling generation path for nested templates stays alive through all of Phase 1 (nested templates remain `[Template<X>]` and keep generating public siblings), so Phase 1 is a pure surface swap; Phase 2 flips nested templates to parent-driven and then deletes the sibling behavior. Two new diagnostic IDs are allocated up front: **SY1033** (SY-A: top-level `[Template]` requires a target) and **SY1034** (SY-B: nested sub-template must not specify a target). The spec's proposed SY1029/SY1030 are **not** used: SY1029 is already shipped (`AnalyzerReleases.Unshipped.md:26`, named-args-on-facade) and SY1030–SY1032 are reserved/earmarked by the in-flight `2026-07-04-issues-triage-fixes.md` plan (its Tasks 9, 10, 14). Both new IDs must be added to `src/Synto.SourceGenerator/AnalyzerReleases.Unshipped.md` (RS2008).
@@ -225,7 +236,7 @@ Move every remaining nested `[Template<X>]` onto the new bare-`[Template]` sub-t
 - Gate (unchanged files): `examples/.../snapshots/ObjectReaderSnapshotTests.Generates_Specialized_Reader_For_Person#ObjectReader.g.verified.cs`, `ObjectReaderBehaviorTests.cs`, `ObjectReaderIncrementalTests.cs`
 
 **Interfaces (contract):**
-- ObjectReader's generated **consumer output** (`ObjectReader.g.cs`) is expected **byte-identical** — the getters the `[Splice]` generator produces don't change; only the generator-internal `Factory.TypedGetter` becomes `private` and moves into the parent's document inside the example-generator compilation. If the final output moves anyway, the delta must be nil-semantic and explained (per the semantic-equivalence calibration).
+- ObjectReader's generated **consumer output** (`ObjectReader.g.cs`) is expected **byte-identical** — the getters the `[Splice]` generator produces don't change; only the generator-internal `Factory.TypedGetter` becomes `internal static` (see DECISION note) and moves into the parent's document inside the example-generator compilation. `internal` (not `private`) is exactly what lets the carrier's `[Splice]` source keep naming `Factory.TypedGetter(...)` across the class boundary in the same assembly — that is the whole reason the visibility is `internal`. If the final output moves anyway, the delta must be nil-semantic and explained (per the semantic-equivalence calibration).
 - `ObjectReaderBehaviorTests` (runtime semantics) and `ObjectReaderIncrementalTests` (**all steps** Cached/Unchanged on unrelated edit) green — the incremental gate now also covers the recursion path under real dog-food load.
 
 **Failing-test intent:** none new — this is a consumer migration gated by the strongest existing suites. The red step is trivial: after flipping ReaderTemplate's nested attribute, the example-generator build/tests only pass if Tasks 3–5 delivered the contract.

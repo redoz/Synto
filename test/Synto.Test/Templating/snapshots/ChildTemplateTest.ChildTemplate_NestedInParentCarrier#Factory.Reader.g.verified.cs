@@ -72,7 +72,7 @@ partial class Factory
                    Token(None));
     }
 
-    private static MethodDeclarationSyntax TypedGetter(TypeSyntax TRet, global::System.Collections.Generic.IReadOnlyList<global::Col> columns, string clrType, string typeLabel)
+    internal static MethodDeclarationSyntax TypedGetter(TypeSyntax TRet, global::System.Collections.Generic.IReadOnlyList<global::Col> columns, string clrType, string typeLabel)
     {
         ExpressionSyntax syntaxForParam_typeLabel = typeLabel.ToSyntax();
         var __run_0 = new global::System.Collections.Generic.List<global::Microsoft.CodeAnalysis.CSharp.Syntax.StatementSyntax>();

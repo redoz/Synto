@@ -11,7 +11,7 @@ namespace Synto.Test.Templating;
 /// Phase-1 declaration-rules facts for the two-form <c>[Template]</c> surface. A top-level parameterless
 /// <c>[Template]</c> carries no target and is misuse — it reports <c>SY1033</c>. A parameterless <c>[Template]</c>
 /// nested inside a <c>[Template&lt;T&gt;]</c> carrier is exempt (interim no-op: the parent takes ownership as a
-/// private sub-template in Phase 2), so it produces neither output nor diagnostic. (SY1034 — nested
+/// internal sub-template in Phase 2), so it produces neither output nor diagnostic. (SY1034 — nested
 /// <c>[Template&lt;T&gt;]</c> pinning a target — is authored now but only enforced in Phase 2.)
 /// </summary>
 public class TemplateAttributeFormTest
@@ -76,9 +76,9 @@ public class TemplateAttributeFormTest
     [Fact]
     public void NestedBareTemplate_InGenericCarrier_BuildsPrivateSubTemplate()
     {
-        // Phase 2: a bare [Template] nested inside a [Template<Factory>] carrier is a PARENT-DRIVEN private
+        // Phase 2: a bare [Template] nested inside a [Template<Factory>] carrier is a PARENT-DRIVEN internal
         // sub-template — exempt from SY1033 (nested), never SY1034 (it pins no target of its own), and built by
-        // the parent into the parent's single document as a `private static` method (no independent sibling).
+        // the parent into the parent's single document as an `internal static` method (no independent sibling).
         var runResult = Run(
             """
             using System;
@@ -94,7 +94,7 @@ public class TemplateAttributeFormTest
             public class Reader
             {
                 // A real member so the PARENT carrier has a quotable body of its own (an empty carrier is a
-                // separate degenerate case); the nested bare [Template] rides in as a private sub-template.
+                // separate degenerate case); the nested bare [Template] rides in as a internal sub-template.
                 public void Hello() { System.Console.WriteLine("hi"); }
 
                 [Template]
@@ -115,9 +115,9 @@ public class TemplateAttributeFormTest
             .ToDictionary(s => s.HintName, s => s.SourceText.ToString(), StringComparer.Ordinal);
 
         // Exactly one document (the parent's) — no separate Factory.Child.g.cs sibling — and the child is folded
-        // into it as a `private static` sub-template.
+        // into it as an `internal static` sub-template.
         Assert.Contains("Factory.Reader.g.cs", sources.Keys);
         Assert.DoesNotContain("Factory.Child.g.cs", sources.Keys);
-        Assert.Contains("private static", sources["Factory.Reader.g.cs"], StringComparison.Ordinal);
+        Assert.Contains("internal static", sources["Factory.Reader.g.cs"], StringComparison.Ordinal);
     }
 }

@@ -95,8 +95,8 @@ public class ChildTemplateTest
 
     // Same composition, but the child [Template] (TypedGetter) and its inert `_e` live INSIDE the Reader
     // carrier (which still hosts the [Splice] Getters() member-generator that invokes Factory.TypedGetter).
-    // The child now carries a BARE [Template] (Phase 2): it is a parent-driven private sub-template, built by the
-    // parent and folded into the parent's SINGLE document as a `private static` method on the shared target —
+    // The child now carries a BARE [Template] (Phase 2): it is a parent-driven internal sub-template, built by the
+    // parent and folded into the parent's SINGLE document as an `internal static` method on the shared target —
     // not an independent public sibling in its own document. Its inner Parameter<…>() calls (clrType, typeLabel)
     // still must NOT leak into the PARENT factory's parameter list.
     private const string NestedChildComposition =
@@ -223,10 +223,11 @@ public class ChildTemplateTest
 
         var readerDocument = sources["Factory.Reader.g.cs"];
 
-        // The parent factory is public; the sub-template is emitted as a `private static` method named after the
-        // child template (TypedGetter) on the shared target — proving the parent-driven private-sub-template shape.
+        // The parent factory is public; the sub-template is emitted as an `internal static` method named after the
+        // child template (TypedGetter) on the shared target — proving the parent-driven sub-template shape.
+        // Internal (not private) so a carrier's [Splice] source and sibling carriers can name it across classes.
         Assert.Contains("public static", readerDocument, StringComparison.Ordinal);
-        Assert.Contains("private static", readerDocument, StringComparison.Ordinal);
+        Assert.Contains("internal static", readerDocument, StringComparison.Ordinal);
         Assert.Contains("TypedGetter", readerDocument, StringComparison.Ordinal);
 
         // The child's Parameter<string>() roots (clrType, typeLabel) belong to the CHILD sub-template's own
@@ -240,7 +241,7 @@ public class ChildTemplateTest
         Assert.NotEmpty(ret.Files);
     }
 
-    // Returns the text of the public parent factory method (from `public static` up to the first `private static`
+    // Returns the text of the public parent factory method (from `public static` up to the first `internal static`
     // sub-template that follows it) so leak assertions can target the parent's signature without matching the
     // folded-in child sub-template body.
     private static string ParentFactoryRegion(string document)
@@ -249,8 +250,8 @@ public class ChildTemplateTest
         if (start < 0)
             return document;
 
-        var privateStart = document.IndexOf("private static", start, StringComparison.Ordinal);
-        return privateStart < 0 ? document.Substring(start) : document.Substring(start, privateStart - start);
+        var subTemplateStart = document.IndexOf("internal static", start, StringComparison.Ordinal);
+        return subTemplateStart < 0 ? document.Substring(start) : document.Substring(start, subTemplateStart - start);
     }
 
     // #11: a nested child [Template] whose body carries a facade-call error (here a named argument on a built-in

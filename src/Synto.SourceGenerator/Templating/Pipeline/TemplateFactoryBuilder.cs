@@ -169,17 +169,19 @@ internal static class TemplateFactoryBuilder
             // Every foreign child is trimmed from THIS parent's quoted output (unchanged).
             ctx.Plan.Trim.Add(child);
 
-            // A nested BARE [Template] child is a parent-driven private sub-template: build it recursively with
-            // private visibility and its target PINNED to this carrier's, then collect its emitted method(s) so
-            // they fold into the parent's single document. A nested generic [Template<X>] child returns null from
-            // CreateSubTemplate — it still generates its own public sibling in the interim (until SY1034 lands),
-            // so it stays trim-only, exactly as before. Recursion is one level: a child method carrier resolves to
-            // an empty scope, so it never descends into grandchildren.
+            // A nested BARE [Template] child is a parent-driven internal sub-template: build it recursively with
+            // internal visibility and its target PINNED to this carrier's, then collect its emitted method(s) so
+            // they fold into the parent's single document. Internal (not private) so a carrier's own [Splice]
+            // source — and sibling carriers targeting the same class — can name the sub-template's factory across
+            // the class boundary (same-assembly), which is exactly the self-compiling dog-food shape. A nested
+            // generic [Template<X>] child returns null from CreateSubTemplate — it still generates its own public
+            // sibling in the interim (until SY1034 lands), so it stays trim-only, exactly as before. Recursion is
+            // one level: a child method carrier resolves to an empty scope, so it never descends into grandchildren.
             var childInfo = TemplateInfo.CreateSubTemplate(ctx.SemanticModel, ctx.TemplateInfo.Target, child);
             if (childInfo is null)
                 continue;
 
-            var childMethods = Build(ctx.Diagnostics, ctx.SemanticModel, ctx.AdditionalUsings, childInfo, childInfo.Options, SyntaxKind.PrivateKeyword);
+            var childMethods = Build(ctx.Diagnostics, ctx.SemanticModel, ctx.AdditionalUsings, childInfo, childInfo.Options, SyntaxKind.InternalKeyword);
 
             // A failing child build has already reported its (child-located) diagnostics into the shared list; it
             // is simply omitted from the method list and the parent factory still emits (independent-failure
