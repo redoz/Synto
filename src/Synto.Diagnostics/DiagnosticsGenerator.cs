@@ -42,8 +42,10 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
 
     private void InjectAttribute(IncrementalGeneratorPostInitializationContext context)
     {
-        context.AddSource(
-            "Synto.Diagnostics.DiagnosticsAttribute.g.cs",
+        // Normalize line endings so the injected source is checkout-independent: the raw-string literal below
+        // inherits this file's checkout EOLs (CRLF on a Windows checkout, LF on CI), which otherwise makes the
+        // emitted DiagnosticsAttribute text — and any snapshot of it — flap between CRLF and LF.
+        const string source =
             """
             #nullable enable
             using System;
@@ -75,8 +77,11 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
                 public string? HelpLinkUri { get; } = helpLinkUri;
                 public IReadOnlyList<string> CustomTags { get; } = customTags;
             }
-            """
-            );
+            """;
+
+        context.AddSource(
+            "Synto.Diagnostics.DiagnosticsAttribute.g.cs",
+            source.Replace("\r\n", "\n"));
     }
 
     private static DiagnosticGenerationResult? GenerateDiagnostic(GeneratorAttributeSyntaxContext syntaxContext, CancellationToken cancellationToken)

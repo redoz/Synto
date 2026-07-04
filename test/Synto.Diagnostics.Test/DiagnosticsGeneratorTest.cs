@@ -311,6 +311,26 @@ public class DiagnosticsGeneratorTest
         Assert.DoesNotContain(errors, d => d.Id is "CS0579" or "CS8863");
     }
 
+    [Fact]
+    public void InjectedAttributeSource_HasNoCarriageReturns_CheckoutIndependent()
+    {
+        // The post-init DiagnosticsAttribute raw-string literal inherits the generator source file's checkout
+        // line endings. On a CRLF checkout it emits \r\n, so Windows re-accepts write CRLF while CI writes LF —
+        // a determinism defect (flapping snapshots). The injected source must be normalized to LF regardless of
+        // the checkout's line endings.
+        var compilation = CreateCompilation("namespace X;");
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new DiagnosticsGenerator());
+        driver = driver.RunGenerators(compilation);
+
+        var injected = driver.GetRunResult().Results.Single()
+            .GeneratedSources
+            .Single(s => s.HintName.Contains("DiagnosticsAttribute"))
+            .SourceText.ToString();
+
+        Assert.DoesNotContain('\r', injected);
+    }
+
     static ImmutableArray<Diagnostic> RunAndGetDiagnostics(string source)
     {
         var compilation = CreateCompilation(source);
