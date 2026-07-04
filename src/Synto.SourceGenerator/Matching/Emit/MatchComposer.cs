@@ -80,6 +80,6 @@ internal static class MatchComposer
 
         var sourceText = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace()).GetText(Encoding.UTF8).ToString();
 
-        return ($"{info.TargetFullName}.{info.Name}.g.cs", sourceText);
+        return ($"{info.TargetFullName}.{info.Name}".SanitizeHintName() + ".g.cs", sourceText);
     }
 }

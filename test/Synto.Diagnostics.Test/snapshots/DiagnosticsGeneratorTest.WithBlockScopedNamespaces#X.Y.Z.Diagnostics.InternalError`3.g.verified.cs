@@ -1,4 +1,4 @@
-﻿//HintName: X.Y.Z.Diagnostics.InternalError.g.cs
+﻿//HintName: X.Y.Z.Diagnostics.InternalError`3.g.cs
 #nullable enable
 using Microsoft.CodeAnalysis;
 

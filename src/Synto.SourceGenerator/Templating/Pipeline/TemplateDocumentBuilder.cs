@@ -100,7 +100,7 @@ internal static class TemplateDocumentBuilder
 
         var sourceText = SyntaxFormatter.Format(compilationUnit.NormalizeWhitespace()).GetText(Encoding.UTF8).ToString();
 
-        return ($"{template.Target.FullName}.{template.Source!.Identifier}.g.cs", sourceText);
+        return ($"{template.Target.FullName}.{template.Source!.Identifier}".SanitizeHintName() + ".g.cs", sourceText);
     }
 
     private static void MergeUsings(List<UsingDirectiveSyntax> target, IEnumerable<UsingDirectiveSyntax> additions)

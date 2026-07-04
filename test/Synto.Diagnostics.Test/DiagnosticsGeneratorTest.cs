@@ -233,6 +233,39 @@ public class DiagnosticsGeneratorTest
             new[] { TrackingNames.Transform, TrackingNames.Result });
     }
 
+    [Fact]
+    public void OverloadedDiagnosticMethods_ProduceDistinctHints_NoCollision()
+    {
+        // Two [Diagnostic] partial methods share a name but differ in arity. With ParameterOptions.None and no
+        // arity suffix, both hashed to the same hint name and the second AddSource threw ArgumentException,
+        // surfacing as an opaque SDG0000 / host crash. Each overload must now get a distinct hint.
+        var compilation = CreateCompilation(
+            """
+            using Microsoft.CodeAnalysis;
+            using Synto.Diagnostics;
+
+            namespace X;
+
+            internal static partial class Diags {
+                [Diagnostic("TST0001", "Title", "msg {0}", "Cat", DiagnosticSeverity.Error, true)]
+                public static partial Diagnostic Dup(Location location, string arg);
+
+                [Diagnostic("TST0002", "Title", "msg {0} {1}", "Cat", DiagnosticSeverity.Error, true)]
+                public static partial Diagnostic Dup(Location location, string arg, int extra);
+            }
+            """);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new DiagnosticsGenerator());
+        var runResult = driver.RunGenerators(compilation).GetRunResult().Results.Single();
+
+        Assert.Null(runResult.Exception);
+        Assert.DoesNotContain(runResult.Diagnostics, d => d.Id == "SDG0000");
+
+        var hints = runResult.GeneratedSources.Select(s => s.HintName).ToArray();
+        Assert.Equal(hints.Length, hints.Distinct().Count());
+        Assert.Equal(2, hints.Count(h => h.Contains("Dup")));
+    }
+
     static ImmutableArray<Diagnostic> RunAndGetDiagnostics(string source)
     {
         var compilation = CreateCompilation(source);

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -28,8 +29,21 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
                 static (ctx, _) => Build(ctx))
             .Where(static facade => facade is not null);
 
-        context.RegisterSourceOutput(facades, static (spc, facade) =>
-            spc.AddSource(facade!.Value.HintName, SourceText.From(facade.Value.Source, Encoding.UTF8)));
+        context.RegisterSourceOutput(facades, static (spc, facade) => Emit(spc, facade!.Value));
+    }
+
+    private static void Emit(SourceProductionContext context, (string HintName, string Source) facade)
+    {
+        try
+        {
+            context.AddSource(facade.HintName, SourceText.From(facade.Source, Encoding.UTF8));
+        }
+#pragma warning disable CA1031 // degrade an AddSource failure (e.g. a duplicate/invalid hint) to a diagnostic instead of crashing the generator
+        catch (ArgumentException ex)
+#pragma warning restore CA1031
+        {
+            context.ReportDiagnostic(Synto.Generators.Diagnostics.InternalError(ex).ToDiagnostic());
+        }
     }
 
     private static (string HintName, string Source)? Build(GeneratorAttributeSyntaxContext ctx)
@@ -85,13 +99,7 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
 
         string hint = hintBuilder.ToString()
             .Replace("global::", "")
-            .Replace("<", "_")
-            .Replace(">", "_")
-            .Replace(", ", "_")
-            .Replace(",", "_")
-            .Replace("(", "_")
-            .Replace(")", "_")
-            .Replace(" ", "")
+            .SanitizeHintName()
             + ".SyntaxBuilderFacade.g.cs";
 
         return (hint, sb.ToString());

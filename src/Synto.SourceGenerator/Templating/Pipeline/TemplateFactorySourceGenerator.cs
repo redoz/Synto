@@ -77,7 +77,18 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             context.ReportDiagnostic(diagnostic.ToDiagnostic());
 
         if (result.FileName is not null && result.Source is not null)
-            context.AddSource(result.FileName, SourceText.From(result.Source, Encoding.UTF8));
+        {
+            try
+            {
+                context.AddSource(result.FileName, SourceText.From(result.Source, Encoding.UTF8));
+            }
+#pragma warning disable CA1031 // degrade an AddSource failure (e.g. a duplicate/invalid hint) to a diagnostic instead of crashing the generator
+            catch (ArgumentException ex)
+#pragma warning restore CA1031
+            {
+                context.ReportDiagnostic(Diagnostics.InternalError(ex).ToDiagnostic());
+            }
+        }
     }
 
 }
