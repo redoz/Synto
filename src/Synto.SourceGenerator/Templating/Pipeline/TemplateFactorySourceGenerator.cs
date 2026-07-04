@@ -32,6 +32,20 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             .WithTrackingName(TemplateTrackingNames.Result);
 
         context.RegisterSourceOutput(results, static (context, result) => Emit(context, result!.Value));
+
+        // Second discovery source: the generic [Template<T>] form, whose factory target is carried by the type
+        // argument. It flows through the identical GenerateTemplate/Emit shape (TemplateInfo.Create derives the
+        // target from the attribute class's type argument) but gets its own tracking names so the all-steps
+        // cacheability guards stay unambiguous across the two pipelines.
+        var genericResults = context.SyntaxProvider.ForAttributeWithMetadataName(
+                typeof(TemplateAttribute<>).FullName!,
+                static (node, cancellationToken) => true,
+                static (syntaxContext, cancellationToken) => GenerateTemplate(syntaxContext))
+            .WithTrackingName(TemplateTrackingNames.GenericTransform)
+            .Where(static result => result is not null)
+            .WithTrackingName(TemplateTrackingNames.GenericResult);
+
+        context.RegisterSourceOutput(genericResults, static (context, result) => Emit(context, result!.Value));
     }
 
     private static TemplateGenerationResult? GenerateTemplate(GeneratorAttributeSyntaxContext syntaxContext)

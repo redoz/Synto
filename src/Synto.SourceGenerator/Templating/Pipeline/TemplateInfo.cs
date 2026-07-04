@@ -38,16 +38,33 @@ internal sealed class TemplateInfo
         if (attr.ApplicationSyntaxReference.GetSyntax() is not AttributeSyntax attrSyntax)
             return null;
 
-        if (attr.ConstructorArguments.Length != 1)
-            return null;
+        INamedTypeSymbol factoryType;
 
-        var typeArg = attr.ConstructorArguments[0];
+        // Two authored forms carry the factory target: the generic [Template<T>] pins it in the attribute
+        // class's single type argument (ConstructorArguments is empty there), while the legacy
+        // [Template(typeof(T))] pins it in the sole constructor argument.
+        if (attr.AttributeClass is { IsGenericType: true, TypeArguments.Length: 1 } genericAttr)
+        {
+            if (genericAttr.TypeArguments[0] is not INamedTypeSymbol genericFactoryType)
+                return null;
 
-        if (typeArg.Kind != TypedConstantKind.Type)
-            return null;
+            factoryType = genericFactoryType;
+        }
+        else
+        {
+            if (attr.ConstructorArguments.Length != 1)
+                return null;
 
-        if (typeArg.Value is not INamedTypeSymbol factoryType)
-            return null;
+            var typeArg = attr.ConstructorArguments[0];
+
+            if (typeArg.Kind != TypedConstantKind.Type)
+                return null;
+
+            if (typeArg.Value is not INamedTypeSymbol ctorFactoryType)
+                return null;
+
+            factoryType = ctorFactoryType;
+        }
 
 
         var target = new TargetType(attr, factoryType);
@@ -95,8 +112,18 @@ internal record struct TargetType(AttributeData TemplateAttributeData, ITypeSymb
     public readonly Location? GetReferenceLocation()
     {
         var syntax = TemplateAttributeData.ApplicationSyntaxReference?.GetSyntax();
-        if (syntax is AttributeSyntax attrSyntax
-            && attrSyntax.ArgumentList?.Arguments.First().Expression is TypeOfExpressionSyntax typeOfExpr)
+        if (syntax is not AttributeSyntax attrSyntax)
+            return null;
+
+        // Generic form [Template<T>]: the target lives in the attribute name's type-argument list.
+        if (attrSyntax.Name is GenericNameSyntax genericName
+            && genericName.TypeArgumentList.Arguments.Count > 0)
+        {
+            return genericName.TypeArgumentList.Arguments[0].GetLocation();
+        }
+
+        // Legacy ctor form [Template(typeof(T))]: the target is the typeof(...) constructor argument.
+        if (attrSyntax.ArgumentList?.Arguments.First().Expression is TypeOfExpressionSyntax typeOfExpr)
         {
             return typeOfExpr.GetLocation();
         }

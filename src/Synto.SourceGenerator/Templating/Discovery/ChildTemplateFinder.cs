@@ -27,17 +27,19 @@ internal sealed class ChildTemplateFinder : CSharpSyntaxWalker
 
     private readonly SemanticModel _semanticModel;
     private readonly INamedTypeSymbol? _templateAttributeSymbol;
+    private readonly INamedTypeSymbol? _genericTemplateAttributeSymbol;
     private readonly List<MethodDeclarationSyntax> _childTemplates = new();
 
     private ChildTemplateFinder(SemanticModel semanticModel)
     {
         _semanticModel = semanticModel;
         _templateAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(TemplateAttribute).FullName!);
+        _genericTemplateAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(TemplateAttribute<>).FullName!);
     }
 
     public override void VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
-        if (_templateAttributeSymbol is not null && HasTemplateAttribute(node))
+        if ((_templateAttributeSymbol is not null || _genericTemplateAttributeSymbol is not null) && HasTemplateAttribute(node))
             _childTemplates.Add(node);
 
         base.VisitMethodDeclaration(node);
@@ -49,7 +51,15 @@ internal sealed class ChildTemplateFinder : CSharpSyntaxWalker
         {
             foreach (var attributeSyntax in attributeList.Attributes)
             {
-                if (SymbolEqualityComparer.Default.Equals(_semanticModel.GetTypeInfo(attributeSyntax).Type, _templateAttributeSymbol))
+                if (_semanticModel.GetTypeInfo(attributeSyntax).Type is not INamedTypeSymbol attributeType)
+                    continue;
+
+                // The legacy [Template] matches the non-generic symbol directly; [Template<T>] matches the
+                // generic definition via its original definition (any T).
+                if (SymbolEqualityComparer.Default.Equals(attributeType, _templateAttributeSymbol))
+                    return true;
+
+                if (SymbolEqualityComparer.Default.Equals(attributeType.OriginalDefinition, _genericTemplateAttributeSymbol))
                     return true;
             }
         }
