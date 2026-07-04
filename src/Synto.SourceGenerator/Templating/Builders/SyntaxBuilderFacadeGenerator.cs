@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
@@ -27,13 +30,19 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
                 typeof(global::Synto.Templating.SyntaxBuilderAttribute).FullName!,
                 static (node, _) => node is MethodDeclarationSyntax,
                 static (ctx, _) => Build(ctx))
-            .Where(static facade => facade is not null);
+            .Where(static facade => facade.HintName is not null || facade.Diagnostics.Count > 0);
 
-        context.RegisterSourceOutput(facades, static (spc, facade) => Emit(spc, facade!.Value));
+        context.RegisterSourceOutput(facades, static (spc, facade) => Emit(spc, facade));
     }
 
-    private static void Emit(SourceProductionContext context, (string HintName, string Source) facade)
+    private static void Emit(SourceProductionContext context, FacadeGenerationResult facade)
     {
+        foreach (var diagnostic in facade.Diagnostics)
+            context.ReportDiagnostic(diagnostic.ToDiagnostic());
+
+        if (facade.HintName is null || facade.Source is null)
+            return;
+
         try
         {
             context.AddSource(facade.HintName, SourceText.From(facade.Source, Encoding.UTF8));
@@ -46,19 +55,27 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
         }
     }
 
-    private static (string HintName, string Source)? Build(GeneratorAttributeSyntaxContext ctx)
+    private static FacadeGenerationResult Build(GeneratorAttributeSyntaxContext ctx)
     {
         if (ctx.TargetSymbol is not IMethodSymbol builder)
-            return null;
+            return default;
+
+        // Declaration-site misuse (private/inaccessible builder, non-partial or interface container) would surface
+        // only as a cryptic CS error inside the generated facade file — report it as a located SY1031 instead and
+        // emit no facade. Located at the builder method's identifier.
+        Location? declLocation = (ctx.TargetNode as MethodDeclarationSyntax)?.Identifier.GetLocation();
+        if (ValidateDeclaration(builder) is { } declError)
+            return new FacadeGenerationResult(null, null, new EquatableArray<DiagnosticInfo>(
+                ImmutableArray.Create(TemplateDiagnostics.InvalidBuilderDeclaration(declLocation, builder.Name, declError))));
 
         var shape = FacadeShape.Derive(builder, out var annotationError, out var returnShapeError);
         if (shape is null || annotationError is not null || returnShapeError is not null)
-            return null; // an invalid builder produces no facade; TemplateFactorySourceGenerator reports the diagnostic.
+            return default; // an invalid builder produces no facade; TemplateFactorySourceGenerator reports the diagnostic at the call site.
 
         if (FacadeMatchesBuilder(builder, shape))
-            return null; // an all-staged, concrete-node-returning builder IS its own facade; synthesizing one
-                         // would collide with the real (injected) method (CS0111). The template binds directly to
-                         // the real builder and TemplateFactorySourceGenerator still rewrites the recognized call.
+            return default; // an all-staged, concrete-node-returning builder IS its own facade; synthesizing one
+                            // would collide with the real (injected) method (CS0111). The template binds directly to
+                            // the real builder and TemplateFactorySourceGenerator still rewrites the recognized call.
 
         var sb = new StringBuilder();
         sb.Append("#nullable enable\n");
@@ -102,7 +119,41 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
             .SanitizeHintName()
             + ".SyntaxBuilderFacade.g.cs";
 
-        return (hint, sb.ToString());
+        return new FacadeGenerationResult(hint, sb.ToString(), EquatableArray<DiagnosticInfo>.Empty);
+    }
+
+    /// <summary>
+    /// Validates the builder <em>declaration</em> can host a synthesized facade: the builder must be callable
+    /// (public/internal) from the consumer compilation, and every containing type must be a <c>partial</c>
+    /// class/struct (not an interface) so the facade partial can be reopened alongside it. Returns a human reason
+    /// for the first violation, or <c>null</c> when the declaration is well-formed. Pure symbol analysis; the
+    /// syntax it touches (for the <c>partial</c> check) is not captured into pipeline state.
+    /// </summary>
+    private static string? ValidateDeclaration(IMethodSymbol builder)
+    {
+        if (builder.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+            return "a [SyntaxBuilder] method must be public or internal so its synthesized facade can call it";
+
+        for (var t = builder.ContainingType; t is not null; t = t.ContainingType)
+        {
+            if (t.TypeKind == TypeKind.Interface)
+                return $"containing type '{t.Name}' is an interface; only (partial) class/struct containers are supported";
+            if (t.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+                return $"containing type '{t.Name}' must be public or internal";
+            if (!IsPartial(t))
+                return $"containing type '{t.Name}' must be declared partial";
+        }
+
+        return null;
+    }
+
+    private static bool IsPartial(INamedTypeSymbol type)
+    {
+        foreach (var reference in type.DeclaringSyntaxReferences)
+            if (reference.GetSyntax() is TypeDeclarationSyntax decl
+                && decl.Modifiers.Any(static m => m.IsKind(SyntaxKind.PartialKeyword)))
+                return true;
+        return false;
     }
 
     /// <summary>

@@ -26,6 +26,7 @@ internal static class SyntaxBuilderRegistry
             {
                 if (member is IMethodSymbol method
                     && method.IsStatic
+                    && method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
                     && SymbolMetadataExtensions.HasAttribute(method, syntaxBuilderAttribute))
                 {
                     builder.Add(method);

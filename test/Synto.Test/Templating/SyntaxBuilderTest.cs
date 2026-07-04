@@ -565,6 +565,144 @@ public class SyntaxBuilderTest
         AssertHasRealSpan(diag);
     }
 
+    // Runs ONLY the facade-synthesis generator and returns its diagnostics — declaration-site misuse (SY1031)
+    // is reported by that generator's own pipeline, independent of any template call.
+    private static ImmutableArray<Diagnostic> RunFacadeGeneratorDiagnostics(string source)
+    {
+        var compilation = CSharpCompilation.Create("Test",
+            [CSharpSyntaxTree.ParseText(source)],
+            references: References,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var driver = CSharpGeneratorDriver.Create(new SyntaxBuilderFacadeGenerator());
+        return driver.RunGenerators(compilation).GetRunResult().Diagnostics;
+    }
+
+    // #10 (a): [TypeArg] and [Quoted] on one parameter is documented-forbidden -> SY1015 (annotation error).
+    [Fact]
+    public void CombinedTypeArgAndQuotedMarkers_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Combo([TypeArg, Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Combo(x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
+    // #10 (b): two facade type-parameters resolve to the same name -> SY1015 (annotation error), no CS0692.
+    [Fact]
+    public void DuplicateFacadeTypeParameterName_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Two([TypeArg(Name = "T")] TypeSyntax a, [TypeArg(Name = "T")] TypeSyntax b) => a;
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Two(x, x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
+    // #10 (c): [Quoted] params is not a sound facade shape (params object) -> SY1015, never a silent shape change.
+    [Fact]
+    public void QuotedParams_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Many([Quoted] params ExpressionSyntax[] xs) => xs[0];
+            }
+
+            public class TestClass {
+                [Template(typeof(Factory))]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Many(x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
+    // #10: a private [SyntaxBuilder] would fail CS0122 in the generated facade -> reported SY1031 at the declaration.
+    [Fact]
+    public void PrivateBuilder_ReportsSY1031()
+    {
+        var diagnostics = RunFacadeGeneratorDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+            static partial class Holder {
+                [SyntaxBuilder]
+                private static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1031");
+        AssertHasRealSpan(diag);
+    }
+
+    // #10: a non-partial container cannot be reopened for the facade (CS0260) -> reported SY1031.
+    [Fact]
+    public void NonPartialContainer_ReportsSY1031()
+    {
+        var diagnostics = RunFacadeGeneratorDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+            static class Holder {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1031");
+        AssertHasRealSpan(diag);
+    }
+
+    // #10: an interface container cannot host the reopened facade class (CS0261) -> reported SY1031.
+    [Fact]
+    public void InterfaceContainer_ReportsSY1031()
+    {
+        var diagnostics = RunFacadeGeneratorDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+            partial interface IHolder {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1031");
+        AssertHasRealSpan(diag);
+    }
+
     // #7: named arguments on a user [SyntaxBuilder] facade call are reported SY1029.
     [Fact]
     public void NamedArgumentsOnUserFacade_ReportsSY1029()

@@ -221,6 +221,20 @@ internal static class TemplateDiagnostics
             new EquatableArray<string>(ImmutableArray.Create(builderName)));
     }
 
+    private static readonly DiagnosticDescriptor _invalidBuilderDeclaration = new(IdPrefix + "1031",
+        "Invalid Syntax Builder Declaration",
+        "Invalid [SyntaxBuilder] declaration '{0}': {1}",
+        "Synto.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo InvalidBuilderDeclaration(Location? location, string builderName, string reason)
+    {
+        return new DiagnosticInfo(_invalidBuilderDeclaration,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray.Create(builderName, reason)));
+    }
+
     private static readonly DiagnosticDescriptor _spliceMethodMustBeStatic = new(IdPrefix + "1019",
         "Invalid Splice Member Generator",
         "[Splice] member generator '{0}' must be static (it runs at factory-build time; an instance method could reach output-world members).",

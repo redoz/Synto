@@ -120,6 +120,14 @@ internal sealed class FacadeShape
             var typeArg = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.TypeArgAttribute).FullName!);
             bool isReturnType = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.ReturnTypeAttribute).FullName!) is not null;
 
+            if (typeArg is not null && quoted is not null)
+            {
+                // [TypeArg] reshapes a parameter into a facade type argument; [Quoted] into a facade value argument.
+                // The two are mutually exclusive — combining them is documented-forbidden and silently half-ignored today.
+                annotationError = $"parameter '{p.Name}': [TypeArg] and [Quoted] must never be combined";
+                return null;
+            }
+
             if (isReturnType && typeArg is null)
             {
                 annotationError = $"[ReturnType] on parameter '{p.Name}' requires [TypeArg]";
@@ -131,6 +139,14 @@ internal sealed class FacadeShape
                 // [TypeArg] type island: facade generic type parameter. Name override else Pascal(param).
                 string genericName = SymbolMetadataExtensions.GetNamedString(typeArg, "Name") ?? Pascal(p.Name);
                 string? constraintDisplay = SymbolMetadataExtensions.GetNamedTypeDisplay(typeArg, "Constraint");
+
+                if (genericParameters.Any(g => g.Name == genericName))
+                {
+                    // Two facade type-parameters resolving to one name would emit `<T, T>` (CS0692).
+                    annotationError = $"duplicate facade type-parameter name '{genericName}'";
+                    return null;
+                }
+
                 genericParameters.Add(new FacadeGenericParam(genericName, constraintDisplay));
                 parameters.Add(new FacadeParam(p.Name, BuilderArgKind.QuotedTypeArg, genericName, null));
 
@@ -145,6 +161,15 @@ internal sealed class FacadeShape
 
             if (quoted is not null)
             {
+                // A [Quoted] value param projects onto a facade value param typed `As`/object — a `params object`
+                // is not a legal facade shape, so a [Quoted] params combination is rejected rather than silently
+                // dropping the params modifier (which would change the call shape).
+                if (p.IsParams)
+                {
+                    annotationError = $"parameter '{p.Name}': [Quoted] params is not supported";
+                    return null;
+                }
+
                 // [Quoted] value island: facade value param typed `As` (if given) else object.
                 string valueType = SymbolMetadataExtensions.GetNamedTypeDisplay(quoted, "As") ?? "object";
                 parameters.Add(new FacadeParam(p.Name, BuilderArgKind.Quoted, null, valueType));
@@ -184,9 +209,17 @@ internal sealed class FacadeShape
             returnTypeDisplay = returnDisplay;
         }
 
-        // The fresh TResult is the FIRST facade generic parameter.
+        // The fresh TResult is the FIRST facade generic parameter — reject a user [TypeArg(Name = "TResult")]
+        // that would collide with it (again CS0692 in the synthesized facade).
         if (freshReturnTypeParam)
+        {
+            if (genericParameters.Any(g => g.Name == FreshReturnTypeParamName))
+            {
+                annotationError = $"facade type-parameter name '{FreshReturnTypeParamName}' is reserved for the synthesized return type";
+                return null;
+            }
             genericParameters.Insert(0, new FacadeGenericParam(FreshReturnTypeParamName, null));
+        }
 
         // A StatementSyntax-derived return (not ExpressionSyntax/TypeSyntax) makes the call statement-position
         // spliceable: a bare-statement builder call emits the built statement node directly.

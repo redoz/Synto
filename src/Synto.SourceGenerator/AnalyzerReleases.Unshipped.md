@@ -24,6 +24,7 @@ SY1016 | Synto.Usage | Error | Diagnostics
 SY1017 | Synto.Usage | Error | Diagnostics
 SY1018 | Synto.Usage | Error | Diagnostics
 SY1029 | Synto.Usage | Error | Diagnostics
+SY1031 | Synto.Usage | Error | Diagnostics
 SY1201 | Synto.Matching | Error | MatchDiagnostics
 SY1202 | Synto.Matching | Error | MatchDiagnostics
 SY1203 | Synto.Matching | Error | MatchDiagnostics
