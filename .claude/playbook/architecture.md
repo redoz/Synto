@@ -87,6 +87,23 @@ the embedded-resource pipeline: marker/helper `.cs` files are authored once in `
 embedded into the generator (`Synto.Runtime.*` / `Synto.Helper.*` resources), parsed, and
 rewritten (`public`→`internal` for markers, `public`→`file` for helpers) at inject time.
 
+**Folder = namespace, with exactly two exceptions.** Both source trees follow folder =
+namespace, so a file's directory names its namespace. Two deliberate exceptions stand:
+(a) the **consumer surface** stays `Synto.*` regardless of how deep the runtime role
+folders nest — the public contract is the namespace, not the disk layout (a marker under
+`src/Synto/Templating/Surface/` is still `namespace Synto`); (b) the **injected
+generator-author surface** stays `Synto.Generators.*` — the cacheability-toolkit files
+authored for injection (`EquatableArray`, `DiagnosticInfo`) declare `namespace
+Synto.Generators` directly and are injected verbatim. A former third exception — the
+namespace-shift group authored at `namespace Synto` and rewritten at inject time — is
+**gone**: those files are now authored at `Synto.Generators`, and `NamespaceShiftRewriter`
+is deleted.
+
+**Passes live with their feature.** A quoting pass lives in the feature folder that owns it
+(a builder pass with the builders, a decoration pass with the decorations); only
+feature-agnostic core passes (Trim, Replace, the interpolation/member folds) stay in the
+core Quoting pipeline folder.
+
 ## Evaluate within this paradigm
 
 Don't flag idiomatic `IIncrementalGenerator` / Roslyn / `SyntaxFactory` usage as issues,
@@ -101,9 +118,16 @@ but **do** flag misuse of the platform or violations of the layering above:
   list extensions must stay 0-occurrence in consumer output; only the five markers and the
   three file-local helpers belong there;
 - **drifting the single source of truth** — re-declaring a marker/helper in the generator
-  instead of embedding the `src/Synto` file, or the two **duplicated quoter/helper sources**
-  still linked between `src/Synto` and `src/Synto.Bootstrap` drifting apart (a known,
-  deferred smell — prefer a shared/linked file so they can't diverge);
+  instead of embedding the `src/Synto` file. This does **not** cover the two
+  `CSharpSyntaxQuoter` copies (`src/Synto/Quoting/CSharpSyntaxQuoter.cs` and
+  `src/Synto.Bootstrap/CSharpSyntaxQuoter.cs`): those are a **blessed, deliberate
+  duplicate** — two different programs (the runtime quoter vs. the bootstrap quoter that
+  generates half of it), *not* a linked file. Their divergence is guarded loudly by the
+  `Synto.Bootstrap.Test` snapshot, and that loud snapshot failure is the *wanted* mode;
+  folding them into a single `#if BOOTSTRAP` source would trade it for silent drift. See
+  the in-file SYNC NOTEs at `src/Synto/Quoting/CSharpSyntaxQuoter.cs:11–18`. Bootstrap
+  remains the one sanctioned place for cross-project `<Compile Link>`ing, but the quoter is
+  intentionally *not* linked;
 - **exceptions escaping the generator on a reachable path** — generation failures must be
   converted to a `DiagnosticInfo` (e.g. `Diagnostics.InternalError`), not thrown; an
   unguarded `!`, `.Result`, or `First()` on input-dependent data is the equivalent of a
