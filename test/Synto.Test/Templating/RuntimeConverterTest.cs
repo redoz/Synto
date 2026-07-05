@@ -254,6 +254,84 @@ public class RuntimeConverterTest
         AssertHasRealSpan(diag);
     }
 
+    // Task 5: a [Constant] builder argument reuses the SAME ValueLift, so a concrete non-built-in, non-enum value
+    // (a custom struct) with NO [Runtime] converter reports SY1008 at the argument location — identical policy to
+    // the [Quote]/[Unquote] cases, no new diagnostic.
+    [Fact]
+    public void ConstantArgWithNoRuntimeConverter_ReportsSY1008()
+    {
+        var diagnostics = RunTemplateGeneratorDiagnostics(
+            """
+            using System;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using Synto.Templating;
+
+            partial class Factory {}
+
+            public readonly struct Color { public int Argb { get; init; } }
+
+            static partial class B {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Lit([Constant] ExpressionSyntax label) => label;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build(Color color) {
+                    Console.WriteLine(B.Lit(color));
+                }
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1008");
+        AssertHasRealSpan(diag);
+    }
+
+    // Task 5: a [Constant] argument of a custom struct with MORE THAN ONE [Runtime] converter is ambiguous and
+    // reports SY1009 (again the shared ValueLift policy).
+    [Fact]
+    public void ConstantArgWithAmbiguousRuntimeConverters_ReportsSY1009()
+    {
+        var diagnostics = RunTemplateGeneratorDiagnostics(
+            """
+            using System;
+            using Microsoft.CodeAnalysis;
+            using Microsoft.CodeAnalysis.CSharp;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using Synto.Templating;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+
+            partial class Factory {}
+
+            public readonly struct Color { public int Argb { get; init; } }
+
+            [Runtime]
+            public static class ConvA {
+                public static ExpressionSyntax ToSyntax(this Color color) => IdentifierName("a");
+            }
+
+            [Runtime]
+            public static class ConvB {
+                public static ExpressionSyntax ToSyntax(this Color color) => IdentifierName("b");
+            }
+
+            static partial class B {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Lit([Constant] ExpressionSyntax label) => label;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build(Color color) {
+                    Console.WriteLine(B.Lit(color));
+                }
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1009");
+        AssertHasRealSpan(diag);
+    }
+
     [Fact]
     public void QuoteEnumType_LiftsViaToSyntax_NoSY1008()
     {
@@ -332,5 +410,20 @@ public class RuntimeConverterTest
         var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
         var result = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
         return result.GetRunResult().Diagnostics;
+    }
+
+    // Like RunAndGetDiagnostics, but does NOT assert the carrier compiles pre-generation: a [Constant] BUILDER call
+    // (e.g. B.Lit(color)) does not type-check until the synthesized facade exists (the builder param is
+    // ExpressionSyntax, the facade value param is object), yet the value-lift diagnostic (SY1008/SY1009) is produced
+    // by the template generator's structural discovery regardless — the semantic model still resolves the argument's
+    // own type.
+    private static ImmutableArray<Diagnostic> RunTemplateGeneratorDiagnostics(string source)
+    {
+        var compilation = CSharpCompilation.Create("Test",
+            [CSharpSyntaxTree.ParseText(source)],
+            References,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        return driver.RunGenerators(compilation, TestContext.Current.CancellationToken).GetRunResult().Diagnostics;
     }
 }
