@@ -24,7 +24,22 @@ internal static partial class SyntoBuilders
     public static ExpressionSyntax Member([Quoted] ExpressionSyntax instance, string name) =>
         MemberAccessExpression(SimpleMemberAccessExpression, instance, Token(DotToken), IdentifierName(name));
 
-    /// <summary>Builds the <c>typeof(name)</c> expression from a type name (the facade returns <c>System.Type</c>).</summary>
+    /// <summary>
+    /// Builds the <c>typeof(name)</c> expression from a type name. Deliberately NOT paired with a
+    /// <c>[SyntaxBuilder]</c>-facade counterpart the way <see cref="Member"/> is: <c>Template.TypeOf</c> must
+    /// return <c>System.Type</c> in <em>value position</em> (e.g.
+    /// <c>System.Type GetFieldType() =&gt; TypeOf(c.ColumnTypeName);</c>), whereas this builder returns
+    /// <c>ExpressionSyntax</c>. A same-signature <c>System.Type TypeOf(string)</c> facade on
+    /// <see cref="SyntoBuilders"/> would be CS0111 against this builder (return-type-only difference); a
+    /// synthesized generic escape hatch (<c>TResult TypeOf&lt;TResult&gt;(string)</c>) loses overload resolution
+    /// to this exact non-generic match. Unlike <c>Member</c> — whose <c>[Quoted] ExpressionSyntax</c> first
+    /// parameter shields it, so a real author argument never binds here and the call falls through to
+    /// structural recognition — <c>TypeOf</c>'s only parameter is a factory-time type NAME that is itself often
+    /// a live/staged value (e.g. <c>c.ColumnTypeName</c>), so <c>[TypeArg]</c> (a compile-time type token)
+    /// cannot express it either. That is why the value-position facade instead lives, hand-pinned to
+    /// <c>System.Type</c>, on <c>Template</c> — a different type than this one — and stays bind-recognized
+    /// rather than migrating here.
+    /// </summary>
     public static ExpressionSyntax TypeOf(string name) => TypeOfExpression(ParseTypeName(name));
 
     // ---- data-driven switch builders (list-shaped [SyntaxBuilder] recipe) --------------------------------------

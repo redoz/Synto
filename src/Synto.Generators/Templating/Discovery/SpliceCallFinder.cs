@@ -20,8 +20,7 @@ internal sealed class SpliceCall(InvocationExpressionSyntax invocation, Expressi
 
 /// <summary>
 /// Discovers <c>Template.Splice(node)</c> calls in a <c>[Template]</c> body (recognized by binding, mirroring
-/// how <c>Template.Unquote</c> / <c>Member</c> / <c>TypeOf</c> are recognized). Nothing is captured into
-/// pipeline state.
+/// how <c>Template.Unquote</c> / <c>TypeOf</c> are recognized). Nothing is captured into pipeline state.
 /// </summary>
 internal sealed class SpliceCallFinder : TemplateScopedWalker
 {

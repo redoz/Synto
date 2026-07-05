@@ -8,12 +8,16 @@ using Synto.Generators.Templating.Diagnostics;
 namespace Synto.Generators.Templating.Builders;
 
 /// <summary>
-/// Discovers the built-in <c>Template.TypeOf</c> facade call (recognized by binding) and user
-/// <c>[SyntaxBuilder]</c> facade calls — including the built-in <c>Member</c> builder, which rides the same
-/// structural path as any user builder — (recognized structurally, since the synthesized facade is not
-/// present in the compilation the generator analyzes) in a <c>[Template]</c> body, and resolves each to its
-/// factory-time builder invocation with per-argument binding (plan Task 3). All discovery runs inside the
-/// <c>ForAttributeWithMetadataName</c> transform; nothing is captured into pipeline state.
+/// Discovers the <c>Template.TypeOf</c> facade call (recognized by binding — it must stay bind-recognized:
+/// its value-position <c>System.Type</c> return can't be paired with a same-signature <c>[SyntaxBuilder]</c>
+/// on <c>SyntoBuilders</c> without CS0111, and its type-name argument is a live/staged value, so <c>[TypeArg]</c>
+/// can't express it either) and user <c>[SyntaxBuilder]</c> facade calls — including the <c>Member</c> builder,
+/// which rides the same structural path as any user builder, shielded by its <c>[Quoted] ExpressionSyntax</c>
+/// first parameter so a real author argument never binds to the builder — (recognized structurally, since the
+/// synthesized facade is not present in the compilation the generator analyzes) in a <c>[Template]</c> body,
+/// and resolves each to its factory-time builder invocation with per-argument binding (plan Task 3). All
+/// discovery runs inside the <c>ForAttributeWithMetadataName</c> transform; nothing is captured into pipeline
+/// state.
 /// <para>
 /// The finder is a <see cref="TemplateScopedWalker"/> (Capability 1): a foreign nested child <c>[Template]</c>
 /// subtree is SKIPPED wholesale, so the parent carrier's builder pass never re-reports the child's facade errors
@@ -63,7 +67,8 @@ internal sealed class FacadeCallFinder : TemplateScopedWalker
     {
         var boundSymbol = _semanticModel.GetSymbolInfo(invocation).Symbol;
 
-        // Built-in facade calls bind to Template.TypeOf.
+        // TypeOf is the only facade left bind-recognized (see class summary for why it can't move to a
+        // structural [SyntaxBuilder] like Member did): a Template.TypeOf call binds here directly.
         if (_templateSymbol is not null
             && boundSymbol is IMethodSymbol bound
             && SymbolEqualityComparer.Default.Equals(bound.ContainingType, _templateSymbol)
@@ -126,6 +131,14 @@ internal sealed class FacadeCallFinder : TemplateScopedWalker
         base.VisitInvocationExpression(invocation);
     }
 
+    /// <summary>
+    /// Resolves a bind-recognized <c>Template.TypeOf</c> call to its <c>SyntoBuilders.TypeOf</c> builder
+    /// invocation. <c>TypeOf</c> is the only facade still matched here rather than structurally — its
+    /// value-position <c>System.Type</c> return can't share a signature with the <c>ExpressionSyntax</c>-returning
+    /// builder (CS0111), and its type-name argument is a live/staged value that <c>[TypeArg]</c> can't express
+    /// (see the class summary and <see cref="global::Synto.Templating.SyntoBuilders.TypeOf(string)"/> for the
+    /// full rationale).
+    /// </summary>
     private static bool TryBuiltIn(InvocationExpressionSyntax invocation, IMethodSymbol bound, List<BuilderCall> calls)
     {
         var args = invocation.ArgumentList.Arguments;

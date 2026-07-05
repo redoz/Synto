@@ -593,7 +593,7 @@ public class SyntaxBuilderTest
     // (v1 policy: diagnose, do not reorder). Member is discovered structurally, so this fires from the
     // structural branch (FacadeCallFinder:104), not the (deleted) built-in-binding branch.
     [Fact]
-    public void NamedArgumentsOnBuiltInFacade_ReportsSY1029()
+    public void NamedArgumentsOnMemberFacade_ReportsSY1029()
     {
         var diagnostics = RunAndGetDiagnosticsWithInjectedSurface(
             """
