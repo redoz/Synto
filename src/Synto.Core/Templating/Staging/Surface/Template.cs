@@ -34,6 +34,26 @@ public static class Template
     public static T Unquote<T>(T value) => value;
 
     /// <summary>
+    /// Declares a caller-supplied <em>unquote</em> live root in the template body: a value supplied to the
+    /// generated factory at template-invocation time rather than quoted from the template body. In declaration
+    /// position (<c>var count = Unquote&lt;int&gt;();</c>) the bound variable name supplies the factory parameter
+    /// name; in any other (inline) position an explicit <paramref name="parameterName"/> is required. This is the
+    /// in-body counterpart to an <c>[Unquote]</c> parameter; consuming the value lifts it into the produced syntax
+    /// exactly like an <c>[Unquote]</c> value. Inert (<c>=&gt; default!</c>) so the template body type-checks; the
+    /// generator recognizes the call by its bound overload symbol and folds it to a factory parameter.
+    /// <para>
+    /// This overload shares the <c>Unquote</c> name with the value-source <see cref="Unquote{T}(T)"/> overload
+    /// above. The two are distinguished by their bound overload — this one takes a <c>string?</c>/no argument, the
+    /// other a value. When <c>T == string</c> a positional single-<c>string</c> call is genuinely ambiguous
+    /// (CS0121) and must be disambiguated by naming the argument: <c>Unquote&lt;string&gt;(parameterName: "x")</c>
+    /// for this parameter-source form, or <c>Unquote&lt;string&gt;(value: expr)</c> for the value-source form.
+    /// </para>
+    /// </summary>
+    /// <typeparam name="T">The unquoted value's type; becomes the factory parameter's type. Must be explicit (it cannot be inferred from the string/omitted argument).</typeparam>
+    /// <param name="parameterName">The factory parameter name; required in inline position, defaulted from the bound variable name in declaration position.</param>
+    public static T Unquote<T>(string? parameterName = null) => default!;
+
+    /// <summary>
     /// Declares an inline <em>quote</em>: <c>Quote(value)</c> emits the quoted syntax of the factory-time
     /// <paramref name="value"/> at this call position — the same value-lift as <c>Unquote(value)</c> in value
     /// position — but is the inline stage-0 → stage-1 boundary that <em>stops</em> liveness here, so an

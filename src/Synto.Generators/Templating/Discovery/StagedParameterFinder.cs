@@ -103,6 +103,7 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
 
     private readonly SemanticModel _semanticModel;
     private readonly INamedTypeSymbol? _templateSymbol;
+    private readonly IMethodSymbol? _parameterSourceUnquote;
     private readonly List<Site> _sites = new();
     private readonly Dictionary<ISymbol, Site> _siteByLocal = new(SymbolEqualityComparer.Default);
 
@@ -111,6 +112,7 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
     {
         _semanticModel = semanticModel;
         _templateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);
+        _parameterSourceUnquote = _templateSymbol is null ? null : TemplateStagingSymbols.ParameterSourceUnquote(_templateSymbol);
     }
 
     public override void DefaultVisit(SyntaxNode node)
@@ -132,9 +134,10 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
     {
         if (_templateSymbol is not null
             && _semanticModel.GetSymbolInfo(node).Symbol is IMethodSymbol method
-            && method.Name == nameof(global::Synto.Templating.Template.Parameter)
             && method.TypeArguments.Length == 1
-            && SymbolEqualityComparer.Default.Equals(method.ContainingType, _templateSymbol))
+            && SymbolEqualityComparer.Default.Equals(method.ContainingType, _templateSymbol)
+            && (method.Name == nameof(global::Synto.Templating.Template.Parameter)
+                || TemplateStagingSymbols.IsParameterSourceUnquote(method, _parameterSourceUnquote)))
         {
             RegisterSite(node, method.TypeArguments[0]);
         }

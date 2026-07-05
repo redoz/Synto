@@ -86,11 +86,13 @@ internal static class SpliceMemberGeneratorEmitter
     {
         private readonly SemanticModel _semanticModel;
         private readonly INamedTypeSymbol? _templateSymbol;
+        private readonly IMethodSymbol? _parameterSourceUnquote;
 
         public SpliceGeneratorBodyRewriter(SemanticModel semanticModel, INamedTypeSymbol? templateSymbol)
         {
             _semanticModel = semanticModel;
             _templateSymbol = templateSymbol;
+            _parameterSourceUnquote = templateSymbol is null ? null : TemplateStagingSymbols.ParameterSourceUnquote(templateSymbol);
         }
 
         public override SyntaxNode? VisitLocalDeclarationStatement(LocalDeclarationStatementSyntax node)
@@ -121,9 +123,10 @@ internal static class SpliceMemberGeneratorEmitter
         {
             return _templateSymbol is not null
                 && _semanticModel.GetSymbolInfo(node).Symbol is IMethodSymbol method
-                && method.Name == nameof(global::Synto.Templating.Template.Parameter)
                 && method.TypeArguments.Length == 1
-                && SymbolEqualityComparer.Default.Equals(method.ContainingType, _templateSymbol);
+                && SymbolEqualityComparer.Default.Equals(method.ContainingType, _templateSymbol)
+                && (method.Name == nameof(global::Synto.Templating.Template.Parameter)
+                    || TemplateStagingSymbols.IsParameterSourceUnquote(method, _parameterSourceUnquote));
         }
     }
 }

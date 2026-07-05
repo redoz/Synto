@@ -86,8 +86,10 @@ public class InterpolationFoldTest
     [Fact]
     public async Task BareStagedString_UnquoteLocal_FoldsIntoLiteralText()
     {
-        // `label` is a string-typed Unquote<string>(...) staged local; `i` is a genuine runtime parameter.
-        // Same fold as the Parameter<string> path (the second, independently-fallible channel-population path).
+        // `label` is a string-typed value-source Unquote<string>(value: ...) staged local; `i` is a genuine
+        // runtime parameter. The `value:` name is REQUIRED at the T == string boundary: a positional single
+        // string binds the parameter-source Unquote<string>(string?) overload (concrete `string` is a more
+        // specific parameter than the value-source `T`), so the value-source local form must name its argument.
         await VerifyTemplate(
             """
             using System;
@@ -99,7 +101,7 @@ public class InterpolationFoldTest
             public class TestClass {
                 [Template<Factory>]
                 void LocalFunction(int i) {
-                    var label = Unquote<string>("Boolean");
+                    var label = Unquote<string>(value: "Boolean");
                     Console.WriteLine($"Field {i} is not {label} column.");
                 }
             }

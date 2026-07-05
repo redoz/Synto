@@ -125,6 +125,7 @@ internal sealed class StagedRootFinder : TemplateScopedWalker
 
     private readonly SemanticModel _semanticModel;
     private readonly INamedTypeSymbol? _templateSymbol;
+    private readonly IMethodSymbol? _valueSourceUnquote;
     private readonly INamedTypeSymbol? _liveAttributeSymbol;
 
     // Insertion-ordered so the emitted factory parameters / preamble are deterministic across runs.
@@ -138,6 +139,7 @@ internal sealed class StagedRootFinder : TemplateScopedWalker
     {
         _semanticModel = semanticModel;
         _templateSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);
+        _valueSourceUnquote = _templateSymbol is null ? null : TemplateStagingSymbols.ValueSourceUnquote(_templateSymbol);
         _liveAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(UnquoteAttribute).FullName!);
     }
 
@@ -169,9 +171,9 @@ internal sealed class StagedRootFinder : TemplateScopedWalker
     {
         if (_templateSymbol is not null
             && _semanticModel.GetSymbolInfo(node).Symbol is IMethodSymbol method
-            && method.Name == nameof(global::Synto.Templating.Template.Unquote)
             && method.TypeArguments.Length == 1
-            && SymbolEqualityComparer.Default.Equals(method.ContainingType, _templateSymbol))
+            && SymbolEqualityComparer.Default.Equals(method.ContainingType, _templateSymbol)
+            && TemplateStagingSymbols.IsValueSourceUnquote(method, _valueSourceUnquote))
         {
             RegisterLocal(node);
         }
