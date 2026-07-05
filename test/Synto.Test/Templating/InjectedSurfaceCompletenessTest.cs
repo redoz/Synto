@@ -120,9 +120,11 @@ public class InjectedSurfaceCompletenessTest
     /// <item>the built-in <c>Member</c> builder (member access over a <c>[Splice]</c> instance with a
     /// live member name) and the built-in <c>TypeOf</c> builder (a <c>typeof(...)</c> from a constant name).</item>
     /// </list>
-    /// Every piece must resolve against the injected surface alone — the internal markers/facades from
-    /// <see cref="SurfaceInjectionGenerator"/> (incl. the internal <c>SyntoBuilders.Member</c>/<c>TypeOf</c>) and
-    /// the scan-injected <c>file static</c> helpers (<c>BuildList</c>/<c>ToSyntax</c>) — with NO <c>Synto.Core</c>.
+    /// Every piece must resolve against the injected surface — the internal markers/facades from
+    /// <see cref="SurfaceInjectionGenerator"/> (incl. the internal <c>SyntoBuilders.TypeOf</c>) and the
+    /// scan-injected <c>file static</c> helpers (<c>BuildList</c>/<c>ToSyntax</c>) — with NO <c>Synto.Core</c>.
+    /// <c>Member</c> is discovered structurally like any user <c>[SyntaxBuilder]</c>, so its synthesized facade
+    /// also needs <see cref="SyntaxBuilderFacadeGenerator"/> in the driver (see the test method below).
     /// </summary>
     private const string StagedRichTemplate =
         """
@@ -130,6 +132,7 @@ public class InjectedSurfaceCompletenessTest
         using System.Collections.Generic;
         using Synto.Templating;
         using static Synto.Templating.Template;
+        using static Synto.Templating.SyntoBuilders;
 
         partial class Factory {}
 
@@ -144,7 +147,8 @@ public class InjectedSurfaceCompletenessTest
                 foreach (var c in columns)                        // live foreach -> unrolls -> BuildList run
                     if (i == c.Ordinal)                           // i quoted; c.Ordinal (loop var) -> int literal
                         return Member<object>(row, c.Name);       // Member builder -> row.<Name>
-                var t = TypeOf("System.Int32");                   // TypeOf builder -> typeof(System.Int32)
+                var t = Template.TypeOf("System.Int32");          // qualified: both Template and SyntoBuilders are
+                                                                   // `using static`-imported and each define TypeOf(string)
                 Console.WriteLine(t);
                 throw new System.IndexOutOfRangeException();      // quoted island, verbatim
             }
@@ -541,8 +545,13 @@ public class InjectedSurfaceCompletenessTest
             ],
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
+        // `Member` is discovered structurally (like any user [SyntaxBuilder]), so its synthesized facade also
+        // needs SyntaxBuilderFacadeGenerator in the driver — the injected surface alone is no longer enough for
+        // the ORIGINAL call site to type-check (unlike TypeOf, still recognized by binding to the injected
+        // Template.TypeOf facade).
         var driver = CSharpGeneratorDriver.Create(
             new SurfaceInjectionGenerator(),
+            new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);

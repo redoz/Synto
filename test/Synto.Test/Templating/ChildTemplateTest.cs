@@ -83,13 +83,20 @@ public class ChildTemplateTest
         }
         """;
 
+    // Injects the surface (SyntoBuilders + markers) so the built-in Member builder — discovered structurally,
+    // like any user [SyntaxBuilder] — resolves in these single-generator (TemplateFactorySourceGenerator-only)
+    // snapshot/diagnostic drivers, mirroring a real consumer's paired generators.
     private static CSharpCompilation CompilationWithSource(string source)
     {
         MetadataReference[] references = [.. References, MetadataReference.CreateFromFile(SyntoCoreAssembly.Location)];
-        return CSharpCompilation.Create("ChildTemplateSnapshotTest",
+        var compilation = CSharpCompilation.Create("ChildTemplateSnapshotTest",
             [CSharpSyntaxTree.ParseText(source)],
             references: references,
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var injectDriver = CSharpGeneratorDriver.Create(new SurfaceInjectionGenerator());
+        injectDriver.RunGeneratorsAndUpdateCompilation(compilation, out var injectedCompilation, out _, TestContext.Current.CancellationToken);
+        return (CSharpCompilation)injectedCompilation;
     }
 
     // Same composition, but the child [Template] (TypedGetter) and its inert `_e` live INSIDE the Reader

@@ -6,11 +6,12 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace Synto.Test.Templating;
 
 /// <summary>
-/// Exercises the generic syntax-builder mechanism (plan Task 3): the built-in <c>Member</c>/<c>TypeOf</c>
-/// facades (hand-authored on <c>Template</c>, recognized by binding) and user <c>[SyntaxBuilder]</c> methods
-/// (facade synthesized, recognized structurally). A recognized facade call is rewritten to a fully-qualified
-/// static invocation of the paired builder over processed arguments: a <c>[Quoted]</c> parameter receives the
-/// quote of the call argument, an unmarked parameter the live value verbatim.
+/// Exercises the generic syntax-builder mechanism (plan Task 3): the built-in <c>TypeOf</c> facade
+/// (hand-authored on <c>Template</c>, recognized by binding) and <c>[SyntaxBuilder]</c> methods — including
+/// the built-in <c>Member</c> builder, discovered exactly like a user builder (facade synthesized, recognized
+/// structurally). A recognized facade call is rewritten to a fully-qualified static invocation of the paired
+/// builder over processed arguments: a <c>[Quoted]</c> parameter receives the quote of the call argument, an
+/// unmarked parameter the live value verbatim.
 /// </summary>
 public class SyntaxBuilderTest
 {
@@ -83,10 +84,47 @@ public class SyntaxBuilderTest
             "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
+    /// <summary>
+    /// Snapshot the factory for a template that calls the built-in <c>Member</c> builder. <c>Member</c> now
+    /// rides the SAME structural discovery as a user <c>[SyntaxBuilder]</c> (plan Task 1): the authoring call
+    /// is genuinely UNBOUND (no <c>Template.Member</c> facade), and structural discovery needs the injected
+    /// <c>SyntoBuilders</c>' <c>[SyntaxBuilder]</c> declaration present in the analyzed compilation — supplied
+    /// by <see cref="SurfaceInjectionGenerator"/>'s post-initialization output, exactly as a real consumer's
+    /// paired generators see it (mirrors <c>SwitchBuilderTest</c>'s discovery setup for the other built-in-
+    /// surface builders). Injecting into the COMPILATION first (rather than adding the generator alongside
+    /// <see cref="TemplateFactorySourceGenerator"/> in one driver) keeps the snapshotted result scoped to just
+    /// the factory output — no injected-marker noise — so the existing Factory.*.g snapshot stays put.
+    /// </summary>
+    private async Task VerifyBuiltInBuilderTemplate(string source)
+    {
+        var compilation = CompilationWithSource(source);
+
+        var injectDriver = CSharpGeneratorDriver.Create(new SurfaceInjectionGenerator());
+        injectDriver.RunGeneratorsAndUpdateCompilation(compilation, out var injectedCompilation, out _, TestContext.Current.CancellationToken);
+
+        var result = _driver.RunGenerators(injectedCompilation);
+        var ret = await Verify(result).UseDirectory("snapshots");
+        Assert.NotEmpty(ret.Files);
+    }
+
     private ImmutableArray<Diagnostic> RunAndGetDiagnostics(string source)
     {
         var compilation = CompilationWithSource(source);
         var result = _driver.RunGenerators(compilation);
+        return result.GetRunResult().Diagnostics;
+    }
+
+    /// <summary>
+    /// Same as <see cref="RunAndGetDiagnostics"/>, but injects the surface (<c>SyntoBuilders</c> + markers)
+    /// into the compilation first, so a call to the built-in <c>Member</c> builder is discovered structurally
+    /// (see <see cref="VerifyBuiltInBuilderTemplate"/>).
+    /// </summary>
+    private ImmutableArray<Diagnostic> RunAndGetDiagnosticsWithInjectedSurface(string source)
+    {
+        var compilation = CompilationWithSource(source);
+        var injectDriver = CSharpGeneratorDriver.Create(new SurfaceInjectionGenerator());
+        injectDriver.RunGeneratorsAndUpdateCompilation(compilation, out var injectedCompilation, out _, TestContext.Current.CancellationToken);
+        var result = _driver.RunGenerators(injectedCompilation);
         return result.GetRunResult().Diagnostics;
     }
 
@@ -96,11 +134,13 @@ public class SyntaxBuilderTest
         Assert.False(diag.Location.SourceSpan.IsEmpty);
     }
 
-    // Built-in identifier builder with a CONSTANT name -> member access in output.
+    // Built-in identifier builder with a CONSTANT name -> member access in output. `Member` is discovered
+    // structurally (like any user [SyntaxBuilder]): the call is genuinely UNBOUND pre-generation (no
+    // Template.Member facade), so this uses VerifyBuiltInBuilderTemplate rather than VerifyTemplate.
     [Fact]
     public async Task Member_WithConstantName_EmitsMemberAccess()
     {
-        await VerifyTemplate(
+        await VerifyBuiltInBuilderTemplate(
             """
             using Synto.Templating;
             using static Synto.Templating.Template;
@@ -474,6 +514,8 @@ public class SyntaxBuilderTest
     // Zero-collision: the built-in Member builder is injected internal and called fully-qualified, so the
     // generated output compiles alongside the PUBLIC Synto.Core in the default scope with no CS0121 ambiguity
     // and no Synto.Core runtime dependency (the injected SyntoBuilders is the consumer's own internal copy).
+    // Member now discovers/synthesizes like a user [SyntaxBuilder], so SyntaxBuilderFacadeGenerator must also
+    // run to supply the inert facade the ORIGINAL (pre-rewrite) template body type-checks against.
     [Fact]
     public void BuiltInBuilderOutput_CompilesAlongsidePublicSyntoCore()
     {
@@ -481,6 +523,7 @@ public class SyntaxBuilderTest
             """
             using Synto.Templating;
             using static Synto.Templating.Template;
+            using static Synto.Templating.SyntoBuilders;
             partial class Factory {}
             public class TestClass {
                 [Template<Factory>]
@@ -493,9 +536,13 @@ public class SyntaxBuilderTest
 
         var compilation = CompilationWithSource(source);
 
-        // Run BOTH generators so the injected internal SyntoBuilders (and markers) are present.
+        // Run all three generators: SurfaceInjection supplies the injected internal SyntoBuilders (and
+        // markers) that structural discovery needs, SyntaxBuilderFacadeGenerator synthesizes the inert
+        // `Member` facade the ORIGINAL template body type-checks against, and TemplateFactorySourceGenerator
+        // rewrites the recognized call to the fully-qualified builder invocation.
         var driver = CSharpGeneratorDriver.Create(
             new SurfaceInjectionGenerator(),
+            new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
 
@@ -542,12 +589,13 @@ public class SyntaxBuilderTest
         Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
     }
 
-    // #7: named arguments on a built-in facade call (Template.Member) are reported SY1029, not silently
-    // mispaired. (v1 policy: diagnose, do not reorder.)
+    // #7: named arguments on the built-in Member builder call are reported SY1029, not silently mispaired
+    // (v1 policy: diagnose, do not reorder). Member is discovered structurally, so this fires from the
+    // structural branch (FacadeCallFinder:104), not the (deleted) built-in-binding branch.
     [Fact]
     public void NamedArgumentsOnBuiltInFacade_ReportsSY1029()
     {
-        var diagnostics = RunAndGetDiagnostics(
+        var diagnostics = RunAndGetDiagnosticsWithInjectedSurface(
             """
             using Synto.Templating;
             using static Synto.Templating.Template;
@@ -725,6 +773,23 @@ public class SyntaxBuilderTest
         AssertHasRealSpan(diag);
     }
 
+    /// <summary>
+    /// Same as <see cref="RunAndGetGeneratedText"/>, but injects the surface (<c>SyntoBuilders</c> + markers)
+    /// into the compilation first, so a call to the built-in <c>Member</c> builder is discovered structurally
+    /// (see <see cref="VerifyBuiltInBuilderTemplate"/>).
+    /// </summary>
+    private static string RunAndGetGeneratedTextWithInjectedSurface(string source)
+    {
+        var compilation = CompilationWithSource(source);
+        var injectDriver = CSharpGeneratorDriver.Create(new SurfaceInjectionGenerator());
+        injectDriver.RunGeneratorsAndUpdateCompilation(compilation, out var injectedCompilation, out _, TestContext.Current.CancellationToken);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var runResult = driver.RunGenerators(injectedCompilation).GetRunResult();
+        return string.Concat(runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .Select(s => s.SourceText.ToString()));
+    }
+
     private static string RunAndGetGeneratedText(string source)
     {
         var compilation = CompilationWithSource(source);
@@ -742,7 +807,7 @@ public class SyntaxBuilderTest
     [Fact]
     public void CarrierUsing_SyntoPrefixedButNotSyntoNamespace_IsTransplanted()
     {
-        var generated = RunAndGetGeneratedText(
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(
             """
             using Synto.Templating;
             using static Synto.Templating.Template;

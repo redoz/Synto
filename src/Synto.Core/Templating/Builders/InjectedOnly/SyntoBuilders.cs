@@ -6,17 +6,19 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 namespace Synto.Templating;
 
 /// <summary>
-/// The built-in factory-time <em>syntax builders</em> behind the hand-authored <c>Template.Member</c> /
-/// <c>Template.TypeOf</c> facades. Unlike user builders (discovered via <c>[SyntaxBuilder]</c> and
-/// facade-synthesized), these are hardwired: the generator recognizes a <c>Template.Member</c> /
-/// <c>Template.TypeOf</c> facade call by binding and rewrites it to a fully-qualified static call of the
-/// matching method here. Authored once in <c>src\Synto</c>, <c>&lt;Compile Remove&gt;</c>d from Synto.Core,
-/// and injected <c>internal</c> into the consumer's generator compilation by <c>SurfaceInjectionGenerator</c>
-/// — so it is called fully-qualified at factory time with no Synto.Core runtime dependency.
+/// The factory-time <em>syntax builders</em> injected internal into the consumer's generator compilation by
+/// <c>SurfaceInjectionGenerator</c>. <c>Member</c> is discovered like any user <c>[SyntaxBuilder]</c> method
+/// (structural recognition — an unbound simple-name call — plus facade synthesis); only <c>Template.TypeOf</c>
+/// remains hardwired: the generator recognizes a <c>Template.TypeOf</c> facade call by binding and rewrites it
+/// to a fully-qualified static call of the matching method here. Authored once in <c>src\Synto</c>,
+/// <c>&lt;Compile Remove&gt;</c>d from Synto.Core, and injected <c>internal</c> into the consumer's generator
+/// compilation by <c>SurfaceInjectionGenerator</c> — so it is called fully-qualified at factory time with no
+/// Synto.Core runtime dependency.
 /// </summary>
 public static partial class SyntoBuilders
 {
     /// <summary>Builds <c>instance.name</c> (a member access) from a quoted instance island and a member name.</summary>
+    [SyntaxBuilder]
     public static ExpressionSyntax Member([Quoted] ExpressionSyntax instance, string name) =>
         MemberAccessExpression(SimpleMemberAccessExpression, instance, Token(DotToken), IdentifierName(name));
 

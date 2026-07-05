@@ -8,8 +8,9 @@ using Synto.Generators.Templating.Diagnostics;
 namespace Synto.Generators.Templating.Builders;
 
 /// <summary>
-/// Discovers the built-in <c>Template.Member</c>/<c>Template.TypeOf</c> facade calls (recognized by binding)
-/// and user <c>[SyntaxBuilder]</c> facade calls (recognized structurally, since the synthesized facade is not
+/// Discovers the built-in <c>Template.TypeOf</c> facade call (recognized by binding) and user
+/// <c>[SyntaxBuilder]</c> facade calls — including the built-in <c>Member</c> builder, which rides the same
+/// structural path as any user builder — (recognized structurally, since the synthesized facade is not
 /// present in the compilation the generator analyzes) in a <c>[Template]</c> body, and resolves each to its
 /// factory-time builder invocation with per-argument binding (plan Task 3). All discovery runs inside the
 /// <c>ForAttributeWithMetadataName</c> transform; nothing is captured into pipeline state.
@@ -62,7 +63,7 @@ internal sealed class FacadeCallFinder : TemplateScopedWalker
     {
         var boundSymbol = _semanticModel.GetSymbolInfo(invocation).Symbol;
 
-        // Built-in facade calls bind to Template.Member / Template.TypeOf.
+        // Built-in facade calls bind to Template.TypeOf.
         if (_templateSymbol is not null
             && boundSymbol is IMethodSymbol bound
             && SymbolEqualityComparer.Default.Equals(bound.ContainingType, _templateSymbol)
@@ -130,14 +131,6 @@ internal sealed class FacadeCallFinder : TemplateScopedWalker
         var args = invocation.ArgumentList.Arguments;
         switch (bound.Name)
         {
-            case nameof(global::Synto.Templating.Template.Member) when args.Count == 2:
-                calls.Add(new BuilderCall(invocation, BuiltInBuilderType, "Member", new[]
-                {
-                    new BuilderArgBinding(BuilderArgKind.Quoted, "instance", args[0].Expression, null),
-                    new BuilderArgBinding(BuilderArgKind.Staged, "name", args[1].Expression, null),
-                }));
-                return true;
-
             case nameof(global::Synto.Templating.Template.TypeOf) when args.Count == 1:
                 calls.Add(new BuilderCall(invocation, BuiltInBuilderType, "TypeOf", new[]
                 {
@@ -180,8 +173,7 @@ internal sealed class FacadeCallFinder : TemplateScopedWalker
     }
 
     private static bool IsBuiltInFacadeName(string name) =>
-        name == nameof(global::Synto.Templating.Template.Member)
-        || name == nameof(global::Synto.Templating.Template.TypeOf);
+        name == nameof(global::Synto.Templating.Template.TypeOf);
 
     private static bool IsRegisteredBuilder(ISymbol boundSymbol, List<IMethodSymbol> candidates)
     {
