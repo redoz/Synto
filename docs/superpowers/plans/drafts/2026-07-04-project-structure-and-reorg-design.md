@@ -162,8 +162,9 @@ folders. Inside `src/Synto`, per-file roles are expressed by **leaf role folders
 ```
 
 and `src/Synto/Synto.csproj:38-55`'s five removes become one `<Compile Remove="**\InjectedOnly\*.cs" />`.
-Namespaces do **not** move (folders ≠ namespaces in this codebase — §4.1); every move is
-compile-neutral and byte-neutral.
+In the *runtime* tree namespaces do **not** move — the public surface is a contract (§4.1 item 1a),
+so its `Synto.*` namespaces stay put regardless of folder depth; every Phase 1 move is
+compile-neutral and byte-neutral. (Folder = namespace *does* apply in the generator tree — Phase 2.)
 
 **Phased migration** (each phase independently green; gates from the prior brainstorm):
 
@@ -177,10 +178,16 @@ compile-neutral and byte-neutral.
   **Gate:** full build + suite, zero `.received.` files (`SurfaceInjectionTest`,
   `InjectedSurfaceCompletenessTest`, `ZeroCollisionTest`, `HelperContractTests` pin the bytes),
   packed nupkg layout unchanged.
-- **Phase 2 — generator feature folders.** Pull Builders/Decorations/Staging pieces out of
-  `Discovery/`/`Analysis/`/`Quoting/NodePipeline/` into their feature folders (namespaces
-  unchanged per the organizational-subfolder convention). **Gate:** suite green, no snapshot
-  changes.
+- **Phase 2 — generator feature folders + namespace alignment.** Pull Builders/Decorations/Staging
+  pieces out of `Discovery/`/`Analysis/`/`Quoting/NodePipeline/` into their feature folders **and
+  align the internal namespaces to the new folders** (§4.1 item 1: folder = namespace for the
+  generator's `internal` pipeline). Target names + full tree in §7 (compiler-phase naming:
+  `BindingTime`/`Quoting/Passes`/`Emit`/`Prelude`/`Facades`/`Incremental`). This is now a deliberate `namespace`/`using` rewrite, not a pure
+  `git mv` — but it is all `internal`, never reaches injected/generated output, and is
+  compiler-checked end to end. The three contract/semantic exceptions stay pinned: shift-group files
+  remain `namespace Synto`, and any `Synto.Generators.*` injected-author surface keeps its contract
+  namespace. **Gate:** suite green, no snapshot changes (the I4 leak clause + separate compilation
+  guarantee no internal type surfaces in output). Runs after the branch decision (§5).
 - **Phase 3 — test colocation.** Move per-feature test classes **together with** their
   `snapshots/` dirs (`UseDirectory("snapshots")` is test-file-relative; the orphan guard is
   path-agnostic). **Gate:** suite green, no re-accepts.
@@ -198,16 +205,30 @@ Open sub-decisions carried forward from the brainstorm: the plug-in-vs-core line
 
 **The reality (from §2.1):** three distinct layers of naming, each answering to a different master:
 
-1. **Namespaces answer to the consumer contract, not to physical layout.** A consumer of the
-   `Synto` package writes `using Synto.Templating;` — the injected surface delivers `Synto.*`
-   namespaces even though the consumer never references `Synto.Core` and the generator's own code
-   lives in `Synto.Generators.*`. Those namespaces are authored in `src/Synto` and pinned
-   byte-for-byte by `SurfaceInjectionTest`. Generator-author surface lands in `Synto.Generators.*`
-   (Interceptors authored pre-shifted, the cacheability toolkit shifted at inject time). Folders
-   are organizational only (06-30 convention). **This decoupling is load-bearing**: if namespaces
-   followed folders, the Option B feature moves would be consumer-visible breaks (I5 violations).
-   Verdict: *defensible by design — keep, but codify.* The rule "namespace = contract surface;
-   folder = navigation" should be stated in `architecture.md`, not rediscovered.
+1. **Folder = namespace by default; decouple only where a namespace is a *contract*.** The
+   status-quo rule was blanket — "folders are organizational only, namespaces are fully decoupled" —
+   but that over-generalizes from one real constraint. The decoupling is load-bearing in exactly
+   three places; everywhere else folder and namespace should line up so navigation and `using`s agree:
+   - **(a) Consumer surface** — `Synto`, `Synto.Templating`, `Synto.Matching`, `Synto.Formatting`.
+     A consumer writes `using Synto.Templating;`; these namespaces are a *discoverability contract*,
+     authored in `src/Synto.Core` and pinned byte-for-byte by `SurfaceInjectionTest`. They are a
+     curated shallow tree *by API design*, deliberately independent of how deep the feature folders
+     go — forcing namespace = folder here would deepen and scatter the public API and wreck
+     discovery. (This is *not* "keep everything flat": `Templating`/`Matching`/`Formatting` are a
+     deliberate shallow tree, just one decoupled from folder nesting.)
+   - **(b) Injected generator-author surface** — `Synto.Generators.*` (Interceptors authored
+     pre-shifted, the cacheability toolkit shifted at inject time). Same reasoning, different
+     audience: generator authors write `using Synto.Generators;`, and the injected bytes are
+     snapshot-pinned (I4). Conveniently the `InjectedOnly/` role folder already marks these files,
+     so "InjectedOnly ⇒ namespace is a contract, not folder-derived" falls out for free.
+   - **(c) Shift-group files** (`EquatableArray.cs`, `DiagnosticInfo.cs`) — authored `namespace
+     Synto`, retargeted to `Synto.Generators` on injection; the namespace carries load-bearing
+     meaning and must be declared explicitly against the folder default.
+   Everywhere else — the generator's own `internal` pipeline and the whole test tree — **folder =
+   namespace**. Those types never ship as referenceable API and never appear in injected/generated
+   output, so aligning them is snapshot-neutral, I4/I5-safe, and compiler-checked. Verdict:
+   *codify the refined rule in `architecture.md`* — "folder = namespace, except the three
+   contract/semantic cases above" — a tighter, more navigable rule than blanket decoupling.
 
 2. **One genuine footgun: `<RootNamespace>Synto</RootNamespace>`**
    (`Synto.SourceGenerator.csproj:5`). Every hand-written file in that project declares
@@ -215,26 +236,33 @@ Open sub-decisions carried forward from the brainstorm: the plug-in-vs-core line
    carries **semantic meaning** ("this file is injected downstream under a retargeted namespace",
    csproj:81-90). A newly added file that trusts the IDE default silently lands in `namespace
    Synto`, i.e. accidentally adopts shift-group semantics for a file that isn't in the shift
-   group. Fix: set `RootNamespace` to `Synto.Generators`. Cost ~zero (all LogicalNames are
-   explicit or computed; nothing else keys off RootNamespace). Verify gate: build + suite, no
-   resource-name drift.
+   group. Fix: set `RootNamespace` to `Synto.Generators` (independent, one-line, branch-safe — do
+   it now). Cost ~zero (all LogicalNames are explicit or computed; nothing else keys off
+   RootNamespace). Verify gate: build + suite, no resource-name drift. This is a stepping stone:
+   the project rename in item 3 (`src/Synto.SourceGenerator` → `src/Synto.Generators`) makes
+   `RootNamespace` match the dir and retires the footgun for the right reason — a file trusting
+   the default then lands in the *correct* root, and only the shift-group files declare `namespace
+   Synto` against it.
 
-3. **The package↔assembly crossing** (`Synto` package carries `Synto.SourceGenerator.dll` +
-   `Synto.dll`; `Synto.dll` *is* the `Synto.Core` package's assembly) is the #1 onboarding
-   confusion and the only naming misalignment that is *not* load-bearing. Options:
+3. **The package↔assembly crossings** (`Synto` package carries `Synto.SourceGenerator.dll` +
+   `Synto.dll`; `Synto.dll` *is* the `Synto.Core` package's assembly; and the generator's assembly
+   name `Synto.SourceGenerator.dll` matches neither its namespace root `Synto.Generators` nor its
+   package `Synto`) are the #1 onboarding confusion and the only naming misalignments that are
+   *not* load-bearing. Options:
 
    | Option | Shape | Invariant check | Verdict |
    |---|---|---|---|
    | **1a — document only** | Add the §2.1 matrix to `architecture.md`; no renames | All hold trivially | Cheapest; leaves the confusion priced in forever |
-   | **1b — rename `src/Synto` → `src/Synto.Core`** (dir + csproj + assembly → `Synto.Core.dll`) | Package identity untouched (I5 ✓ — `PackageId` already `Synto.Core`). Injected bytes contain **no assembly name** — generated output is self-contained (I1 ✓), so snapshots don't move (I4 ✓). Mechanical touch points: sln; ~6 `ProjectReference` paths; `Directory.Build.targets:46,56-58` (hard-codes `Synto.dll` and `MSBuildSourceProjectFile="Synto.csproj"`); Bootstrap link paths; test alias ref (`test/Synto.Test/Synto.Test.csproj:89`); IVT grant strings **unchanged** (`src/Synto/Synto.csproj:64-66` names the *friends*, not itself). Package-internal layout changes (`analyzers/dotnet/cs/Synto.Core.dll`) — consumer-invisible, Roslyn loads by directory | **Recommended**, sequenced *last* (§5): the one rename that makes every layer read straight — dir `Synto.Core` → assembly `Synto.Core.dll` → package `Synto.Core`; dir `Synto.SourceGenerator` → assembly `Synto.SourceGenerator.dll` → package `Synto` (one crossing left, and it's the deliberate marketing one: the flagship package gets the bare name) |
+   | **1b — rename *both* projects to match their namespaces** (`src/Synto` → `src/Synto.Core` → `Synto.Core.dll`; `src/Synto.SourceGenerator` → `src/Synto.Generators` → `Synto.Generators.dll`; both `PackageId`s stay put — `Synto.Core` / `Synto`) | Package identities untouched (I5 ✓ — `PackageId`s already `Synto.Core` / `Synto`). Injected bytes contain **no assembly name** — generated output is self-contained (I1 ✓), so snapshots don't move (I4 ✓). Mechanical touch points: sln; ~6 `ProjectReference` paths across both dirs; `Directory.Build.targets:46,56-58` (hard-codes `Synto.dll` / `MSBuildSourceProjectFile="Synto.csproj"`, plus the generator project/assembly it packs to `analyzers/dotnet/cs`); Bootstrap link paths; test alias + generator refs (`test/Synto.Test/Synto.Test.csproj:89`). **IVT catch:** the Core rename leaves IVT strings alone (`src/Synto/Synto.csproj:64-66` names the *friends*, not itself), but the *generator* rename changes a friend name — Core's `InternalsVisibleTo("Synto.SourceGenerator")` → `"Synto.Generators"`. Package-internal layout (`analyzers/dotnet/cs/*.dll`) is consumer-invisible; Roslyn loads by directory | **Recommended**, sequenced *last* (§5): every layer reads straight — dir = assembly = namespace-root for both — and the *only* remaining crossing is the deliberate marketing one: `Synto.Generators.dll` ships inside the package named `Synto` (flagship gets the bare name) |
    | **1c — rename packages to match projects** | Violates I5 outright (`principles.md:41-43`: package identity is a contract) | **Rejected** |
 
-   A half-measure (rename the dir but pin `<AssemblyName>Synto</AssemblyName>`) just moves the
-   mismatch down a level; if 1b is done, do it fully.
+   A half-measure (rename a dir but pin `<AssemblyName>` back to the old name) just moves the
+   mismatch down a level; if 1b is done, do it fully — dir, assembly, and namespace root together.
 
-**Position:** namespaces are right and stay; kill the RootNamespace footgun now (independent,
-one-line); do the 1b rename as a standalone commit after everything else, or consciously choose
-1a — this is Open Question 1.
+**Position:** the refined folder=namespace rule (item 1) stays; kill the RootNamespace footgun now
+(independent, one-line); do the *paired* 1b rename (`src/Synto` → `Synto.Core` **and**
+`src/Synto.SourceGenerator` → `Synto.Generators`) as a standalone commit after everything else, or
+consciously choose 1a — this is Open Question 1.
 
 ### 4.2 Smell 2 — cross-project linking (and its shadow: duplication)
 
@@ -388,13 +416,16 @@ in the back pocket; re-open 3c only at quoter GA.
 
 **Recommendation in one paragraph:** Keep the four-project split — it is *forced*, not habitual
 (§4.3-3d proves it from I4/I5, not assertion). Execute the decided Option B reorg as planned
-(§3). On top of it, make four structural corrections: (1) set the generator's `RootNamespace` to
-`Synto.Generators` (kills the shift-group footgun); (2) reconcile `architecture.md:103-106` with
-the quoter SYNC NOTEs — the policy is *deliberate duplicate + snapshot guard*, and Bootstrap
-remains the only place linking is sanctioned; (3) add two mechanical guards — a
-resource-manifest-pinning test (glob footgun) and a clone-sync test over the
-EquatableArray/DiagnosticInfo triplets; (4) decide the `src/Synto` → `src/Synto.Core` rename
-(recommended) and, if taken, do it dead last as a standalone commit. Do **not** create a surface
+(§3) — now with folder = namespace alignment for the generator's internal tree folded into Phase 2
+(§4.1 item 1, codified in `architecture.md`). On top of it, make four structural corrections: (1)
+set the generator's `RootNamespace` to `Synto.Generators` now (kills the shift-group footgun; a
+stepping stone to the rename in (4)); (2) reconcile `architecture.md:103-106` with the quoter SYNC
+NOTEs — the policy is *deliberate duplicate + snapshot guard*, and Bootstrap remains the only place
+linking is sanctioned; (3) add two mechanical guards — a resource-manifest-pinning test (glob
+footgun) and a clone-sync test over the EquatableArray/DiagnosticInfo triplets; (4) decide the
+*paired* rename — `src/Synto` → `src/Synto.Core` **and** `src/Synto.SourceGenerator` →
+`src/Synto.Generators` (recommended, so dir = assembly = namespace-root everywhere) — and, if
+taken, do it dead last as a standalone commit. Do **not** create a surface
 project (3b), split the toolkit (3c), or relocate the resource manifest (3e) — each was
 evaluated and loses to Option B's shape on either the north star or cost/benefit.
 
@@ -408,7 +439,7 @@ evaluated and loses to Option B's shape on either the north star or cost/benefit
 | now | **Phase 1** (runtime role folders + globs + Bootstrap link paths; optionally fold in the `SymbolExtensions` link decision) | no — touches only `src/Synto` + item groups |
 | after merge/abandon decision on the branch | **Phases 2-3** (generator + test moves) | **yes, wholesale** — do not start before the branch lands or dies |
 | after Phases 2-3 | Phase 4 (`refresh-kb`) | — |
-| last, standalone | `src/Synto` → `src/Synto.Core` rename (if approved) | touches every csproj path; doing it last means one KB refresh covers it |
+| last, standalone | paired rename — `src/Synto` → `src/Synto.Core` **and** `src/Synto.SourceGenerator` → `src/Synto.Generators` (if approved) | touches every csproj path + Core's generator-friend IVT string; the dir moves conflict with the branch, so it waits until after Phases 2-3, and one KB refresh covers both |
 
 Everything in the "now" rows is independently green and byte-neutral; each phase gate is the
 full suite + zero `.received.` files + (post-Phase-1) the manifest-pinning test's exact-set assert.
@@ -417,10 +448,12 @@ full suite + zero `.received.` files + (post-Phase-1) the manifest-pinning test'
 
 ## 6. Open questions (user decisions)
 
-1. **The rename (§4.1-1b):** rename `src/Synto` → `src/Synto.Core` (dir + csproj + assembly
-   `Synto.Core.dll`, `Directory.Build.targets:46,56-58` updated), or document-only (1a)?
-   Recommendation: rename, sequenced last. It's the only way the naming ever reads straight;
-   cost is one mechanical commit + KB refresh.
+1. **The paired rename (§4.1-1b):** rename *both* `src/Synto` → `src/Synto.Core` (→ `Synto.Core.dll`)
+   **and** `src/Synto.SourceGenerator` → `src/Synto.Generators` (→ `Synto.Generators.dll`; `PackageId`
+   stays `Synto`), updating `Directory.Build.targets:46,56-58` and Core's generator-friend IVT
+   string — or document-only (1a)? Recommendation: paired rename, sequenced last. It's the only way
+   every layer (dir = assembly = namespace-root) reads straight; cost is one mechanical commit + KB
+   refresh.
 2. **Quoter duplication policy (§4.2-1):** bless the deliberate duplicate + snapshot guard and
    fix `architecture.md:103-106`, or convert to a linked `#if BOOTSTRAP` single source (allowed
    under the Bootstrap exception)? Recommendation: bless the duplicate; the two files are
@@ -435,3 +468,140 @@ full suite + zero `.received.` files + (post-Phase-1) the manifest-pinning test'
    `Synto.Diagnostics`) until/unless the post-GA world revisits product boundaries.
 6. **Phase 0 exception:** rename `Template.Parameter.cs` → `Template.cs` (preferred) or keep one
    explicit `<EmbeddedResource>` override? (Carried from the prior brainstorm.)
+7. **Folder naming (§7):** adopt the compiler-phase names (`BindingTime`, `Quoting/Passes`, `Emit`,
+   `Prelude`, `Facades`, `Incremental`) for the generator tree? Recommendation: yes — all internal,
+   folder = namespace, snapshot-neutral. Sub-decisions in §7.
+
+---
+
+## 7. Target tree & folder naming
+
+This section pins the concrete post-reorg layout and the folder *names*. Applied only to the
+generator and test trees (Phase 2-3); the `Synto.Core` layout is §3's role folders unchanged. All
+of it is internal (`folder = namespace` for the generator — §4.1 item 1), so it is snapshot-neutral
+and compiler-checked; naming is taste, not invariant risk.
+
+### 7.1 Naming principle
+
+Synto *is* a quasiquotation compiler — its public verbs `Quote` / `Unquote` / `Splice` are Lisp
+quasiquotation (`quote` / `,` / `,@`). So the internal folders inherit that lineage rather than
+inventing jargon. The generator tree reads front-to-back as a compiler:
+**Discovery → BindingTime → Quoting (+ Passes) → Staging → Emit**, with `Facades`/`Decorations` as
+self-contained feature folders and `Prelude` as the emitted standard library. The junk-drawer names
+(`Shared`, `Helpers`, `Builders`) are retired.
+
+| Today | Target | Lineage / why |
+|---|---|---|
+| `Shared/` (equatable models + symbol glue) | `Incremental/` | Roslyn incremental-generator equatable-model caching (the *why* they exist) |
+| `Shared/SurfaceInjectionGenerator.cs` | generator **root** | it is a top-level `IIncrementalGenerator`, peer to the two feature drivers — not "shared" infra |
+| `Templating/Analysis/` | `Templating/BindingTime/` | partial evaluation — *binding-time analysis* (Jones/Gomard/Sestoft) |
+| `Templating/Helpers/` | `Templating/Prelude/` | Haskell/ML "prelude" — the library implicitly available to emitted code |
+| `Templating/Builders/` | `Templating/Facades/` | the code's own `Facade*` nouns; GoF façade — it generates facades, not "builders" |
+| `Quoting/NodePipeline/` + `ListPipeline/` | `Quoting/Passes/` | compiler *passes*; Roslyn `CSharpSyntaxRewriter` |
+| `Templating/Pipeline/` | `Templating/Emit/` | Roslyn `Emit` back end; the output factory is the *residual program* (partial evaluation). `NameAllocator` here is **gensym** (Lisp hygiene) |
+| `Discovery/`, `Staging/`, `Lifting/`, `Diagnostics/`, `Matching/` | *unchanged* | already domain-accurate — `Lifting` = cross-stage persistence, `Staging` = MetaML/MetaOCaml multi-stage programming |
+
+`Synto.Core` keeps its names: they already track Roslyn's own namespaces (`Syntax/`, `Symbols/`,
+`Formatting/`) plus domain verbs (`Quoting/`, `Templating/`, `Matching/`, `Decorations/`). Core keeps
+**`Builders/`** for the public `[SyntaxBuilder]` marker surface — deliberately *not* `Facades/`: the
+asymmetry is honest (Core ships the public *builder* markers; the generator holds the *facade* that
+implements them).
+
+### 7.2 `src/Synto.Generators` target tree
+
+```
+src/Synto.Generators/                    Synto.Generators.*   (folder = namespace)
+  SurfaceInjectionGenerator.cs           top-level generator: delivers the surface + prelude
+  Incremental/                           EquatableArray, DiagnosticInfo (equatable models — the
+                                         shift-group pair keeps `namespace Synto`, exception 1c),
+                                         SymbolMetadataExtensions, Diagnostics
+  Templating/
+    TemplateFactorySourceGenerator.cs    the driver (IIncrementalGenerator entry)
+    Discovery/     Quote/Template/Syntax/Converter finders            (front end)
+    BindingTime/   BindingTimeClassifier, BranchPruneIdentifier
+    Quoting/       QuoteContext, TemplateQuoterFactory, PerNodePipelineQuoter, QuoteStep, InterpolationFold
+      Passes/      TrimStep, ReplaceStep, InterpolationFoldStep, MemberSegmentStep   (core passes)
+    Staging/       StagedRegion*, Splice*Finder, Staged*Finder, StagedLivenessAnalysis, RootRenameRewriter …
+    Lifting/       ValueLift                                          (cross-stage persistence)
+    Facades/       SyntaxBuilderFacadeGenerator, FacadeShape, FacadeCallFinder, FacadeArgumentBinder, BuilderStep
+    Decorations/   DecorationFinder, DecorationMarkers, DecorateStep
+    Emit/          PlanAssembler, QuotePlan, FactoryShape, TemplateDocumentBuilder, TemplateFactoryBuilder,
+                   NameAllocator (gensym), TemplateInfo, TemplateValidator, TemplateScope,
+                   TemplateBuildContext, TemplateGenerationResult
+    Prelude/       FileLocalHelpers, HelperResourceLoader
+    Diagnostics/   TrackingNames, TemplateDiagnostics
+  Matching/                              already phase-shaped
+    MatchFactorySourceGenerator.cs       driver
+    Discovery/  Emit/ (incl. MatchInfo / MatchGenerationResult model types)  Diagnostics/
+```
+
+### 7.3 `test/Synto.Test` target tree
+
+Mirrors the feature axis; per-feature test classes move **with** their `snapshots/` dirs
+(`UseDirectory("snapshots")` is test-file-relative). Cross-cutting suites stay at the root.
+
+```
+test/Synto.Test/
+  Templating/  Matching/ (was Match/)  Facades/  Decorations/  Staging/   each + snapshots/
+  snapshots/   SurfaceInjectionTest#*.verified.cs                          (cross-cutting, stays at root)
+```
+
+### 7.4 Open sub-decisions (feed Open Question 7)
+
+- **`SymbolMetadataExtensions` home:** folded into `Incremental/` above (one home, not a second
+  folder — per the "don't fragment `Shared`" call). Mild stretch; alternative is the generator root.
+- **Plug-in vs. core line (the §3 Phase 2 judgment call, made concrete here):** `StagedLivenessAnalysis`
+  placed under `Staging/` (not `BindingTime/`), and the feature passes `BuilderStep` / `DecorateStep`
+  placed inside `Facades/` / `Decorations/` (not `Quoting/Passes/`). Both follow "open one folder →
+  whole feature"; both are the calls worth a second look.
+
+---
+
+## Accepted amendments (2026-07-05 review)
+
+**These deltas OVERRIDE the draft body above** wherever they conflict. The review that turned this
+draft into the implementation plan (`docs/superpowers/plans/2026-07-05-project-structure-reorg.md`)
+accepted the recommendations with the following amendments; the plan's "amendment N" citations point
+here. Where a numbered item below contradicts §4/§5/§7 text, this section wins.
+
+- **Amendment 2 — paired project rename is committed.** The paired 1b rename (`src/Synto` →
+  `Synto.Core`, `src/Synto.SourceGenerator` → `Synto.Generators`; PackageIds unchanged) is accepted
+  and sequenced last (plan Task 10). §4.1's "1a document-only vs 1b paired rename" open choice is
+  closed in favour of 1b.
+- **Amendment 3 — manifest-pinning guard.** Confirmed as a Verify-snapshot of the actual embedded
+  resource-name set (plan Task 4), landed before Phase 1.
+- **Amendment 4 — shift-group authored at `namespace Synto.Generators`, `NamespaceShiftRewriter`
+  deleted (the headline change).** The shift-group pair (`EquatableArray.cs` / `DiagnosticInfo.cs`)
+  is **authored directly in `namespace Synto.Generators`** and injected verbatim; the
+  `NamespaceShiftRewriter` + its `Synto.RuntimeGenerated.` inject path are **deleted** (plan Task 2).
+  So §4.1's "exception 1c — shift-group files authored `namespace Synto`, retargeted on injection" is
+  **removed**: the folder=namespace rule now has **exactly two** contract exceptions (consumer surface
+  `Synto.*`; injected generator-author surface `Synto.Generators.*`), not three. Wherever the body
+  says "three exceptions" / "exception 1c" / "the shift group keeps `namespace Synto`", read two
+  exceptions and no shift group. (This also carries the same-FQN collision consequence in
+  `Synto.Test` — the injected source copy and the compiled IVT-visible copy now share an FQN and must
+  be kept distinguishable without CS0436 suppression; plan Task 2 owns that contract.)
+- **Amendments 5/6 — generator folder=namespace placements, overriding §7.2/§7.4.**
+  - **`Builders/` stays on BOTH the Core and generator sides — NOT renamed to `Facades/`.** §7.1/§7.2's
+    `Templating/Builders/` → `Templating/Facades/` rename is **rejected**; the mirror path is preserved
+    for the flagship `[SyntaxBuilder]` feature and `Facade*` survives only as internal *type* names.
+    (`FacadeCallFinder` still moves from `Templating/Discovery/` into the `Builders/` feature folder.)
+  - **`SymbolMetadataExtensions` → a generator `Symbols/` folder (mirroring Core's `Symbols/`), NOT
+    `Incremental/`.** Overrides §7.2/§7.4's "folded into `Incremental/`".
+  - **`StagedLivenessAnalysis` → `Staging/`** (out of `Analysis/`), as §7.4 already leans.
+  - **Feature passes move into their feature folders** — `BuilderStep` → `Builders/`, `DecorateStep`
+    → `Decorations/`; `Quoting/Passes/` (or its unrenamed core-pass folders) holds only
+    feature-agnostic core passes.
+  - **The `Passes` rename is FROZEN / out of scope for this plan.** §7.1/§7.2's
+    `Quoting/NodePipeline/` + `Quoting/ListPipeline/` → `Quoting/Passes/` rename is **not** performed
+    here: that area is what `experimental/quote-action-pipeline` rewrites wholesale, so the
+    post-branch Quoting structure is unknown and the rename must be **re-planned against the merged
+    shape of that branch** — it is not merely "blocked-on-branch, then applied as-is".
+- **Amendment 7 — quoter duplication policy.** Bless the deliberate duplicate + snapshot guard;
+  fix the contradicting `architecture.md:103–106` guidance (plan Task 3). No conversion to a linked
+  `#if BOOTSTRAP` single source.
+- **Amendment 8 — triplication reduced to two via a Bootstrap link + clone-sync guard.** Bootstrap
+  deletes its `EquatableArray`/`DiagnosticInfo` copies and `<Compile Link>`s the generator's canonical
+  pair (plan Task 5); a normalize-and-diff clone-sync guard locks the remaining two copies (generator
+  pair vs. `Synto.Diagnostics`'s independent copy) against drift (plan Task 6). `Synto.Diagnostics`
+  stays an independent product.
