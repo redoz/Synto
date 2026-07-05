@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using Synto.Generators.Symbols;
 using Synto.Generators.Templating.Diagnostics;
 
 namespace Synto.Generators.Templating.Builders;
@@ -83,16 +84,27 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
         var sb = new StringBuilder();
         sb.Append("#nullable enable\n");
 
-        string? ns = builder.ContainingType?.ContainingNamespace is { IsGlobalNamespace: false } n
+        // Emission host: the builder's own containing type, unless [SyntaxBuilder(Facade = ...)] names a
+        // different type — required whenever Returns is set (a same-signature facade in the builder's own type
+        // would be CS0111). Resolved from the SYMBOL (not just the display string) so its namespace and
+        // containing-type chain can be walked, exactly like the builder's own chain below.
+        var builderAttrForHost = SymbolMetadataExtensions.FindAttribute(
+            builder, typeof(global::Synto.Templating.SyntaxBuilderAttribute).FullName!);
+        INamedTypeSymbol host = builderAttrForHost is not null
+            && SymbolMetadataExtensions.GetNamedType(builderAttrForHost, "Facade") is { } facadeHost
+            ? facadeHost
+            : builder.ContainingType;
+
+        string? ns = host.ContainingNamespace is { IsGlobalNamespace: false } n
             ? n.ToDisplayString()
             : null;
 
         if (ns is not null)
             sb.Append("namespace ").Append(ns).Append("\n{\n");
 
-        // Containing type chain (outer to inner), each reopened as partial so the facade is added alongside the builder.
+        // Containing type chain (outer to inner), each reopened as partial so the facade is added alongside the host.
         var chain = new List<INamedTypeSymbol>();
-        for (var t = builder.ContainingType; t is not null; t = t.ContainingType)
+        for (var t = host; t is not null; t = t.ContainingType)
             chain.Add(t);
         chain.Reverse();
 
@@ -128,9 +140,12 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
     /// <summary>
     /// Validates the builder <em>declaration</em> can host a synthesized facade: the builder must be callable
     /// (public/internal) from the consumer compilation, and every containing type must be a <c>partial</c>
-    /// class/struct (not an interface) so the facade partial can be reopened alongside it. Returns a human reason
-    /// for the first violation, or <c>null</c> when the declaration is well-formed. Pure symbol analysis; the
-    /// syntax it touches (for the <c>partial</c> check) is not captured into pipeline state.
+    /// class/struct (not an interface) so the facade partial can be reopened alongside it. When
+    /// <c>[SyntaxBuilder(Facade = ...)]</c> names a different emission host, that host's containing chain is
+    /// checked the same way (the facade partial is reopened there instead). A fixed <c>Returns</c> without a
+    /// <c>Facade</c> is also rejected here — a same-signature facade in the builder's own type would be CS0111.
+    /// Returns a human reason for the first violation, or <c>null</c> when the declaration is well-formed. Pure
+    /// symbol analysis; the syntax it touches (for the <c>partial</c> check) is not captured into pipeline state.
     /// </summary>
     private static string? ValidateDeclaration(IMethodSymbol builder)
     {
@@ -145,6 +160,31 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
                 return $"containing type '{t.Name}' must be public or internal";
             if (!IsPartial(t))
                 return $"containing type '{t.Name}' must be declared partial";
+        }
+
+        var attr = SymbolMetadataExtensions.FindAttribute(
+            builder, typeof(global::Synto.Templating.SyntaxBuilderAttribute).FullName!);
+        INamedTypeSymbol? facadeHost = attr is null ? null : SymbolMetadataExtensions.GetNamedType(attr, "Facade");
+
+        if (attr is not null
+            && SymbolMetadataExtensions.GetNamedTypeDisplay(attr, "Returns") is not null
+            && facadeHost is null)
+        {
+            return "a [SyntaxBuilder] with a fixed Returns type must also set Facade "
+                + "(a same-signature facade in the builder's own type would be CS0111)";
+        }
+
+        if (facadeHost is not null)
+        {
+            for (var t = facadeHost; t is not null; t = t.ContainingType)
+            {
+                if (t.TypeKind == TypeKind.Interface)
+                    return $"Facade host '{t.Name}' is an interface; only (partial) class/struct containers are supported";
+                if (t.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+                    return $"Facade host '{t.Name}' must be public or internal";
+                if (!IsPartial(t))
+                    return $"Facade host '{t.Name}' must be declared partial";
+            }
         }
 
         return null;

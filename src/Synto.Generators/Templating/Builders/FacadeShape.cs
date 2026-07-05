@@ -110,6 +110,12 @@ internal sealed class FacadeShape
             return null;
         }
 
+        var builderAttr = SymbolMetadataExtensions.FindAttribute(
+            builder, typeof(global::Synto.Templating.SyntaxBuilderAttribute).FullName!);
+        string? fixedReturnDisplay = builderAttr is null
+            ? null
+            : SymbolMetadataExtensions.GetNamedTypeDisplay(builderAttr, "Returns");
+
         var parameters = new List<FacadeParam>();
         var genericParameters = new List<FacadeGenericParam>();
         string? returnTypeParamName = null;
@@ -213,7 +219,16 @@ internal sealed class FacadeShape
 
         bool freshReturnTypeParam = false;
         string returnTypeDisplay;
-        if (returnsType)
+        if (fixedReturnDisplay is not null)
+        {
+            if (returnTypeParamName is not null)
+            {
+                annotationError = "a [SyntaxBuilder] with a fixed Returns must not also declare a [ReturnType] parameter";
+                return null;
+            }
+            returnTypeDisplay = fixedReturnDisplay; // fixed value type; no TResult, no [ReturnType]
+        }
+        else if (returnsType)
         {
             returnTypeDisplay = "global::System.Type";
         }

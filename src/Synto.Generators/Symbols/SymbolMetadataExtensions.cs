@@ -53,6 +53,22 @@ internal static class SymbolMetadataExtensions
         return null;
     }
 
+    /// <summary>
+    /// The <see cref="INamedTypeSymbol"/> of a <c>System.Type</c>-valued named argument (or <c>null</c> when the
+    /// argument is absent or not a named type). Unlike <see cref="GetNamedTypeDisplay"/> this returns the symbol
+    /// itself, so a caller can walk its namespace and containing-type chain (needed to emit into a facade host).
+    /// </summary>
+    public static INamedTypeSymbol? GetNamedType(AttributeData attr, string name)
+    {
+        foreach (var kv in attr.NamedArguments)
+        {
+            if (kv.Key == name && kv.Value.Value is INamedTypeSymbol t)
+                return t;
+        }
+
+        return null;
+    }
+
     public static string? GetNamedString(AttributeData attr, string name)
     {
         foreach (var kv in attr.NamedArguments)

@@ -1108,4 +1108,53 @@ public class SyntaxBuilderTest
         var rendered = node.NormalizeWhitespace().ToString();
         Assert.Contains("(int)42", rendered, System.StringComparison.Ordinal);
     }
+
+    // Operator-facade mechanism (spec §3.2/§3.3): [SyntaxBuilder(Returns=…, Facade=…)] synthesizes a
+    // FIXED-return value facade into a DIFFERENT host type than the builder — a same-signature twin in the
+    // builder's own type would be CS0111. An ExpressionSyntax builder `T` synthesizes a
+    // `System.Type`-returning facade emitted into `Values`, NOT into `Ops`.
+    [Fact]
+    public void FixedReturnFacade_SynthesizedIntoFacadeHost()
+    {
+        var facadeSource = RunFacadeGeneratorSource(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+
+            static partial class Ops {
+                [SyntaxBuilder(Returns = typeof(System.Type), Facade = typeof(Values))]
+                public static ExpressionSyntax T(string name) => TypeOfExpression(ParseTypeName(name));
+            }
+
+            static partial class Values {}
+            """);
+
+        // facade returns FIXED System.Type (no fresh TResult) ...
+        Assert.Contains("System.Type T(string name)", facadeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("TResult", facadeSource, StringComparison.Ordinal);
+        // ... emitted into the Facade host `Values`, not the builder's own `Ops`.
+        Assert.Contains("partial class Values", facadeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("partial class Ops", facadeSource, StringComparison.Ordinal);
+    }
+
+    // spec §3.3: Returns set without Facade is a declaration-site error — a fixed-return facade placed in the
+    // builder's OWN type would be CS0111. The generator diagnoses it (SY1031) instead of emitting broken source.
+    [Fact]
+    public void FixedReturnWithoutFacade_ReportsSY1031()
+    {
+        var diagnostics = RunFacadeGeneratorDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+
+            static partial class Ops {
+                [SyntaxBuilder(Returns = typeof(System.Type))] // no Facade -> error
+                public static ExpressionSyntax T(string name) => TypeOfExpression(ParseTypeName(name));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1031");
+        AssertHasRealSpan(diag);
+    }
 }
