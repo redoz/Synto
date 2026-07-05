@@ -1,6 +1,18 @@
 # Project structure & reorg design — feature colocation (decided) + structural critique of the project split
 
-**Status: DRAFT / brainstorm — nothing moved, no code changed.**
+**Status: SHIPPED 2026-07-05.** The reorg landed via plan
+`docs/superpowers/plans/2026-07-05-project-structure-reorg.md` (11 tasks): runtime role-folder
+reorg (`Surface/`/`InjectedOnly/`/`EmitHelpers/`), generator folder=namespace under
+`Synto.Generators.*`, feature-passes-with-feature, and the paired project rename
+`Synto`→`Synto.Core` / `Synto.SourceGenerator`→`Synto.Generators`. Open Questions below are
+resolved as noted in that plan's "Open questions (carried forward)" section: **1a vs 1b →
+paired rename (1b)**; the folder=namespace exception count collapsed from **three to two**
+(the `NamespaceShiftRewriter` shift-group is deleted — files now authored at
+`Synto.Generators`); the quoter duplicate is a **blessed** guarded duplicate; manifest-pinning
+and clone-sync are mechanical Verify-snapshot guards. KB navigation bundle refreshed to match
+(Task 11). This draft is retained as the design record.
+
+*(Original draft header: DRAFT / brainstorm — nothing moved, no code changed.)*
 
 Supersedes and folds in `docs/superpowers/plans/drafts/2026-07-04-file-organization-brainstorm.md`.
 That doc's Option B is **decided** (§3 restates it as the settled reorg). The new work here is §4:

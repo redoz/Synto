@@ -7,7 +7,7 @@ layer: bootstrap
 depends_on: [Microsoft.CodeAnalysis.CSharp]
 emits: [CSharpSyntaxQuoter.Generated.cs]
 tags: [bootstrap, codegen, self-hosting]
-timestamp: 2026-06-28T00:00:00Z
+timestamp: 2026-07-05T00:00:00Z
 ---
 
 # Responsibility
@@ -19,8 +19,8 @@ mechanism is in [bootstrap loop](/architecture/bootstrap.md).
 
 # Key files
 
-- `CSharpSyntaxQuoterGenerator.cs:15` — `[Generator]`; finds `CSharpSyntaxQuoter`,
-  enumerates `CSharpSyntaxVisitor` methods (`:76-95`), emits the partial.
+- `CSharpSyntaxQuoterGenerator.cs:17` — `[Generator]`; finds `CSharpSyntaxQuoter`,
+  enumerates `CSharpSyntaxVisitor` methods (`:94-97`), emits the partial.
 - `CSharpSyntaxQuoter.cs:22` — the bootstrap (input) quoter.
 - `CSharpSyntaxQuoter.Generated.cs` — the committed mirror of the generated output.
 - `Synto.Bootstrap.csproj:12-15` — *links* source files from the runtime rather
@@ -28,12 +28,12 @@ mechanism is in [bootstrap loop](/architecture/bootstrap.md).
 
 # Entry points
 
-- `CSharpSyntaxQuoterGenerator.cs:15` → `Initialize`.
+- `CSharpSyntaxQuoterGenerator.cs:17` → `Initialize`.
 
 # Invariants
 
 - The committed `CSharpSyntaxQuoter.Generated.cs` **must stay in sync** with what
-  the generator emits; a snapshot test (`src/Synto/Quoting/CSharpSyntaxQuoter.cs:11-18`)
+  the generator emits; a snapshot test (`src/Synto.Core/Quoting/CSharpSyntaxQuoter.cs:11-18`)
   guards drift.
 - Ships as an analyzer in the runtime's build, not to consumers.
 

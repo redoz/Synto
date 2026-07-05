@@ -2,11 +2,11 @@
 type: Subsystem
 title: Decorations
 description: Post-quote declaration markers that modify a quoted declaration's identifier, visibility, sealed-ness, and base types.
-resource: src/Synto/Templating
+resource: src/Synto.Core/Templating
 project: projects/synto-runtime
-entrypoints: ["src/Synto/Templating/Decorations/IdentifierAttribute.cs:6"]
+entrypoints: ["src/Synto.Core/Templating/Decorations/Surface/IdentifierAttribute.cs:6"]
 tags: [decorations, declarations, templating]
-timestamp: 2026-06-28T00:00:00Z
+timestamp: 2026-07-05T00:00:00Z
 ---
 
 # Responsibility
@@ -20,16 +20,19 @@ performs the post-quote rewrite.
 
 | Marker | Attribute | Extension | Purpose |
 |--------|-----------|-----------|---------|
-| Identifier | `Templating/Decorations/IdentifierAttribute.cs:6` | `Decorations/IdentifierAttributeExtensions.cs:8` | Rename declaration (+ its constructors). |
-| Visibility | `Templating/Decorations/VisibilityAttribute.cs:6` | `Decorations/VisibilityAttributeExtensions.cs:11` | Set access modifiers (via `Access`). |
-| Sealed | `Templating/Decorations/SealedAttribute.cs:6` | `Decorations/SealedAttributeExtensions.cs:9` | Add the `sealed` keyword. |
-| Implements | `Templating/Decorations/ImplementsAttribute.cs:6` | `Decorations/ImplementsAttributeExtensions.cs:8` | Add an interface base type (repeatable). |
-| Inherits | `Templating/Decorations/InheritsAttribute.cs:6` | `Decorations/InheritsAttributeExtensions.cs:8` | Add a base class (prepended). |
+| Identifier | `Templating/Decorations/Surface/IdentifierAttribute.cs:6` | `Decorations/EmitHelpers/IdentifierAttributeExtensions.cs:8` | Rename declaration (+ its constructors). |
+| Visibility | `Templating/Decorations/Surface/VisibilityAttribute.cs:6` | `Decorations/EmitHelpers/VisibilityAttributeExtensions.cs:11` | Set access modifiers (via `Access`). |
+| Sealed | `Templating/Decorations/Surface/SealedAttribute.cs:6` | `Decorations/EmitHelpers/SealedAttributeExtensions.cs:9` | Add the `sealed` keyword. |
+| Implements | `Templating/Decorations/Surface/ImplementsAttribute.cs:6` | `Decorations/EmitHelpers/ImplementsAttributeExtensions.cs:8` | Add an interface base type (repeatable). |
+| Inherits | `Templating/Decorations/Surface/InheritsAttribute.cs:6` | `Decorations/EmitHelpers/InheritsAttributeExtensions.cs:8` | Add a base class (prepended). |
 
-- `Templating/Decorations/Access.cs:3` — the `Access` enum: `Public`, `Internal`, `Private`,
+- `Templating/Decorations/Surface/Access.cs:3` — the `Access` enum: `Public`, `Internal`, `Private`,
   `Protected`, `ProtectedInternal`, `PrivateProtected`, `File`.
 
-(Extensions live under `src/Synto/Decorations/`; marker attributes under `src/Synto/Templating/Decorations/`.)
+(Paths are relative to `src/Synto.Core/`: marker attributes under
+`src/Synto.Core/Templating/Decorations/Surface/`, the post-quote extensions under
+`src/Synto.Core/Decorations/EmitHelpers/`. The generator-side decoration pass lives with
+its feature at `src/Synto.Generators/Templating/Decorations/DecorateStep.cs`.)
 
 # Invariants
 
@@ -38,4 +41,4 @@ performs the post-quote rewrite.
 
 # Related
 
-- [Templating](/subsystems/templating.md) · [Synto runtime](/projects/synto-runtime.md)
+- [Templating](/subsystems/templating.md) · [Synto.Core runtime](/projects/synto-runtime.md)

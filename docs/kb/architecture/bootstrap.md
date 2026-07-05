@@ -5,7 +5,7 @@ description: How CSharpSyntaxQuoter.Generated.cs is produced by a quoter that qu
 tags: [bootstrap, quoting, self-hosting, codegen]
 status: stable
 relates: [projects/synto-bootstrap, projects/synto-runtime, subsystems/quoting]
-timestamp: 2026-06-28T00:00:00Z
+timestamp: 2026-07-05T00:00:00Z
 ---
 
 # Responsibility
@@ -18,17 +18,17 @@ the most common orientation stumble in the repo.
 
 1. The runtime quoter base is hand-authored:
    `CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionSyntax>` at
-   `src/Synto/Quoting/CSharpSyntaxQuoter.cs:21`, with the concrete partial at
-   `src/Synto/Quoting/CSharpSyntaxQuoter.cs:204`.
+   `src/Synto.Core/Quoting/CSharpSyntaxQuoter.cs:21`, with the concrete partial at
+   `src/Synto.Core/Quoting/CSharpSyntaxQuoter.cs:237`.
 2. The **other half** — a `Visit` method for every Roslyn `SyntaxKind` — is
-   generated into `src/Synto/.../generated/.../CSharpSyntaxQuoter.cs` by
+   generated into `src/Synto.Core/.../generated/.../CSharpSyntaxQuoter.cs` by
    `Synto.Bootstrap`'s generator, then mirrored into the committed
    `src/Synto.Bootstrap/CSharpSyntaxQuoter.Generated.cs`.
 3. The generator that emits it, `CSharpSyntaxQuoterGenerator`
-   (`src/Synto.Bootstrap/CSharpSyntaxQuoterGenerator.cs:15`), is itself built on
+   (`src/Synto.Bootstrap/CSharpSyntaxQuoterGenerator.cs:17`), is itself built on
    a standalone copy of the quoter (`src/Synto.Bootstrap/CSharpSyntaxQuoter.cs:22`).
    It finds the `CSharpSyntaxQuoter` class, enumerates every method on
-   `CSharpSyntaxVisitor` (`CSharpSyntaxQuoterGenerator.cs:76-95`), and quotes
+   `CSharpSyntaxVisitor` (`CSharpSyntaxQuoterGenerator.cs:94-97`), and quotes
    the construction of each node kind.
 
 So: **the bootstrap quoter quotes the runtime quoter into existence**, and the
@@ -37,7 +37,7 @@ runtime quoter is what every other subsystem ([templating](/subsystems/templatin
 
 # Entry points
 
-- `src/Synto.Bootstrap/CSharpSyntaxQuoterGenerator.cs:15` — `[Generator]`,
+- `src/Synto.Bootstrap/CSharpSyntaxQuoterGenerator.cs:17` — `[Generator]`,
   `Initialize`.
 - `src/Synto.Bootstrap/CSharpSyntaxQuoter.cs:22` — the bootstrap quoter input.
 
@@ -45,7 +45,7 @@ runtime quoter is what every other subsystem ([templating](/subsystems/templatin
 
 - **The committed `CSharpSyntaxQuoter.Generated.cs` must stay in sync** with what
   the generator would emit. Drift is caught by a snapshot test referenced at
-  `src/Synto/Quoting/CSharpSyntaxQuoter.cs:11-18`. When the runtime quoter's surface
+  `src/Synto.Core/Quoting/CSharpSyntaxQuoter.cs:11-18`. When the runtime quoter's surface
   changes, the generated half is regenerated and re-committed.
 - `Synto.Bootstrap` runs **only during Synto's own build** — it is not part of
   the consumer-facing generator set.

@@ -21,8 +21,8 @@ New here? Read [conventions](/conventions.md) (the type registry) and the
 
 # Projects
 
-* [Synto (runtime)](/projects/synto-runtime.md) - consumer surface + quoter machinery.
-* [Synto.SourceGenerator](/projects/synto-sourcegenerator.md) - the primary generators (templates, matching, builders).
+* [Synto.Core (runtime)](/projects/synto-runtime.md) - consumer surface + quoter machinery.
+* [Synto.Generators](/projects/synto-sourcegenerator.md) - the primary generators (templates, matching, builders).
 * [Synto.Bootstrap](/projects/synto-bootstrap.md) - build-time generator of the runtime quoter.
 * [Synto.Diagnostics](/projects/synto-diagnostics.md) - `[Diagnostic]` descriptor generator.
 
