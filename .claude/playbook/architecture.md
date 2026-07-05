@@ -40,7 +40,7 @@ The paradigm:
   Each scenario builds an in-memory `CSharpCompilation`, runs the generator through a
   `CSharpGeneratorDriver`, and asserts the emitted `*.g.cs` against a golden
   `*.verified.cs`. These snapshots are the executable spec of the output shape.
-- **Self-host bootstrap.** `src/Synto` consumes `src/Synto.Bootstrap` as an analyzer
+- **Self-host bootstrap.** `src/Synto.Core` consumes `src/Synto.Bootstrap` as an analyzer
   (`OutputItemType="Analyzer"`) to generate part of its own quoter — Synto is built with a
   generator of itself. A clean build must produce Bootstrap before `Synto`.
 - Tech baseline: **.NET 10 SDK** (`global.json` pins `10.0.300`, `rollForward: disable`),
@@ -57,7 +57,7 @@ Four projects under `src/`; only **three ship** (`Synto.Core`, `Synto`, `Synto.D
 The boundary that matters is **runtime vs generator** and **consumer-facing surface vs
 generator-internal helpers**:
 
-- **`src/Synto`** → ships as **`Synto.Core`** (`netstandard2.0`, `IsPackable=true`). The
+- **`src/Synto.Core`** → ships as **`Synto.Core`** (`netstandard2.0`, `IsPackable=true`). The
   runtime/toolkit library: the **marker surface** (`TemplateAttribute`,
   `QuoteAttribute`/`UnquoteAttribute`/`SpliceAttribute`, `RuntimeAttribute`,
   `TemplateOption`, `Syntax`/`Syntax<T>`), the emitted **helpers**
@@ -66,14 +66,14 @@ generator-internal helpers**:
   the quoter uses (`CSharpSyntaxQuoter`, `Formatting/SyntaxFormatter`, `UsingDirectiveSet`,
   `SymbolExtensions`, the list extensions). It is the authoritative source for the markers
   and helpers; the generator package embeds those files as resources, never re-declares them.
-- **`src/Synto.SourceGenerator`** → ships as **`Synto`**. The **umbrella generator**, all
+- **`src/Synto.Generators`** → ships as **`Synto`**. The **umbrella generator**, all
   features as folders/namespaces (`Templating/` today, `Matching/` next). Holds
   `SurfaceInjectionGenerator` (injects the markers as `internal`), `TemplateFactorySourceGenerator`
   + `FileLocalHelpers` (emits helpers as `file`-scoped copies), the equatable pipeline
   models (`TemplateInfo`, `TemplateGenerationResult`, `DiagnosticInfo`, `EquatableArray`),
   and the hand-written `Diagnostics` descriptors (`SY0000`, `SY1001`–`SY1009`).
 - **`src/Synto.Bootstrap`** → **not shipped**. The self-host generator that emits part of
-  `src/Synto`'s quoter (`CSharpSyntaxQuoter.Generated.cs`).
+  `src/Synto.Core`'s quoter (`CSharpSyntaxQuoter.Generated.cs`).
 - **`src/Synto.Diagnostics`** → ships as the separate, **dev-only** package
   **`Synto.Diagnostics`** — a general-purpose `[Diagnostic]`-to-`DiagnosticDescriptor`
   generator for *any* Roslyn author. Its generated output is self-contained (it injects its
@@ -83,7 +83,7 @@ The injected surface is `internal` (not `public`) so it can't pollute a consumer
 API or collide when several Synto-consuming assemblies are referenced together; the emitted
 helpers are `file`-scoped so a private copy can never clash with `Synto.Core`'s public copies
 (the CS0121 ambiguity an injected `internal` copy would cause). The single source of truth is
-the embedded-resource pipeline: marker/helper `.cs` files are authored once in `src/Synto`,
+the embedded-resource pipeline: marker/helper `.cs` files are authored once in `src/Synto.Core`,
 embedded into the generator (`Synto.Runtime.*` / `Synto.Helper.*` resources), parsed, and
 rewritten (`public`→`internal` for markers, `public`→`file` for helpers) at inject time.
 
@@ -91,7 +91,7 @@ rewritten (`public`→`internal` for markers, `public`→`file` for helpers) at 
 namespace, so a file's directory names its namespace. Two deliberate exceptions stand:
 (a) the **consumer surface** stays `Synto.*` regardless of how deep the runtime role
 folders nest — the public contract is the namespace, not the disk layout (a marker under
-`src/Synto/Templating/Surface/` is still `namespace Synto`); (b) the **injected
+`src/Synto.Core/Templating/Surface/` is still `namespace Synto`); (b) the **injected
 generator-author surface** stays `Synto.Generators.*` — the cacheability-toolkit files
 authored for injection (`EquatableArray`, `DiagnosticInfo`) declare `namespace
 Synto.Generators` directly and are injected verbatim. A former third exception — the
@@ -118,14 +118,14 @@ but **do** flag misuse of the platform or violations of the layering above:
   list extensions must stay 0-occurrence in consumer output; only the five markers and the
   three file-local helpers belong there;
 - **drifting the single source of truth** — re-declaring a marker/helper in the generator
-  instead of embedding the `src/Synto` file. This does **not** cover the two
-  `CSharpSyntaxQuoter` copies (`src/Synto/Quoting/CSharpSyntaxQuoter.cs` and
+  instead of embedding the `src/Synto.Core` file. This does **not** cover the two
+  `CSharpSyntaxQuoter` copies (`src/Synto.Core/Quoting/CSharpSyntaxQuoter.cs` and
   `src/Synto.Bootstrap/CSharpSyntaxQuoter.cs`): those are a **blessed, deliberate
   duplicate** — two different programs (the runtime quoter vs. the bootstrap quoter that
   generates half of it), *not* a linked file. Their divergence is guarded loudly by the
   `Synto.Bootstrap.Test` snapshot, and that loud snapshot failure is the *wanted* mode;
   folding them into a single `#if BOOTSTRAP` source would trade it for silent drift. See
-  the in-file SYNC NOTEs at `src/Synto/Quoting/CSharpSyntaxQuoter.cs:11–18`. Bootstrap
+  the in-file SYNC NOTEs at `src/Synto.Core/Quoting/CSharpSyntaxQuoter.cs:11–18`. Bootstrap
   remains the one sanctioned place for cross-project `<Compile Link>`ing, but the quoter is
   intentionally *not* linked;
 - **exceptions escaping the generator on a reachable path** — generation failures must be
