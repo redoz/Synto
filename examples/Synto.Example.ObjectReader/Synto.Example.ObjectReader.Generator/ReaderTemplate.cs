@@ -100,8 +100,10 @@ internal class ObjectReaderTemplate<[Splice] T>
 
     // ---- cast-less typed getters: ONE child [Template] (TypedGetter), invoked once per CLR type ----
     // The 12 near-identical typed getters collapse to a [Splice] member-generator that calls the child factory once
-    // per getter — supplying the return-type TypeSyntax, the CLR-type filter, and the exception label — then renames
-    // each result via .WithIdentifier(...). Generated output is byte-identical to the former hand-written getters.
+    // per getter — passing the return type as a generic type argument (Factory.TypedGetter<int>(...)), while the
+    // column list, CLR-type filter, and exception label ride in as ordinary build-time factory parameters — then
+    // renames each result via .WithIdentifier(...). Generated output is semantically equivalent to the former
+    // hand-written getters (each getter's return type now renders as its CLR name, e.g. System.Int32 for int).
     //
     // The child [Template] now lives HERE, co-located inside the parent carrier (parent-driven sub-template):
     // a bare method-level [Template] nested in a class-level [Template<Factory>] carrier is built BY the parent —
@@ -109,10 +111,12 @@ internal class ObjectReaderTemplate<[Splice] T>
     // document, and excluded from the parent's own quoted output and staging. `internal` (not private) is what lets
     // the carrier's [Splice] source below keep naming `Factory.TypedGetter(...)` across the class boundary in the
     // same assembly. It binds the real `_e` (`IEnumerator<T>`); only `_e.Current` is quoted, exactly as the standalone
-    // carrier did. The return type is supplied per call as a `TypeSyntax` via the `[Splice] TRet` param.
+    // carrier did. The return type is now a generic type argument (`[Unquote] TRet`, invoked `Factory.TypedGetter<int>(...)`,
+    // lifted internally via `typeof(TRet).ToTypeSyntax()`); the column list, CLR-type filter, and exception label stay as
+    // build-time `Parameter<...>()` inputs (they drive factory-time control / interpolation, so they need no value lift).
 
     [Template]
-    public TRet TypedGetter<[Splice] TRet>(int i)
+    public TRet TypedGetter<[Unquote] TRet>(int i)
     {
         var columns = Parameter<EquatableArray<ColumnInfo>>();
         var clrTypeName = Parameter<string>();
@@ -127,18 +131,18 @@ internal class ObjectReaderTemplate<[Splice] T>
     static IEnumerable<MemberDeclarationSyntax> TypedGetters()
     {
         var columns = Parameter<EquatableArray<ColumnInfo>>();
-        yield return Factory.TypedGetter(PredefinedType(Token(BoolKeyword)), columns, "global::System.Boolean", "a Boolean").WithIdentifier(Identifier("GetBoolean"));
-        yield return Factory.TypedGetter(PredefinedType(Token(ByteKeyword)), columns, "global::System.Byte", "a Byte").WithIdentifier(Identifier("GetByte"));
-        yield return Factory.TypedGetter(PredefinedType(Token(CharKeyword)), columns, "global::System.Char", "a Char").WithIdentifier(Identifier("GetChar"));
-        yield return Factory.TypedGetter(ParseTypeName("global::System.DateTime"), columns, "global::System.DateTime", "a DateTime").WithIdentifier(Identifier("GetDateTime"));
-        yield return Factory.TypedGetter(PredefinedType(Token(DecimalKeyword)), columns, "global::System.Decimal", "a Decimal").WithIdentifier(Identifier("GetDecimal"));
-        yield return Factory.TypedGetter(PredefinedType(Token(DoubleKeyword)), columns, "global::System.Double", "a Double").WithIdentifier(Identifier("GetDouble"));
-        yield return Factory.TypedGetter(PredefinedType(Token(FloatKeyword)), columns, "global::System.Single", "a Single").WithIdentifier(Identifier("GetFloat"));
-        yield return Factory.TypedGetter(ParseTypeName("global::System.Guid"), columns, "global::System.Guid", "a Guid").WithIdentifier(Identifier("GetGuid"));
-        yield return Factory.TypedGetter(PredefinedType(Token(ShortKeyword)), columns, "global::System.Int16", "an Int16").WithIdentifier(Identifier("GetInt16"));
-        yield return Factory.TypedGetter(PredefinedType(Token(IntKeyword)), columns, "global::System.Int32", "an Int32").WithIdentifier(Identifier("GetInt32"));
-        yield return Factory.TypedGetter(PredefinedType(Token(LongKeyword)), columns, "global::System.Int64", "an Int64").WithIdentifier(Identifier("GetInt64"));
-        yield return Factory.TypedGetter(PredefinedType(Token(StringKeyword)), columns, "global::System.String", "a String").WithIdentifier(Identifier("GetString"));
+        yield return Factory.TypedGetter<bool>(columns, "global::System.Boolean", "a Boolean").WithIdentifier(Identifier("GetBoolean"));
+        yield return Factory.TypedGetter<byte>(columns, "global::System.Byte", "a Byte").WithIdentifier(Identifier("GetByte"));
+        yield return Factory.TypedGetter<char>(columns, "global::System.Char", "a Char").WithIdentifier(Identifier("GetChar"));
+        yield return Factory.TypedGetter<global::System.DateTime>(columns, "global::System.DateTime", "a DateTime").WithIdentifier(Identifier("GetDateTime"));
+        yield return Factory.TypedGetter<decimal>(columns, "global::System.Decimal", "a Decimal").WithIdentifier(Identifier("GetDecimal"));
+        yield return Factory.TypedGetter<double>(columns, "global::System.Double", "a Double").WithIdentifier(Identifier("GetDouble"));
+        yield return Factory.TypedGetter<float>(columns, "global::System.Single", "a Single").WithIdentifier(Identifier("GetFloat"));
+        yield return Factory.TypedGetter<global::System.Guid>(columns, "global::System.Guid", "a Guid").WithIdentifier(Identifier("GetGuid"));
+        yield return Factory.TypedGetter<short>(columns, "global::System.Int16", "an Int16").WithIdentifier(Identifier("GetInt16"));
+        yield return Factory.TypedGetter<int>(columns, "global::System.Int32", "an Int32").WithIdentifier(Identifier("GetInt32"));
+        yield return Factory.TypedGetter<long>(columns, "global::System.Int64", "an Int64").WithIdentifier(Identifier("GetInt64"));
+        yield return Factory.TypedGetter<string>(columns, "global::System.String", "a String").WithIdentifier(Identifier("GetString"));
     }
 
     // ---- invariant members (the [Template] payload) ----

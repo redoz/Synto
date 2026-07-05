@@ -58,7 +58,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw OutOfRange(i);
     }
 
-    public bool GetBoolean(int i)
+    public System.Boolean GetBoolean(int i)
     {
         switch (i)
         {
@@ -67,7 +67,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw new global::System.InvalidCastException($"Field {i} is not a Boolean column.");
     }
 
-    public byte GetByte(int i)
+    public System.Byte GetByte(int i)
     {
         switch (i)
         {
@@ -76,7 +76,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw new global::System.InvalidCastException($"Field {i} is not a Byte column.");
     }
 
-    public char GetChar(int i)
+    public System.Char GetChar(int i)
     {
         switch (i)
         {
@@ -85,7 +85,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw new global::System.InvalidCastException($"Field {i} is not a Char column.");
     }
 
-    public global::System.DateTime GetDateTime(int i)
+    public System.DateTime GetDateTime(int i)
     {
         switch (i)
         {
@@ -94,7 +94,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw new global::System.InvalidCastException($"Field {i} is not a DateTime column.");
     }
 
-    public decimal GetDecimal(int i)
+    public System.Decimal GetDecimal(int i)
     {
         switch (i)
         {
@@ -103,7 +103,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw new global::System.InvalidCastException($"Field {i} is not a Decimal column.");
     }
 
-    public double GetDouble(int i)
+    public System.Double GetDouble(int i)
     {
         switch (i)
         {
@@ -112,7 +112,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw new global::System.InvalidCastException($"Field {i} is not a Double column.");
     }
 
-    public float GetFloat(int i)
+    public System.Single GetFloat(int i)
     {
         switch (i)
         {
@@ -121,7 +121,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw new global::System.InvalidCastException($"Field {i} is not a Single column.");
     }
 
-    public global::System.Guid GetGuid(int i)
+    public System.Guid GetGuid(int i)
     {
         switch (i)
         {
@@ -130,7 +130,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw new global::System.InvalidCastException($"Field {i} is not a Guid column.");
     }
 
-    public short GetInt16(int i)
+    public System.Int16 GetInt16(int i)
     {
         switch (i)
         {
@@ -139,7 +139,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw new global::System.InvalidCastException($"Field {i} is not an Int16 column.");
     }
 
-    public int GetInt32(int i)
+    public System.Int32 GetInt32(int i)
     {
         switch (i)
         {
@@ -150,7 +150,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw new global::System.InvalidCastException($"Field {i} is not an Int32 column.");
     }
 
-    public long GetInt64(int i)
+    public System.Int64 GetInt64(int i)
     {
         switch (i)
         {
@@ -159,7 +159,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
         throw new global::System.InvalidCastException($"Field {i} is not an Int64 column.");
     }
 
-    public string GetString(int i)
+    public System.String GetString(int i)
     {
         switch (i)
         {
