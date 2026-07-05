@@ -415,4 +415,23 @@ internal static class TemplateDiagnostics
             LocationInfo.CreateFrom(location),
             new EquatableArray<string>(ImmutableArray.Create(attributeName, returnType, thisType)));
     }
+
+    // ----- Live template highlighting (SY1035) -------------------------------------------------------
+    // The first Info-severity Synto diagnostic, in the new Synto.Staging category. Emitted as a byproduct of
+    // the staging emit pass (three taps) to highlight every live (factory-time) fragment in a [Template] body.
+    // Deliberately NOT tagged WellKnownDiagnosticTags.Unnecessary (it does not mark dead/removable code).
+
+    private static readonly DiagnosticDescriptor _liveFragment = new(IdPrefix + "1035",
+        "Live template code",
+        "This template fragment is live: it runs at factory time (build-time) rather than being emitted as output",
+        "Synto.Staging",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo LiveFragment(Location? location)
+    {
+        return new DiagnosticInfo(_liveFragment,
+            LocationInfo.CreateFrom(location),
+            new EquatableArray<string>(ImmutableArray<string>.Empty));
+    }
 }
