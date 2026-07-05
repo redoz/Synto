@@ -196,7 +196,7 @@ public class SwitchBuilderTest
                 public TRet GetTypedStmt(int i)
                 {
                     Switch(i,
-                        Case(LiteralExpression(NumericLiteralExpression, Literal(0)), Return(Member<TRet>(_e.Current, "A"))),
+                        Case(0, Return(Member<TRet>(_e.Current, "A"))),
                         Default(Return(Member<TRet>(_e.Current, "B"))));
                     throw new System.Exception();
                 }
@@ -222,7 +222,7 @@ public class SwitchBuilderTest
                 {
                     var cols = Unquote<IReadOnlyList<Col>>();
                     Switch(i, cols.Where(c => c.Ordinal >= 0).Select(c =>
-                        Case(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
+                        Case(c.Ordinal,
                             Return(Member<TRet>(_e.Current, c.Name)))));
                     throw new System.Exception();
                 }
@@ -251,7 +251,7 @@ public class SwitchBuilderTest
                 {
                     var columns = Unquote<Synto.Generators.EquatableArray<Col>>();
                     Switch(i, columns.Where(c => c.Ordinal >= 0).Select(c =>
-                        Case(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
+                        Case(c.Ordinal,
                             Return(Member<TRet>(_e.Current, c.Name)))));
                     throw new System.Exception();
                 }

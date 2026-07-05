@@ -44,9 +44,12 @@ public static partial class SyntoBuilders
     // A host builder (Switch, overloaded by element type) takes a [Quoted] governing expression plus a staged
     // `params` list of child nodes; element builders (Case / Arm) produce the list items over a live projection.
     // The governing expression is QUOTED from the author's identifier; the section/arm lists are STAGED (produced
-    // by the LINQ projection at factory-build time). Case's label / Arm's pattern are STAGED (an already-built
-    // constant ExpressionSyntax — marking them [Quoted] would quote the projection variable out of output scope);
-    // Return's / Arm's value are [Quoted] islands (so a nested Member(...) builder expands via re-entry).
+    // by the LINQ projection at factory-build time). Case's label is [Constant] — the author passes a factory-time
+    // value (e.g. c.Ordinal, or an enum) that is lifted to a constant ExpressionSyntax at the binding seam; a live
+    // projection var referenced inside stays liveness-shielded (marking it [Quoted] would instead quote the
+    // projection variable out of output scope). Arm's pattern stays STAGED (an already-built constant
+    // ExpressionSyntax; a [Constant]/[Quoted] label form there is out of scope). Return's / Arm's value are
+    // [Quoted] islands (so a nested Member(...) builder expands via re-entry).
 
     /// <summary>Builds <c>switch (governing) { sections... }</c> — the statement form (element type selects this overload).</summary>
     [SyntaxBuilder]
@@ -58,9 +61,9 @@ public static partial class SyntoBuilders
     public static SwitchExpressionSyntax Switch([Quoted] ExpressionSyntax governing, params IEnumerable<SwitchExpressionArmSyntax> arms) =>
         SwitchExpression(governing).WithArms(SeparatedList(arms));
 
-    /// <summary>Builds <c>case label: body...</c> — one switch section (staged label + staged statement body).</summary>
+    /// <summary>Builds <c>case label: body...</c> — one switch section ([Constant] value-lifted label + staged statement body).</summary>
     [SyntaxBuilder]
-    public static SwitchSectionSyntax Case(ExpressionSyntax label, params IEnumerable<StatementSyntax> body) =>
+    public static SwitchSectionSyntax Case([Constant] ExpressionSyntax label, params IEnumerable<StatementSyntax> body) =>
         SwitchSection().AddLabels(CaseSwitchLabel(label)).WithStatements(List(body));
 
     /// <summary>Builds <c>default: body...</c> — the trailing default switch section (staged statement body).</summary>

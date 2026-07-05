@@ -122,7 +122,7 @@ internal class ObjectReaderTemplate<[Splice] T>
         var clrTypeName = Unquote<string>();
         var typeLabel = Unquote<string>();
         SyntoBuilders.Switch(i, columns.Where(c => c.ColumnTypeName == clrTypeName).Select(c =>
-            SyntoBuilders.Case(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
+            SyntoBuilders.Case(c.Ordinal,
                 SyntoBuilders.Return(Member<TRet>(_e.Current, c.Name)))));
         throw new global::System.InvalidCastException($"Field {i} is not {typeLabel} column.");
     }
