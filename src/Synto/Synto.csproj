@@ -35,24 +35,13 @@
        consumer's GENERATOR project by SurfaceInjectionGenerator (see the Synto.Runtime.ForMatchHelpers.cs
        EmbeddedResource in Synto.SourceGenerator.csproj). It must never be <Compile>d into Synto.Core. -->
   <ItemGroup>
-    <Compile Remove="Matching\ForMatchHelpers.cs" />
-    <Compile Remove="Matching\ForMatchProviderExtensions.cs" />
-    <!-- MatchReplaceExtensions references the removed MatchPattern<T> / Matched<T> data surface, so it
-         cannot be <Compile>d into Synto.Core; injected as internal source like the ForMatch extensions.
-         ReplaceOption.cs is a pure enum (like MatchOption.cs) and DOES compile into Synto.Core. -->
-    <Compile Remove="Matching\MatchReplaceExtensions.cs" />
-    <!-- The interceptor-attribute helper for generator AUTHORS. Authored once here under Synto.Generators,
-         NOT part of the Synto.Core runtime API; injected as internal source into the consumer's GENERATOR
-         project by SurfaceInjectionGenerator (see the Synto.Runtime.Interceptors.cs EmbeddedResource in
-         Synto.SourceGenerator.csproj). Embed-only, so never <Compile>d into Synto.Core. -->
-    <Compile Remove="Generators\Interceptors.cs" />
-    <!-- The built-in syntax builders (SyntoBuilders.Member/TypeOf) reference Roslyn syntax-construction APIs
-         and are meant to be CALLED fully-qualified from generated factory code as the consumer's own injected
-         internal type. Injected as internal source into the consumer's GENERATOR project by
-         SurfaceInjectionGenerator (see the Synto.Runtime.SyntoBuilders.cs EmbeddedResource); never <Compile>d
-         into Synto.Core, so the injected internal copy is the only one and can never collide (CS0121) with a
-         public Synto.Core copy when a consumer references both. -->
-    <Compile Remove="Templating\Builders\SyntoBuilders.cs" />
+    <!-- The InjectedOnly/ role folders hold source that is injected as internal source into the consumer's
+         GENERATOR project by SurfaceInjectionGenerator (embedded under Synto.Runtime.* by the generator's
+         Include="..\Synto\**\InjectedOnly\*.cs" glob) but must NEVER be <Compile>d into Synto.Core — e.g. the
+         ForMatch helper surface, the match-driven Replace rewriter, the interceptor-attribute author helper,
+         and the built-in SyntoBuilders (whose injected internal copy is the only one, so no CS0121 collision
+         with a public Synto.Core copy). This mirror glob keeps them out of the Synto.Core compile. -->
+    <Compile Remove="**\InjectedOnly\*.cs" />
   </ItemGroup>
 
   <!-- Both shipped generators consume Synto.Core's generator-internal machinery (CSharpSyntaxQuoter,

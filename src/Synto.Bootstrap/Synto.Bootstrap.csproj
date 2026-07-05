@@ -9,7 +9,7 @@
 		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 	</PropertyGroup>
 	<ItemGroup>
-		<Compile Include="..\Synto\Syntax\LiteralSyntaxExtensions.cs" Link="LiteralSyntaxExtensions.cs" />
+		<Compile Include="..\Synto\Syntax\EmitHelpers\LiteralSyntaxExtensions.cs" Link="LiteralSyntaxExtensions.cs" />
 		<Compile Include="..\Synto\Emit\UsingDirectiveSet.cs" Link="UsingDirectiveSet.cs" />
 		<Compile Include="..\Synto\Formatting\SyntaxFormatter.cs" Link="SyntaxFormatter.cs" />
 		<!-- The cacheability toolkit (EquatableArray / DiagnosticInfo / LocationInfo) is NOT copied here:

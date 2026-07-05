@@ -40,42 +40,13 @@
 	   LogicalName (the "Synto.Runtime." prefix) gives each marker resource a stable name the
 	   generator looks up at runtime. -->
   <ItemGroup>
-	<EmbeddedResource Include="..\Synto\Templating\Definition\TemplateAttribute.cs" LogicalName="Synto.Runtime.TemplateAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Staging\SpliceAttribute.cs" LogicalName="Synto.Runtime.SpliceAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Staging\RuntimeAttribute.cs" LogicalName="Synto.Runtime.RuntimeAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Definition\TemplateOption.cs" LogicalName="Synto.Runtime.TemplateOption.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Staging\Syntax.cs" LogicalName="Synto.Runtime.Syntax.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Staging\Template.cs" LogicalName="Synto.Runtime.Template.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Staging\UnquoteAttribute.cs" LogicalName="Synto.Runtime.UnquoteAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Definition\QuoteAttribute.cs" LogicalName="Synto.Runtime.QuoteAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Builders\SyntaxBuilderAttribute.cs" LogicalName="Synto.Runtime.SyntaxBuilderAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Builders\QuotedAttribute.cs" LogicalName="Synto.Runtime.QuotedAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Builders\ReturnTypeAttribute.cs" LogicalName="Synto.Runtime.ReturnTypeAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Builders\TypeArgAttribute.cs" LogicalName="Synto.Runtime.TypeArgAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Builders\SyntoBuilders.cs" LogicalName="Synto.Runtime.SyntoBuilders.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Decorations\Access.cs" LogicalName="Synto.Runtime.Access.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Decorations\IdentifierAttribute.cs" LogicalName="Synto.Runtime.IdentifierAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Decorations\VisibilityAttribute.cs" LogicalName="Synto.Runtime.VisibilityAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Decorations\SealedAttribute.cs" LogicalName="Synto.Runtime.SealedAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Decorations\ImplementsAttribute.cs" LogicalName="Synto.Runtime.ImplementsAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Decorations\InheritsAttribute.cs" LogicalName="Synto.Runtime.InheritsAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Matching\MatchOption.cs" LogicalName="Synto.Runtime.MatchOption.cs" />
-	<EmbeddedResource Include="..\Synto\Matching\MatchAttribute.cs" LogicalName="Synto.Runtime.MatchAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Matching\CaptureAttribute.cs" LogicalName="Synto.Runtime.CaptureAttribute.cs" />
-	<EmbeddedResource Include="..\Synto\Matching\Markers.cs" LogicalName="Synto.Runtime.Markers.cs" />
-	<!-- The ForMatch helper surface. NOT <Compile>d in Synto.Core; injected as internal source into the
-		 consumer's generator project alongside the markers. Split in two: the netstandard2.0-pure data
-		 surface (Matched<T> / MatchPattern<T>) and the incremental-pipeline ForMatch extension wrappers. -->
-	<EmbeddedResource Include="..\Synto\Matching\ForMatchHelpers.cs" LogicalName="Synto.Runtime.ForMatchHelpers.cs" />
-	<EmbeddedResource Include="..\Synto\Matching\ForMatchProviderExtensions.cs" LogicalName="Synto.Runtime.ForMatchProviderExtensions.cs" />
-	<!-- The match-driven Replace surface: ReplaceOption (pure enum, also compiled into Synto.Core) and the
-		 SyntoMatchReplaceExtensions rewriter (Compile-Removed from Synto.Core), injected as internal source. -->
-	<EmbeddedResource Include="..\Synto\Matching\ReplaceOption.cs" LogicalName="Synto.Runtime.ReplaceOption.cs" />
-	<EmbeddedResource Include="..\Synto\Matching\MatchReplaceExtensions.cs" LogicalName="Synto.Runtime.MatchReplaceExtensions.cs" />
-	<!-- The interceptor-attribute helper for generator authors. Authored under Synto.Generators (no shift
-		 needed — it is already in the injected namespace), Compile-Removed from Synto.Core and injected as
-		 internal source via the PLAIN "Synto.Runtime." group. -->
-	<EmbeddedResource Include="..\Synto\Generators\Interceptors.cs" LogicalName="Synto.Runtime.Interceptors.cs" />
+	<!-- Role-convention leaf folders under src\Synto drive the embedded-resource set: Surface/ and
+		 InjectedOnly/ both inject under the "Synto.Runtime." prefix (Surface files are also <Compile>d
+		 into Synto.Core; InjectedOnly files are <Compile Remove>d there via the mirror glob in Synto.csproj).
+		 The glob computes the same LogicalName the hand-typed list used to (ResourceManifestPinTest guards
+		 the exact set is unchanged). -->
+	<EmbeddedResource Include="..\Synto\**\Surface\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto\**\InjectedOnly\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- The cacheability toolkit for generator AUTHORS (EquatableArray<T> / LocationInfo / DiagnosticInfo).
@@ -101,16 +72,7 @@
 	   is COMPLETE by construction: with the scan-based approach it is only ever emitted into a file that
 	   actually calls .OrNullLiteralExpression(), so today it costs nothing but the surface is future-proof. -->
   <ItemGroup>
-	<EmbeddedResource Include="..\Synto\Syntax\RuntimeTypeExtensions.cs" LogicalName="Synto.Helper.RuntimeTypeExtensions.cs" />
-	<EmbeddedResource Include="..\Synto\Syntax\LiteralSyntaxExtensions.cs" LogicalName="Synto.Helper.LiteralSyntaxExtensions.cs" />
-	<EmbeddedResource Include="..\Synto\Quoting\QuoteSyntaxExtensions.cs" LogicalName="Synto.Helper.QuoteSyntaxExtensions.cs" />
-	<EmbeddedResource Include="..\Synto\Syntax\CollectionSyntaxExtensions.cs" LogicalName="Synto.Helper.CollectionSyntaxExtensions.cs" />
-	<EmbeddedResource Include="..\Synto\Syntax\InterpolationSyntaxExtensions.cs" LogicalName="Synto.Helper.InterpolationSyntaxExtensions.cs" />
-	<EmbeddedResource Include="..\Synto\Decorations\IdentifierAttributeExtensions.cs" LogicalName="Synto.Helper.IdentifierAttributeExtensions.cs" />
-	<EmbeddedResource Include="..\Synto\Decorations\VisibilityAttributeExtensions.cs" LogicalName="Synto.Helper.VisibilityAttributeExtensions.cs" />
-	<EmbeddedResource Include="..\Synto\Decorations\SealedAttributeExtensions.cs" LogicalName="Synto.Helper.SealedAttributeExtensions.cs" />
-	<EmbeddedResource Include="..\Synto\Decorations\ImplementsAttributeExtensions.cs" LogicalName="Synto.Helper.ImplementsAttributeExtensions.cs" />
-	<EmbeddedResource Include="..\Synto\Decorations\InheritsAttributeExtensions.cs" LogicalName="Synto.Helper.InheritsAttributeExtensions.cs" />
+	<EmbeddedResource Include="..\Synto\**\EmitHelpers\*.cs" LogicalName="Synto.Helper.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
