@@ -26,7 +26,7 @@ internal enum BindingTime
 
 /// <summary>
 /// A live root the classifier seeds liveness from (plan Task 4). Discovered upstream by the live finders:
-/// a <c>Parameter&lt;T&gt;()</c> parameter, a <c>[Unquote]</c> method parameter, or a <c>Unquote&lt;T&gt;(expr)</c>
+/// a <c>Unquote&lt;T&gt;()</c> parameter, a <c>[Unquote]</c> method parameter, or a <c>Unquote&lt;T&gt;(expr)</c>
 /// bound local. A <em>bound</em> root carries the factory-time <see cref="BindingExpression"/> that defines it;
 /// a bound root whose expression transitively depends on an output-world (quoted) value is an impossible cut.
 /// </summary>
@@ -44,7 +44,7 @@ internal readonly struct StagedRoot
     /// <summary>
     /// For a bound root (<c>var n = Unquote&lt;T&gt;(expr);</c>), the factory-time expression that defines it —
     /// it must be evaluable at factory time (depend only on live/constant values). <c>null</c> for a root
-    /// supplied by the caller (a <c>Parameter&lt;T&gt;()</c> / <c>[Unquote]</c> parameter), which can never be an
+    /// supplied by the caller (a <c>Unquote&lt;T&gt;()</c> / <c>[Unquote]</c> parameter), which can never be an
     /// impossible cut.
     /// </summary>
     public ExpressionSyntax? BindingExpression { get; }

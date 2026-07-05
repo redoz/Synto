@@ -285,7 +285,7 @@ internal static class TemplateFactoryBuilder
         }
     }
 
-    // Staged roots (Template.Parameter<T>() live parameters, Template.Unquote<T>() locals, [Unquote] parameters):
+    // Staged roots (Template.Unquote<T>() live parameters, Template.Unquote<T>(value) locals, [Unquote] parameters):
     // discover them, then classify the body's binding-time partition so the staging emitter can unroll
     // live control regions (plan Task 6). All of this is semantic work inside the transform; nothing here
     // is captured into pipeline state.
@@ -446,7 +446,7 @@ internal static class TemplateFactoryBuilder
     // member-access `root.Member` (e.g. `columns.Count`) whose RECEIVER is a bare reference to a staged-root
     // parameter and whose RESULT type is a built-in literal type (so `EquatableArray<T>.Count` -> int folds to
     // an int literal). The WHOLE member-access is the lift unit — `(root.Member).ToSyntax()`, keyed at the
-    // member-access node — so no separate `Parameter<int>()` is required. The bare receiver reference is
+    // member-access node — so no separate `Unquote<int>()` is required. The bare receiver reference is
     // CLAIMED here (added to foldClaimedReferences) so the depth-zero path below does not also lift it as
     // `root.ToSyntax()` (which would break, since the receiver's collection type is not a built-in literal).
     // Out of scope (NOT handled): arbitrary live method calls, multi-hop chains, non-built-in result types, a
@@ -946,7 +946,7 @@ internal static class TemplateFactoryBuilder
     }
 
     // [Splice] member generators: emit each valid generator's body VERBATIM as a factory-time local function
-    // (its Parameter<>() declarations dropped — those fold into the factory parameters above and are in scope
+    // (its Unquote<>() declarations dropped — those fold into the factory parameters above and are in scope
     // as captured factory parameters), and record the member segment it contributes to its enclosing type's
     // member list (MemberSegmentStep splices it via BuildList<MemberDeclarationSyntax> at the generator's
     // declaration position).

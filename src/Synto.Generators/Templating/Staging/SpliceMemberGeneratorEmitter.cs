@@ -16,7 +16,7 @@ internal static class SpliceMemberGeneratorEmitter
 {
     /// <summary>
     /// Emits a valid <c>[Splice]</c> member generator as factory-time code: a non-static local function carrying
-    /// the generator's body VERBATIM (its <c>Parameter&lt;&gt;()</c> declarations dropped, since those values fold
+    /// the generator's body VERBATIM (its <c>Unquote&lt;&gt;()</c> declarations dropped, since those values fold
     /// into the factory parameters and are captured in scope here), appended to the factory <paramref name="preamble"/>.
     /// Returns the member segment the generator contributes to its enclosing type's member list: a
     /// <c>ListSegment&lt;MemberDeclarationSyntax&gt;.Run(localFn())</c> for an enumerable shape, or the local-function
@@ -78,8 +78,8 @@ internal static class SpliceMemberGeneratorEmitter
 
     /// <summary>
     /// Rewrites a <c>[Splice]</c> member generator body into factory-time code: drops each
-    /// <c>var x = Parameter&lt;T&gt;();</c> declaration (the value folds into a captured factory parameter of the
-    /// same name) and replaces any inline <c>Parameter&lt;T&gt;("name")</c> call with its resolved parameter
+    /// <c>var x = Unquote&lt;T&gt;();</c> declaration (the value folds into a captured factory parameter of the
+    /// same name) and replaces any inline <c>Unquote&lt;T&gt;("name")</c> call with its resolved parameter
     /// identifier. Everything else is preserved verbatim — the generator's <c>foreach</c> stays a real loop.
     /// </summary>
     private sealed class SpliceGeneratorBodyRewriter : CSharpSyntaxRewriter
@@ -125,8 +125,7 @@ internal static class SpliceMemberGeneratorEmitter
                 && _semanticModel.GetSymbolInfo(node).Symbol is IMethodSymbol method
                 && method.TypeArguments.Length == 1
                 && SymbolEqualityComparer.Default.Equals(method.ContainingType, _templateSymbol)
-                && (method.Name == nameof(global::Synto.Templating.Template.Parameter)
-                    || TemplateStagingSymbols.IsParameterSourceUnquote(method, _parameterSourceUnquote));
+                && TemplateStagingSymbols.IsParameterSourceUnquote(method, _parameterSourceUnquote);
         }
     }
 }

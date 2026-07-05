@@ -22,8 +22,9 @@ live data.
 
 - **Quoted** (default) — emitted as output-world syntax. The body literally
   becomes the code the factory produces.
-- **Live roots** — `Template.Parameter<T>()`, `[Unquote]`/`Template.Unquote<T>()`,
-  `[Quote]`/`Template.Quote<T>()`. Values supplied/computed at factory time.
+- **Live roots** — `[Unquote]`/`Template.Unquote<T>()` (value-source local or
+  parameter-source live root), `[Quote]`/`Template.Quote<T>()`. Values
+  supplied/computed at factory time.
 - **Staged control** — a `foreach`/`for`/`while`/`if` *driven by a live root* is
   **unrolled** at factory time. Driven only by quoted values → stays a runtime
   construct. `[Quote]` deliberately lifts a value **without** making it drive
@@ -138,8 +139,8 @@ bare form (a nested generic returns `null` there and is SY1034'd by its own tran
 - `[SyntaxBuilder]` + `[Quoted]` + `[ReturnType]` — facade builders (`Builders/Surface/`).
 - `[Runtime]` — `Staging/Surface/RuntimeAttribute.cs` (marks a class exposing `ToSyntax(this T)` for custom-type lifts).
 - Inline facades on `Template` (`Staging/Surface/Template.cs`, renamed from `Template.Parameter.cs`):
-  `Parameter<T>()` (`:22`), `Unquote<T>()` (`:34`), `Quote<T>()` (`:48`), `Splice()` (`:59`),
-  `Member<T>()` (`:71`), `TypeOf()` (`:80`) — all inert (`=> default!`), recognized by binding.
+  `Unquote<T>(value)` (`:22`), `Unquote<T>(parameterName?)` (`:42`), `Quote<T>()` (`:56`), `Splice()` (`:67`),
+  `Member<T>()` (`:79`), `TypeOf()` (`:88`) — all inert (`=> default!`), recognized by binding.
 
 > `Unquote<T>()` is a **method** carrier, not `[Unquote]`. The Live/Inline →
 > Unquote/Splice rename shipped 2026-06-27 (`Live`/`Inline`/`AsSyntax` deleted; see

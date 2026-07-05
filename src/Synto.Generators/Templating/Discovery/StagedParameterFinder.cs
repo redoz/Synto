@@ -10,7 +10,7 @@ namespace Synto.Generators.Templating.Discovery;
 
 /// <summary>
 /// A resolved live template parameter (plan Task 1): one factory parameter lifted from one or more
-/// <c>Template.Parameter&lt;T&gt;()</c> sites sharing an identity of <c>(name, T)</c>.
+/// <c>Template.Unquote&lt;T&gt;()</c> sites sharing an identity of <c>(name, T)</c>.
 /// </summary>
 internal sealed class StagedParameter
 {
@@ -31,7 +31,7 @@ internal sealed class StagedParameter
     public ITypeSymbol Type { get; }
 
     /// <summary>
-    /// The declared local symbol for the FIRST declaration-position site (<c>var columns = Parameter&lt;T&gt;();</c>),
+    /// The declared local symbol for the FIRST declaration-position site (<c>var columns = Unquote&lt;T&gt;();</c>),
     /// used as a live root the binding-time classifier seeds liveness from. <c>null</c> for inline-only sites
     /// (which cannot drive control flow). See <see cref="Symbols"/> for the full set when the same identity is
     /// declared in more than one member body.
@@ -40,7 +40,7 @@ internal sealed class StagedParameter
 
     /// <summary>
     /// EVERY declaration-site local symbol sharing this <c>(name, T)</c> identity. The same live parameter may be
-    /// re-declared (<c>var columns = Parameter&lt;T&gt;();</c>) in several member bodies of a class template (the
+    /// re-declared (<c>var columns = Unquote&lt;T&gt;();</c>) in several member bodies of a class template (the
     /// ObjectReader dog-food, plan Task 9); each distinct local must be seeded as a live root and renamed to the
     /// shared factory parameter, so EVERY member's live control region unrolls — not just the first.
     /// </summary>
@@ -49,7 +49,7 @@ internal sealed class StagedParameter
     /// <summary>Nodes replaced by the value lift (identifier uses for a declaration; the call itself when inline).</summary>
     public IReadOnlyList<SyntaxNode> References { get; }
 
-    /// <summary>Nodes removed entirely (the <c>var x = Parameter&lt;T&gt;();</c> declaration statement, if any).</summary>
+    /// <summary>Nodes removed entirely (the <c>var x = Unquote&lt;T&gt;();</c> declaration statement, if any).</summary>
     public IReadOnlyList<SyntaxNode> TrimNodes { get; }
 }
 
@@ -136,8 +136,7 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
             && _semanticModel.GetSymbolInfo(node).Symbol is IMethodSymbol method
             && method.TypeArguments.Length == 1
             && SymbolEqualityComparer.Default.Equals(method.ContainingType, _templateSymbol)
-            && (method.Name == nameof(global::Synto.Templating.Template.Parameter)
-                || TemplateStagingSymbols.IsParameterSourceUnquote(method, _parameterSourceUnquote)))
+            && TemplateStagingSymbols.IsParameterSourceUnquote(method, _parameterSourceUnquote))
         {
             RegisterSite(node, method.TypeArguments[0]);
         }
@@ -154,7 +153,7 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
             explicitName = name;
         }
 
-        // Declaration position: `var x = Parameter<T>();` (single declarator).
+        // Declaration position: `var x = Unquote<T>();` (single declarator).
         if (node.Parent is EqualsValueClauseSyntax { Parent: VariableDeclaratorSyntax declarator }
             && declarator.Parent is VariableDeclarationSyntax { Parent: LocalDeclarationStatementSyntax localDecl } variableDeclaration
             && variableDeclaration.Variables.Count == 1

@@ -85,7 +85,7 @@ internal static class TemplateDiagnostics
 
     private static readonly DiagnosticDescriptor _unquoteParameterMissingName = new(IdPrefix + "1010",
         "Missing Parameter Name",
-        "Parameter<T>() used outside a variable declaration must specify an explicit parameterName",
+        "Unquote<T>() used outside a variable declaration must specify an explicit parameterName",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -99,7 +99,7 @@ internal static class TemplateDiagnostics
 
     private static readonly DiagnosticDescriptor _unquoteParameterNameCollision = new(IdPrefix + "1011",
         "Unquote Parameter Name Collision",
-        "Two Parameter<T>() sites declare the same explicit name '{0}'; reference one declared parameter instead of naming it twice",
+        "Two Unquote<T>() sites declare the same explicit name '{0}'; reference one declared parameter instead of naming it twice",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -267,7 +267,7 @@ internal static class TemplateDiagnostics
 
     private static readonly DiagnosticDescriptor _spliceMethodHasParameters = new(IdPrefix + "1021",
         "Invalid Splice Member Generator",
-        "[Splice] member generator '{0}' must be parameterless (inputs are supplied via Parameter<T>(); the generator is auto-invoked with no caller)",
+        "[Splice] member generator '{0}' must be parameterless (inputs are supplied via Unquote<T>(); the generator is auto-invoked with no caller)",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);

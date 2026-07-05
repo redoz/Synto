@@ -11,7 +11,7 @@ namespace Synto.Generators.Templating.Discovery;
 /// (Capability 1). Such a method is a SIBLING child template: it is independently picked up by
 /// <c>ForAttributeWithMetadataName</c> and generates its OWN factory, so when the PARENT carrier is processed the
 /// child method must be excluded from the parent — trimmed from the quoted output and excluded from the parent's
-/// live-staging pipeline (otherwise its inner <c>Parameter&lt;T&gt;()</c> roots leak into the parent factory's
+/// live-staging pipeline (otherwise its inner <c>Unquote&lt;T&gt;()</c> roots leak into the parent factory's
 /// parameter list). Mirrors the attribute-symbol match of <see cref="SpliceMemberGeneratorFinder"/> but matches the
 /// <see cref="TemplateAttribute"/> symbol and only over METHOD declarations (never the carrier's own class-level
 /// attribute). Nothing is captured into pipeline state — the result is consumed entirely inside the transform.

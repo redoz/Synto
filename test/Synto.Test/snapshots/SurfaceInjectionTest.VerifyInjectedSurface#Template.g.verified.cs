@@ -12,18 +12,6 @@ namespace Synto.Templating;
 internal static class Template
 {
     /// <summary>
-    /// Declares an <em>unquote</em> template parameter: a value supplied to the generated factory at
-    /// template-invocation time rather than quoted from the template body. In declaration position
-    /// (<c>var count = Parameter&lt;int&gt;();</c>) the bound variable name supplies the factory
-    /// parameter name; in any other (inline) position an explicit <paramref name="parameterName"/> is
-    /// required. Consuming the value lifts it into the generated syntax exactly like an
-    /// <c>[Unquote]</c> value.
-    /// </summary>
-    /// <typeparam name="T">The unquoted value's type; becomes the factory parameter's type.</typeparam>
-    /// <param name="parameterName">The factory parameter name; required in inline position.</param>
-    public static T Parameter<T>(string? parameterName = null) => default!;
-
-    /// <summary>
     /// Declares an <em>unquote</em> local: <c>var n = Unquote(expr);</c> runs <paramref name="value"/> at
     /// template-build time inside the generated factory (so <c>n</c> is a real runtime local), and any
     /// consumption of <c>n</c> is lifted into the produced syntax. This is the local-position counterpart
