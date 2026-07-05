@@ -937,6 +937,14 @@ internal static class TemplateFactoryBuilder
         if (liveRegionEmission.Diagnostics.Count > 0)
             return false;
 
+        // SUCCESS PATH ONLY: merge the separate SY1035 "live template code" Info channel — the emitter's in-region /
+        // control-driver highlights (InfoDiagnostics) plus tap 2's depth-zero holes (ctx.LiveFragmentInfos) — through
+        // the single dedupe/order/cap primitive, then add to ctx.Diagnostics. These NEVER flow through the error list
+        // above, so the error-bail semantics are untouched (plan Task 2).
+        ctx.Diagnostics.AddRange(
+            Staging.LiveFragmentMerge.Merge(
+                System.Linq.Enumerable.Concat(liveRegionEmission.InfoDiagnostics, ctx.LiveFragmentInfos)));
+
         ctx.Shape.Preamble.AddRange(liveRegionEmission.Preamble);
 
         foreach (var containerReplacement in liveRegionEmission.ContainerReplacements)

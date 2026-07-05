@@ -40,4 +40,9 @@ internal sealed class StagedRegionEmission
     public List<StatementSyntax> Preamble { get; } = new();
     public Dictionary<SyntaxNode, ExpressionSyntax> ContainerReplacements { get; } = new();
     public List<DiagnosticInfo> Diagnostics { get; } = new();
+
+    // SY1035 "live template code" highlights collected by taps that fire INSIDE the emitter (tap 1 in-region
+    // holes, tap 3 control drivers). Kept SEPARATE from the error <see cref="Diagnostics"/> list so it never
+    // trips the EmitLiveRegions error bail; merged into ctx.Diagnostics on the success path only (plan Task 2).
+    public List<DiagnosticInfo> InfoDiagnostics { get; } = new();
 }

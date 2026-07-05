@@ -88,6 +88,12 @@ internal sealed class TemplateBuildContext
     public HashSet<SyntaxNode> FoldClaimedReferences { get; } = new();
     public Dictionary<StagedParameter, List<MemberAccessExpressionSyntax>> FoldsByStagedParameter { get; } = new();
 
+    // SY1035 "live template code" highlights collected by tap 2 (depth-zero value-lift holes), which fires in the
+    // value-lift steps that run BEFORE StagedRegionEmitter.Emit (the emission object does not yet exist). Append-only
+    // mutable scratch — NOT equatable, never cached; EmitLiveRegions concatenates it with the emission's
+    // InfoDiagnostics and runs the single dedupe/order/cap merge on the success path (plan Task 2, decision O1(a)).
+    public List<DiagnosticInfo> LiveFragmentInfos { get; } = new();
+
     // --- Shared lift policy + counters ---
     public ValueLift ValueLift { get; set; } = null!;
     public bool ConverterError { get; set; }
