@@ -2,8 +2,6 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-using Synto.Generators.Matching;
-using Synto.Generators.Templating;
 namespace Synto.Test;
 
 /// <summary>

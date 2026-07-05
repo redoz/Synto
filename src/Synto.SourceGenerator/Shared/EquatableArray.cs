@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
-namespace Synto;
+namespace Synto.Generators;
 
 /// <summary>
 /// A small immutable array wrapper with structural (value) equality, suitable for use as part of an

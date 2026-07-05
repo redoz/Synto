@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Synto;
+namespace Synto.Generators;
 
 /// <summary>
 /// A value-equatable representation of a <see cref="Location"/> so diagnostics can be carried through the
