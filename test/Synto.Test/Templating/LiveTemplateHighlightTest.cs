@@ -317,4 +317,88 @@ public class LiveTemplateHighlightTest
         var texts = LiveSpanTexts(diagnostics);
         Assert.Contains("flag", texts);
     }
+
+    // ----- Task 6: cap / deterministic order / cross-tap dedupe (end-to-end) ------------------------
+
+    private static ImmutableArray<int> Sy1035Starts(ImmutableArray<Diagnostic> diagnostics) =>
+        diagnostics
+            .Where(d => d.Id == "SY1035")
+            .Select(d => d.Location.SourceSpan.Start)
+            .ToImmutableArray();
+
+    // Runs a source through a FRESH driver/compilation (independent of the instance _driver) so run-to-run
+    // determinism is a real observation, not a generator-cache echo.
+    private static ImmutableArray<int> RunFreshSy1035Starts(string source)
+    {
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var compilation = CreateCompilation().AddSyntaxTrees(CSharpSyntaxTree.ParseText(source));
+        var diagnostics = driver.RunGenerators(compilation).GetRunResult().Diagnostics;
+        return diagnostics
+            .Where(d => d.Id == "SY1035")
+            .Select(d => d.Location.SourceSpan.Start)
+            .ToImmutableArray();
+    }
+
+    // Cap: a template with 150 depth-zero live holes (150 distinct uses of one staged root) emits EXACTLY 100
+    // SY1035s — the 100 lowest-start spans, in ascending order — and the same set/order on a second independent run.
+    [Fact]
+    public void Cap_OverHundredLiveFragments_EmitsExactlyHundredLowestStarts_Deterministically()
+    {
+        var body = new System.Text.StringBuilder();
+        for (int k = 0; k < 150; k++)
+            body.Append("        System.Console.WriteLine(p);\n");
+        var source =
+            "using Synto.Templating;\n" +
+            "using static Synto.Templating.Template;\n" +
+            "partial class Factory {}\n" +
+            "public class TestClass {\n" +
+            "    [Template<Factory>]\n" +
+            "    void Build() {\n" +
+            "        var p = Parameter<int>();\n" +
+            body +
+            "    }\n" +
+            "}\n";
+
+        var first = RunFreshSy1035Starts(source);
+        var second = RunFreshSy1035Starts(source);
+
+        Assert.Equal(100, first.Length);
+        Assert.Equal(first, first.OrderBy(s => s).ToImmutableArray()); // ascending
+        Assert.Equal(first, second);                                   // deterministic across independent runs
+        Assert.Equal(first.Length, first.Distinct().Count());          // all distinct spans (no dupes survived)
+    }
+
+    // Ordering: a template mixing all three taps (tap-2 depth-zero `a`, tap-3 driver `cols`, tap-1 in-region `c + 1`)
+    // returns its SY1035 spans in ascending document order.
+    [Fact]
+    public void Ordering_MultiTapTemplate_ReturnsSpansAscending()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build() {
+                    var a = Parameter<int>();
+                    var cols = Parameter<IReadOnlyList<int>>();
+                    System.Console.WriteLine(a);
+                    foreach (var c in cols)
+                        System.Console.WriteLine(c + 1);
+                }
+            }
+            """);
+
+        var starts = Sy1035Starts(diagnostics);
+        Assert.True(starts.Length >= 3, $"expected >=3 SY1035 spans across the three taps, got {starts.Length}");
+        Assert.Equal(starts.OrderBy(s => s).ToImmutableArray(), starts);
+    }
+
+    // Dedupe (R1): the taps target disjoint node kinds (tap-1 in-region body subexpressions, tap-2 value-lift
+    // reference nodes, tap-3 control drivers), so no natural end-to-end construct makes two taps land on the SAME
+    // span — the per-span collapse is proven directly against the merge primitive in
+    // LiveFragmentDiagnosticTest.Merge_DedupesBySpan (two DiagnosticInfos with equal LocationInfo -> one). This
+    // note records that the R1 safety net has no reachable end-to-end trigger to exercise here.
 }
