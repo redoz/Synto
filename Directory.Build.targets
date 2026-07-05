@@ -10,9 +10,9 @@
 	   output is intentionally not a normal library (IncludeBuildOutput=false), NuGet's default pack
 	   validation flags this layout; it is disabled for these analyzer packages only.
 
-	   Synto.dll is shipped ONLY under analyzers/dotnet/cs (an analysis-time dependency of the
+	   Synto.Core.dll is shipped ONLY under analyzers/dotnet/cs (an analysis-time dependency of the
 	   generator). It is never a consumer runtime dependency: the consumer-facing surface is injected
-	   as internal source by SurfaceInjectionGenerator, so consumers need no reference to Synto.dll.
+	   as internal source by SurfaceInjectionGenerator, so consumers need no reference to Synto.Core.dll.
 
 	   This file is imported by every project in the repo, so all logic is gated on
 	   IsSyntoGeneratorPackage to leave the runtime lib, tests, and examples untouched.
@@ -43,19 +43,19 @@
   <ItemGroup Condition="'$(IsSyntoGeneratorPackage)' == 'true'">
 	<None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" Visible="false" PackagePath="\" />
 	<None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-	<None Include="$(OutputPath)Synto.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	<None Include="$(OutputPath)Synto.Core.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
-  <!-- Inject Synto.dll alongside the analyzer so Roslyn resolves it when loading the generator. -->
+  <!-- Inject Synto.Core.dll alongside the analyzer so Roslyn resolves it when loading the generator. -->
   <PropertyGroup Condition="'$(IsSyntoGeneratorPackage)' == 'true'">
 	<GetTargetPathDependsOn>$(GetTargetPathDependsOn);SyntoGetDependencyTargetPaths</GetTargetPathDependsOn>
   </PropertyGroup>
 
   <Target Name="SyntoGetDependencyTargetPaths" Condition="'$(IsSyntoGeneratorPackage)' == 'true'">
 	<ItemGroup>
-	  <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)Synto.dll"
+	  <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)Synto.Core.dll"
 										   IncludeRuntimeDependency="false"
-										   MSBuildSourceProjectFile="Synto.csproj" />
+										   MSBuildSourceProjectFile="Synto.Core.csproj" />
 	</ItemGroup>
   </Target>
 

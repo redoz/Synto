@@ -92,7 +92,7 @@ internal static class MatchTestHarness
     //   2. The netstandard2.0 BUILD of Roslyn 5.0.0 (lib/netstandard2.0/*.dll) — NOT the loaded net build. The
     //      loaded net build's System.Runtime 9.0 closure binds against the ns2.x BCL refs (System.Runtime
     //      4.1.2.0) at a skewed version and throws CS1705 on the incremental-provider API; the ns2.0 build is
-    //      exactly what src/Synto.SourceGenerator (netstandard2.0) compiles against, so it is the faithful view.
+    //      exactly what src/Synto.Generators (netstandard2.0) compiles against, so it is the faithful view.
     //   3. The four assemblies the ns2.0 Roslyn build references that the ref pack lacks (Immutable, Reflection
     //      .Metadata, CompilerServices.Unsafe, Encoding.CodePages), at the versions Roslyn 5.0.0 declares.
     // Roslyn's ns2.0 build legitimately embeds an INTERNAL IsExternalInit — unusable cross-assembly, so it does

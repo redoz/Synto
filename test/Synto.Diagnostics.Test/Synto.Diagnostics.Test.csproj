@@ -23,10 +23,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Synto.Diagnostics\Synto.Diagnostics.csproj" />
     <!-- DiagnosticsGeneratorTest loads the Synto runtime at test time (typeof(TemplateAttribute).Assembly).
-         Synto.Diagnostics references Synto with PrivateAssets=all, so Synto.dll is copy-local but absent
+         Synto.Diagnostics references Synto.Core with PrivateAssets=all, so Synto.Core.dll is copy-local but absent
          from deps.json; the MTP runner resolves via deps.json and fails without this direct reference.
          Mirrors what Synto.Test already does. -->
-    <ProjectReference Include="..\..\src\Synto\Synto.csproj" />
+    <ProjectReference Include="..\..\src\Synto.Core\Synto.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

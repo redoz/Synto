@@ -7,7 +7,7 @@ namespace Synto.Test;
 
 /// <summary>
 /// Clone-sync guard for the two remaining hand-maintained copies of the cacheability toolkit's equatable
-/// models — the generator's canonical pair (<c>src/Synto.SourceGenerator/Incremental/{EquatableArray,DiagnosticInfo}.cs</c>,
+/// models — the generator's canonical pair (<c>src/Synto.Generators/Incremental/{EquatableArray,DiagnosticInfo}.cs</c>,
 /// <c>namespace Synto.Generators</c>) versus <c>Synto.Diagnostics</c>'s deliberately-independent copy
 /// (<c>src/Synto.Diagnostics/{EquatableArray,DiagnosticInfo}.cs</c>, <c>namespace Synto.Diagnostics</c>).
 /// Bootstrap's third copy is gone (it now <c>&lt;Compile Link&gt;</c>s the generator's pair), so these two are
@@ -24,16 +24,16 @@ namespace Synto.Test;
 /// the same spirit as <see cref="Synto.Test.Templating.ZeroCollisionTest"/>.
 ///
 /// Path note: the four source paths below are hard-coded relative to the repo root. The generator's
-/// <c>Shared/</c> -> <c>Incremental/</c> move (Phase 2) has landed; the paired project rename
-/// (<c>Synto.SourceGenerator</c> -> <c>Synto.Generators</c>, <c>Synto</c> -> <c>Synto.Core</c>) is still
-/// pending and will re-root these constants again. Update them when it lands.
+/// <c>Shared/</c> -> <c>Incremental/</c> move (Phase 2) and the paired project rename
+/// (<c>Synto.SourceGenerator</c> -> <c>Synto.Generators</c>, <c>Synto</c> -> <c>Synto.Core</c>) have both
+/// landed; the constants are rooted at the final <c>src/Synto.Generators/</c> / <c>src/Synto.Diagnostics/</c> paths.
 /// </remarks>
 public class CloneSyncTest
 {
     // SYNC: Phase 2 re-rooted Shared/ -> Incremental/; the paired project rename (Synto.SourceGenerator ->
-    // Synto.Generators) is still pending and will re-root the dir prefix again.
-    private const string GeneratorEquatableArray = "src/Synto.SourceGenerator/Incremental/EquatableArray.cs";
-    private const string GeneratorDiagnosticInfo = "src/Synto.SourceGenerator/Incremental/DiagnosticInfo.cs";
+    // Synto.Generators) has landed and re-rooted the dir prefix.
+    private const string GeneratorEquatableArray = "src/Synto.Generators/Incremental/EquatableArray.cs";
+    private const string GeneratorDiagnosticInfo = "src/Synto.Generators/Incremental/DiagnosticInfo.cs";
     private const string DiagnosticsEquatableArray = "src/Synto.Diagnostics/EquatableArray.cs";
     private const string DiagnosticsDiagnosticInfo = "src/Synto.Diagnostics/DiagnosticInfo.cs";
 

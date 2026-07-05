@@ -33,11 +33,11 @@
        authored here but NOT part of Synto.Core: it references the incremental-generator pipeline types
        (SyntaxValueProvider / IncrementalValuesProvider) and is injected as internal source into the
        consumer's GENERATOR project by SurfaceInjectionGenerator (see the Synto.Runtime.ForMatchHelpers.cs
-       EmbeddedResource in Synto.SourceGenerator.csproj). It must never be <Compile>d into Synto.Core. -->
+       EmbeddedResource in Synto.Generators.csproj). It must never be <Compile>d into Synto.Core. -->
   <ItemGroup>
     <!-- The InjectedOnly/ role folders hold source that is injected as internal source into the consumer's
          GENERATOR project by SurfaceInjectionGenerator (embedded under Synto.Runtime.* by the generator's
-         Include="..\Synto\**\InjectedOnly\*.cs" glob) but must NEVER be <Compile>d into Synto.Core — e.g. the
+         Include="..\Synto.Core\**\InjectedOnly\*.cs" glob) but must NEVER be <Compile>d into Synto.Core — e.g. the
          ForMatch helper surface, the match-driven Replace rewriter, the interceptor-attribute author helper,
          and the built-in SyntoBuilders (whose injected internal copy is the only one, so no CS0121 collision
          with a public Synto.Core copy). This mirror glob keeps them out of the Synto.Core compile. -->
@@ -48,9 +48,9 @@
        SyntaxFormatter, UsingDirectiveSet, the *Extensions helpers) as compiled API at analysis time.
        Those types are internal (only the 5 markers + 3 emitted helpers are public surface), so expose
        them to the two generator assemblies. Synto.Bootstrap does NOT need this: it <Compile Link>s the
-       source files it uses into its own assembly rather than referencing Synto.dll. -->
+       source files it uses into its own assembly rather than referencing Synto.Core.dll. -->
   <ItemGroup>
-    <InternalsVisibleTo Include="Synto.SourceGenerator" />
+    <InternalsVisibleTo Include="Synto.Generators" />
     <InternalsVisibleTo Include="Synto.Diagnostics" />
     <InternalsVisibleTo Include="Synto.Test" />
   </ItemGroup>

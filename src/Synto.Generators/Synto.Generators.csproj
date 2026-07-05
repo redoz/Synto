@@ -10,7 +10,7 @@
 	<!-- Opt in to the shared Synto analyzer-packaging logic in Directory.Build.targets.
 		 The consumer-facing surface (markers + the emitted helpers) is injected as internal
 		 source by SurfaceInjectionGenerator, so the runtime is NOT shipped as a consumer dependency;
-		 Synto.dll is only needed by the generator at analysis time. -->
+		 Synto.Core.dll is only needed by the generator at analysis time. -->
 	<IsSyntoGeneratorPackage>true</IsSyntoGeneratorPackage>
 
 	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
@@ -40,13 +40,13 @@
 	   LogicalName (the "Synto.Runtime." prefix) gives each marker resource a stable name the
 	   generator looks up at runtime. -->
   <ItemGroup>
-	<!-- Role-convention leaf folders under src\Synto drive the embedded-resource set: Surface/ and
+	<!-- Role-convention leaf folders under src\Synto.Core drive the embedded-resource set: Surface/ and
 		 InjectedOnly/ both inject under the "Synto.Runtime." prefix (Surface files are also <Compile>d
-		 into Synto.Core; InjectedOnly files are <Compile Remove>d there via the mirror glob in Synto.csproj).
+		 into Synto.Core; InjectedOnly files are <Compile Remove>d there via the mirror glob in Synto.Core.csproj).
 		 The glob computes the same LogicalName the hand-typed list used to (ResourceManifestPinTest guards
 		 the exact set is unchanged). -->
-	<EmbeddedResource Include="..\Synto\**\Surface\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
-	<EmbeddedResource Include="..\Synto\**\InjectedOnly\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto.Core\**\Surface\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto.Core\**\InjectedOnly\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- The cacheability toolkit for generator AUTHORS (EquatableArray<T> / LocationInfo / DiagnosticInfo).
@@ -72,7 +72,7 @@
 	   is COMPLETE by construction: with the scan-based approach it is only ever emitted into a file that
 	   actually calls .OrNullLiteralExpression(), so today it costs nothing but the surface is future-proof. -->
   <ItemGroup>
-	<EmbeddedResource Include="..\Synto\**\EmitHelpers\*.cs" LogicalName="Synto.Helper.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto.Core\**\EmitHelpers\*.cs" LogicalName="Synto.Helper.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -82,7 +82,7 @@
   </ItemGroup>
 
   <ItemGroup>
-	<ProjectReference Include="..\Synto\Synto.csproj" PrivateAssets="all" />
+	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

@@ -11,7 +11,7 @@ namespace Synto.Diagnostics;
 /// </summary>
 /// <remarks>
 /// This is a self-contained copy local to <c>Synto.Diagnostics</c>; the diagnostics generator deliberately
-/// does not depend on the umbrella generator's (<c>Synto.SourceGenerator</c>) equatable models.
+/// does not depend on the umbrella generator's (<c>Synto.Generators</c>) equatable models.
 /// </remarks>
 internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IReadOnlyList<T>
     where T : IEquatable<T>

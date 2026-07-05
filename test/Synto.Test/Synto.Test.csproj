@@ -89,7 +89,7 @@
       the injected internal copies are the only `Synto.Generators.*` in global scope (no CS0436), and the
       SHIPPED metadata types are reached through the alias — re-exposed globally in GeneratorAliasUsings.cs
       so PipelineEquatabilityTests binds the compiled copy explicitly. No CS0436 suppression / NoWarn. -->
-    <ProjectReference Include="..\..\src\Synto.SourceGenerator\Synto.SourceGenerator.csproj" OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="True" Aliases="SyntoGenerators" />
+    <ProjectReference Include="..\..\src\Synto.Generators\Synto.Generators.csproj" OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="True" Aliases="SyntoGenerators" />
     <!-- SurfaceInjectionGenerator injects an INTERNAL copy of the Synto surface into this compilation,
          and the injected helpers are extension methods. SimpleTemplateTest/DiagnosticsGeneratorTest
          also need the PUBLIC Synto.Core assembly as a referenceable marker for their in-memory
@@ -97,7 +97,7 @@
          scope; otherwise every emitted helper call would be an unsuppressable CS0121 ambiguity between
          the imported public copy and the injected internal copy. Reach the public assembly via
          `extern alias SyntoCore;` (see SyntoCoreAssembly.cs). -->
-    <ProjectReference Include="..\..\src\Synto\Synto.csproj" Aliases="SyntoCore" />
+    <ProjectReference Include="..\..\src\Synto.Core\Synto.Core.csproj" Aliases="SyntoCore" />
   </ItemGroup>
 
   <ItemGroup>

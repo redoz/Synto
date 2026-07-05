@@ -17,7 +17,7 @@ namespace Synto.Test.Templating;
 /// target node/owner key (the other seam's map left empty), asserting that step's effect on a minimal parsed
 /// input. This exercises both the quoter's per-key dispatch (it finds — or defers on — the visited node/owner)
 /// and the per-feature step behavior. A final parity test pins that empty step maps quote identically to the
-/// plain base quoter. The steps and the step-model interfaces both live in <c>Synto.SourceGenerator</c>
+/// plain base quoter. The steps and the step-model interfaces both live in <c>Synto.Generators</c>
 /// (namespace <c>Synto.Generators.Templating</c>, internal); the parity test's base quoter is the
 /// <c>Synto</c> runtime <c>CSharpSyntaxQuoter</c> (reached via the <c>SyntoCore</c> alias).
 /// </summary>

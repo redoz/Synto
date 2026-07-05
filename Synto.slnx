@@ -12,8 +12,8 @@
   <Folder Name="/src/">
     <Project Path="src/Synto.Bootstrap/Synto.Bootstrap.csproj" />
     <Project Path="src/Synto.Diagnostics/Synto.Diagnostics.csproj" />
-    <Project Path="src/Synto.SourceGenerator/Synto.SourceGenerator.csproj" />
-    <Project Path="src/Synto/Synto.csproj" />
+    <Project Path="src/Synto.Generators/Synto.Generators.csproj" />
+    <Project Path="src/Synto.Core/Synto.Core.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/Synto.Bootstrap.Test/Synto.Bootstrap.Test.csproj" />
