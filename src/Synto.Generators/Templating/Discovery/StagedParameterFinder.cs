@@ -70,7 +70,7 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
 {
     private sealed class Site
     {
-        public Site(InvocationExpressionSyntax invocation, ITypeSymbol type, string? explicitName, string? implicitName, LocalDeclarationStatementSyntax? declaration, ISymbol? local)
+        public Site(InvocationExpressionSyntax invocation, ITypeSymbol type, string? explicitName, string? implicitName, SyntaxNode? declaration, ISymbol? local)
         {
             Invocation = invocation;
             Type = type;
@@ -84,7 +84,14 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
         public ITypeSymbol Type { get; }
         public string? ExplicitName { get; }
         public string? ImplicitName { get; }
-        public LocalDeclarationStatementSyntax? Declaration { get; }
+
+        /// <summary>
+        /// The declaration node removed entirely by the value lift: a <see cref="LocalDeclarationStatementSyntax"/>
+        /// for a per-body <c>var x = Unquote&lt;T&gt;();</c>, or a <see cref="FieldDeclarationSyntax"/> for a
+        /// carrier field-initializer root (<c>private readonly T x = Unquote&lt;T&gt;();</c>). <c>null</c> for an
+        /// inline site. Both declaration spellings dedupe by <c>(name, T)</c> into one factory parameter.
+        /// </summary>
+        public SyntaxNode? Declaration { get; }
         public ISymbol? Local { get; }
         public List<SyntaxNode> References { get; } = new();
 
@@ -153,7 +160,7 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
             explicitName = name;
         }
 
-        // Declaration position: `var x = Unquote<T>();` (single declarator).
+        // Declaration position: `var x = Unquote<T>();` (single declarator, per member body).
         if (node.Parent is EqualsValueClauseSyntax { Parent: VariableDeclaratorSyntax declarator }
             && declarator.Parent is VariableDeclarationSyntax { Parent: LocalDeclarationStatementSyntax localDecl } variableDeclaration
             && variableDeclaration.Variables.Count == 1
@@ -162,6 +169,21 @@ internal sealed class StagedParameterFinder : TemplateScopedWalker
             var site = new Site(node, type, explicitName, declarator.Identifier.Text, localDecl, local);
             _sites.Add(site);
             _siteByLocal[local] = site;
+            return;
+        }
+
+        // Carrier field-initializer root: `private readonly T x = Unquote<T>();` (single declarator). A carrier
+        // declares the live root ONCE on the type, shared by every member. The declarator's IFieldSymbol seeds
+        // liveness exactly like a per-body local; the enclosing FieldDeclaration is the trim node (stripped from
+        // output). A multi-declarator field falls through to the inline branch (not treated as a declaration site).
+        if (node.Parent is EqualsValueClauseSyntax { Parent: VariableDeclaratorSyntax fieldDeclarator }
+            && fieldDeclarator.Parent is VariableDeclarationSyntax { Parent: FieldDeclarationSyntax fieldDecl } fieldVariableDeclaration
+            && fieldVariableDeclaration.Variables.Count == 1
+            && _semanticModel.GetDeclaredSymbol(fieldDeclarator) is { } field)
+        {
+            var site = new Site(node, type, explicitName, fieldDeclarator.Identifier.Text, fieldDecl, field);
+            _sites.Add(site);
+            _siteByLocal[field] = site;
             return;
         }
 
