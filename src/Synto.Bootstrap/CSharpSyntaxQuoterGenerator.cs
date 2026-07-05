@@ -9,6 +9,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Synto.Formatting;
+using Synto.Generators;
 
 namespace Synto.Bootstrap;
 
@@ -33,6 +34,22 @@ public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(results, static (context, result) => Emit(context, result!.Value));
     }
 
+    // The bootstrap generator's only failure mode is an unhandled exception during quoting, reported as the
+    // internal-error SY0000 with no location. This descriptor + factory used to live on Bootstrap's own copy
+    // of DiagnosticInfo; now that Bootstrap links the generator's canonical DiagnosticInfo (namespace
+    // Synto.Generators, which carries a LocationInfo? and no such factory), the Bootstrap-specific bits live
+    // here and construct that shape with a null location.
+    private static readonly DiagnosticDescriptor InternalErrorDescriptor = new(
+        "SY0000",
+        "Failed to create CSharpSyntaxQuoter",
+        "Exception: {0}",
+        "Synto.Dev",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static DiagnosticInfo InternalError(Exception exception) =>
+        new(InternalErrorDescriptor, null, new EquatableArray<string>(ImmutableArray.Create(exception.ToString())));
+
     private static QuoterGenerationResult? GenerateQuoter(GeneratorSyntaxContext syntaxContext)
     {
         var diagnostics = new List<DiagnosticInfo>();
@@ -50,7 +67,7 @@ public class CSharpSyntaxQuoterGenerator : IIncrementalGenerator
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            diagnostics.Add(DiagnosticInfo.InternalError(ex));
+            diagnostics.Add(InternalError(ex));
         }
 
         return new QuoterGenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
