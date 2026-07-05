@@ -484,8 +484,6 @@ internal static class TemplateFactoryBuilder
 
     private static void LiftStagedParameters(TemplateBuildContext ctx)
     {
-        var additionalUsings = ctx.AdditionalUsings;
-
         foreach (var stagedParameter in ctx.StagedParameters)
         {
             string paramName = stagedParameter.Name;
@@ -494,7 +492,7 @@ internal static class TemplateFactoryBuilder
 
             // Staged scalar count-fold: emit `(paramName.Member).ToSyntax()` for each claimed member-access on this
             // staged root, keyed at the member-access node so the quoter splices the factory-time literal lift in
-            // place of the whole `root.Member` expression.
+            // place of the whole `root.Member` expression. (Path-specific — stays out of the shared core.)
             if (ctx.FoldsByStagedParameter.TryGetValue(stagedParameter, out var folds))
             {
                 foreach (var memberAccess in folds)
@@ -512,59 +510,23 @@ internal static class TemplateFactoryBuilder
                 }
             }
 
-            // Map EVERY declaration-site symbol to the shared factory parameter name so the live-region renamer
-            // rewrites each member's local reference (the foreach driver) to the one factory parameter.
-            foreach (var rootSymbol in stagedParameter.Symbols)
-                ctx.RootNames[rootSymbol] = paramName;
-
             var parameterType = ParseTypeName(stagedParameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-            ctx.Shape.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
-            // Interpolation staged-fold: a string-typed staged root may be baked into surrounding literal text
-            // when used as a bare interpolation hole. Map EVERY reference (depth-0 AND region-consumed) to the
-            // factory-time raw value accessor (the shared factory parameter), which is in scope everywhere the
-            // factory body / staged-region scaffold runs.
-            if (stagedParameter.Type.SpecialType == SpecialType.System_String)
-            {
-                foreach (var reference in stagedParameter.References)
-                    ctx.Plan.StringRoots[reference] = IdentifierName(paramName);
-            }
-
-            // References consumed by a live region OR emitted verbatim on a builder call's staged-argument spine are
-            // handled as build-time runtime values (the factory parameter directly); only depth-0 references lift via
-            // value.ToSyntax() — binds to the file-local LiteralSyntaxExtensions (built-in types) or the generic
-            // ToSyntax<T> fallback. Skipping the builder-staged spine is what prevents a spurious `columns.ToSyntax()`
-            // over a non-literal collection type (it would compile but throw NotImplementedException at factory runtime).
-            var depthZeroReferences = stagedParameter.References.Where(reference => !ctx.RegionConsumedNodes.Contains(reference) && !ctx.SpliceGeneratorNodes.Contains(reference) && !ctx.BuilderStagedConsumedNodes.Contains(reference) && !ctx.FoldClaimedReferences.Contains(reference)).ToList();
-            if (depthZeroReferences.Count > 0)
-            {
-                ExpressionSyntax conversion = InvocationExpression(
+            // The shared staged-root core owns the partition + gated lift + control-region wiring + string-roots +
+            // trim + parameter append. The in-body lift STRATEGY is a DIRECT `value.ToSyntax()` — the byte-identical
+            // seam: in-body output must not move, so it is NOT routed through ValueLift.
+            StagedRootLifter.Lift(ctx, new StagedRootLift(
+                paramName,
+                parameterType,
+                stagedParameter.References,
+                stagedParameter.Symbols,
+                stagedParameter.TrimNodes,
+                isStringTyped: stagedParameter.Type.SpecialType == SpecialType.System_String,
+                emitConversion: valueAccess => InvocationExpression(
                     MemberAccessExpression(
                         SyntaxKind.SimpleMemberAccessExpression,
-                        IdentifierName(paramName),
-                        IdentifierName("ToSyntax")));
-
-                var syntaxForParamIdentifier = Identifier("syntaxForParam_" + paramName);
-                ctx.Shape.Preamble.Add(
-                    LocalDeclarationStatement(
-                        VariableDeclaration(
-                            additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
-                            SingletonSeparatedList(
-                                VariableDeclarator(
-                                    syntaxForParamIdentifier,
-                                    null,
-                                    EqualsValueClause(conversion))))));
-
-                foreach (var reference in depthZeroReferences)
-                {
-                    ctx.Plan.Replacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
-                    // Tap 2: this depth-zero staged-root reference is lifted to a factory-time value — highlight it (plan Task 4).
-                    ctx.LiveFragmentInfos.Add(TemplateDiagnostics.LiveFragment(reference.GetLocation()));
-                }
-            }
-
-            foreach (var trimNode in stagedParameter.TrimNodes)
-                ctx.Plan.Trim.Add(trimNode);
+                        valueAccess,
+                        IdentifierName("ToSyntax")))));
         }
     }
 
@@ -649,7 +611,6 @@ internal static class TemplateFactoryBuilder
 
     private static void LiftStagedRootParameters(TemplateBuildContext ctx)
     {
-        var additionalUsings = ctx.AdditionalUsings;
         var valueLift = ctx.ValueLift;
 
         foreach (var stagedParameterRoot in ctx.StagedRootParameters)
@@ -658,15 +619,13 @@ internal static class TemplateFactoryBuilder
             while (!ctx.Names.ParamNames.Add(paramName))
                 paramName += '_';
 
-            // The [Unquote] value lift: the supplied value is converted to syntax at factory time and the result
-            // spliced into the output (subsumes the old value-lift behavior). By default `value.ToSyntax()`,
-            // which binds to the file-local LiteralSyntaxExtensions (built-in types) or the generic ToSyntax<T>
-            // fallback (inlined generic type parameters); a custom type instead binds to a discovered [Runtime]
-            // converter, called fully-qualified below.
-            TypeSyntax parameterType = stagedParameterRoot.Parameter.Type!;
             var paramType = stagedParameterRoot.Type;
 
-            // A generic type reference must be declared on the factory method (unless already inlined as a type param).
+            // Resolve the factory-parameter type INDEPENDENT of whether the value is actually spliced: a control-only
+            // [Unquote] param never reaches the converter, yet still needs a resolvable declared type. Built-in ⇒ the
+            // declared syntax; a fresh factory type-parameter identifier for a not-yet-inlined generic; otherwise the
+            // fully-qualified declared type so it resolves in the generated file regardless of the template's usings.
+            TypeSyntax parameterType = stagedParameterRoot.Parameter.Type!;
             if (paramType is ITypeParameterSymbol typeParam && !ctx.Shape.InlinedTypeParams.Contains(typeParam))
             {
                 string typeParamName = typeParam.Name;
@@ -676,51 +635,36 @@ internal static class TemplateFactoryBuilder
                 parameterType = IdentifierName(typeParamName);
                 ctx.Shape.TypeParams.Add(TypeParameter(typeParamName));
             }
-
-            // The [Unquote] value lift: the supplied value is converted to syntax at factory time and the result
-            // spliced into the output. Shared with the [Quote] paths via TryEmitValueLift (the generic-type-param
-            // declaration above stays [Unquote]-only; [Quote] is value-axis only).
-            if (!valueLift.TryEmitValueLift(paramType, IdentifierName(paramName), stagedParameterRoot.Parameter.Type!.GetLocation(), out ExpressionSyntax conversion, out var liftDiagnostic))
-            {
-                ctx.Diagnostics.Add(liftDiagnostic!.Value);
-                ctx.ConverterError = true;
-            }
             else if (paramType is not ITypeParameterSymbol && !ValueLift.IsBuiltInLiteralType(paramType))
             {
-                // Emit the parameter with its fully-qualified declared type so it resolves in the generated file
-                // regardless of which usings the template's file happened to carry.
                 parameterType = ParseTypeName(paramType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
             }
 
-            var syntaxForParamIdentifier = Identifier("syntaxForParam_" + paramName);
-            ctx.Shape.Preamble.Add(
-                LocalDeclarationStatement(
-                    VariableDeclaration(
-                        additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!)),
-                        SingletonSeparatedList(
-                            VariableDeclarator(
-                                syntaxForParamIdentifier,
-                                null,
-                                EqualsValueClause(conversion))))));
+            var typeLocation = stagedParameterRoot.Parameter.Type!.GetLocation();
+            var rootSymbol = ctx.SemanticModel.GetDeclaredSymbol(stagedParameterRoot.Parameter);
+            IReadOnlyList<ISymbol> rootSymbols = rootSymbol is null ? System.Array.Empty<ISymbol>() : new[] { rootSymbol };
 
-            ctx.Shape.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
+            // The shared staged-root core owns the partition + gated lift + control-region wiring + string-roots +
+            // trim + parameter append. The param-path lift STRATEGY is ValueLift.TryEmitValueLift ([Runtime] converter
+            // discovery + SY1008/SY1009) — the core invokes it ONLY when the depth-zero partition is non-empty, so a
+            // converterless control-only [Unquote] param never demands a converter (was SY1008).
+            StagedRootLifter.Lift(ctx, new StagedRootLift(
+                paramName,
+                parameterType,
+                stagedParameterRoot.References,
+                rootSymbols,
+                new SyntaxNode[] { stagedParameterRoot.Parameter },
+                isStringTyped: paramType.SpecialType == SpecialType.System_String,
+                emitConversion: valueAccess =>
+                {
+                    if (!valueLift.TryEmitValueLift(paramType, valueAccess, typeLocation, out ExpressionSyntax conversion, out var liftDiagnostic))
+                    {
+                        ctx.Diagnostics.Add(liftDiagnostic!.Value);
+                        ctx.ConverterError = true;
+                    }
 
-            foreach (var reference in stagedParameterRoot.References)
-            {
-                ctx.Plan.Replacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
-                // Tap 2: this [Unquote] value reference is lifted to a factory-time value — highlight it (plan Task 4).
-                ctx.LiveFragmentInfos.Add(TemplateDiagnostics.LiveFragment(reference.GetLocation()));
-            }
-
-            // Interpolation staged-fold: a string-typed [Unquote] parameter may be baked into surrounding literal
-            // text when used as a bare interpolation hole. The factory parameter is the raw value accessor.
-            if (paramType.SpecialType == SpecialType.System_String)
-            {
-                foreach (var reference in stagedParameterRoot.References)
-                    ctx.Plan.StringRoots[reference] = IdentifierName(paramName);
-            }
-
-            ctx.Plan.Trim.Add(stagedParameterRoot.Parameter);
+                    return conversion;
+                }));
         }
     }
 
