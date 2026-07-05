@@ -1,9 +1,23 @@
 # Live template code highlighting — design
 
-**Status:** approved design, pending implementation plan
+**Status:** shipped (experimental) — landed on `experimental/live-template-highlight`
 **Date:** 2026-07-05
 **Feature area:** `Synto.Generators` — templating / staging emitter
 **Delivery:** experimental (land on an `experimental/*` branch, not `main`)
+
+**Resolved decisions (as shipped):**
+- **O1 (Info-channel plumbing):** the two in-emitter taps (tap 1 in-region holes, tap 3 control drivers)
+  append to `StagedRegionEmission.InfoDiagnostics`; tap 2 (depth-zero holes) fires before the emission object
+  exists, so it appends to a `ctx.LiveFragmentInfos` accumulator on `TemplateBuildContext`. Both feed a single
+  `LiveFragmentMerge.Merge` on the `EmitLiveRegions` success path only (after the error bail), never touching the
+  error `Diagnostics` list.
+- **O2 (depth-zero boundary):** tap 2 highlights only the *depth-zero reference lists* the four value-lift steps
+  compute — not the flat `ctx.Plan.Replacements` map. `[Splice]` value/type-parameter insertions, `[TypeArg]`/
+  type-parameter substitutions, and `Template.Splice` inlines are author-written output, not live values, and are
+  **not** highlighted.
+- **v1 scalar-fold exclusion:** a scalar member-access fold (`xs.Count` → factory-time literal) is a build-time
+  evaluation the tap-2 enumeration does not list, so it is deliberately **not** highlighted in v1 (documented
+  scoping decision; may be revisited).
 
 ## Summary
 
