@@ -556,7 +556,11 @@ internal static class TemplateFactoryBuilder
                                     EqualsValueClause(conversion))))));
 
                 foreach (var reference in depthZeroReferences)
+                {
                     ctx.Plan.Replacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
+                    // Tap 2: this depth-zero staged-root reference is lifted to a factory-time value — highlight it (plan Task 4).
+                    ctx.LiveFragmentInfos.Add(TemplateDiagnostics.LiveFragment(reference.GetLocation()));
+                }
             }
 
             foreach (var trimNode in stagedParameter.TrimNodes)
@@ -610,7 +614,11 @@ internal static class TemplateFactoryBuilder
                                                 IdentifierName("ToSyntax")))))))));
 
                 foreach (var reference in liveLocalDepthZeroReferences)
+                {
                     ctx.Plan.Replacements.Add(reference, IdentifierName(syntaxForStagedIdentifier));
+                    // Tap 2: this depth-zero live-local reference is lifted to a factory-time value — highlight it (plan Task 4).
+                    ctx.LiveFragmentInfos.Add(TemplateDiagnostics.LiveFragment(reference.GetLocation()));
+                }
             }
 
             // Interpolation staged-fold: a string-typed Unquote<string>(…) local may be baked into surrounding
@@ -698,7 +706,11 @@ internal static class TemplateFactoryBuilder
             ctx.Shape.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
             foreach (var reference in stagedParameterRoot.References)
+            {
                 ctx.Plan.Replacements.Add(reference, IdentifierName(syntaxForParamIdentifier));
+                // Tap 2: this [Unquote] value reference is lifted to a factory-time value — highlight it (plan Task 4).
+                ctx.LiveFragmentInfos.Add(TemplateDiagnostics.LiveFragment(reference.GetLocation()));
+            }
 
             // Interpolation staged-fold: a string-typed [Unquote] parameter may be baked into surrounding literal
             // text when used as a bare interpolation hole. The factory parameter is the raw value accessor.
@@ -805,6 +817,8 @@ internal static class TemplateFactoryBuilder
             }
 
             ctx.Plan.Replacements[quoteCall.Invocation] = quoteCallConversion;
+            // Tap 2: the Quote(value) argument runs at factory time (the value is lifted to syntax) — highlight it (plan Task 4).
+            ctx.LiveFragmentInfos.Add(TemplateDiagnostics.LiveFragment(quoteCall.ValueArgument.GetLocation()));
         }
     }
 

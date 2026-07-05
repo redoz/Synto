@@ -92,7 +92,9 @@ public class DecorationTests
 
         var result = _factoryDriver.RunGenerators(compilation);
         var runResult = result.GetRunResult();
-        Assert.Empty(runResult.Diagnostics);
+        // SY1035 "live template code" is an Info highlight, not an error — narrow to Error so live templates
+        // (which now legitimately surface SY1035) still assert no error diagnostics (plan R2).
+        Assert.Empty(runResult.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
         return runResult.Results
             .SelectMany(r => r.GeneratedSources)
@@ -115,7 +117,9 @@ public class DecorationTests
 
         var result = _factoryDriver.RunGenerators(compilation);
         var runResult = result.GetRunResult();
-        Assert.Empty(runResult.Diagnostics);
+        // SY1035 "live template code" is an Info highlight, not an error — narrow to Error so live templates
+        // (which now legitimately surface SY1035) still assert no error diagnostics (plan R2).
+        Assert.Empty(runResult.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
         return runResult.Results
             .SelectMany(r => r.GeneratedSources)

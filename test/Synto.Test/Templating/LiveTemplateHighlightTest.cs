@@ -129,4 +129,118 @@ public class LiveTemplateHighlightTest
         var texts = LiveSpanTexts(diagnostics);
         Assert.Contains("c + 1", texts);
     }
+
+    // ----- Task 4: tap 2 — out-of-region (depth-zero) holes ----------------------------------------
+
+    // A staged root used at depth zero inside a larger output-world expression lifts by VALUE: the SY1035 covers
+    // exactly the parameter-use node `p`, not the enclosing `p + 1` (only the depth-zero reference is a live hole).
+    [Fact]
+    public void Tap2_DepthZeroParameterUse_HighlightsParameterNode_NotEnclosing()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build() {
+                    var p = Parameter<int>();
+                    System.Console.WriteLine(p + 1);
+                }
+            }
+            """);
+
+        var texts = LiveSpanTexts(diagnostics);
+        Assert.Contains("p", texts);
+        Assert.DoesNotContain("p + 1", texts);
+    }
+
+    // A region-less template that only uses depth-zero live values still emits SY1035 — proves EmitLiveRegions runs
+    // and merges the Info channel even when there are zero staged regions.
+    [Fact]
+    public void Tap2_RegionlessTemplate_WithDepthZeroLiveValue_EmitsHighlight()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build() {
+                    var p = Parameter<int>();
+                    System.Console.WriteLine(p);
+                }
+            }
+            """);
+
+        var texts = LiveSpanTexts(diagnostics);
+        Assert.Contains("p", texts);
+    }
+
+    // Negative (O2): a [Splice] value insertion is author-written OUTPUT syntax spliced verbatim, not a live value —
+    // no SY1035.
+    [Fact]
+    public void Tap2_SpliceParameter_ProducesNoHighlight()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using System;
+            using Synto.Templating;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build<T>([Splice] T value) {
+                    Console.WriteLine($"Hello world {value}");
+                }
+            }
+            """);
+
+        Assert.Empty(LiveSpanTexts(diagnostics));
+    }
+
+    // Negative (O2): a [Splice] type-parameter substitution inserts an author-written type, not a live value —
+    // no SY1035.
+    [Fact]
+    public void Tap2_SpliceTypeParameter_ProducesNoHighlight()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using System;
+            using Synto.Templating;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build<[Splice] T>(T value) {
+                    Console.WriteLine($"Hello world {value}");
+                }
+            }
+            """);
+
+        Assert.Empty(LiveSpanTexts(diagnostics));
+    }
+
+    // Negative (O2, documented v1 scoping): a scalar member-access fold (`columns.Count` -> literal) is a build-time
+    // evaluation the spec's tap-2 enumeration does not list, so it is NOT highlighted in v1.
+    [Fact]
+    public void Tap2_ScalarMemberAccessFold_ProducesNoHighlight()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build() {
+                    var columns = Parameter<IReadOnlyList<int>>();
+                    System.Console.WriteLine(columns.Count);
+                }
+            }
+            """);
+
+        Assert.Empty(LiveSpanTexts(diagnostics));
+    }
 }
