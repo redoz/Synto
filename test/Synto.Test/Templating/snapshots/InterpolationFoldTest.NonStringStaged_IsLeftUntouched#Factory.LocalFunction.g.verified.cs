@@ -223,6 +223,39 @@ file static class LiteralSyntaxExtensions
             float literal => literal.ToSyntax(),
             double literal => literal.ToSyntax(),
             char literal => literal.ToSyntax(),
+            Enum @enum => @enum.ToSyntax(),
             _ => throw new NotImplementedException($"You can provide you own implementation by applying the RuntimeAttribute to a static class implementing a more explicit version of this signature for type {value.GetType().FullName}.")};
+    }
+
+    /// <summary>
+    /// Lifts an enum value to a constant <see cref = "ExpressionSyntax"/>: a qualified enum-member access
+    /// (<c>global::Ns.Color.Red</c>) when the value maps to a single named member, otherwise a cast of the
+    /// underlying integral literal (<c>(global::Ns.Color)3</c>) for an undefined value or a <c>[Flags]</c>
+    /// combination. Nested enum types resolve with <c>.</c> (the reflected <c>+</c> is normalized).
+    /// </summary>
+    public static ExpressionSyntax ToSyntax(this Enum value)
+    {
+        Type enumType = value.GetType();
+        string qualifiedName = "global::" + enumType.FullName!.Replace(
+                                                '+', 
+                                                '.');
+        if (Enum.GetName(
+                enumType, 
+                value)is { } name)
+        {
+            return SF.MemberAccessExpression(
+                       SyntaxKind.SimpleMemberAccessExpression, 
+                       SF.ParseName(qualifiedName), 
+                       SF.IdentifierName(name));
+        }
+
+        // Undefined value or a flags combination: cast the underlying integral literal to the enum type.
+        object underlying = Convert.ChangeType(
+                                value, 
+                                Enum.GetUnderlyingType(enumType), 
+                                System.Globalization.CultureInfo.InvariantCulture);
+        return SF.CastExpression(
+                   SF.ParseTypeName(qualifiedName), 
+                   underlying.ToSyntax());
     }
 }

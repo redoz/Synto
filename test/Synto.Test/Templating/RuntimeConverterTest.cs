@@ -255,6 +255,46 @@ public class RuntimeConverterTest
     }
 
     [Fact]
+    public void QuoteEnumType_LiftsViaToSyntax_NoSY1008()
+    {
+        // Batteries-included value-lift (plan Task 3): an enum is NOT a built-in literal type, but the lift now
+        // accepts TypeKind.Enum on the `.ToSyntax()` path (binding to the generic ToSyntax<T> -> enum branch at
+        // runtime) rather than routing to the [Runtime] converter path — so an enum needs NO converter and does
+        // NOT report SY1008. This exercises the least-ceremony lift site ([Quote] value parameter).
+        const string source =
+            """
+            using System;
+            using Synto.Templating;
+
+            partial class Factory {}
+
+            public enum Hue { Red, Green, Blue }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Quote] Hue hue) {
+                    Console.WriteLine(hue);
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator())
+            .RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        var runResult = driver.GetRunResult();
+
+        // No SY1008: an enum is value-liftable through ToSyntax, not a "missing runtime converter".
+        Assert.DoesNotContain(runResult.Diagnostics, d => d.Id == "SY1008");
+
+        // The lift emits `hue.ToSyntax()` (which binds to the generic ToSyntax<T> -> enum branch).
+        var generated = runResult.GeneratedTrees
+            .Single(t => t.FilePath.Contains("Factory.Build", StringComparison.Ordinal))
+            .ToString();
+        Assert.Contains("hue.ToSyntax()", generated, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GeneratorIsIncrementalWithRuntimeConverter()
     {
         // Cacheability guard for the converter path: discovery + injection happen entirely inside the

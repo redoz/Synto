@@ -76,9 +76,11 @@ internal sealed class ValueLift
     {
         diagnostic = null;
 
-        // Built-in literal type (or an inlined generic type parameter): value.ToSyntax(), binding to the
-        // file-local LiteralSyntaxExtensions / generic ToSyntax<T> fallback.
-        if (valueType is ITypeParameterSymbol || IsBuiltInLiteralType(valueType))
+        // Built-in literal type, an enum (batteries-included: the generic ToSyntax<T> -> enum branch emits a
+        // qualified enum-member access / cast at runtime), or an inlined generic type parameter: value.ToSyntax(),
+        // binding to the file-local LiteralSyntaxExtensions / generic ToSyntax<T> fallback. An enum is thus
+        // value-liftable with NO [Runtime] converter (it never reaches the SY1008 path below).
+        if (valueType is ITypeParameterSymbol || IsBuiltInLiteralType(valueType) || valueType.TypeKind == TypeKind.Enum)
         {
             liftedSyntax = InvocationExpression(
                 MemberAccessExpression(
