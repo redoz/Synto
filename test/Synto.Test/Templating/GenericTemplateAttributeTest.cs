@@ -47,7 +47,8 @@ public class GenericTemplateAttributeTest
         var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
         var result = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
         var runResult = result.GetRunResult();
-        Assert.Empty(runResult.Diagnostics);
+        // Scope to Error severity: SY1035 "live template code" Info highlights legitimately appear on live templates.
+        Assert.Empty(runResult.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
         return runResult.Results
             .SelectMany(r => r.GeneratedSources)
             .ToDictionary(s => s.HintName, s => s.SourceText.ToString(), StringComparer.Ordinal);

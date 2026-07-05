@@ -163,7 +163,7 @@ internal static class StagedScaffoldBuilder
             var liftMap = new Dictionary<SyntaxNode, ExpressionSyntax>();
             foreach (var pair in context.BaseReplacements)
                 liftMap[pair.Key] = pair.Value;
-            CollectLiftPoints(semanticModel, statement, stagedSet, renamer, liftMap);
+            CollectLiftPoints(semanticModel, statement, stagedSet, renamer, liftMap, emission.InfoDiagnostics);
 
             var islandNodeSteps = PlanAssembler.BuildNodeSteps(liftMap, context.BuilderCalls, new HashSet<SyntaxNode>(), null);
             var islandListSteps = PlanAssembler.BuildListSteps(context.StringStagedRoots, null);
@@ -263,16 +263,19 @@ internal static class StagedScaffoldBuilder
     /// stays the original node so the quoter still matches it) so a live root referenced by value inside the
     /// island resolves to its factory parameter, not the trimmed source local.
     /// </summary>
-    private static void CollectLiftPoints(SemanticModel semanticModel, SyntaxNode node, HashSet<ISymbol> stagedSet, RootRenameRewriter renamer, Dictionary<SyntaxNode, ExpressionSyntax> map)
+    private static void CollectLiftPoints(SemanticModel semanticModel, SyntaxNode node, HashSet<ISymbol> stagedSet, RootRenameRewriter renamer, Dictionary<SyntaxNode, ExpressionSyntax> map, List<DiagnosticInfo> liveFragments)
     {
         if (node is ExpressionSyntax expression && IsPurelyStaged(semanticModel, expression, stagedSet))
         {
             map[expression] = StagedHelperCallFactory.ToSyntaxCall((ExpressionSyntax)renamer.Visit(expression)!);
+            // Tap 1: this maximal purely-live subexpression is lifted to run at factory time — highlight the
+            // ORIGINAL (pre-rename) node so the SY1035 span points at the author's source (plan Task 3).
+            liveFragments.Add(TemplateDiagnostics.LiveFragment(expression.GetLocation()));
             return; // maximal — do not descend
         }
 
         foreach (var child in node.ChildNodes())
-            CollectLiftPoints(semanticModel, child, stagedSet, renamer, map);
+            CollectLiftPoints(semanticModel, child, stagedSet, renamer, map, liveFragments);
     }
 
     private static bool IsPurelyStaged(SemanticModel semanticModel, ExpressionSyntax expression, HashSet<ISymbol> stagedSet)
