@@ -1,7 +1,12 @@
 # `Constant` facade — value → `ExpressionSyntax` literal in builder-argument position
 
 **Date:** 2026-07-05
-**Status:** Design (approved for planning)
+**Status:** ⛔ Superseded by `2026-07-05-authoring-surface-taxonomy.md` §3.2 — the standalone
+`Constant<T>() → ExpressionSyntax` facade is **dropped** in favor of a `[Constant]`
+builder-argument binding-time kind (no `Quote` twin). The value-lift semantics, supported types,
+and `SY1011`/`SY1012` diagnostics below still hold; they now attach to the `[Constant]` builder
+parameter rather than a facade. A free-standing `Constant` facade is deferred until a consumer
+needs a lifted node outside a `[SyntaxBuilder]` argument. Retained for that rationale.
 **First consumer:** ObjectReader `TypedGetter` switch labels
 
 ## Problem
