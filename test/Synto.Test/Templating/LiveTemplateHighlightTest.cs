@@ -243,4 +243,78 @@ public class LiveTemplateHighlightTest
 
         Assert.Empty(LiveSpanTexts(diagnostics));
     }
+
+    // ----- Task 5: tap 3 — live control drivers ----------------------------------------------------
+
+    // A live `foreach` iteration source (`columns`, a staged root) drives a staged unroll: the driver is highlighted,
+    // while the loop body's output-world statement (`i`) is not.
+    [Fact]
+    public void Tap3_ForeachLiveDriver_IsHighlighted_BodyOutputIsNot()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build(int i) {
+                    var columns = Parameter<IReadOnlyList<int>>();
+                    foreach (var c in columns)
+                        System.Console.WriteLine(i);
+                }
+            }
+            """);
+
+        var texts = LiveSpanTexts(diagnostics);
+        Assert.Contains("columns", texts);
+        Assert.DoesNotContain(texts, t => t == "i");
+    }
+
+    // A live `while` condition driving a staged unroll is highlighted (the whole condition expression is the driver).
+    [Fact]
+    public void Tap3_WhileLiveCondition_IsHighlighted()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build() {
+                    var flag = Parameter<bool>();
+                    while (flag)
+                        System.Console.WriteLine("x");
+                }
+            }
+            """);
+
+        var texts = LiveSpanTexts(diagnostics);
+        Assert.Contains("flag", texts);
+    }
+
+    // A live `if` condition driving a staged specialization is highlighted.
+    [Fact]
+    public void Tap3_IfLiveCondition_IsHighlighted()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build() {
+                    var flag = Parameter<bool>();
+                    if (flag)
+                        System.Console.WriteLine("x");
+                }
+            }
+            """);
+
+        var texts = LiveSpanTexts(diagnostics);
+        Assert.Contains("flag", texts);
+    }
 }

@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Generators.Templating.BindingTime;
 using Synto.Generators.Templating.Builders;
+using Synto.Generators.Templating.Diagnostics;
 using Synto.Generators.Templating.Emit;
 using Synto.Generators.Templating.Quoting;
 
@@ -57,6 +58,9 @@ internal static class StagedRegionEmitter
                     string runName = "__run_" + counter++;
                     if (!StagedScaffoldBuilder.TryBuildScaffold(context, region, runName))
                         return emission; // a diagnostic was recorded
+                    // Tap 3 (SY1035): the live control driver (foreach source / for|while|if condition) that
+                    // steers this factory-time unroll is itself live template code — highlight the pre-rename node.
+                    emission.InfoDiagnostics.Add(TemplateDiagnostics.LiveFragment(DriverLocation(region.Control)));
                     segments.Add(StagedHelperCallFactory.RunSegment(runName));
                 }
                 else if (StagedScaffoldBuilder.IsStagedStatement(semanticModel, statement, stagedSet))
@@ -82,4 +86,15 @@ internal static class StagedRegionEmitter
 
         return emission;
     }
+
+    // The live driving expression of a control region — the fragment steering the factory-time unroll. Mirrors the
+    // driver each StagedScaffoldBuilder control arm renames: foreach -> iteration source, for|while|if -> condition.
+    private static Location DriverLocation(StatementSyntax control) => control switch
+    {
+        ForEachStatementSyntax forEach => forEach.Expression.GetLocation(),
+        ForStatementSyntax { Condition: { } condition } => condition.GetLocation(),
+        WhileStatementSyntax whileStatement => whileStatement.Condition.GetLocation(),
+        IfStatementSyntax ifStatement => ifStatement.Condition.GetLocation(),
+        _ => control.GetLocation(),
+    };
 }
