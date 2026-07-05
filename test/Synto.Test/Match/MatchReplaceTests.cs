@@ -96,7 +96,7 @@ public partial class MatchReplaceTests
     {
         // The replacement is built by a Synto [Template] factory rather than raw SyntaxFactory — proving the
         // open Func<Matched<T>, SyntaxNode> lets Templating compose with Matching for free.
-        [global::Synto.Templating.Template<Factory>(Options = global::Synto.Templating.TemplateOption.Single)]
+        [global::Synto.Templating.Template<Factory>(Extent = global::Synto.Templating.TemplateExtent.Single)]
         static void MulT([global::Synto.Templating.Splice] int a, [global::Synto.Templating.Splice] int b)
         { _ = a * b; }
         // MulT is a phantom [Template] source: the generator lowers it into Factory.MulT (invoked below), so the

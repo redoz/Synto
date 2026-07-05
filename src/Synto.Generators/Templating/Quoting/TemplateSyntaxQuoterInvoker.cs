@@ -53,12 +53,12 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
 
     /// <summary>
     /// Shared selection for the two method-shaped carriers (a <c>[Template]</c> method and a local function):
-    /// in <c>Bare</c> mode quote the block body (or the expression body's expression); otherwise quote the whole
-    /// declaration node.
+    /// for a reducing <see cref="TemplateExtent"/> (<c>Bare</c> or <c>Single</c>) quote the block body (or the
+    /// expression body's expression); for <c>Carrier</c> quote the whole declaration node.
     /// </summary>
     private void VisitMethodLike(SyntaxNode node, BlockSyntax? body, ArrowExpressionClauseSyntax? expressionBody)
     {
-        if (_template.Options.HasFlag(TemplateOption.Bare))
+        if (_template.Extent != TemplateExtent.Carrier)
         {
             if (body is not null)
                 VisitMethodBody(body);
@@ -88,13 +88,13 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
 
     private void VisitMethodBody(BlockSyntax body)
     {
-        Debug.Assert(_template.Options.HasFlag(TemplateOption.Bare));
+        Debug.Assert(_template.Extent != TemplateExtent.Carrier);
 
         if (body!.Statements.Count == 0)
         {
             Error = TemplateDiagnostics.BareSourceCannotBeEmpty(_template.Source!);
         }
-        else if ((_template.Options & TemplateOption.Single) == TemplateOption.Single)
+        else if (_template.Extent == TemplateExtent.Single)
         {
             if (body.Statements.Count == 1)
             {
@@ -131,13 +131,13 @@ internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
 
     private void VisitTypeDeclaration(TypeDeclarationSyntax node)
     {
-        if (_template.Options.HasFlag(TemplateOption.Bare))
+        if (_template.Extent != TemplateExtent.Carrier)
         {
             if (node.Members.Count == 0)
             {
                 Error = TemplateDiagnostics.BareSourceCannotBeEmpty(_template.Source!);
             }
-            else if ((_template.Options & TemplateOption.Single) == TemplateOption.Single)
+            else if (_template.Extent == TemplateExtent.Single)
             {
                 if (node.Members.Count == 1)
                 {

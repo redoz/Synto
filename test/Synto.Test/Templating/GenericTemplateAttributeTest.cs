@@ -80,7 +80,7 @@ public class GenericTemplateAttributeTest
 
         public class TestClass
         {
-            [Template<Factory>(Options = TemplateOption.Bare)]
+            [Template<Factory>(Extent = TemplateExtent.Bare)]
             static void Sample()
             {
                 Console.WriteLine("Hello world");

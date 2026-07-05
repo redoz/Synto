@@ -8,19 +8,21 @@ namespace Synto.Generators.Templating.Emit;
 
 internal sealed class TemplateInfo
 {
-    private TemplateInfo(SemanticModel semanticModel, AttributeSyntax attributeSyntax, Source templateSource, TargetType factoryTarget, TemplateOption options)
+    private TemplateInfo(SemanticModel semanticModel, AttributeSyntax attributeSyntax, Source templateSource, TargetType factoryTarget, TemplateOption options, TemplateExtent extent)
     {
         SemanticModel = semanticModel;
         AttributeSyntax = attributeSyntax;
         Source = templateSource;
         Target = factoryTarget;
         Options = options;
+        Extent = extent;
     }
 
     public AttributeSyntax AttributeSyntax { get; private set; }
     public TargetType Target { get; private set; }
     public Source Source { get; private set; }
     public TemplateOption Options { get; private set; }
+    public TemplateExtent Extent { get; private set; }
     public SemanticModel SemanticModel { get; private set; }
 
     public static TemplateInfo? Create(GeneratorAttributeSyntaxContext syntaxContext)
@@ -51,7 +53,7 @@ internal sealed class TemplateInfo
 
         var source = new Source(syntaxContext.TargetNode, syntaxContext.TargetSymbol.Name);
 
-        return new TemplateInfo(syntaxContext.SemanticModel, attrSyntax, source, target, ReadOptions(attr));
+        return new TemplateInfo(syntaxContext.SemanticModel, attrSyntax, source, target, ReadOptions(attr), ReadExtent(attr));
     }
 
     /// <summary>
@@ -83,7 +85,7 @@ internal sealed class TemplateInfo
                 continue;
 
             var source = new Source(childMethod, childSymbol.Name);
-            return new TemplateInfo(semanticModel, attrSyntax, source, parentTarget, ReadOptions(attr));
+            return new TemplateInfo(semanticModel, attrSyntax, source, parentTarget, ReadOptions(attr), ReadExtent(attr));
         }
 
         return null;
@@ -91,7 +93,7 @@ internal sealed class TemplateInfo
 
     private static TemplateOption ReadOptions(AttributeData attr)
     {
-        var options = TemplateOption.None;
+        var options = default(TemplateOption);
 
         foreach (var namedArgs in attr.NamedArguments)
         {
@@ -108,6 +110,27 @@ internal sealed class TemplateInfo
         }
 
         return options;
+    }
+
+    private static TemplateExtent ReadExtent(AttributeData attr)
+    {
+        var extent = TemplateExtent.Carrier;
+
+        foreach (var namedArgs in attr.NamedArguments)
+        {
+            if (StringComparer.Ordinal.Equals(namedArgs.Key, nameof(TemplateAttribute.Extent)))
+            {
+                // A mid-keystroke / unresolvable Extent expression yields an error-kind constant (Value == null);
+                // an enum constant boxes to its underlying int. Anything that is not a plain int is skipped so a
+                // malformed argument defaults to Carrier instead of NRE-ing the transform.
+                if (namedArgs.Value.Kind != TypedConstantKind.Error && namedArgs.Value.Value is int extentValue)
+                {
+                    extent = (TemplateExtent)extentValue;
+                }
+            }
+        }
+
+        return extent;
     }
 }
 

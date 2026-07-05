@@ -305,7 +305,7 @@ public class InjectedSurfaceCompletenessTest
         partial class Factory {}
 
         public class TestClass {
-            [Template<Factory>(Options = TemplateOption.Bare)]
+            [Template<Factory>(Extent = TemplateExtent.Bare)]
             static void Loop([Quote] int count) {
                 int ret = 0;
                 for (int i = 0; i < count; i++) ret++;
@@ -379,7 +379,7 @@ public class InjectedSurfaceCompletenessTest
         partial class Factory {}
 
         public class TestClass {
-            [Template<Factory>(Options = TemplateOption.Bare)]
+            [Template<Factory>(Extent = TemplateExtent.Bare)]
             static void Loop([Unquote] int count) {
                 int ret = 0;
                 var bound = Unquote(count);

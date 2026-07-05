@@ -33,6 +33,7 @@ Synto.Runtime.SyntaxBuilderAttribute.cs
 Synto.Runtime.SyntoBuilders.cs
 Synto.Runtime.Template.cs
 Synto.Runtime.TemplateAttribute.cs
+Synto.Runtime.TemplateExtent.cs
 Synto.Runtime.TemplateOption.cs
 Synto.Runtime.TypeArgAttribute.cs
 Synto.Runtime.UnquoteAttribute.cs

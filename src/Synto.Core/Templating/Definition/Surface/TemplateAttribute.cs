@@ -11,6 +11,7 @@ namespace Synto.Templating;
 public sealed class TemplateAttribute : Attribute
 {
     public TemplateOption Options { get; set; }
+    public TemplateExtent Extent { get; set; }
 }
 
 /// <summary>
@@ -23,4 +24,5 @@ public sealed class TemplateAttribute : Attribute
 public sealed class TemplateAttribute<T> : Attribute
 {
     public TemplateOption Options { get; set; }
+    public TemplateExtent Extent { get; set; }
 }

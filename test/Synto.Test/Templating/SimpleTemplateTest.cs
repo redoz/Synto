@@ -82,7 +82,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template<Factory>(Options = TemplateOption.Single)]
+                    [Template<Factory>(Extent = TemplateExtent.Single)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -104,7 +104,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template<Factory>(Options = TemplateOption.Bare)]
+                    [Template<Factory>(Extent = TemplateExtent.Bare)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -126,7 +126,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template<Factory>(Options = TemplateOption.None)]
+                    [Template<Factory>(Extent = TemplateExtent.Carrier)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -148,7 +148,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template<Factory>(Options = TemplateOption.Single)]
+                    [Template<Factory>(Extent = TemplateExtent.Single)]
                     static void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -170,7 +170,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template<Factory>(Options = TemplateOption.Bare)]
+                    [Template<Factory>(Extent = TemplateExtent.Bare)]
                     static void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -192,7 +192,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template<Factory>(Options = TemplateOption.None)]
+                    [Template<Factory>(Extent = TemplateExtent.Carrier)]
                     static void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -215,7 +215,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template<Factory>(Options = TemplateOption.Single)]
+                    [Template<Factory>(Extent = TemplateExtent.Single)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                         Console.WriteLine("Hello world");
@@ -237,7 +237,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template<Factory>(Options = TemplateOption.Single)]
+                [Template<Factory>(Extent = TemplateExtent.Single)]
                 void LocalFunction() {
                     Console.WriteLine("Hello world");
                 }
@@ -368,7 +368,7 @@ public class SimpleTemplateTest
 
             partial class Factory {}
 
-            [Template<Factory>(Options = TemplateOption.Bare)]
+            [Template<Factory>(Extent = TemplateExtent.Bare)]
             public class TestClass {
                 void First() {
                     Console.WriteLine("first");
@@ -472,7 +472,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template<Factory>(Options = TemplateOption.Bare)]
+                [Template<Factory>(Extent = TemplateExtent.Bare)]
                 static void Loop([Quote] int count) {
                     int ret = 0;
                     for (int i = 0; i < count; i++) ret++;
@@ -515,7 +515,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template<Factory>(Options = TemplateOption.Bare)]
+                [Template<Factory>(Extent = TemplateExtent.Bare)]
                 static void Loop([Unquote] int count) {
                     int ret = 0;
                     var bound = Unquote(count);
@@ -671,7 +671,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template<Factory>(Options = TemplateOption.Bare)]
+                    [Template<Factory>(Extent = TemplateExtent.Bare)]
                     void LocalFunction() {
                     }
                 }
@@ -698,7 +698,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public partial class TestClass {
-                [Template<Factory>(Options = TemplateOption.Bare)]
+                [Template<Factory>(Extent = TemplateExtent.Bare)]
                 partial void BodylessMethod();
             }
             """);
@@ -710,7 +710,7 @@ public class SimpleTemplateTest
     [Fact]
     public void MultipleMembersAsSingleReportsSY1007()
     {
-        // TemplateOption.Single (== Single|Bare) on a class with >1 member hits MultipleMembersNotAllowed.
+        // TemplateExtent.Single on a class with >1 member hits MultipleMembersNotAllowed.
         var diagnostics = RunAndGetDiagnostics(
             """
             using System;
@@ -718,7 +718,7 @@ public class SimpleTemplateTest
 
             partial class Factory {}
 
-            [Template<Factory>(Options = TemplateOption.Single)]
+            [Template<Factory>(Extent = TemplateExtent.Single)]
             public class TestClass {
                 void First() {
                     Console.WriteLine("first");
@@ -771,7 +771,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template<Factory>(Options = TemplateOption.Single)]
+                    [Template<Factory>(Extent = TemplateExtent.Single)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }

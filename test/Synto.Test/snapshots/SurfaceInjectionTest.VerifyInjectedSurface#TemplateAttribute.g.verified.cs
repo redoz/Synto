@@ -13,6 +13,7 @@ namespace Synto.Templating;
 internal sealed class TemplateAttribute : Attribute
 {
     public TemplateOption Options { get; set; }
+    public TemplateExtent Extent { get; set; }
 }
 
 /// <summary>
@@ -25,4 +26,5 @@ internal sealed class TemplateAttribute : Attribute
 internal sealed class TemplateAttribute<T> : Attribute
 {
     public TemplateOption Options { get; set; }
+    public TemplateExtent Extent { get; set; }
 }

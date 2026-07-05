@@ -67,7 +67,7 @@ public class TemplateInfoGuardTest
             using Synto.Templating;
             partial class Factory {}
             public class TestClass {
-                [Template<Factory>(Options = TemplateOption.Bare)]
+                [Template<Factory>(Extent = TemplateExtent.Bare)]
                 int Build() => 1 + 2;
             }
             """);

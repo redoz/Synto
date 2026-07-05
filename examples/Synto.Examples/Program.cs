@@ -60,7 +60,7 @@ internal sealed class Examples
 #pragma warning disable CS8321 // Local function is declared but never used
     public static string Test0()
     {
-        [Template<Factory>(Options = TemplateOption.Single)]
+        [Template<Factory>(Extent = TemplateExtent.Single)]
         static void Simple()
         {
             Console.WriteLine("Hello World");
@@ -76,7 +76,7 @@ internal sealed class Examples
 
     public static string Test1()
     {
-        [Template<Factory>(Options = TemplateOption.Single)]
+        [Template<Factory>(Extent = TemplateExtent.Single)]
         static void Hello([Unquote] string message)
         {
             Console.WriteLine("Hello " + message);
@@ -92,14 +92,14 @@ internal sealed class Examples
 
     public static string Test2()
     {
-        [Template<Factory>(Options = TemplateOption.Single)]
+        [Template<Factory>(Extent = TemplateExtent.Single)]
         static void Inner()
         {
             new StringBuilder("Something").Append("Foo").ToString();
         }
 
 
-        [Template<Factory>(Options = TemplateOption.Single)]
+        [Template<Factory>(Extent = TemplateExtent.Single)]
         static void Outer([Splice] string message)
         {
             Console.WriteLine("Hello " + message);
@@ -115,7 +115,7 @@ internal sealed class Examples
 
     public static string Test4()
     {
-        [Template<Factory>(Options = TemplateOption.None)]
+        [Template<Factory>(Extent = TemplateExtent.Carrier)]
         static void FullMethod()
         {
             Console.WriteLine("Hello World");
@@ -133,7 +133,7 @@ internal sealed class Examples
     public static string Test5()
     {
 
-        [Template<Factory>(Options = TemplateOption.Bare)]
+        [Template<Factory>(Extent = TemplateExtent.Bare)]
         static void Loop([Unquote] int count)
         {
             int ret = 0;
@@ -156,7 +156,7 @@ internal sealed class Examples
         // Sibling of Test5: same `for` driven by `count`, but `count` is a [Quote] parameter — a value lift that
         // is NEVER a staging root (spec §3). So instead of unrolling at factory-build time (Test5's four `ret++`),
         // the loop is emitted verbatim with a literal bound: `for (int i = 0; i < 4; i++) { ret++; }`.
-        [Template<Factory>(Options = TemplateOption.Bare)]
+        [Template<Factory>(Extent = TemplateExtent.Bare)]
         static void QuoteLoop([Quote] int count)
         {
             int ret = 0;
