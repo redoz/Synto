@@ -1,0 +1,46 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: : (14,26)-(14,34),
+      Message: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SY1035,
+        Title: Live template code,
+        MessageFormat: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+        Category: Synto.Staging,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: : (15,30)-(15,31),
+      Message: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SY1035,
+        Title: Live template code,
+        MessageFormat: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+        Category: Synto.Staging,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: : (16,26)-(16,34),
+      Message: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SY1035,
+        Title: Live template code,
+        MessageFormat: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+        Category: Synto.Staging,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}
