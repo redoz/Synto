@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Quoting;
 
 /// <summary>
 /// The cooperation surface a quote step (<see cref="INodeQuoteMiddleware"/> / <see cref="IListQuoteMiddleware"/>)

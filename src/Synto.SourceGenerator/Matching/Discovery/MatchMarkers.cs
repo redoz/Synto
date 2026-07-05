@@ -3,8 +3,9 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Matching;
+using Synto.Generators.Matching.Emit;
 
-namespace Synto.Generators.Matching;
+namespace Synto.Generators.Matching.Discovery;
 
 /// <summary>
 /// Resolves the <c>Synto.Matching</c> marker symbols ONCE per pattern (via

@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Templating;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Discovery;
 
 /// <summary>
 /// The return-type classification of a <c>[Splice]</c> member generator: a single member

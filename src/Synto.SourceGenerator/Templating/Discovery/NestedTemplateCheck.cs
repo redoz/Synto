@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Templating;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Discovery;
 
 /// <summary>
 /// Shared ancestor check consumed by both <c>[Template]</c> FAWMN transforms: is <paramref name="node"/>

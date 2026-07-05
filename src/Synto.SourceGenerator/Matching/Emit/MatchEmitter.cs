@@ -4,8 +4,10 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Matching;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using Synto.Generators.Matching.Diagnostics;
+using Synto.Generators.Matching.Discovery;
 
-namespace Synto.Generators.Matching;
+namespace Synto.Generators.Matching.Emit;
 
 /// <summary>
 /// Lowers a validated <see cref="MatchInfo"/> into the generated matcher source via a generic structural

@@ -1,4 +1,4 @@
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Builders;
 
 /// <summary>
 /// Names attached to the <see cref="SyntaxBuilderFacadeGenerator"/>'s incremental pipeline stages via

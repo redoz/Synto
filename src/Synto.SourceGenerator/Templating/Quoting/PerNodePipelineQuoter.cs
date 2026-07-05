@@ -2,8 +2,9 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Templating.Quoting.Passes;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Quoting;
 
 /// <summary>
 /// The templating quoter: a <see cref="CSharpSyntaxQuoter"/> subclass that dispatches per-node and per-owner

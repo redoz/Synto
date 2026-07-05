@@ -3,8 +3,10 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using Synto.Generators.Templating.Diagnostics;
+using Synto.Generators.Templating.Discovery;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Lifting;
 
 /// <summary>
 /// The shared value→syntax lift policy used by the <c>[Unquote]</c> value-parameter path and the <c>[Quote]</c>

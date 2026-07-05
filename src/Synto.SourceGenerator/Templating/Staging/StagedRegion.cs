@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Staging;
 
 /// <summary>
 /// A live control region to unroll at factory-build time (plan Task 6–7 / spec §5.2–5.3): a control statement

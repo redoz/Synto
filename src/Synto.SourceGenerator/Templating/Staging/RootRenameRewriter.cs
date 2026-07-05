@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Staging;
 
 /// <summary>Rewrites live-root identifier references to their factory parameter names (identity when unchanged).</summary>
 internal sealed class RootRenameRewriter : CSharpSyntaxRewriter

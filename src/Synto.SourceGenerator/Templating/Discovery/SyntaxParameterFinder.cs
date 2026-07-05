@@ -3,8 +3,9 @@ using System.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Templating.Emit;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Discovery;
 
 internal sealed class SyntaxParameter(ParameterSyntax parameter, IReadOnlyList<InvocationExpressionSyntax> references)
 {

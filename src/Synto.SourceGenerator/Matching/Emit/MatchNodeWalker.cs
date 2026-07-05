@@ -5,8 +5,10 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Matching;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using Synto.Generators.Matching.Discovery;
+using Synto.Generators.Matching.Diagnostics;
 
-namespace Synto.Generators.Matching;
+namespace Synto.Generators.Matching.Emit;
 
 /// <summary>
 /// The generic structural node-walk: emits the type/kind/child guards for a pattern node against a runtime

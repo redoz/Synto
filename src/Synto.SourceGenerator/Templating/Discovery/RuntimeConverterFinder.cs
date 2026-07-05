@@ -1,7 +1,8 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Synto.Generators.Symbols;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Discovery;
 
 /// <summary>
 /// Discovers user-authored value-to-syntax converters for an <c>[Unquote]</c> parameter whose declared type is

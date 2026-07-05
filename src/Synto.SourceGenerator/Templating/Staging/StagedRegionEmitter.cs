@@ -2,8 +2,12 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Templating.BindingTime;
+using Synto.Generators.Templating.Builders;
+using Synto.Generators.Templating.Emit;
+using Synto.Generators.Templating.Quoting;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Staging;
 
 /// <summary>
 /// Precomputes the run+collect replacement for each live control region (plan Task 6–7). The verbatim control

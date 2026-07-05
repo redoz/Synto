@@ -2,8 +2,10 @@ using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Templating.BindingTime;
+using Synto.Generators.Templating.Builders;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Staging;
 
 /// <summary>
 /// Transform-local scratch carrier for the staged-region codegen: bundles the inputs that stay constant across a

@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Staging;
 
 /// <summary>
 /// Builds the staged-region CALL expressions over the Synto.Core runtime helpers (BuildList / ListSegment.Run /

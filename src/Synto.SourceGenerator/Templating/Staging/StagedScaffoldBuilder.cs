@@ -4,8 +4,11 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using Synto.Generators.Templating.Diagnostics;
+using Synto.Generators.Templating.Emit;
+using Synto.Generators.Templating.Quoting;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Staging;
 
 /// <summary>
 /// Per-region control-flow codegen for the staging emitter: builds the verbatim run+collect scaffold for a single

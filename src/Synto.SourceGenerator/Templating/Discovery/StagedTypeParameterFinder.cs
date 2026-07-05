@@ -3,8 +3,9 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Templating;
+using Synto.Generators.Templating.Emit;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Discovery;
 
 /// <summary>
 /// A resolved staged generic type parameter: either an <c>[Unquote]</c> type (value-lift — the supplied

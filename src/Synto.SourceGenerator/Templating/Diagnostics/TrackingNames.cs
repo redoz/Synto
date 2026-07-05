@@ -1,4 +1,4 @@
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Diagnostics;
 
 /// <summary>
 /// Names attached to the templating generator's incremental pipeline stages via <c>WithTrackingName</c> so

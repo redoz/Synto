@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
-namespace Synto.Generators.Matching;
+namespace Synto.Generators.Matching.Diagnostics;
 
 /// <summary>
 /// Matching's pattern-specific diagnostics (the reserved <c>SY12xx</c> range, category

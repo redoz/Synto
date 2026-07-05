@@ -3,8 +3,10 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Diagnostics;
 using Synto.Templating;
+using Synto.Generators.Templating.Emit;
+using Synto.Generators.Templating.Diagnostics;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Quoting;
 
 internal sealed class TemplateSyntaxQuoterInvoker : CSharpSyntaxWalker
 {

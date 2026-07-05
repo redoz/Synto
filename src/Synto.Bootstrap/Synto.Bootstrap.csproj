@@ -15,8 +15,8 @@
 		<!-- The cacheability toolkit (EquatableArray / DiagnosticInfo / LocationInfo) is NOT copied here:
 		     Bootstrap is the one sanctioned place that <Compile Link>s the generator's canonical pair
 		     (namespace Synto.Generators), so the copy can never silently drift. Bootstrap never ships. -->
-		<Compile Include="..\Synto.SourceGenerator\Shared\EquatableArray.cs" Link="EquatableArray.cs" />
-		<Compile Include="..\Synto.SourceGenerator\Shared\DiagnosticInfo.cs" Link="DiagnosticInfo.cs" />
+		<Compile Include="..\Synto.SourceGenerator\Incremental\EquatableArray.cs" Link="EquatableArray.cs" />
+		<Compile Include="..\Synto.SourceGenerator\Incremental\DiagnosticInfo.cs" Link="DiagnosticInfo.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

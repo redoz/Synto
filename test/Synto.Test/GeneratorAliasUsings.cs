@@ -7,5 +7,21 @@ extern alias SyntoGenerators;
 // test code binds the SHIPPED (compiled) types — replacing the per-file `using Synto.Generators.*;`
 // directives, which would otherwise fail (the metadata namespaces are no longer in the global alias).
 global using SyntoGenerators::Synto.Generators;
+global using SyntoGenerators::Synto.Generators.Incremental;
+global using SyntoGenerators::Synto.Generators.Symbols;
 global using SyntoGenerators::Synto.Generators.Matching;
+global using SyntoGenerators::Synto.Generators.Matching.Discovery;
+global using SyntoGenerators::Synto.Generators.Matching.Emit;
+global using SyntoGenerators::Synto.Generators.Matching.Diagnostics;
 global using SyntoGenerators::Synto.Generators.Templating;
+global using SyntoGenerators::Synto.Generators.Templating.Discovery;
+global using SyntoGenerators::Synto.Generators.Templating.BindingTime;
+global using SyntoGenerators::Synto.Generators.Templating.Quoting;
+global using SyntoGenerators::Synto.Generators.Templating.Quoting.Passes;
+global using SyntoGenerators::Synto.Generators.Templating.Staging;
+global using SyntoGenerators::Synto.Generators.Templating.Lifting;
+global using SyntoGenerators::Synto.Generators.Templating.Builders;
+global using SyntoGenerators::Synto.Generators.Templating.Decorations;
+global using SyntoGenerators::Synto.Generators.Templating.Emit;
+global using SyntoGenerators::Synto.Generators.Templating.Prelude;
+global using SyntoGenerators::Synto.Generators.Templating.Diagnostics;

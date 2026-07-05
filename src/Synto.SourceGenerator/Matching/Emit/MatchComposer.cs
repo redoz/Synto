@@ -8,7 +8,7 @@ using Synto.Formatting;
 using Synto.Matching;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
-namespace Synto.Generators.Matching;
+namespace Synto.Generators.Matching.Emit;
 
 /// <summary>
 /// Assembles the generated matcher file: the result record + matcher method + companion predicate + pattern

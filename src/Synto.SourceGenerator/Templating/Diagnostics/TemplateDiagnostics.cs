@@ -1,12 +1,14 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Synto.Generators.Templating.Emit;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Diagnostics;
 
 internal static class TemplateDiagnostics
 {
-    // Single source of truth for the diagnostic id prefix lives on the root Diagnostics registry.
-    private const string IdPrefix = Diagnostics.IdPrefix;
+    // Single source of truth for the diagnostic id prefix lives on the root Diagnostics registry
+    // (Synto.Generators.Incremental.Diagnostics); qualified to avoid the local .Diagnostics namespace.
+    private const string IdPrefix = Incremental.Diagnostics.IdPrefix;
 
     private static readonly DiagnosticDescriptor _bareSourceCannotBeEmpty = new(IdPrefix + "1005",
                                                                             "Invalid Source",

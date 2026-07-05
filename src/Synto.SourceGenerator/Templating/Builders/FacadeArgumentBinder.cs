@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Templating.Diagnostics;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Builders;
 
 /// <summary>
 /// Binds a recognized user <c>[SyntaxBuilder]</c> facade call to its factory-time builder invocation: walks the

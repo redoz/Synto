@@ -59,8 +59,8 @@
 		   any added leading trivia leaks into the byte-identical injected-surface snapshots
 		   (SurfaceInjectionTest.VerifyInjectedSurface). -->
   <ItemGroup>
-	<EmbeddedResource Include="Shared\EquatableArray.cs" LogicalName="Synto.Runtime.EquatableArray.cs" />
-	<EmbeddedResource Include="Shared\DiagnosticInfo.cs" LogicalName="Synto.Runtime.DiagnosticInfo.cs" />
+	<EmbeddedResource Include="Incremental\EquatableArray.cs" LogicalName="Synto.Runtime.EquatableArray.cs" />
+	<EmbeddedResource Include="Incremental\DiagnosticInfo.cs" LogicalName="Synto.Runtime.DiagnosticInfo.cs" />
   </ItemGroup>
 
   <!-- The runtime HELPERS that CAN be emitted into consumer code (ToSyntax / ToTypeSyntax /

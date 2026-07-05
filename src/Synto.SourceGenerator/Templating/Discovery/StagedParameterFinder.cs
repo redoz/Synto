@@ -3,8 +3,10 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Templating.Emit;
+using Synto.Generators.Templating.Diagnostics;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Discovery;
 
 /// <summary>
 /// A resolved live template parameter (plan Task 1): one factory parameter lifted from one or more

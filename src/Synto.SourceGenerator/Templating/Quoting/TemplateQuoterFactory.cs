@@ -2,8 +2,9 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Templating.Quoting.Passes;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Quoting;
 
 /// <summary>
 /// Composition root for Synto's templating quoter. Names zero features: it wires the two pre-assembled step

@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Synto.Generators.Symbols;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Builders;
 
 /// <summary>
 /// Compilation-wide discovery of source-declared <c>[SyntaxBuilder]</c> methods. Shared by the facade-synthesis

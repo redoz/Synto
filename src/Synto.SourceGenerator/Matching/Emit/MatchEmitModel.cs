@@ -2,8 +2,9 @@ using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Matching;
+using Synto.Generators.Matching.Discovery;
 
-namespace Synto.Generators.Matching;
+namespace Synto.Generators.Matching.Emit;
 
 /// <summary>
 /// A captured pattern parameter: a result-record member. Carries <see cref="Ordinal"/> = the parameter's

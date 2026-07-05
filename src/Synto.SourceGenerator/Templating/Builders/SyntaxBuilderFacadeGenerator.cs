@@ -7,8 +7,9 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+using Synto.Generators.Templating.Diagnostics;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Builders;
 
 /// <summary>
 /// Synthesizes the inert carrier-callable <em>facade</em> for each user <c>[SyntaxBuilder]</c> method (plan
@@ -53,7 +54,7 @@ public sealed class SyntaxBuilderFacadeGenerator : IIncrementalGenerator
         catch (ArgumentException ex)
 #pragma warning restore CA1031
         {
-            context.ReportDiagnostic(Synto.Generators.Diagnostics.InternalError(ex).ToDiagnostic());
+            context.ReportDiagnostic(Synto.Generators.Incremental.Diagnostics.InternalError(ex).ToDiagnostic());
         }
     }
 

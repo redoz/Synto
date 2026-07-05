@@ -4,8 +4,9 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Templating;
+using Synto.Generators.Templating.Emit;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Discovery;
 
 /// <summary>
 /// A resolved <c>[Splice]</c> value parameter: a pre-built <c>ExpressionSyntax</c> supplied to the factory at

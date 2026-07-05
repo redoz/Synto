@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Quoting;
 
 /// <summary>
 /// Interpolation staged-fold subsystem (spec 2026-06-28). Folds bare staged-string interpolation holes in a

@@ -1,4 +1,4 @@
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Builders;
 
 /// <summary>
 /// The value-equatable output of processing a single <c>[SyntaxBuilder]</c> method for facade synthesis.

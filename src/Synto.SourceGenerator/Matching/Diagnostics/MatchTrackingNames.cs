@@ -1,4 +1,4 @@
-namespace Synto.Generators.Matching;
+namespace Synto.Generators.Matching.Diagnostics;
 
 /// <summary>
 /// Names attached to the matching generator's incremental pipeline stages via <c>WithTrackingName</c> so

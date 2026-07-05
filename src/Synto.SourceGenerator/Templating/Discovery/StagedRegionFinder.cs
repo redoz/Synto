@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Templating.BindingTime;
+using Synto.Generators.Templating.Staging;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Discovery;
 
 /// <summary>
 /// Discovers the live control regions in a template body and the set of nodes those regions consume. Pure

@@ -7,7 +7,7 @@ namespace Synto.Test;
 
 /// <summary>
 /// Clone-sync guard for the two remaining hand-maintained copies of the cacheability toolkit's equatable
-/// models — the generator's canonical pair (<c>src/Synto.SourceGenerator/Shared/{EquatableArray,DiagnosticInfo}.cs</c>,
+/// models — the generator's canonical pair (<c>src/Synto.SourceGenerator/Incremental/{EquatableArray,DiagnosticInfo}.cs</c>,
 /// <c>namespace Synto.Generators</c>) versus <c>Synto.Diagnostics</c>'s deliberately-independent copy
 /// (<c>src/Synto.Diagnostics/{EquatableArray,DiagnosticInfo}.cs</c>, <c>namespace Synto.Diagnostics</c>).
 /// Bootstrap's third copy is gone (it now <c>&lt;Compile Link&gt;</c>s the generator's pair), so these two are
@@ -23,16 +23,17 @@ namespace Synto.Test;
 /// divergence between the two products. It is deliberately cheap (reads source off disk, no compilation) in
 /// the same spirit as <see cref="Synto.Test.Templating.ZeroCollisionTest"/>.
 ///
-/// Path note: the four source paths below are hard-coded relative to the repo root. Two later structural
-/// tasks re-root them — the generator's <c>Shared/</c> -> <c>Incremental/</c> move (Phase 2) and the paired
-/// project rename (<c>Synto.SourceGenerator</c> -> <c>Synto.Generators</c>, <c>Synto</c> -> <c>Synto.Core</c>).
-/// Update these constants when either lands.
+/// Path note: the four source paths below are hard-coded relative to the repo root. The generator's
+/// <c>Shared/</c> -> <c>Incremental/</c> move (Phase 2) has landed; the paired project rename
+/// (<c>Synto.SourceGenerator</c> -> <c>Synto.Generators</c>, <c>Synto</c> -> <c>Synto.Core</c>) is still
+/// pending and will re-root these constants again. Update them when it lands.
 /// </remarks>
 public class CloneSyncTest
 {
-    // SYNC: re-root on Phase 2 (Shared/ -> Incremental/) and the paired project rename.
-    private const string GeneratorEquatableArray = "src/Synto.SourceGenerator/Shared/EquatableArray.cs";
-    private const string GeneratorDiagnosticInfo = "src/Synto.SourceGenerator/Shared/DiagnosticInfo.cs";
+    // SYNC: Phase 2 re-rooted Shared/ -> Incremental/; the paired project rename (Synto.SourceGenerator ->
+    // Synto.Generators) is still pending and will re-root the dir prefix again.
+    private const string GeneratorEquatableArray = "src/Synto.SourceGenerator/Incremental/EquatableArray.cs";
+    private const string GeneratorDiagnosticInfo = "src/Synto.SourceGenerator/Incremental/DiagnosticInfo.cs";
     private const string DiagnosticsEquatableArray = "src/Synto.Diagnostics/EquatableArray.cs";
     private const string DiagnosticsDiagnosticInfo = "src/Synto.Diagnostics/DiagnosticInfo.cs";
 

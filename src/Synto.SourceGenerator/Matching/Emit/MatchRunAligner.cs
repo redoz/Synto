@@ -4,8 +4,10 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Matching;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using Synto.Generators.Matching.Discovery;
+using Synto.Generators.Matching.Diagnostics;
 
-namespace Synto.Generators.Matching;
+namespace Synto.Generators.Matching.Emit;
 
 /// <summary>
 /// The statement-run alignment engine: classifies a core statement list into a fixed/variable-length run and

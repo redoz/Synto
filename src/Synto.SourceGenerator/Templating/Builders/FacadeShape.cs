@@ -2,8 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Symbols;
 
-namespace Synto.Generators.Templating;
+namespace Synto.Generators.Templating.Builders;
 
 /// <summary>One builder parameter as seen by facade derivation (binding + facade element).</summary>
 internal sealed class FacadeParam
