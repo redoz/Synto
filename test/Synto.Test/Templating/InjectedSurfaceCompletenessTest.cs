@@ -521,6 +521,39 @@ public class InjectedSurfaceCompletenessTest
         Assert.Contains("BuildList<MemberDeclarationSyntax>", factorySource, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The <c>[Constant]</c> builder-arg marker (the value-lift binding-time kind — the builder-arg counterpart
+    /// of <c>[Quote]</c>) must be part of the authoritative injected surface, exactly like <c>[Quoted]</c> and
+    /// <c>[TypeArg]</c>. This drives <see cref="SurfaceInjectionGenerator"/> alone and asserts an injected source
+    /// declares the <c>ConstantAttribute</c> type — if the Surface-folder glob did not pick the new marker up (or
+    /// the file is missing), the marker is absent from the consumer surface and every later recognition task fails
+    /// to bind the attribute by name.
+    /// </summary>
+    [Fact]
+    public void InjectedSurfaceIncludesConstantAttribute()
+    {
+        var compilation = CSharpCompilation.Create("ConstantAttributeInjectionTest",
+            syntaxTrees: [],
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver
+            .Create(new SurfaceInjectionGenerator())
+            .RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        var injected = driver.GetRunResult().GeneratedTrees
+            .Any(t => t.ToString().Contains("class ConstantAttribute", System.StringComparison.Ordinal));
+
+        Assert.True(injected,
+            "SurfaceInjectionGenerator did not inject a ConstantAttribute type — the [Constant] builder-arg "
+            + "marker is missing from the injected consumer surface.");
+    }
+
     [Fact]
     public void InjectedSurfaceIsCompleteForStagedTemplate()
     {

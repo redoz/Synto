@@ -10,6 +10,7 @@ Synto.Helper.SealedAttributeExtensions.cs
 Synto.Helper.VisibilityAttributeExtensions.cs
 Synto.Runtime.Access.cs
 Synto.Runtime.CaptureAttribute.cs
+Synto.Runtime.ConstantAttribute.cs
 Synto.Runtime.DiagnosticInfo.cs
 Synto.Runtime.EquatableArray.cs
 Synto.Runtime.ForMatchHelpers.cs
