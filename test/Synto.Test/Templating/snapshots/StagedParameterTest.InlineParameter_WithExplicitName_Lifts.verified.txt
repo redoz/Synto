@@ -1,7 +1,7 @@
 ﻿{
   Diagnostics: [
     {
-      Location: : (5,45)-(5,73),
+      Location: : (5,45)-(5,71),
       Message: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
       Severity: Info,
       WarningLevel: 1,

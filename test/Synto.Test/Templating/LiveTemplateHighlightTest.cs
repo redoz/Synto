@@ -67,7 +67,7 @@ public class LiveTemplateHighlightTest
             public class TestClass {
                 [Template<Factory>]
                 void Build(int i) {
-                    var cols = Parameter<IReadOnlyList<string>>();
+                    var cols = Unquote<IReadOnlyList<string>>();
                     foreach (var c in cols)
                         System.Console.WriteLine(i == c.Length);
                 }
@@ -94,7 +94,7 @@ public class LiveTemplateHighlightTest
             public class TestClass {
                 [Template<Factory>]
                 void Build(int i) {
-                    var cols = Parameter<IReadOnlyList<int>>();
+                    var cols = Unquote<IReadOnlyList<int>>();
                     foreach (var c in cols)
                         System.Console.WriteLine(i);
                 }
@@ -119,7 +119,7 @@ public class LiveTemplateHighlightTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var cols = Parameter<IReadOnlyList<int>>();
+                    var cols = Unquote<IReadOnlyList<int>>();
                     foreach (var c in cols)
                         System.Console.WriteLine(c + 1);
                 }
@@ -145,7 +145,7 @@ public class LiveTemplateHighlightTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var p = Parameter<int>();
+                    var p = Unquote<int>();
                     System.Console.WriteLine(p + 1);
                 }
             }
@@ -169,7 +169,7 @@ public class LiveTemplateHighlightTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var p = Parameter<int>();
+                    var p = Unquote<int>();
                     System.Console.WriteLine(p);
                 }
             }
@@ -235,7 +235,7 @@ public class LiveTemplateHighlightTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var columns = Parameter<IReadOnlyList<int>>();
+                    var columns = Unquote<IReadOnlyList<int>>();
                     System.Console.WriteLine(columns.Count);
                 }
             }
@@ -260,7 +260,7 @@ public class LiveTemplateHighlightTest
             public class TestClass {
                 [Template<Factory>]
                 void Build(int i) {
-                    var columns = Parameter<IReadOnlyList<int>>();
+                    var columns = Unquote<IReadOnlyList<int>>();
                     foreach (var c in columns)
                         System.Console.WriteLine(i);
                 }
@@ -284,7 +284,7 @@ public class LiveTemplateHighlightTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var flag = Parameter<bool>();
+                    var flag = Unquote<bool>();
                     while (flag)
                         System.Console.WriteLine("x");
                 }
@@ -307,7 +307,7 @@ public class LiveTemplateHighlightTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var flag = Parameter<bool>();
+                    var flag = Unquote<bool>();
                     if (flag)
                         System.Console.WriteLine("x");
                 }
@@ -354,7 +354,7 @@ public class LiveTemplateHighlightTest
             "public class TestClass {\n" +
             "    [Template<Factory>]\n" +
             "    void Build() {\n" +
-            "        var p = Parameter<int>();\n" +
+            "        var p = Unquote<int>();\n" +
             body +
             "    }\n" +
             "}\n";
@@ -382,8 +382,8 @@ public class LiveTemplateHighlightTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var a = Parameter<int>();
-                    var cols = Parameter<IReadOnlyList<int>>();
+                    var a = Unquote<int>();
+                    var cols = Unquote<IReadOnlyList<int>>();
                     System.Console.WriteLine(a);
                     foreach (var c in cols)
                         System.Console.WriteLine(c + 1);

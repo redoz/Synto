@@ -138,8 +138,8 @@ public class LiveFragmentDiagnosticTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var rows = Parameter<IReadOnlyList<int>>();
-                    var cols = Parameter<IReadOnlyList<int>>();
+                    var rows = Unquote<IReadOnlyList<int>>();
+                    var cols = Unquote<IReadOnlyList<int>>();
                     foreach (var r in rows)
                         foreach (var c in cols)        // nested live region -> unsupported in v1
                             System.Console.WriteLine(r);
