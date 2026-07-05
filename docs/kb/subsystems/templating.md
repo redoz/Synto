@@ -62,7 +62,7 @@ The ordered steps run inside `TemplateFactoryBuilder.Build` (`Emit/TemplateFacto
 | 1 | Discover target/source/options | `Emit/TemplateInfo.cs:26` |
 | 2 | Validate (target class/partial, declared in source; SY1001–4) | `Emit/TemplateValidator.cs:16` |
 | 3 | `TemplateScope` + trim foreign children; recurse bare sub-templates | `Emit/TemplateScopedWalker.cs:18`, `Emit/TemplateFactoryBuilder.cs:172` |
-| 4–5 | Lift staged type params / `[Splice]` / `[Syntax]` params | `Discovery/StagedTypeParameterFinder.cs`, `Discovery/SpliceParameterFinder.cs`, `Discovery/SyntaxParameterFinder.cs` |
+| 4–5 | Lift staged type params / `[Splice]` params | `Discovery/StagedTypeParameterFinder.cs`, `Discovery/SpliceParameterFinder.cs` |
 | 6 | Staged roots + **classify binding time** | `Discovery/StagedParameterFinder.cs`, `Discovery/StagedRootFinder.cs`, `Discovery/QuoteCallFinder.cs`, `BindingTime/BindingTimeClassifier.cs:102` |
 | 7 | Impossible-cut check (live ⟵ quoted) → SY1013 | `Emit/TemplateFactoryBuilder.cs` |
 | 8 | Discover staged regions (loops/ifs to unroll) + consumed nodes | `Discovery/StagedRegionFinder.cs:13` |

@@ -22,7 +22,7 @@ namespace Synto.Generators.Templating.Emit;
 /// <c>TemplateFactorySourceGenerator.CreateSyntaxFactoryMethod</c>). The work is carved into named ordered
 /// steps over one shared <see cref="TemplateBuildContext"/> accumulator. THE ORDER IS LOAD-BEARING and the
 /// step sequence below is the explicit contract that was previously implicit-by-line-position: parameter
-/// discovery order, preamble append order, "container replacement added LAST", and "inline/syntax/live lifts
+/// discovery order, preamble append order, "container replacement added LAST", and "splice/live lifts
 /// populated before the island quoter and the final quoter" are all encoded by the order <see cref="Build"/>
 /// invokes the steps. Any reordering changes the generated output. Runs entirely inside the generator
 /// transform; nothing is captured into cached pipeline state (only the resulting source text flows out).
@@ -49,7 +49,6 @@ internal static class TemplateFactoryBuilder
 
         LiftStagedTypeParameters(ctx);
         LiftSpliceParameters(ctx);
-        LiftSyntaxParameters(ctx);
 
         if (!DiscoverStagedRootsAndClassify(ctx))
             return null;
@@ -277,26 +276,6 @@ internal static class TemplateFactoryBuilder
                 paramName += '_';
 
             var parameterType = additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!));
-            ctx.Shape.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
-
-            foreach (var identifierNameSyntax in replacements.References)
-                ctx.Plan.Replacements.Add(identifierNameSyntax, IdentifierName(paramName));
-
-            ctx.Plan.Trim.Add(replacements.Parameter);
-        }
-    }
-
-    private static void LiftSyntaxParameters(TemplateBuildContext ctx)
-    {
-        var additionalUsings = ctx.AdditionalUsings;
-        foreach (var replacements in SyntaxParameterFinder.FindSyntaxParameters(ctx.SemanticModel, ctx.TemplateInfo.Source!.Syntax, ctx.Scope))
-        {
-            string paramName = replacements.Parameter.Identifier.Text;
-            while (!ctx.Names.ParamNames.Add(paramName))
-                paramName += '_';
-
-            var parameterType = additionalUsings.GetTypeName(ParseTypeName(typeof(ExpressionSyntax).FullName!));
-
             ctx.Shape.Parameters.Add(Parameter(Identifier(paramName)).WithType(parameterType));
 
             foreach (var identifierNameSyntax in replacements.References)

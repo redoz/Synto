@@ -16,8 +16,8 @@ namespace Synto.Test.Templating;
 /// Synto types available to the generated factory are therefore exactly what the generators inject:
 /// <list type="bullet">
 /// <item>the <c>internal</c> marker surface (<c>TemplateAttribute</c>, <c>UnquoteAttribute</c>, <c>SpliceAttribute</c>,
-/// <c>Syntax&lt;T&gt;</c>, ...) from <see cref="SurfaceInjectionGenerator"/>, needed so the consumer
-/// template's <c>[Template]</c>/<c>[Unquote]</c>/<c>Syntax&lt;&gt;</c> usage binds; and</item>
+/// ...) from <see cref="SurfaceInjectionGenerator"/>, needed so the consumer
+/// template's <c>[Template]</c>/<c>[Unquote]</c> usage binds; and</item>
 /// <item>the file-local helper class(es) (<c>ToSyntax</c>/<c>ToTypeSyntax</c>/<c>OrNullLiteralExpression</c>)
 /// the scan-based injection appends into the generated factory file.</item>
 /// </list>
@@ -43,7 +43,6 @@ public class InjectedSurfaceCompletenessTest
     /// <item>multiple statements;</item>
     /// <item>an <c>[Unquote]</c> value parameter -> <c>value.ToSyntax()</c>;</item>
     /// <item>an <c>[Unquote]</c> type parameter -> <c>typeof(T).ToTypeSyntax()</c>;</item>
-    /// <item>a <c>Syntax&lt;T&gt;</c> parameter (spliced syntax);</item>
     /// <item>string interpolation;</item>
     /// <item>a <c>for</c> loop and a <c>foreach</c> loop;</item>
     /// <item>an object creation (<c>new List&lt;T&gt;()</c>);</item>
@@ -63,11 +62,11 @@ public class InjectedSurfaceCompletenessTest
 
         public class TestClass {
             [Template<Factory>]
-            void KitchenSink<[Unquote] T>([Unquote] int count, Syntax<int> spliced) {
+            void KitchenSink<[Unquote] T>([Unquote] int count) {
                 List<T> list = new List<T>();
                 var span = (1..count);
                 for (int i = 0; i < count; i++) {
-                    Console.WriteLine($"item {i} of {count} -> {spliced}");
+                    Console.WriteLine($"item {list.Count}");
                 }
                 foreach (var item in list) {
                     Console.WriteLine(item);
@@ -83,7 +82,7 @@ public class InjectedSurfaceCompletenessTest
     /// <summary>
     /// A template declared inside a <b>namespace AND a nested class</b>, deliberately using both
     /// <c>[Unquote] T</c> (triggers <c>ToTypeSyntax</c>) and <c>[Unquote] int count</c> (triggers
-    /// <c>ToSyntax</c>), plus a <c>Syntax&lt;int&gt;</c> splice parameter. This exercises the
+    /// <c>ToSyntax</c>). This exercises the
     /// generator's namespaced/nested-class code path for placing the file-local helpers inside the
     /// enclosing namespace rather than at the global compilation-unit level.
     /// </summary>
@@ -100,10 +99,10 @@ public class InjectedSurfaceCompletenessTest
                 public partial class Factory { }
 
                 [Template<Factory>]
-                static void Build<[Unquote] T>([Unquote] int count, Syntax<int> extra)
+                static void Build<[Unquote] T>([Unquote] int count)
                 {
                     List<T> list = new List<T>();
-                    Console.WriteLine($"count={count} extra={extra()}");
+                    Console.WriteLine($"count={count}");
                 }
             }
         }

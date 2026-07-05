@@ -142,12 +142,6 @@ internal record struct TargetType(AttributeData TemplateAttributeData, ITypeSymb
             return genericName.TypeArgumentList.Arguments[0].GetLocation();
         }
 
-        // Legacy ctor form [Template(typeof(T))]: the target is the typeof(...) constructor argument.
-        if (attrSyntax.ArgumentList?.Arguments.First().Expression is TypeOfExpressionSyntax typeOfExpr)
-        {
-            return typeOfExpr.GetLocation();
-        }
-
         return null;
     }
 }

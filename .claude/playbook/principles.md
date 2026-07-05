@@ -24,7 +24,7 @@ evaluation skills reference these principles.
 
 - **The consumer-facing surface is minimal and closed.** Only the core markers
   (`TemplateAttribute`, `QuoteAttribute`/`UnquoteAttribute`/`SpliceAttribute`,
-  `RuntimeAttribute`, `TemplateOption`, `Syntax`/`Syntax<T>`) and the three emitted
+  `RuntimeAttribute`, `TemplateOption`) and the three emitted
   helpers (`ToSyntax`, `ToTypeSyntax`,
   `OrNullLiteralExpression`) are allowed to reach consumer code. Everything else
   (`CSharpSyntaxQuoter`, `SyntaxFormatter`, `UsingDirectiveSet`, `SymbolExtensions`, the

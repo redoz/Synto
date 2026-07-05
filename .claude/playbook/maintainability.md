@@ -7,7 +7,7 @@ Evaluate whether the code is easy to understand, modify, and extend.
 ### Abstractions & Boundaries
 - Is the **layering intact**? This is the primary maintainability contract. The
   consumer-facing surface (markers `TemplateAttribute`/`QuoteAttribute`/`UnquoteAttribute`/`SpliceAttribute`/`RuntimeAttribute`,
-  `TemplateOption`, `Syntax`/`Syntax<T>`, and the two emitted helpers
+  `TemplateOption`, and the two emitted helpers
   `OrNullLiteralExpression`/`ToTypeSyntax`) must stay separate from **generator-internal**
   machinery (`CSharpSyntaxQuoter`, `SyntaxFormatter`, `UsingDirectiveSet`,
   `SymbolExtensions`, the list extensions). Internals must never leak into

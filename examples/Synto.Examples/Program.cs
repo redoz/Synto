@@ -24,7 +24,6 @@ for (; ; )
                 new Choice("Extract a single statement from a method", Test0),
                 new Choice("Use parameters to inject literals into syntax trees", Test1),
                 new Choice("Use syntax placeholders to compose syntax trees", Test2),
-                new Choice("Expand a syntax placeholder multiple times within a template", Test3),
                 new Choice("Create a syntax tree representing the whole template method", Test4),
                 new Choice("Use an [Unquote] parameter to unroll a for-loop", Test5),
                 new Choice("Use a [Quote] parameter to keep a literal-bounded runtime loop", TestQuoteLoop),
@@ -113,32 +112,6 @@ internal sealed class Examples
 
         return source;
     }
-
-    public static string Test3()
-    {
-
-        [Template<Factory>(Options = TemplateOption.Single)]
-
-        static void Greeting([Unquote] string message)
-        {
-            Console.WriteLine("Hello " + message);
-        }
-
-
-        [Template<Factory>(Options = TemplateOption.Bare)]
-        static void Repeater(Syntax statement)
-        {
-            statement();
-            statement();
-        }
-
-        BlockSyntax node = Factory.Repeater(Factory.Greeting("World").Expression);
-
-        var source = node.NormalizeWhitespace(eol: Environment.NewLine).GetText(Encoding.UTF8).ToString().Trim();
-
-        return source;
-    }
-
 
     public static string Test4()
     {

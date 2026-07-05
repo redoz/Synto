@@ -80,61 +80,6 @@ public partial class RoundTripTests
     }
 
     [Fact]
-    public void Test2()
-    {
-        // Syntax<T> composition: the expression produced by one template is spliced into a Syntax<string>
-        // splice point (message()) of another, round-tripping to the composed call.
-        [Template<Factory>(Options = TemplateOption.Single)]
-        static void Inner()
-        {
-            new StringBuilder("Something").Append("Foo").ToString();
-        }
-
-
-        [Template<Factory>(Options = TemplateOption.Single)]
-        static void Outer(Syntax<string> message)
-        {
-            Console.WriteLine("Hello " + message());
-        }
-
-        StatementSyntax node = Factory.Outer(Factory.Inner().Expression);
-
-        AssertGenerated(
-            "Console.WriteLine(\"Hello \" + new StringBuilder(\"Something\").Append(\"Foo\").ToString());",
-            node);
-    }
-
-    [Fact]
-    public void Test3()
-    {
-        // Bare-block repeater: a scalar Syntax splice point (item()) used twice in a Bare (multi-statement)
-        // body, each replaced by the same spliced expression, round-tripping to the repeated block.
-        [Template<Factory>(Options = TemplateOption.Single)]
-        static void Greeting([Unquote] string message)
-        {
-            Console.WriteLine("Hello " + message);
-        }
-
-
-        [Template<Factory>(Options = TemplateOption.Bare)]
-        static void Repeater(Syntax item)
-        {
-            item();
-            item();
-        }
-
-        BlockSyntax node = Factory.Repeater(Factory.Greeting("World").Expression);
-
-        AssertGenerated("""
-            {
-                Console.WriteLine("Hello " + "World");
-                Console.WriteLine("Hello " + "World");
-            }
-            """,
-            node);
-    }
-
-    [Fact]
     public void Test4()
     {
         [Template<Factory>(Options = TemplateOption.None)]

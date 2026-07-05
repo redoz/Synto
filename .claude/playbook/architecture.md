@@ -60,7 +60,7 @@ generator-internal helpers**:
 - **`src/Synto.Core`** → ships as **`Synto.Core`** (`netstandard2.0`, `IsPackable=true`). The
   runtime/toolkit library: the **marker surface** (`TemplateAttribute`,
   `QuoteAttribute`/`UnquoteAttribute`/`SpliceAttribute`, `RuntimeAttribute`,
-  `TemplateOption`, `Syntax`/`Syntax<T>`), the emitted **helpers**
+  `TemplateOption`), the emitted **helpers**
   (`ToSyntax`/`LiteralSyntaxExtensions`, `ToTypeSyntax`/`RuntimeTypeExtensions`,
   `OrNullLiteralExpression`/`QuoteSyntaxExtensions`), and **generator-internal** machinery
   the quoter uses (`CSharpSyntaxQuoter`, `Formatting/SyntaxFormatter`, `UsingDirectiveSet`,

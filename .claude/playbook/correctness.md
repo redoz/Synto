@@ -14,7 +14,7 @@ Evaluate whether the generator does what it's supposed to do and handles failure
 - Are the marker → emission mappings correct? (`TemplateOption.None`/`Single`/`Bare`
   produce the full-method / single-statement / bare-block shapes; `[Unquote]`/`[Splice]`
   parameters and type parameters are substituted, not left as references;
-  `Syntax`/`Syntax<T>` splice points expand correctly)
+  `[Splice]` splice points expand correctly)
 - Are inlined values rendered as **parseable syntax**, not runtime representations? (the
   `InlinedGenericTypeArgument` fix: a `List<int>` type argument must render as
   `System.Collections.Generic.List<System.Int32>`, never the unparseable CLR name

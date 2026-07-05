@@ -29,7 +29,6 @@ Synto.Runtime.ReturnTypeAttribute.cs
 Synto.Runtime.RuntimeAttribute.cs
 Synto.Runtime.SealedAttribute.cs
 Synto.Runtime.SpliceAttribute.cs
-Synto.Runtime.Syntax.cs
 Synto.Runtime.SyntaxBuilderAttribute.cs
 Synto.Runtime.SyntoBuilders.cs
 Synto.Runtime.Template.cs

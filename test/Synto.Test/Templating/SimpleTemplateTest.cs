@@ -355,27 +355,6 @@ public class SimpleTemplateTest
 
 
     [Fact]
-    public async Task WithSyntaxOfString()
-    {
-        await VerifyTemplate(
-            """
-            using System;
-            using Synto.Templating;
-
-            partial class Factory {}
-
-
-            public class TestClass {
-               [Template<Factory>]
-                void LocalFunction(Syntax<string> value) {
-                    Console.WriteLine($"Hello world" + value());
-                }
-            }
-            """
-        );
-    }
-
-    [Fact]
     public async Task ClassAsBareMultiMember()
     {
         // C1 coverage: [Template(Options = Bare)] on a class with MULTIPLE members exercises the

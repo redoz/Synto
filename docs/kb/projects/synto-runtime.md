@@ -28,7 +28,7 @@ surface stays `namespace Synto.*` however deep the role folders (`Surface/`,
 - `src/Synto.Core/Templating/` — the template consumer surface, grouped by feature with the
   markers under a `Surface/` leaf: `Definition/Surface/` (`TemplateAttribute.cs`,
   `QuoteAttribute.cs`, `TemplateOption.cs`), `Staging/Surface/` (`Template.cs`,
-  `UnquoteAttribute.cs`, `SpliceAttribute.cs`, `RuntimeAttribute.cs`, `Syntax.cs`),
+  `UnquoteAttribute.cs`, `SpliceAttribute.cs`, `RuntimeAttribute.cs`),
   `Builders/Surface/` (`SyntaxBuilderAttribute.cs`, `QuotedAttribute.cs`, `ReturnTypeAttribute.cs`,
   `TypeArgAttribute.cs`) + `Builders/InjectedOnly/SyntoBuilders.cs`, and `Decorations/Surface/`
   ([decoration](/subsystems/decorations.md) markers).

@@ -1,9 +1,0 @@
-using System;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-
-namespace Synto.Templating;
-
-public delegate void Syntax();
-
-public delegate TExpression Syntax<TExpression>();
