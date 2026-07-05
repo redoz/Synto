@@ -110,13 +110,13 @@ public class SpliceMemberGeneratorTest
         Assert.Single(diagnostics, d => d.Id == "SY1021");
     }
 
-    // --- #9 characterization: non-foldable Parameter<T>() shapes inside a [Splice] member generator body are
+    // --- #9 characterization: non-foldable Unquote<T>() shapes inside a [Splice] member generator body are
     // caught by the unquote-axis StagedParameterFinder and reported as a located, fatal SY1010 BEFORE the
     // splice-member emitter ever runs, so no factory is produced. This pins that the "residue reaches the
     // emitter verbatim" leak scenario (#9) is unreachable: the shape is diagnosed, never silent. If these
     // facts ever regress (SY1010 stops firing / a factory appears), a splice-specific diagnostic is warranted.
 
-    // Inline zero-arg Parameter<int>() with no enclosing variable declaration and no explicit name.
+    // Inline zero-arg Unquote<int>() with no enclosing variable declaration and no explicit name.
     private const string InlineZeroArgParameterGenerator =
         """
         using System.Collections.Generic;
@@ -130,13 +130,13 @@ public class SpliceMemberGeneratorTest
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Gen() {
-                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + Parameter<int>()))
+                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + Unquote<int>()))
                     .WithSemicolonToken(Token(SemicolonToken));
             }
         }
         """;
 
-    // Compound initializer: Parameter<int>() is not the sole initializer, so no name can be folded from it.
+    // Compound initializer: Unquote<int>() is not the sole initializer, so no name can be folded from it.
     private const string CompoundInitializerParameterGenerator =
         """
         using System.Collections.Generic;
@@ -150,7 +150,7 @@ public class SpliceMemberGeneratorTest
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Gen() {
-                int n = Parameter<int>() + 1;
+                int n = Unquote<int>() + 1;
                 yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + n))
                     .WithSemicolonToken(Token(SemicolonToken));
             }
@@ -172,7 +172,7 @@ public class SpliceMemberGeneratorTest
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Gen() {
                 string nm = "col";
-                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + Parameter<int>(nm)))
+                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + Unquote<int>(nm)))
                     .WithSemicolonToken(Token(SemicolonToken));
             }
         }
@@ -228,7 +228,7 @@ public class SpliceMemberGeneratorTest
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Accessors() {
-                var columns = Parameter<IReadOnlyList<Col>>();
+                var columns = Unquote<IReadOnlyList<Col>>();
                 foreach (var c in columns)
                     yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
                         .AddModifiers(Token(PublicKeyword))
@@ -264,7 +264,7 @@ public class SpliceMemberGeneratorTest
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Accessors() {
-                var columns = Parameter<IReadOnlyList<Col>>();
+                var columns = Unquote<IReadOnlyList<Col>>();
                 foreach (var c in columns)
                     yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
                         .AddModifiers(Token(PublicKeyword))

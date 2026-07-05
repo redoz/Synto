@@ -89,7 +89,7 @@ public class StagingDiagnosticsTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var items = Parameter<IReadOnlyList<string>>();
+                    var items = Unquote<IReadOnlyList<string>>();
                     var total = Unquote(items.Select(x => x.Length).Sum());
                     System.Console.WriteLine(total);
                 }
@@ -111,7 +111,7 @@ public class StagingDiagnosticsTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var items = Parameter<IReadOnlyList<string>>();
+                    var items = Unquote<IReadOnlyList<string>>();
                     var parsed = Unquote(int.TryParse(items[0], out var n) ? n : 0);
                     System.Console.WriteLine(parsed);
                 }
@@ -133,7 +133,7 @@ public class StagingDiagnosticsTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var items = Parameter<IReadOnlyList<string>>();
+                    var items = Unquote<IReadOnlyList<string>>();
                     var count = Unquote(items is { Count: var c } ? c : 0);
                     System.Console.WriteLine(count);
                 }
@@ -155,8 +155,8 @@ public class StagingDiagnosticsTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var rows = Parameter<IReadOnlyList<int>>();
-                    var cols = Parameter<IReadOnlyList<int>>();
+                    var rows = Unquote<IReadOnlyList<int>>();
+                    var cols = Unquote<IReadOnlyList<int>>();
                     foreach (var r in rows)
                         foreach (var c in cols)        // nested live region -> unsupported in v1
                             System.Console.WriteLine(r);
@@ -182,7 +182,7 @@ public class StagingDiagnosticsTest
             public class TestClass {
                 [Template<Factory>]
                 void Build(int i) {
-                    var cols = Parameter<IReadOnlyList<int>>();
+                    var cols = Unquote<IReadOnlyList<int>>();
                     if (i > 0)                      // output-world if (i quoted) -> stays output, not a region
                         foreach (var c in cols)     // live foreach, parent is the if statement (not a block)
                             System.Console.WriteLine(c);

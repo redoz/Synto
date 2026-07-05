@@ -61,7 +61,7 @@ public class InterpolationFoldTest
     [Fact]
     public async Task BareStagedString_ParameterRoot_FoldsIntoLiteralText()
     {
-        // `label` is a string-typed Parameter<string>() staged root; `i` is a genuine runtime parameter.
+        // `label` is a string-typed Unquote<string>() staged root; `i` is a genuine runtime parameter.
         // Expected: {label} is baked into the surrounding literal text (fused via label.ToInterpolatedText());
         // {i} stays a runtime hole.
         await VerifyTemplate(
@@ -75,7 +75,7 @@ public class InterpolationFoldTest
             public class TestClass {
                 [Template<Factory>]
                 void LocalFunction(int i) {
-                    var label = Parameter<string>();
+                    var label = Unquote<string>();
                     Console.WriteLine($"Field {i} is not {label} column.");
                 }
             }
@@ -128,7 +128,7 @@ public class InterpolationFoldTest
             public class TestClass {
                 [Template<Factory>]
                 void LocalFunction() {
-                    var label = Parameter<string>();
+                    var label = Unquote<string>();
                     Console.WriteLine($"pre {{ }} \" \\ {label} post");
                 }
             }
@@ -162,7 +162,7 @@ public class InterpolationFoldTest
     [Fact]
     public async Task NonStringStaged_IsLeftUntouched()
     {
-        // `n` is a staged root but NOT string-typed (Parameter<int>()); `flag` is a staged Unquote<bool>.
+        // `n` is a staged root but NOT string-typed (Unquote<int>()); `flag` is a staged Unquote<bool>.
         // Both are in _unquotedReplacements but absent from the string channel, so their bare holes stay
         // runtime holes (non-goal: only string staged roots fold in v1).
         await VerifyTemplate(
@@ -176,7 +176,7 @@ public class InterpolationFoldTest
             public class TestClass {
                 [Template<Factory>]
                 void LocalFunction() {
-                    var n = Parameter<int>();
+                    var n = Unquote<int>();
                     var flag = Unquote<bool>(true);
                     Console.WriteLine($"count {n} flag {flag}");
                 }
@@ -202,7 +202,7 @@ public class InterpolationFoldTest
             public class TestClass {
                 [Template<Factory>]
                 void LocalFunction() {
-                    var label = Parameter<string>();
+                    var label = Unquote<string>();
                     Console.WriteLine($"fmt {label:N2} align {label,5} end");
                 }
             }
@@ -225,7 +225,7 @@ public class InterpolationFoldTest
             "public class TestClass {\n" +
             "    [Template<Factory>]\n" +
             "    void LocalFunction() {\n" +
-            "        var label = Parameter<string>();\n" +
+            "        var label = Unquote<string>();\n" +
             "        Console.WriteLine($@\"verbatim {label} text\");\n" +
             "        Console.WriteLine($\"\"\"raw {label} text\"\"\");\n" +
             "    }\n" +
@@ -249,7 +249,7 @@ public class InterpolationFoldTest
             public class TestClass {
                 [Template<Factory>]
                 void LocalFunction(int runtime) {
-                    var label = Parameter<string>();
+                    var label = Unquote<string>();
                     Console.WriteLine($"a {runtime} b {label} c");
                 }
             }
@@ -275,8 +275,8 @@ public class InterpolationFoldTest
             public class TestClass {
                 [Template<Factory>]
                 void LocalFunction(int i) {
-                    var a = Parameter<string>();
-                    var b = Parameter<string>();
+                    var a = Unquote<string>();
+                    var b = Unquote<string>();
                     Console.WriteLine($"{a} start");
                     Console.WriteLine($"end {b}");
                     Console.WriteLine($"{a}{b}");

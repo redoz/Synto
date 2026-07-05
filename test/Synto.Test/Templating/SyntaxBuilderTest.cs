@@ -347,7 +347,7 @@ public class SyntaxBuilderTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var node = Parameter<ExpressionSyntax>("node");
+                    var node = Unquote<ExpressionSyntax>("node");
                     System.Console.WriteLine(MetaBuilders.Splice(node));
                 }
             }

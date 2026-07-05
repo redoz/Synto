@@ -49,7 +49,7 @@ public class RunCollectShapesTest
         Assert.NotEmpty(ret.Files);
     }
 
-    // for over a live Parameter<T>() bound: unrolls in the factory, the loop variable lifting to a literal.
+    // for over a live Unquote<T>() bound: unrolls in the factory, the loop variable lifting to a literal.
     [Fact]
     public async Task StagedFor_Unrolls()
     {
@@ -61,7 +61,7 @@ public class RunCollectShapesTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var n = Parameter<int>();
+                    var n = Unquote<int>();
                     for (int k = 0; k < n; k++)        // live for -> unrolls in the factory
                         System.Console.WriteLine(k);   // k -> int literal per iteration
                 }
@@ -82,7 +82,7 @@ public class RunCollectShapesTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var n = Parameter<int>();
+                    var n = Unquote<int>();
                     var k = Unquote(0);
                     while (k < n) {                    // live while -> unrolls in the factory
                         System.Console.WriteLine(k);   // k -> int literal per iteration
@@ -105,7 +105,7 @@ public class RunCollectShapesTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var n = Parameter<int>();
+                    var n = Unquote<int>();
                     if (n > 0)                                  // live condition -> picks a branch at factory time
                         System.Console.WriteLine("positive");
                     else
@@ -132,8 +132,8 @@ public class RunCollectShapesTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var columns = Parameter<IReadOnlyList<Col>>();
-                    var totals = Parameter<int[]>();
+                    var columns = Unquote<IReadOnlyList<Col>>();
+                    var totals = Unquote<int[]>();
                     foreach (var c in columns)
                         totals[c.Ordinal] = c.Ordinal * 2;   // element-access mutation of a live target
                 }
@@ -158,8 +158,8 @@ public class RunCollectShapesTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var columns = Parameter<IReadOnlyList<Col>>();
-                    var acc = Parameter<Acc>();
+                    var columns = Unquote<IReadOnlyList<Col>>();
+                    var acc = Unquote<Acc>();
                     foreach (var c in columns)
                         acc.Total += c.Ordinal;              // member-access mutation of a live target
                 }
@@ -182,7 +182,7 @@ public class RunCollectShapesTest
             public class TestClass {
                 [Template<Factory>]
                 void Build() {
-                    var columns = Parameter<IReadOnlyList<Col>>();
+                    var columns = Unquote<IReadOnlyList<Col>>();
                     int sum = 0;                            // accumulator (live: mutated with a live value)
                     foreach (var c in columns) {
                         System.Console.WriteLine(sum);      // sum -> current literal value

@@ -49,7 +49,7 @@ public class RunCollectTest
         Assert.NotEmpty(ret.Files);
     }
 
-    // Snapshot: foreach over a live Parameter<T>() root unrolls to a per-column if-chain (the canonical case).
+    // Snapshot: foreach over a live Unquote<T>() root unrolls to a per-column if-chain (the canonical case).
     [Fact]
     public async Task ForeachOverStagedParameter_UnrollsToIfChain()
     {
@@ -63,7 +63,7 @@ public class RunCollectTest
             public class TestClass {
                 [Template<Factory>]
                 string GetName(int i) {
-                    var columns = Parameter<IReadOnlyList<Col>>();
+                    var columns = Unquote<IReadOnlyList<Col>>();
                     foreach (var c in columns)            // live control -> unrolls in the factory
                         if (i == c.Ordinal)               // c.Ordinal -> int literal
                             return c.Name;                // c.Name    -> string literal

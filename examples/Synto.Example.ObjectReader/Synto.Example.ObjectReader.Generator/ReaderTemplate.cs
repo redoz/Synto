@@ -13,7 +13,7 @@ namespace Synto.Example.ObjectReader.Generator;
 
 // The dog-food (plan Task 9): the WHOLE IDataReader skeleton is authored once as real C# and quoted by a Synto
 // [Template]. The data-driven members are now expressed with the LIVE-STAGED surface — a live `foreach` over the
-// resolved column list (lifted to the factory via `Parameter<EquatableArray<ColumnInfo>>()`), with `Member`/`TypeOf`
+// resolved column list (lifted to the factory via `Unquote<EquatableArray<ColumnInfo>>()`), with `Member`/`TypeOf`
 // builders splicing the per-column member access / type — so the generator no longer glues text with
 // `StringBuilder`/`ParseMemberDeclaration`. ObjectReaderGenerator calls Factory.ObjectReaderTemplate(elementType,
 // columns) — the field count is derived from `columns.Count` — renames the class + ctor, makes it `file sealed`,
@@ -46,19 +46,19 @@ internal class ObjectReaderTemplate<[Splice] T>
 
     // Staged scalar count-fold (Capability 2): the column count is DERIVED from the already-lifted column list via
     // `columns.Count` — `EquatableArray<ColumnInfo>.Count` folds to the same int literal at factory time, so there
-    // is no redundant `Parameter<int>()`.
+    // is no redundant `Unquote<int>()`.
     public int FieldCount
     {
         get
         {
-            var columns = Parameter<EquatableArray<ColumnInfo>>();
+            var columns = Unquote<EquatableArray<ColumnInfo>>();
             return columns.Count;
         }
     }
 
     public string GetName(int i)
     {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        var columns = Unquote<EquatableArray<ColumnInfo>>();
         foreach (var c in columns)            // live control → unrolls in the factory
             if (i == c.Ordinal)               // c.Ordinal → int literal
                 return c.Name;                // c.Name    → string literal
@@ -67,7 +67,7 @@ internal class ObjectReaderTemplate<[Splice] T>
 
     public int GetOrdinal(string name)
     {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        var columns = Unquote<EquatableArray<ColumnInfo>>();
         foreach (var c in columns)
             if (name == c.Name)               // c.Name → string literal
                 return c.Ordinal;             // c.Ordinal → int literal
@@ -76,7 +76,7 @@ internal class ObjectReaderTemplate<[Splice] T>
 
     public global::System.Type GetFieldType(int i)
     {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        var columns = Unquote<EquatableArray<ColumnInfo>>();
         foreach (var c in columns)
             if (i == c.Ordinal)
                 return Template.TypeOf(c.ColumnTypeName);   // type-name hole → typeof(<that type>); qualified: both Template and SyntoBuilders are `using static`-imported and each define TypeOf(string)
@@ -90,7 +90,7 @@ internal class ObjectReaderTemplate<[Splice] T>
             throw new global::System.InvalidOperationException("No current row. Call Read() and ensure it returned true before reading values.");
         }
 
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        var columns = Unquote<EquatableArray<ColumnInfo>>();
         foreach (var c in columns)
             if (i == c.Ordinal)
                 // Member<object>(_e.Current, c.Name) → `_e.Current.<Name>` (identifier hole), then box + DBNull.
@@ -113,14 +113,14 @@ internal class ObjectReaderTemplate<[Splice] T>
     // same assembly. It binds the real `_e` (`IEnumerator<T>`); only `_e.Current` is quoted, exactly as the standalone
     // carrier did. The return type is now a generic type argument (`[Unquote] TRet`, invoked `Factory.TypedGetter<int>(...)`,
     // lifted internally via `typeof(TRet).ToTypeSyntax()`); the column list, CLR-type filter, and exception label stay as
-    // build-time `Parameter<...>()` inputs (they drive factory-time control / interpolation, so they need no value lift).
+    // build-time `Unquote<...>()` inputs (they drive factory-time control / interpolation, so they need no value lift).
 
     [Template]
     public TRet TypedGetter<[Unquote] TRet>(int i)
     {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
-        var clrTypeName = Parameter<string>();
-        var typeLabel = Parameter<string>();
+        var columns = Unquote<EquatableArray<ColumnInfo>>();
+        var clrTypeName = Unquote<string>();
+        var typeLabel = Unquote<string>();
         SyntoBuilders.Switch(i, columns.Where(c => c.ColumnTypeName == clrTypeName).Select(c =>
             SyntoBuilders.Case(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
                 SyntoBuilders.Return(Member<TRet>(_e.Current, c.Name)))));
@@ -130,7 +130,7 @@ internal class ObjectReaderTemplate<[Splice] T>
     [Splice]
     static IEnumerable<MemberDeclarationSyntax> TypedGetters()
     {
-        var columns = Parameter<EquatableArray<ColumnInfo>>();
+        var columns = Unquote<EquatableArray<ColumnInfo>>();
         yield return Factory.TypedGetter<bool>(columns, "global::System.Boolean", "a Boolean").WithIdentifier(Identifier("GetBoolean"));
         yield return Factory.TypedGetter<byte>(columns, "global::System.Byte", "a Byte").WithIdentifier(Identifier("GetByte"));
         yield return Factory.TypedGetter<char>(columns, "global::System.Char", "a Char").WithIdentifier(Identifier("GetChar"));

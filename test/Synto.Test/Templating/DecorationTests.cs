@@ -268,7 +268,7 @@ public class DecorationTests
                 [Visibility(Access.Public)]
                 public void Impl()
                 {
-                    var name = Parameter<string>();
+                    var name = Unquote<string>();
                     _ = name;
                 }
             }

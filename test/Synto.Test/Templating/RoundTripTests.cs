@@ -200,7 +200,7 @@ public partial class RoundTripTests
     }
 
     // A [Splice] MEMBER generator (spec §2–§3): the static `Accessors` method runs at factory-build time and its
-    // `foreach` over the lifted `Parameter<IReadOnlyList<Col>>()` produces ONE accessor MEMBER per column, spliced
+    // `foreach` over the lifted `Unquote<IReadOnlyList<Col>>()` produces ONE accessor MEMBER per column, spliced
     // into the produced `Reader` type's member list. Contrast the statement-level unroll (Test5's [Unquote] `for`
     // that emits four `ret++` *statements* into a block): here the live loop yields *members* of the type, not
     // statements of a body. The generator method itself is trimmed from the produced type.
@@ -217,7 +217,7 @@ public partial class RoundTripTests
         [Splice]
         static IEnumerable<MemberDeclarationSyntax> Accessors()
         {
-            var columns = Parameter<IReadOnlyList<Col>>();
+            var columns = Unquote<IReadOnlyList<Col>>();
             foreach (var c in columns)
                 yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
                     .AddModifiers(Token(PublicKeyword))
@@ -249,14 +249,14 @@ public partial class RoundTripTests
     // `MemberDeclarationSyntax` directly (not an `IEnumerable<>`), so the factory emits it as a bare
     // `BuildList<MemberDeclarationSyntax>(call)` arg relying on the `MemberDeclarationSyntax -> ListSegment`
     // implicit conversion — a DISTINCT emission branch from the enumerable `ListSegment.Run(...)` shape in
-    // SpliceMembers above. The lifted `Parameter<int>()` folds into the factory's `count` argument.
+    // SpliceMembers above. The lifted `Unquote<int>()` folds into the factory's `count` argument.
     [Template<Factory>]
     public class Counter
     {
         [Splice]
         static MethodDeclarationSyntax Count()
         {
-            var count = Parameter<int>();
+            var count = Unquote<int>();
             return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Count"))
                 .AddModifiers(Token(PublicKeyword))
                 .WithExpressionBody(ArrowExpressionClause(

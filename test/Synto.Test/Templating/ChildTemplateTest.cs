@@ -57,9 +57,9 @@ public class ChildTemplateTest
             [Template<Factory>]
             public TRet TypedGetter<[Splice] TRet>(int i)
             {
-                var columns = Parameter<IReadOnlyList<Col>>();
-                var clrType = Parameter<string>();
-                var typeLabel = Parameter<string>();
+                var columns = Unquote<IReadOnlyList<Col>>();
+                var clrType = Unquote<string>();
+                var typeLabel = Unquote<string>();
                 foreach (var c in columns.Where(c => c.ClrType == clrType))
                     if (i == c.Ordinal)
                         return Member<TRet>(_e.Current, c.Name);
@@ -74,7 +74,7 @@ public class ChildTemplateTest
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Getters()
             {
-                var columns = Parameter<IReadOnlyList<Col>>();
+                var columns = Unquote<IReadOnlyList<Col>>();
                 yield return Factory.TypedGetter(PredefinedType(Token(IntKeyword)), columns, "System.Int32", "an Int32")
                     .WithIdentifier(Identifier("GetInt32"));
                 yield return Factory.TypedGetter(PredefinedType(Token(StringKeyword)), columns, "System.String", "a String")
@@ -103,7 +103,7 @@ public class ChildTemplateTest
     // carrier (which still hosts the [Splice] Getters() member-generator that invokes Factory.TypedGetter).
     // The child now carries a BARE [Template] (Phase 2): it is a parent-driven internal sub-template, built by the
     // parent and folded into the parent's SINGLE document as an `internal static` method on the shared target —
-    // not an independent public sibling in its own document. Its inner Parameter<…>() calls (clrType, typeLabel)
+    // not an independent public sibling in its own document. Its inner Unquote<…>() calls (clrType, typeLabel)
     // still must NOT leak into the PARENT factory's parameter list.
     private const string NestedChildComposition =
         """
@@ -129,9 +129,9 @@ public class ChildTemplateTest
             [Template]
             public TRet TypedGetter<[Splice] TRet>(int i)
             {
-                var columns = Parameter<IReadOnlyList<Col>>();
-                var clrType = Parameter<string>();
-                var typeLabel = Parameter<string>();
+                var columns = Unquote<IReadOnlyList<Col>>();
+                var clrType = Unquote<string>();
+                var typeLabel = Unquote<string>();
                 foreach (var c in columns.Where(c => c.ClrType == clrType))
                     if (i == c.Ordinal)
                         return Member<TRet>(_e.Current, c.Name);
@@ -141,7 +141,7 @@ public class ChildTemplateTest
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Getters()
             {
-                var columns = Parameter<IReadOnlyList<Col>>();
+                var columns = Unquote<IReadOnlyList<Col>>();
                 yield return Factory.TypedGetter(PredefinedType(Token(IntKeyword)), columns, "System.Int32", "an Int32")
                     .WithIdentifier(Identifier("GetInt32"));
                 yield return Factory.TypedGetter(PredefinedType(Token(StringKeyword)), columns, "System.String", "a String")
@@ -175,9 +175,9 @@ public class ChildTemplateTest
             [Template]
             public TRet TypedGetter<[Splice] TRet>(int i, [Splice] object childOnlySplice)
             {
-                var columns = Parameter<IReadOnlyList<Col>>();
-                var clrType = Parameter<string>();
-                var typeLabel = Parameter<string>();
+                var columns = Unquote<IReadOnlyList<Col>>();
+                var clrType = Unquote<string>();
+                var typeLabel = Unquote<string>();
                 foreach (var c in columns.Where(c => c.ClrType == clrType))
                     if (i == c.Ordinal)
                         return Member<TRet>(childOnlySplice, c.Name);
@@ -187,7 +187,7 @@ public class ChildTemplateTest
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Getters()
             {
-                var columns = Parameter<IReadOnlyList<Col>>();
+                var columns = Unquote<IReadOnlyList<Col>>();
                 yield return Factory.TypedGetter(PredefinedType(Token(IntKeyword)), columns, "System.Int32", "an Int32")
                     .WithIdentifier(Identifier("GetInt32"));
             }
@@ -236,7 +236,7 @@ public class ChildTemplateTest
         Assert.Contains("internal static", readerDocument, StringComparison.Ordinal);
         Assert.Contains("TypedGetter", readerDocument, StringComparison.Ordinal);
 
-        // The child's Parameter<string>() roots (clrType, typeLabel) belong to the CHILD sub-template's own
+        // The child's Unquote<string>() roots (clrType, typeLabel) belong to the CHILD sub-template's own
         // parameter list; they must NEVER leak into the PARENT factory's signature. (They may legitimately appear
         // inside the sub-template method body region, so this is asserted against the parent factory method only.)
         var parentFactory = ParentFactoryRegion(readerDocument);

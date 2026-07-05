@@ -120,7 +120,7 @@ public class SwitchBuilderTest
                 private readonly IEnumerator<TRet> _e;
                 public TRet GetTypedExpr(int i)
                 {
-                    var cols = Parameter<IReadOnlyList<Col>>();
+                    var cols = Unquote<IReadOnlyList<Col>>();
                     var built = Switch(i, cols.Where(c => c.Ordinal >= 0).Select(c =>
                         Arm(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
                             Member<TRet>(_e.Current, c.Name))));
@@ -220,7 +220,7 @@ public class SwitchBuilderTest
                 private readonly IEnumerator<TRet> _e;
                 public TRet GetTypedStmt(int i)
                 {
-                    var cols = Parameter<IReadOnlyList<Col>>();
+                    var cols = Unquote<IReadOnlyList<Col>>();
                     Switch(i, cols.Where(c => c.Ordinal >= 0).Select(c =>
                         Case(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
                             Return(Member<TRet>(_e.Current, c.Name)))));
@@ -249,7 +249,7 @@ public class SwitchBuilderTest
                 private readonly IEnumerator<TRet> _e;
                 public TRet GetTypedStmt(int i)
                 {
-                    var columns = Parameter<Synto.Generators.EquatableArray<Col>>();
+                    var columns = Unquote<Synto.Generators.EquatableArray<Col>>();
                     Switch(i, columns.Where(c => c.Ordinal >= 0).Select(c =>
                         Case(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
                             Return(Member<TRet>(_e.Current, c.Name)))));

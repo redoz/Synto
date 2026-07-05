@@ -113,9 +113,9 @@ public class GenericTemplateAttributeTest
             [Template]
             public TRet TypedGetter<[Splice] TRet>(int i, [Splice] object childOnlySplice)
             {
-                var columns = Parameter<IReadOnlyList<Col>>();
-                var clrType = Parameter<string>();
-                var typeLabel = Parameter<string>();
+                var columns = Unquote<IReadOnlyList<Col>>();
+                var clrType = Unquote<string>();
+                var typeLabel = Unquote<string>();
                 foreach (var c in columns.Where(c => c.ClrType == clrType))
                     if (i == c.Ordinal)
                         return Member<TRet>(childOnlySplice, c.Name);
@@ -125,7 +125,7 @@ public class GenericTemplateAttributeTest
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Getters()
             {
-                var columns = Parameter<IReadOnlyList<Col>>();
+                var columns = Unquote<IReadOnlyList<Col>>();
                 yield return Factory.TypedGetter(PredefinedType(Token(IntKeyword)), columns, "System.Int32", "an Int32")
                     .WithIdentifier(Identifier("GetInt32"));
             }

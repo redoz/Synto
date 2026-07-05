@@ -411,7 +411,7 @@ public class SimpleTemplateTest
     {
         // Capability 2 (count-fold): a scalar member-access on a staged-root parameter whose RESULT type is a
         // built-in literal type (`xs.Count` -> int) folds to a factory-time literal lift `(xs.Count).ToSyntax()`
-        // — NO separate Parameter<int>() is needed, and the bare receiver reference (`xs`) must NOT be separately
+        // — NO separate Unquote<int>() is needed, and the bare receiver reference (`xs`) must NOT be separately
         // depth-zero lifted (which would emit a broken `xs.ToSyntax()` on the non-literal list type).
         const string source =
             """
@@ -424,7 +424,7 @@ public class SimpleTemplateTest
             public class TestClass {
                 [Template<Factory>]
                 int N() {
-                    var xs = Parameter<IReadOnlyList<int>>();
+                    var xs = Unquote<IReadOnlyList<int>>();
                     return xs.Count;
                 }
             }
@@ -450,7 +450,7 @@ public class SimpleTemplateTest
         // the non-literal list type, which would otherwise throw at the author's runtime).
         Assert.DoesNotContain("xs.ToSyntax()", factory, StringComparison.Ordinal);
 
-        // No scalar Parameter<int>()-sourced parameter: the single factory parameter is the staged list `xs`
+        // No scalar Unquote<int>()-sourced parameter: the single factory parameter is the staged list `xs`
         // (whose type happens to contain `int`), so the signature carries exactly one parameter (no comma).
         var signature = factory.Split('\n').Single(line => line.Contains(" N(", StringComparison.Ordinal));
         Assert.Contains("xs", signature, StringComparison.Ordinal);
@@ -821,7 +821,7 @@ public class SimpleTemplateTest
             public class TestClass {
                 [Template<Factory>]
                 object GetMember<[Splice] TRow>(TRow row, int i) {
-                    var columns = Parameter<IReadOnlyList<Col>>();
+                    var columns = Unquote<IReadOnlyList<Col>>();
                     foreach (var c in columns)            // live foreach -> unrolls in the factory
                         if (i == c.Ordinal)               // c.Ordinal -> int literal
                             return Member<object>(row, c.Name); // Member builder -> row.<Name>

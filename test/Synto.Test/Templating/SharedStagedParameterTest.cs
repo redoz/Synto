@@ -48,7 +48,7 @@ public class SharedStagedParameterTest
         Assert.NotEmpty(ret.Files);
     }
 
-    // Two methods, each re-declaring `var columns = Parameter<IReadOnlyList<Col>>();` (same inferred name+T):
+    // Two methods, each re-declaring `var columns = Unquote<IReadOnlyList<Col>>();` (same inferred name+T):
     // both foreach regions must unroll onto their own run (the second method is the regression: with only the
     // first declaration's symbol seeded as a root, its foreach would NOT be recognized as live control).
     [Fact]
@@ -64,14 +64,14 @@ public class SharedStagedParameterTest
             [Template<Factory>]
             public class Reader {
                 public string GetName(int i) {
-                    var columns = Parameter<IReadOnlyList<Col>>();
+                    var columns = Unquote<IReadOnlyList<Col>>();
                     foreach (var c in columns)
                         if (i == c.Ordinal)
                             return c.Name;
                     throw new System.IndexOutOfRangeException();
                 }
                 public int GetOrdinal(string name) {
-                    var columns = Parameter<IReadOnlyList<Col>>();
+                    var columns = Unquote<IReadOnlyList<Col>>();
                     foreach (var c in columns)
                         if (name == c.Name)
                             return c.Ordinal;

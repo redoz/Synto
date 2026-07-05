@@ -230,7 +230,7 @@ internal sealed class Examples
     internal readonly record struct Column(int Ordinal, string Name);
 
     // An ObjectReader-shaped [Splice] member generator: the static `Accessors` method runs at factory-build time;
-    // its `foreach` over the lifted column list (folded into the factory signature via Parameter<…>()) yields ONE
+    // its `foreach` over the lifted column list (folded into the factory signature via Unquote<…>()) yields ONE
     // `int GetXxx() => <ordinal>;` MEMBER per column, which Synto splices into the produced `DataRecord` type. The
     // fixed `FieldCount` member is quoted verbatim; the generated accessors land at the generator's position.
 #pragma warning disable CA1812 // Instantiated indirectly by Synto-generated Factory code, not directly in source
@@ -242,7 +242,7 @@ internal sealed class Examples
         [Splice]
         static IEnumerable<MemberDeclarationSyntax> Accessors()
         {
-            var columns = Parameter<IReadOnlyList<Column>>();
+            var columns = Unquote<IReadOnlyList<Column>>();
             foreach (var c in columns)
                 yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
                     .AddModifiers(Token(PublicKeyword))

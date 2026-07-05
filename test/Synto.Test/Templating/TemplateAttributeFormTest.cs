@@ -99,7 +99,7 @@ public class TemplateAttributeFormTest
                 [Template]
                 public ExpressionSyntax Child()
                 {
-                    var name = Parameter<string>();
+                    var name = Unquote<string>();
                     return IdentifierName(name);
                 }
             }
@@ -147,7 +147,7 @@ public class TemplateAttributeFormTest
                 [Template<Factory>]
                 public ExpressionSyntax Child()
                 {
-                    var name = Parameter<string>();
+                    var name = Unquote<string>();
                     return IdentifierName(name);
                 }
             }

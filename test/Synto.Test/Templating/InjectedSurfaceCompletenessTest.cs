@@ -141,7 +141,7 @@ public class InjectedSurfaceCompletenessTest
         public class TestClass {
             [Template<Factory>]
             object StagedKitchenSink([Splice] object row, int i, [Unquote] int bump) {
-                var columns = Parameter<IReadOnlyList<Col>>();   // live Parameter root -> factory parameter
+                var columns = Unquote<IReadOnlyList<Col>>();   // live Parameter root -> factory parameter
                 var offset = Unquote(bump + 1);                      // live local fed by the [Unquote] parameter
                 Console.WriteLine(offset);                        // offset live -> lifts to an int literal (island)
                 foreach (var c in columns)                        // live foreach -> unrolls -> BuildList run
@@ -178,7 +178,7 @@ public class InjectedSurfaceCompletenessTest
         public class TestClass {
             [Template<Factory>]
             object RenamedRoot(int i) {
-                var cols = Parameter<IReadOnlyList<Col>>("columns");  // factory param `columns` != local `cols`
+                var cols = Unquote<IReadOnlyList<Col>>("columns");  // factory param `columns` != local `cols`
                 foreach (var c in cols)
                     if (i == c.Ordinal)
                         Console.WriteLine(cols.Count);                // live root by VALUE inside the island
@@ -462,7 +462,7 @@ public class InjectedSurfaceCompletenessTest
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Accessors() {
-                var columns = Parameter<IReadOnlyList<Col>>();   // folds into the Factory signature
+                var columns = Unquote<IReadOnlyList<Col>>();   // folds into the Factory signature
                 foreach (var c in columns)                       // real factory-time loop (NOT unrolled)
                     yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
                         .AddModifiers(Token(PublicKeyword))
@@ -515,7 +515,7 @@ public class InjectedSurfaceCompletenessTest
 
         var factorySource = factoryTree.ToString();
 
-        // The generator's Parameter<…>() folded into the factory signature ...
+        // The generator's Unquote<…>() folded into the factory signature ...
         Assert.Contains("columns", factorySource, StringComparison.Ordinal);
         // ... and its yielded members were spliced into the type's member list (the member-axis BuildList).
         Assert.Contains("BuildList<MemberDeclarationSyntax>", factorySource, StringComparison.Ordinal);
@@ -722,7 +722,7 @@ public class InjectedSurfaceCompletenessTest
         public class Shapes {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Nested() {
-                var columns = Parameter<IReadOnlyList<Col>>();
+                var columns = Unquote<IReadOnlyList<Col>>();
                 foreach (var c in columns)
                     yield return ClassDeclaration("Shape_" + c.Name).AddModifiers(Token(PublicKeyword));
             }
@@ -800,7 +800,7 @@ public class InjectedSurfaceCompletenessTest
             public int First() => 0;
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Middle() {
-                var columns = Parameter<IReadOnlyList<Col>>();
+                var columns = Unquote<IReadOnlyList<Col>>();
                 foreach (var c in columns)
                     yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
                         .AddModifiers(Token(PublicKeyword))
