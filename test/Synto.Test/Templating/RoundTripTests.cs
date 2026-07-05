@@ -15,7 +15,7 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 
 #pragma warning disable CS8321
 
-namespace Synto.Test;
+namespace Synto.Test.Templating;
 
 
 public partial class RoundTripTests

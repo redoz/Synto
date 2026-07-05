@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Synto.Test;
+namespace Synto.Test.Incremental;
 
 /// <summary>
 /// Unit tests for the equatable value types that flow through (or back the) templating incremental
