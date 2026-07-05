@@ -40,6 +40,14 @@ internal class ObjectReaderTemplate<[Splice] T>
     private bool _closed;
     private bool _onRow;
 
+    // The live column list, declared ONCE as a carrier field (dog-food of the shipped field-initializer live root):
+    // a single-declarator `= Unquote<...>()` field is a declaration-position staged parameter, seeded as the live
+    // root for every member below and stripped from quoted output — so the former six per-member redeclarations
+    // collapse into this one factory parameter. `static` is required because the [Splice] TypedGetters() generator
+    // is static (an instance field would be CS0120 there); the field is stripped from output, so staticness cannot
+    // affect generated code, and instance members reading a static field is legal C#.
+    private static readonly EquatableArray<ColumnInfo> columns = Unquote<EquatableArray<ColumnInfo>>();
+
     public ObjectReaderTemplate(global::System.Collections.Generic.IEnumerable<T> source) => _e = source.GetEnumerator();
 
     // ---- data-driven members: each repeats over the live column list (unrolled at factory time) -------------
@@ -51,14 +59,12 @@ internal class ObjectReaderTemplate<[Splice] T>
     {
         get
         {
-            var columns = Unquote<EquatableArray<ColumnInfo>>();
             return columns.Count;
         }
     }
 
     public string GetName(int i)
     {
-        var columns = Unquote<EquatableArray<ColumnInfo>>();
         foreach (var c in columns)            // live control → unrolls in the factory
             if (i == c.Ordinal)               // c.Ordinal → int literal
                 return c.Name;                // c.Name    → string literal
@@ -67,7 +73,6 @@ internal class ObjectReaderTemplate<[Splice] T>
 
     public int GetOrdinal(string name)
     {
-        var columns = Unquote<EquatableArray<ColumnInfo>>();
         foreach (var c in columns)
             if (name == c.Name)               // c.Name → string literal
                 return c.Ordinal;             // c.Ordinal → int literal
@@ -76,7 +81,6 @@ internal class ObjectReaderTemplate<[Splice] T>
 
     public global::System.Type GetFieldType(int i)
     {
-        var columns = Unquote<EquatableArray<ColumnInfo>>();
         foreach (var c in columns)
             if (i == c.Ordinal)
                 return Template.TypeOf(c.ColumnTypeName);   // type-name hole → typeof(<that type>); qualified: both Template and SyntoBuilders are `using static`-imported and each define TypeOf(string)
@@ -90,7 +94,6 @@ internal class ObjectReaderTemplate<[Splice] T>
             throw new global::System.InvalidOperationException("No current row. Call Read() and ensure it returned true before reading values.");
         }
 
-        var columns = Unquote<EquatableArray<ColumnInfo>>();
         foreach (var c in columns)
             if (i == c.Ordinal)
                 // Member<object>(_e.Current, c.Name) → `_e.Current.<Name>` (identifier hole), then box + DBNull.
@@ -130,7 +133,6 @@ internal class ObjectReaderTemplate<[Splice] T>
     [Splice]
     static IEnumerable<MemberDeclarationSyntax> TypedGetters()
     {
-        var columns = Unquote<EquatableArray<ColumnInfo>>();
         yield return Factory.TypedGetter<bool>(columns, "global::System.Boolean", "a Boolean").WithIdentifier(Identifier("GetBoolean"));
         yield return Factory.TypedGetter<byte>(columns, "global::System.Byte", "a Byte").WithIdentifier(Identifier("GetByte"));
         yield return Factory.TypedGetter<char>(columns, "global::System.Char", "a Char").WithIdentifier(Identifier("GetChar"));
