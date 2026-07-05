@@ -45,7 +45,7 @@
 	<EmbeddedResource Include="..\Synto\Templating\Staging\RuntimeAttribute.cs" LogicalName="Synto.Runtime.RuntimeAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Definition\TemplateOption.cs" LogicalName="Synto.Runtime.TemplateOption.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Staging\Syntax.cs" LogicalName="Synto.Runtime.Syntax.cs" />
-	<EmbeddedResource Include="..\Synto\Templating\Staging\Template.Parameter.cs" LogicalName="Synto.Runtime.Template.cs" />
+	<EmbeddedResource Include="..\Synto\Templating\Staging\Template.cs" LogicalName="Synto.Runtime.Template.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Staging\UnquoteAttribute.cs" LogicalName="Synto.Runtime.UnquoteAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Definition\QuoteAttribute.cs" LogicalName="Synto.Runtime.QuoteAttribute.cs" />
 	<EmbeddedResource Include="..\Synto\Templating\Builders\SyntaxBuilderAttribute.cs" LogicalName="Synto.Runtime.SyntaxBuilderAttribute.cs" />
