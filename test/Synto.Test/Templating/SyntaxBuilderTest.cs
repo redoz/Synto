@@ -800,6 +800,119 @@ public class SyntaxBuilderTest
             .Select(s => s.SourceText.ToString()));
     }
 
+    /// <summary>Runs ONLY the facade-synthesis generator and returns the concatenated synthesized facade source.</summary>
+    private static string RunFacadeGeneratorSource(string source)
+    {
+        var compilation = CSharpCompilation.Create("Test",
+            [CSharpSyntaxTree.ParseText(source)],
+            references: References,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var driver = CSharpGeneratorDriver.Create(new SyntaxBuilderFacadeGenerator());
+        var runResult = driver.RunGenerators(compilation).GetRunResult();
+        return string.Concat(runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .Select(s => s.SourceText.ToString()));
+    }
+
+    // [Constant] value-axis kind: the marked builder parameter (which RECEIVES the lifted ExpressionSyntax) surfaces
+    // on the synthesized facade as an `object`-typed VALUE parameter — the author passes a factory-time value, not a
+    // hand-built syntax node. A [Constant]-bearing builder is NOT its own facade (a facade IS synthesized, exactly as
+    // for [Quoted]). Before recognition, [Constant] falls through to Staged and the facade param is typed as the
+    // builder param type (ExpressionSyntax), so this fails until FacadeShape recognizes [Constant].
+    [Fact]
+    public void ConstantParam_SynthesizesObjectTypedFacadeValueParam()
+    {
+        var facadeSource = RunFacadeGeneratorSource(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Lit([Constant] ExpressionSyntax label) => label;
+            }
+            """);
+
+        // A facade WAS synthesized for the [Constant]-bearing builder (not its-own-facade) ...
+        Assert.Contains("Lit", facadeSource, StringComparison.Ordinal);
+        // ... exposing the [Constant] parameter as an `object`-typed value parameter, NOT the builder param type.
+        Assert.Contains("object label", facadeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExpressionSyntax label", facadeSource, StringComparison.Ordinal);
+    }
+
+    // Guard: [Constant] and [Quoted] on one parameter are mutually-exclusive value-axis kinds -> SY1015.
+    [Fact]
+    public void CombinedConstantAndQuotedMarkers_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Combo([Constant, Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Combo(x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
+    // Guard: [Constant] and [TypeArg] are on different axes (value vs type) and must never combine -> SY1015.
+    [Fact]
+    public void CombinedConstantAndTypeArgMarkers_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Combo([Constant, TypeArg] TypeSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Combo<int>());
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
+    // Guard: [Constant] params is not a sound facade shape (params object) -> SY1015, mirroring [Quoted] params.
+    [Fact]
+    public void ConstantParams_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Many([Constant] params ExpressionSyntax[] xs) => xs[0];
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Many(x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
     // #12a: a carrier `using` whose namespace merely STARTS WITH "Synto" (e.g. `SyntoX.Helpers`) is a legitimate
     // third-party namespace and must transplant normally — the Synto-surface exclusion is exact-or-dotted-prefix
     // (`== "Synto"` or `StartsWith("Synto.")`), not a bare `StartsWith("Synto")`. A built-in facade call (Member,

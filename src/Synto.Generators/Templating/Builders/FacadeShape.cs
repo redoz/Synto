@@ -119,6 +119,7 @@ internal sealed class FacadeShape
         {
             var quoted = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.QuotedAttribute).FullName!);
             var typeArg = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.TypeArgAttribute).FullName!);
+            var constant = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.ConstantAttribute).FullName!);
             bool isReturnType = SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.ReturnTypeAttribute).FullName!) is not null;
 
             if (typeArg is not null && quoted is not null)
@@ -126,6 +127,14 @@ internal sealed class FacadeShape
                 // [TypeArg] reshapes a parameter into a facade type argument; [Quoted] into a facade value argument.
                 // The two are mutually exclusive — combining them is documented-forbidden and silently half-ignored today.
                 annotationError = $"parameter '{p.Name}': [TypeArg] and [Quoted] must never be combined";
+                return null;
+            }
+
+            if (constant is not null && (quoted is not null || typeArg is not null))
+            {
+                // [Constant] is a value-axis binding-time kind (value lifted to a constant ExpressionSyntax); it is a
+                // sibling of [Quoted] (island quote) and orthogonal to [TypeArg] (type axis) — never combine them.
+                annotationError = $"parameter '{p.Name}': [Constant] must never be combined with [Quoted] or [TypeArg]";
                 return null;
             }
 
@@ -174,6 +183,21 @@ internal sealed class FacadeShape
                 // [Quoted] value island: facade value param typed `As` (if given) else object.
                 string valueType = SymbolMetadataExtensions.GetNamedTypeDisplay(quoted, "As") ?? "object";
                 parameters.Add(new FacadeParam(p.Name, BuilderArgKind.Quoted, null, valueType));
+                continue;
+            }
+
+            if (constant is not null)
+            {
+                // [Constant] value: the author passes a factory-time value that is lifted to a constant
+                // ExpressionSyntax at the binding seam, so the facade value param is fixed `object` (not the builder
+                // param type, which RECEIVES the lifted node). A `params object` is not a legal facade shape.
+                if (p.IsParams)
+                {
+                    annotationError = $"parameter '{p.Name}': [Constant] params is not supported";
+                    return null;
+                }
+
+                parameters.Add(new FacadeParam(p.Name, BuilderArgKind.Constant, null, "object"));
                 continue;
             }
 

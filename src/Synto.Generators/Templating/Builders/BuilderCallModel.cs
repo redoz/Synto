@@ -7,7 +7,9 @@ namespace Synto.Generators.Templating.Builders;
 /// <summary>
 /// How a single syntax-builder parameter's call argument is bound at factory time (Locked Names §6). An
 /// <c>[Quoted]</c> parameter receives the <em>quote</em> of the call argument (an output-world island); a
-/// <c>[TypeArg]</c> parameter receives the quote of a facade <em>type</em> argument; an unmarked parameter
+/// <c>[TypeArg]</c> parameter receives the quote of a facade <em>type</em> argument; a <c>[Constant]</c>
+/// parameter receives the value-lift of the call argument (a factory-time value lifted to a constant
+/// <c>ExpressionSyntax</c> — a built-in literal or a qualified enum-member access); an unmarked parameter
 /// receives the live/computed value verbatim.
 /// </summary>
 internal enum BuilderArgKind
@@ -15,6 +17,9 @@ internal enum BuilderArgKind
     Staged,
     Quoted,
     QuotedTypeArg,
+
+    /// <summary>Value-axis: the resolved binding carries the ALREADY-lifted constant <see cref="BuilderArgBinding.ValueArgument"/>.</summary>
+    Constant,
 }
 
 /// <summary>One builder parameter's resolved binding + the facade call element that feeds it.</summary>
