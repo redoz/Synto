@@ -4,6 +4,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Generators.Templating.Emit;
 using Synto.Generators.Templating.Diagnostics;
+using Synto.Generators.Templating.Lifting;
+using Synto.Templating;
 
 namespace Synto.Generators.Templating.Builders;
 
@@ -31,6 +33,7 @@ internal sealed class FacadeCallFinder : TemplateScopedWalker
     private readonly SemanticModel _semanticModel;
     private readonly INamedTypeSymbol? _templateSymbol;
     private readonly Dictionary<string, List<IMethodSymbol>> _buildersByName;
+    private readonly ValueLift _valueLift;
     private readonly List<BuilderCall> _calls = new();
     private readonly List<DiagnosticInfo> _diagnostics = new();
 
@@ -42,6 +45,13 @@ internal sealed class FacadeCallFinder : TemplateScopedWalker
         var compilation = semanticModel.Compilation;
         _templateSymbol = compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.Template).FullName!);
         var syntaxBuilderAttribute = compilation.GetTypeByMetadataName(typeof(global::Synto.Templating.SyntaxBuilderAttribute).FullName!);
+
+        // The shared value-lift for [Constant] builder arguments, built from the compilation exactly as
+        // TemplateFactoryBuilder.InitValueLift does (gathering the [Runtime] converter attribute + ExpressionSyntax
+        // symbols). Batteries-included, so an enum lifts with no converter and never hits SY1008.
+        var runtimeAttribute = compilation.GetTypeByMetadataName(typeof(RuntimeAttribute).FullName!);
+        var expressionSyntaxSymbol = compilation.GetTypeByMetadataName(typeof(ExpressionSyntax).FullName!);
+        _valueLift = new ValueLift(semanticModel, runtimeAttribute, expressionSyntaxSymbol);
 
         var builders = SyntaxBuilderRegistry.FindBuilders(compilation, syntaxBuilderAttribute);
 
@@ -123,7 +133,7 @@ internal sealed class FacadeCallFinder : TemplateScopedWalker
                 return;
             }
 
-            var match = FacadeArgumentBinder.Bind(_semanticModel, invocation, candidates[0], _diagnostics);
+            var match = FacadeArgumentBinder.Bind(_semanticModel, invocation, candidates[0], _valueLift, _diagnostics);
             if (match is not null)
                 _calls.Add(match);
         }

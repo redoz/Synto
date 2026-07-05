@@ -841,6 +841,47 @@ public class SyntaxBuilderTest
         Assert.DoesNotContain("ExpressionSyntax label", facadeSource, StringComparison.Ordinal);
     }
 
+    // Task 4: a [Constant] builder argument is LIFTED at the binding seam via the shared value-lift — the factory
+    // passes `(<value>).ToSyntax()` for each argument (an int literal, a string, a bool, an enum — the enum rides
+    // the same `.ToSyntax()` shape — and an inlined generic type parameter), and the ToSyntax helper is injected.
+    [Fact]
+    public void ConstantArgs_LiftedViaToSyntaxAtBindingSeam()
+    {
+        var generated = RunAndGetGeneratedText(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            public enum Hue { Red, Green, Blue }
+
+            static partial class B {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Lit([Constant] ExpressionSyntax label) => label;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build<T>() {
+                    System.Console.WriteLine(B.Lit(42));
+                    System.Console.WriteLine(B.Lit("hi"));
+                    System.Console.WriteLine(B.Lit(true));
+                    System.Console.WriteLine(B.Lit(Hue.Red));
+                    System.Console.WriteLine(B.Lit(default(T)));
+                }
+            }
+            """);
+
+        // Each [Constant] argument is lifted to `<value>.ToSyntax()` in the factory (verbatim value, not a raw node).
+        Assert.Contains("42.ToSyntax()", generated, StringComparison.Ordinal);
+        Assert.Contains("\"hi\".ToSyntax()", generated, StringComparison.Ordinal);
+        Assert.Contains("true.ToSyntax()", generated, StringComparison.Ordinal);
+        Assert.Contains("Hue.Red.ToSyntax()", generated, StringComparison.Ordinal);
+        Assert.Contains("default(T).ToSyntax()", generated, StringComparison.Ordinal);
+        // The file-local ToSyntax helper is injected (its `.ToSyntax()` calls now appear in the factory).
+        Assert.Contains("ToSyntax", generated, StringComparison.Ordinal);
+    }
+
     // Guard: [Constant] and [Quoted] on one parameter are mutually-exclusive value-axis kinds -> SY1015.
     [Fact]
     public void CombinedConstantAndQuotedMarkers_ReportsSY1015()

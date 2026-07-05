@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Generators.Templating.Diagnostics;
+using Synto.Generators.Templating.Lifting;
 
 namespace Synto.Generators.Templating.Builders;
 
@@ -14,7 +15,7 @@ namespace Synto.Generators.Templating.Builders;
 /// </summary>
 internal static class FacadeArgumentBinder
 {
-    public static BuilderCall? Bind(SemanticModel semanticModel, InvocationExpressionSyntax invocation, IMethodSymbol builder, List<DiagnosticInfo> diagnostics)
+    public static BuilderCall? Bind(SemanticModel semanticModel, InvocationExpressionSyntax invocation, IMethodSymbol builder, ValueLift valueLift, List<DiagnosticInfo> diagnostics)
     {
         var shape = FacadeShape.Derive(builder, out var annotationError, out var returnShapeError);
         if (returnShapeError is not null)
@@ -48,6 +49,36 @@ internal static class FacadeArgumentBinder
                     }
                     bindings.Add(new BuilderArgBinding(BuilderArgKind.QuotedTypeArg, p.ParameterName, null, typeArgs[typeArgCursor]));
                     typeArgCursor++;
+                    break;
+
+                case BuilderArgKind.Constant:
+                    // A [Constant] value argument is lifted at the binding seam via the SHARED value-lift: its own
+                    // expression type (int for `c.Ordinal`, an enum for `SampleEnum.Red`, independent of the object
+                    // facade param) decides the lift. The already-lifted node is carried on the binding so
+                    // BuilderStep splices it verbatim.
+                    if (valueCursor >= valueArgs.Count)
+                    {
+                        diagnostics.Add(TemplateDiagnostics.BuilderArgBindingMismatch(invocation.GetLocation(), p.ParameterName, "missing argument"));
+                        return null;
+                    }
+                    var constArgExpr = valueArgs[valueCursor].Expression;
+                    valueCursor++;
+
+                    var constValueType = semanticModel.GetTypeInfo(constArgExpr).Type;
+                    if (constValueType is null)
+                    {
+                        diagnostics.Add(TemplateDiagnostics.BuilderArgBindingMismatch(invocation.GetLocation(), p.ParameterName, "could not resolve the constant argument's type"));
+                        return null;
+                    }
+
+                    if (!valueLift.TryEmitValueLift(constValueType, constArgExpr, constArgExpr.GetLocation(), out var liftedConstant, out var liftDiagnostic))
+                    {
+                        if (liftDiagnostic is not null)
+                            diagnostics.Add(liftDiagnostic.Value);
+                        return null;
+                    }
+
+                    bindings.Add(new BuilderArgBinding(BuilderArgKind.Constant, p.ParameterName, liftedConstant, null));
                     break;
 
                 default:

@@ -40,6 +40,10 @@ internal sealed class BuilderStep : INodeQuoteMiddleware
             {
                 BuilderArgKind.Quoted => ctx.Quote(binding.ValueArgument!)!,
                 BuilderArgKind.QuotedTypeArg => ctx.Quote(binding.TypeArgument!)!,
+                // A [Constant] argument was ALREADY lifted at the binding seam (value.ToSyntax(), an enum-member
+                // access, or a fully-qualified [Runtime] converter call); splice that node verbatim — no ctx.Quote,
+                // no nested-builder rewrite.
+                BuilderArgKind.Constant => binding.ValueArgument!,
                 // A staged (unmarked) argument is emitted as verbatim build-time code, but any recognized builder
                 // facade call NESTED inside it (e.g. `Case(...)` / `Arm(...)` inside a `.Select(c => ...)` projection
                 // feeding a host builder's staged list) must still be rewritten to its real fully-qualified builder
