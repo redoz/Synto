@@ -70,7 +70,7 @@ The ordered steps run inside `TemplateFactoryBuilder.Build` (`Emit/TemplateFacto
 | 9 | Scalar member-access fold (`columns.Count` → literal) | `Emit/TemplateFactoryBuilder.cs` |
 | 10–12 | Lift staged params/locals; init `ValueLift` (lazy `[Runtime]` cache) | `Lifting/ValueLift.cs:18`, `:70` |
 | 13–15 | Lift `[Unquote]`/`[Quote]` roots + inline `Quote(value)` | `Discovery/QuoteParameterFinder.cs`, `Discovery/QuoteCallFinder.cs` |
-| 16 | Syntax-builder facade calls | `Builders/FacadeCallFinder.cs:22` (`FindBuilderCalls`), `Builders/SyntaxBuilderRegistry.cs:12`, `Builders/FacadeArgumentBinder.cs:15`, `Builders/FacadeShape.cs:56` |
+| 16 | Syntax-builder facade calls | `Builders/FacadeCallFinder.cs:63` (`FindBuilderCalls`), `Builders/SyntaxBuilderRegistry.cs:12`, `Builders/FacadeArgumentBinder.cs:15`, `Builders/FacadeShape.cs:56` |
 | 17 | Inline `Template.Splice(node)` | `Discovery/SpliceCallFinder.cs` |
 | 18 | Emit staged regions (unroll → `BuildList`) | `Staging/StagedRegionEmitter.cs:22` → `Staging/StagedLivenessAnalysis.cs:12`, `Staging/RootRenameRewriter.cs`, `Staging/StagedScaffoldBuilder.cs:20`, `Staging/StagedHelperCallFactory.cs` |
 | 19 | `[Splice]` member generators → local functions | `Staging/SpliceMemberGeneratorEmitter.cs:15` |
@@ -136,11 +136,23 @@ bare form (a nested generic returns `null` there and is SY1034'd by its own tran
 - `[Unquote]` — `Staging/Surface/UnquoteAttribute.cs` (param/type; lifts, **may drive** control).
 - `[Quote]` — `Definition/Surface/QuoteAttribute.cs` (param-only; lifts, **never** drives control).
 - `[Splice]` — `Staging/Surface/SpliceAttribute.cs` (param/type/method; verbatim, no lift).
-- `[SyntaxBuilder]` + `[Quoted]` + `[ReturnType]` — facade builders (`Builders/Surface/`).
+- `[SyntaxBuilder]` (`Builders/Surface/SyntaxBuilderAttribute.cs:17`) + `[Quoted]` + `[ReturnType]` — facade
+  builders (`Builders/Surface/`). Optional `Returns`/`Facade` (`:27`, `:34`) pin a fixed value-position return
+  type and synthesize the inert facade into a *different* host type (a same-signature facade in the builder's
+  own type would be CS0111) — e.g. `Builders/InjectedOnly/OperatorBuilders.cs` (`TypeOf`/`NameOf`/`SizeOf`,
+  each `Returns=…, Facade=typeof(Operators)`) synthesizes its facades into the empty shell
+  `Builders/InjectedOnly/Operators.cs`. `Returns` set without `Facade` still raises **SY1031** (no new
+  diagnostic id was added for this).
 - `[Runtime]` — `Staging/Surface/RuntimeAttribute.cs` (marks a class exposing `ToSyntax(this T)` for custom-type lifts).
 - Inline facades on `Template` (`Staging/Surface/Template.cs`, renamed from `Template.Parameter.cs`):
-  `Unquote<T>(value)` (`:22`), `Unquote<T>(parameterName?)` (`:42`), `Quote<T>()` (`:56`), `Splice()` (`:67`),
-  `Member<T>()` (`:79`), `TypeOf()` (`:88`) — all inert (`=> default!`), recognized by binding.
+  `Unquote<T>(value)` (`:22`), `Unquote<T>(parameterName?)` (`:42`), `Quote<T>(value)` (`:56`), `Splice(node)`
+  (`:67`) — all inert (`=> value`/`=> node`), recognized by binding. `Member`/`Switch`/`Case`/... and the
+  `typeof`/`nameof`/`sizeof` operators are **not** inline `Template` facades — they are ordinary
+  `[SyntaxBuilder]`s (see above) whose synthesized facades land on `SyntoBuilders` (self-facade, `Member` etc.)
+  or on `Operators` (fixed-return, via `Facade=`, for `TypeOf`/`NameOf`/`SizeOf`). The old hardwired by-name
+  recognition arm for `typeof`/`nameof`/`sizeof` (and the legacy `Template.TypeOf`/`SyntoBuilders.TypeOf` inert
+  facades) is gone — every facade call, builtin or user, is recognized the same structural way (see step 16
+  above and `Builders/FacadeCallFinder.cs:27`).
 
 > `Unquote<T>()` is a **method** carrier, not `[Unquote]`. The Live/Inline →
 > Unquote/Splice rename shipped 2026-06-27 (`Live`/`Inline`/`AsSyntax` deleted; see

@@ -38,7 +38,7 @@ stay in `Templating/Quoting/Passes/`. See [layering](/architecture/layering.md).
   (`Templating/Staging/StagedRegionEmitter.cs:22`, `Templating/Discovery/StagedRegionFinder.cs:13`,
   `Templating/Staging/StagedLivenessAnalysis.cs:12`, `Templating/Staging/StagedEmitContext.cs:17`,
   `Templating/Staging/StagedScaffoldBuilder.cs:20`) — the templating machinery.
-- `Templating/Builders/FacadeCallFinder.cs:22` / `Templating/Builders/SyntaxBuilderRegistry.cs:12` /
+- `Templating/Builders/FacadeCallFinder.cs:27` / `Templating/Builders/SyntaxBuilderRegistry.cs:12` /
   `Templating/Builders/FacadeArgumentBinder.cs:15` / `Templating/Builders/BuilderCallModel.cs` —
   syntax-builder facade resolution.
 - `Templating/Diagnostics/TemplateDiagnostics.cs:7` (SY1005–SY1034), `Incremental/Diagnostics.cs:9`

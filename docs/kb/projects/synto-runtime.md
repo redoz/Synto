@@ -30,7 +30,7 @@ surface stays `namespace Synto.*` however deep the role folders (`Surface/`,
   `QuoteAttribute.cs`, `TemplateOption.cs`), `Staging/Surface/` (`Template.cs`,
   `UnquoteAttribute.cs`, `SpliceAttribute.cs`, `RuntimeAttribute.cs`),
   `Builders/Surface/` (`SyntaxBuilderAttribute.cs`, `QuotedAttribute.cs`, `ReturnTypeAttribute.cs`,
-  `TypeArgAttribute.cs`) + `Builders/InjectedOnly/SyntoBuilders.cs`, and `Decorations/Surface/`
+  `TypeArgAttribute.cs`) + `Builders/InjectedOnly/{SyntoBuilders,OperatorBuilders,Operators}.cs`, and `Decorations/Surface/`
   ([decoration](/subsystems/decorations.md) markers).
 - `src/Synto.Core/Matching/Surface/` + `Matching/InjectedOnly/` — the [matching](/subsystems/matching.md) consumer surface.
 - `src/Synto.Core/Syntax/EmitHelpers/*SyntaxExtensions.cs`, `Syntax/SyntaxListExtensions.cs`,
