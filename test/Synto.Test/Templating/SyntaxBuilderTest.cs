@@ -627,6 +627,73 @@ public class SyntaxBuilderTest
         Assert.DoesNotContain("IsBuiltInFacadeName", names);
     }
 
+    // Task 4 (spec §2/§5): NameOf is a SECOND operator builder, proving the mechanism generalizes beyond
+    // TypeOf. NameOf("Foo.Bar") emits `nameof(Foo.Bar)` in output, and the value facade returns `string`.
+    [Fact]
+    public void NameOf_EmitsNameofExpression()
+    {
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                string Build() => NameOf("Foo.Bar");
+            }
+            """);
+
+        // The factory rewrites the call to the fully-qualified builder ...
+        Assert.Contains("OperatorBuilders.NameOf", generated, StringComparison.Ordinal);
+    }
+
+    // Task 4: executed end-to-end proof (modeled on UserBuilder_Executed_QuotedArgumentReachesBuilder) that
+    // NameOf actually RUNS at factory time and produces `nameof(Foo.Bar)` — the rewrite-target assertion above
+    // only pins the call rewrite, not the rendered output.
+    [Fact]
+    public void NameOf_Executed_EmitsNameofExpression()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+
+            partial class Factory {}
+
+            [Template<Factory>]
+            public class Reader {
+                public string Build() => NameOf("Foo.Bar");
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var compileErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(compileErrors.Count == 0,
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        using var peStream = new System.IO.MemoryStream();
+        var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        var assembly = Assembly.Load(peStream.ToArray());
+        var readerFactory = assembly.GetType("Factory")!.GetMethod("Reader")!;
+        var built = readerFactory.Invoke(null, null);
+
+        var node = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.SyntaxNode>(built!);
+        var rendered = node.NormalizeWhitespace().ToString();
+        Assert.Contains("nameof(Foo.Bar)", rendered, System.StringComparison.Ordinal);
+    }
+
     // #1: a call whose simple name COLLIDES with a registered builder but which BINDS to a real, unrelated
     // user method must NOT be hijacked as a builder facade — it is quoted verbatim. Today the finder matches by
     // simple name alone and mis-binds `settings.Wrap()` (0 args) to the 1-param builder, emitting SY1016.

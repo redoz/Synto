@@ -16,4 +16,10 @@ internal static partial class OperatorBuilders
     /// <summary>Builds <c>typeof(name)</c> from a factory-time type name.</summary>
     [SyntaxBuilder(Returns = typeof(System.Type), Facade = typeof(Operators))]
     internal static ExpressionSyntax TypeOf(string name) => TypeOfExpression(ParseTypeName(name));
+
+    /// <summary>Builds <c>nameof(name)</c> from a factory-time name expression.</summary>
+    [SyntaxBuilder(Returns = typeof(string), Facade = typeof(Operators))]
+    internal static ExpressionSyntax NameOf(string name) =>
+        InvocationExpression(IdentifierName("nameof"),
+            ArgumentList(SingletonSeparatedList(Argument(ParseExpression(name)))));
 }
