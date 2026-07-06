@@ -7,6 +7,7 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 using static Synto.Templating.Template;
 using static Synto.Templating.SyntoBuilders;
+using static Synto.Templating.Operators;
 
 
 namespace Synto.Example.ObjectReader.Generator;
@@ -83,7 +84,7 @@ internal class ObjectReaderTemplate<[Splice] T>
     {
         foreach (var c in columns)
             if (i == c.Ordinal)
-                return Template.TypeOf(c.ColumnTypeName);   // type-name hole → typeof(<that type>); qualified: both Template and SyntoBuilders are `using static`-imported and each define TypeOf(string)
+                return TypeOf(c.ColumnTypeName);            // type-name hole → typeof(<that type>); bare TypeOf resolves to Operators.TypeOf (the structural [SyntaxBuilder] operator facade)
         throw OutOfRange(i);
     }
 

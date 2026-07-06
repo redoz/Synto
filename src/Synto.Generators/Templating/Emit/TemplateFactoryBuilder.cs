@@ -766,15 +766,14 @@ internal static class TemplateFactoryBuilder
         }
     }
 
-    // Syntax builders (Task 3): the Template.TypeOf facade call (recognized by binding — it must stay
-    // bind-recognized; see FacadeCallFinder's class summary for why) and [SyntaxBuilder] facade calls
-    // (recognized structurally — this includes the built-in Member builder, which rides the same structural
-    // path as any user builder) are replaced — keyed at the invocation node — by a fully-qualified static call
-    // of the paired builder over processed arguments. A [Quoted] builder parameter receives the QUOTE of the
-    // call argument (an output-world island); an unmarked parameter receives the live/computed value verbatim.
-    // No copy of the builder is injected into the generated output (the built-in builders are injected
-    // internal; user builders are the consumer's own code) — both are called fully-qualified, so the output
-    // carries no Synto.Core runtime dependency.
+    // Syntax builders (Task 3): every [SyntaxBuilder] facade call is recognized structurally (an unbound
+    // simple-name call — this includes the built-in Member builder and the operator builders like TypeOf, which
+    // ride the same structural path as any user builder; see FacadeCallFinder's class summary). Each is replaced
+    // — keyed at the invocation node — by a fully-qualified static call of the paired builder over processed
+    // arguments. A [Quoted] builder parameter receives the QUOTE of the call argument (an output-world island);
+    // an unmarked parameter receives the live/computed value verbatim. No copy of the builder is injected into
+    // the generated output (the built-in builders are injected internal; user builders are the consumer's own
+    // code) — both are called fully-qualified, so the output carries no Synto.Core runtime dependency.
     private static bool ResolveBuilderCalls(TemplateBuildContext ctx)
     {
         var semanticModel = ctx.SemanticModel;

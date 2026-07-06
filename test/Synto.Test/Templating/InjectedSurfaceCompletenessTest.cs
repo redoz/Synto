@@ -118,13 +118,14 @@ public class InjectedSurfaceCompletenessTest
     /// <item>a live <c>foreach</c> that unrolls at factory time and emits the file-local <c>BuildList</c>
     /// collection helper;</item>
     /// <item>the built-in <c>Member</c> builder (member access over a <c>[Splice]</c> instance with a
-    /// live member name) and the built-in <c>TypeOf</c> builder (a <c>typeof(...)</c> from a constant name).</item>
+    /// live member name) and the <c>TypeOf</c> operator builder (a <c>typeof(...)</c> from a constant name).</item>
     /// </list>
     /// Every piece must resolve against the injected surface — the internal markers/facades from
-    /// <see cref="SurfaceInjectionGenerator"/> (incl. the internal <c>SyntoBuilders.TypeOf</c>) and the
-    /// scan-injected <c>file static</c> helpers (<c>BuildList</c>/<c>ToSyntax</c>) — with NO <c>Synto.Core</c>.
-    /// <c>Member</c> is discovered structurally like any user <c>[SyntaxBuilder]</c>, so its synthesized facade
-    /// also needs <see cref="SyntaxBuilderFacadeGenerator"/> in the driver (see the test method below).
+    /// <see cref="SurfaceInjectionGenerator"/> (incl. the internal <c>OperatorBuilders.TypeOf</c> and its
+    /// synthesized <c>Operators.TypeOf</c> facade) and the scan-injected <c>file static</c> helpers
+    /// (<c>BuildList</c>/<c>ToSyntax</c>) — with NO <c>Synto.Core</c>. <c>Member</c> and <c>TypeOf</c> are both
+    /// discovered structurally like any user <c>[SyntaxBuilder]</c>, so their synthesized facades also need
+    /// <see cref="SyntaxBuilderFacadeGenerator"/> in the driver (see the test method below).
     /// </summary>
     private const string StagedRichTemplate =
         """
@@ -133,6 +134,7 @@ public class InjectedSurfaceCompletenessTest
         using Synto.Templating;
         using static Synto.Templating.Template;
         using static Synto.Templating.SyntoBuilders;
+        using static Synto.Templating.Operators;
 
         partial class Factory {}
 
@@ -147,8 +149,8 @@ public class InjectedSurfaceCompletenessTest
                 foreach (var c in columns)                        // live foreach -> unrolls -> BuildList run
                     if (i == c.Ordinal)                           // i quoted; c.Ordinal (loop var) -> int literal
                         return Member<object>(row, c.Name);       // Member builder -> row.<Name>
-                var t = Template.TypeOf("System.Int32");          // qualified: both Template and SyntoBuilders are
-                                                                   // `using static`-imported and each define TypeOf(string)
+                var t = TypeOf("System.Int32");                   // bare TypeOf -> Operators.TypeOf (structural
+                                                                   // operator [SyntaxBuilder]) -> typeof(System.Int32)
                 Console.WriteLine(t);
                 throw new System.IndexOutOfRangeException();      // quoted island, verbatim
             }
@@ -578,10 +580,10 @@ public class InjectedSurfaceCompletenessTest
             ],
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        // `Member` is discovered structurally (like any user [SyntaxBuilder]), so its synthesized facade also
-        // needs SyntaxBuilderFacadeGenerator in the driver — the injected surface alone is no longer enough for
-        // the ORIGINAL call site to type-check (unlike TypeOf, still recognized by binding to the injected
-        // Template.TypeOf facade).
+        // `Member` and `TypeOf` are both discovered structurally (like any user [SyntaxBuilder]), so their
+        // synthesized facades also need SyntaxBuilderFacadeGenerator in the driver — the injected surface alone
+        // is no longer enough for the ORIGINAL call sites to type-check (TypeOf now rides the structural
+        // operator path via the synthesized Operators.TypeOf facade, exactly like Member).
         var driver = CSharpGeneratorDriver.Create(
             new SurfaceInjectionGenerator(),
             new SyntaxBuilderFacadeGenerator(),

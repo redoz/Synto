@@ -6,12 +6,12 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace Synto.Test.Templating;
 
 /// <summary>
-/// Exercises the generic syntax-builder mechanism (plan Task 3): the built-in <c>TypeOf</c> facade
-/// (hand-authored on <c>Template</c>, recognized by binding) and <c>[SyntaxBuilder]</c> methods — including
-/// the built-in <c>Member</c> builder, discovered exactly like a user builder (facade synthesized, recognized
-/// structurally). A recognized facade call is rewritten to a fully-qualified static invocation of the paired
-/// builder over processed arguments: a <c>[Quoted]</c> parameter receives the quote of the call argument, an
-/// unmarked parameter the live value verbatim.
+/// Exercises the generic syntax-builder mechanism (plan Task 3): <c>[SyntaxBuilder]</c> methods — including
+/// the built-in <c>Member</c> builder and the operator builders (<c>TypeOf</c> on <c>OperatorBuilders</c>) —
+/// are all discovered exactly like a user builder (facade synthesized, recognized structurally; nothing is
+/// bind-recognized by a hardcoded name). A recognized facade call is rewritten to a fully-qualified static
+/// invocation of the paired builder over processed arguments: a <c>[Quoted]</c> parameter receives the quote
+/// of the call argument, an unmarked parameter the live value verbatim.
 /// </summary>
 public class SyntaxBuilderTest
 {
@@ -588,6 +588,43 @@ public class SyntaxBuilderTest
             .Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
         Assert.True(errors.Count == 0,
             "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
+    // Task 3 (spec §5): TypeOf rides the structural [SyntaxBuilder] path — recognized because
+    // OperatorBuilders.TypeOf is a registered builder, NOT because the finder hardcodes the name "TypeOf".
+    // The rewritten factory calls the fully-qualified OperatorBuilders.TypeOf; the deleted SyntoBuilders.TypeOf
+    // never appears. Regression pin (may already pass after Task 2's builder registration).
+    [Fact]
+    public void TypeOf_RecognizedStructurally_NotByHardcodedName()
+    {
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                System.Type Build(int i) => TypeOf("System.Int32");
+            }
+            """);
+
+        // Rewritten to the structural builder target (OperatorBuilders), not the deleted SyntoBuilders.TypeOf.
+        Assert.Contains("OperatorBuilders.TypeOf", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("SyntoBuilders.TypeOf", generated, StringComparison.Ordinal);
+    }
+
+    // Task 3: source guard that the hardwired by-name arm is physically gone from FacadeCallFinder — no
+    // `TryBuiltIn` / `IsBuiltInFacadeName` members remain (they only existed to bind-recognize Template.TypeOf).
+    // Red-first: fails until the arm is deleted.
+    [Fact]
+    public void FacadeCallFinder_HasNoHardcodedBuiltInArm()
+    {
+        var t = typeof(TemplateFactorySourceGenerator).Assembly
+            .GetType("Synto.Generators.Templating.Builders.FacadeCallFinder", throwOnError: true)!;
+        var names = t.GetMethods(BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
+            .Select(m => m.Name).ToList();
+        Assert.DoesNotContain("TryBuiltIn", names);
+        Assert.DoesNotContain("IsBuiltInFacadeName", names);
     }
 
     // #1: a call whose simple name COLLIDES with a registered builder but which BINDS to a real, unrelated

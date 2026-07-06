@@ -65,24 +65,4 @@ public static class Template
     /// </summary>
     /// <param name="node">The pre-built expression syntax to splice verbatim.</param>
     public static Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax Splice(Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax node) => node;
-
-    /// <summary>
-    /// In a <c>[Template]</c> body, <c>TypeOf("Name")</c> emits the type reference <c>Name</c> (a
-    /// <c>TypeSyntax</c>) into the produced syntax. Hosted here — rather than as a <c>[SyntaxBuilder]</c> on
-    /// <c>SyntoBuilders</c> the way <c>Member</c> migrated — because this facade must return <c>System.Type</c>
-    /// in <em>value position</em> (e.g. <c>System.Type GetFieldType() =&gt; TypeOf(c.ColumnTypeName);</c>), while
-    /// the paired builder in <c>SyntoBuilders</c> returns <c>ExpressionSyntax</c>. A same-signature
-    /// <c>System.Type TypeOf(string)</c> facade there would be CS0111 against the builder (return-type-only
-    /// difference); a synthesized generic escape hatch loses overload resolution to the builder's exact
-    /// non-generic match. And unlike <c>Member</c> — whose <c>[Quoted] ExpressionSyntax</c> first parameter
-    /// shields it, so a real author argument never binds to the builder and the call falls through to
-    /// structural recognition instead — <c>TypeOf</c> takes only a factory-time type name that is itself often a
-    /// live/staged value, so <c>[TypeArg]</c> (a compile-time type token) cannot express it either. Hence this
-    /// hand-authored, <c>System.Type</c>-pinned facade stays on <c>Template</c> (a different type than
-    /// <c>SyntoBuilders</c>) permanently, not as migration debt. Inert (<c>=&gt; default!</c>): the generator
-    /// recognizes the call by binding and rewrites it at factory-build time to the matching builder in
-    /// <c>SyntoBuilders</c>.
-    /// </summary>
-    /// <param name="name">The type name (a factory-time value).</param>
-    public static System.Type TypeOf(string name) => default!;
 }
