@@ -23,6 +23,8 @@ Synto.Runtime.Markers.cs
 Synto.Runtime.MatchAttribute.cs
 Synto.Runtime.MatchOption.cs
 Synto.Runtime.MatchReplaceExtensions.cs
+Synto.Runtime.OperatorBuilders.cs
+Synto.Runtime.Operators.cs
 Synto.Runtime.QuoteAttribute.cs
 Synto.Runtime.QuotedAttribute.cs
 Synto.Runtime.ReplaceOption.cs

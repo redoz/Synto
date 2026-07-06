@@ -557,6 +557,39 @@ public class SyntaxBuilderTest
             "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
+    // Task 2: the injected operator surface exists and its inert value facade synthesizes. A carrier that
+    // imports `using static …Operators` and writes `System.Type t = TypeOf("System.Int32");` type-checks
+    // against the synthesized `Operators.TypeOf(string) : System.Type`, and the factory rewrites the call to
+    // the fully-qualified `OperatorBuilders.TypeOf(...)`. Uses the three-generator driver like
+    // BuiltInBuilderOutput_CompilesAlongsidePublicSyntoCore.
+    [Fact]
+    public void OperatorSurface_TypeOf_Synthesizes_And_Compiles()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                System.Type Build(int i) => TypeOf("System.Int32");
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
     // #1: a call whose simple name COLLIDES with a registered builder but which BINDS to a real, unrelated
     // user method must NOT be hijacked as a builder facade — it is quoted verbatim. Today the finder matches by
     // simple name alone and mis-binds `settings.Wrap()` (0 args) to the 1-param builder, emitting SY1016.
