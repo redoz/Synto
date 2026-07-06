@@ -24,4 +24,8 @@ internal static partial class OperatorBuilders
     internal static ExpressionSyntax NameOf(string name) =>
         InvocationExpression(IdentifierName("nameof"),
             ArgumentList(SingletonSeparatedList(Argument(ParseExpression(name)))));
+
+    /// <summary>Builds <c>sizeof(name)</c> from a factory-time type name.</summary>
+    [SyntaxBuilder(Returns = typeof(int), Facade = typeof(Operators))]
+    internal static ExpressionSyntax SizeOf(string name) => SizeOfExpression(ParseTypeName(name));
 }

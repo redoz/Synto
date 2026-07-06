@@ -694,6 +694,73 @@ public class SyntaxBuilderTest
         Assert.Contains("nameof(Foo.Bar)", rendered, System.StringComparison.Ordinal);
     }
 
+    // Task 5 (spec §2/§5): SizeOf is the THIRD operator builder, completing the closed family (typeof/nameof/
+    // sizeof). SizeOf("int") emits `sizeof(int)` in output, and the value facade returns `int`.
+    [Fact]
+    public void SizeOf_EmitsSizeofExpression()
+    {
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                int Build() => SizeOf("int");
+            }
+            """);
+
+        // The factory rewrites the call to the fully-qualified builder ...
+        Assert.Contains("OperatorBuilders.SizeOf", generated, StringComparison.Ordinal);
+    }
+
+    // Task 5: executed end-to-end proof (modeled on NameOf_Executed_EmitsNameofExpression) that SizeOf actually
+    // RUNS at factory time and produces `sizeof(int)` — the rewrite-target assertion above only pins the call
+    // rewrite, not the rendered output.
+    [Fact]
+    public void SizeOf_Executed_EmitsSizeofExpression()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+
+            partial class Factory {}
+
+            [Template<Factory>]
+            public class Reader {
+                public int Build() => SizeOf("int");
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var compileErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(compileErrors.Count == 0,
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        using var peStream = new System.IO.MemoryStream();
+        var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        var assembly = Assembly.Load(peStream.ToArray());
+        var readerFactory = assembly.GetType("Factory")!.GetMethod("Reader")!;
+        var built = readerFactory.Invoke(null, null);
+
+        var node = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.SyntaxNode>(built!);
+        var rendered = node.NormalizeWhitespace().ToString();
+        Assert.Contains("sizeof(int)", rendered, System.StringComparison.Ordinal);
+    }
+
     // #1: a call whose simple name COLLIDES with a registered builder but which BINDS to a real, unrelated
     // user method must NOT be hijacked as a builder facade — it is quoted verbatim. Today the finder matches by
     // simple name alone and mis-binds `settings.Wrap()` (0 args) to the 1-param builder, emitting SY1016.
