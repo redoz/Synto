@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Immutable;
 using System.Linq;
+using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Templating;
@@ -27,9 +29,19 @@ internal sealed class TemplateInfo
 
     public static TemplateInfo? Create(GeneratorAttributeSyntaxContext syntaxContext)
     {
+        // Thin wrapper: unpack the generator-only context and delegate to the plain-input overload below.
+        return Create(syntaxContext.SemanticModel, syntaxContext.TargetNode, syntaxContext.Attributes, CancellationToken.None);
+    }
+
+    // Discovery entry decoupled from GeneratorAttributeSyntaxContext so the SY1035 highlight analyzer can drive
+    // discovery — interim workaround, see spec §Known debt / 1.0 gate (Option C).
+    // targetNode is a plain SyntaxNode (not MemberDeclarationSyntax): template carriers include LOCAL FUNCTIONS
+    // (LocalFunctionStatementSyntax : StatementSyntax) as well as method/class/struct members.
+    public static TemplateInfo? Create(SemanticModel semanticModel, SyntaxNode targetNode, ImmutableArray<AttributeData> attributes, CancellationToken cancellationToken)
+    {
         // this just sanity checks against accepting things that the compiler should've rejected in the first place
 
-        var attr = syntaxContext.Attributes.FirstOrDefault();
+        var attr = attributes.FirstOrDefault();
         if (attr is null)
             return null;
 
@@ -37,7 +49,7 @@ internal sealed class TemplateInfo
         if (attr.ApplicationSyntaxReference is null)
             return null;
 
-        if (attr.ApplicationSyntaxReference.GetSyntax() is not AttributeSyntax attrSyntax)
+        if (attr.ApplicationSyntaxReference.GetSyntax(cancellationToken) is not AttributeSyntax attrSyntax)
             return null;
 
         // Only the generic [Template<T>] form flows here (the parameterless [Template] is handled by the arity-0
@@ -49,11 +61,17 @@ internal sealed class TemplateInfo
         if (genericAttr.TypeArguments[0] is not INamedTypeSymbol factoryType)
             return null;
 
+        // TargetSymbol.Name in the generator path == the declared symbol's name; derive it here so the plain
+        // overload stays context-free. GetDeclaredSymbol resolves the same symbol for every template carrier
+        // (method / class / struct member, or a local function).
+        if (semanticModel.GetDeclaredSymbol(targetNode, cancellationToken) is not { } targetSymbol)
+            return null;
+
         var target = new TargetType(attr, factoryType);
 
-        var source = new Source(syntaxContext.TargetNode, syntaxContext.TargetSymbol.Name);
+        var source = new Source(targetNode, targetSymbol.Name);
 
-        return new TemplateInfo(syntaxContext.SemanticModel, attrSyntax, source, target, ReadOptions(attr), ReadExtent(attr));
+        return new TemplateInfo(semanticModel, attrSyntax, source, target, ReadOptions(attr), ReadExtent(attr));
     }
 
     /// <summary>
