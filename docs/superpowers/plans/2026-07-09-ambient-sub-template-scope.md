@@ -99,7 +99,12 @@ End state: the default (`Static = false`) sub-template is lowered as a nested lo
 
 ### Task 3: SPIKE — resolve the `[Splice]`/owner-body → ambient-sub-template call-referencing mechanic
 
-**This task is a de-risking spike, not a feature increment.** It resolves the one mechanic the spec flags as unproven (spec §5, §8.2) and writes its answer back into the spec before any ambient emission is built. It ends in a committed decision note, not necessarily generator code.
+> **✅ RESOLVED 2026-07-09 (owner-approved). Findings written into spec §8.2. Summary:**
+> - **There is no generic-arg → `TypeSyntax` call rewrite** (the thing the spec §5/§8.2 assumed "already fires"). The `[Splice] TRet` snapshot authors the `TypeSyntax` positionally by hand (`ChildTemplateTest.cs:78,80`); the `[Unquote] TRet` path (ObjectReader) keeps a **generic** factory + `typeof(TRet).ToTypeSyntax()` (`TemplateFactoryBuilder.cs:225-256`). `SpliceGeneratorBodyRewriter` touches only `Unquote` (`SpliceMemberGeneratorEmitter.cs:85-129`).
+> - **ObjectReader self-hosts** (`…Generator.csproj` references `Synto.Generators` `OutputItemType="Analyzer"` on its own project), so the carrier `[Splice]` body must bind against the generated `Factory.TypedGetter` in the same compilation. A **closure / nested-local-fn** lowering deletes that top-level member and breaks self-host binding — **rejected** (and it's strictly more machinery). A separate inert bind-stub works (local-fn-shadows-`using static` is probe-proven) but leaves an unusable phantom — **rejected**.
+> - **Chosen mechanic: auto-thread owner class-level bindings as OPTIONAL trailing params on the child factory; the rewriter injects the arg in output.** Author drops only the owner arg from the existing `Factory.X<T>(…)` call (no marker, no phantom, no closure). Bind target stays the real usable factory. Tasks 4–5 below are re-scoped to this.
+
+**This task was a de-risking spike, not a feature increment.** It resolved the one mechanic the spec flagged as unproven (spec §5, §8.2) and wrote its answer back into the spec before any ambient emission is built. It ends in a committed decision note, not generator code.
 
 **The question to answer, concretely:** today a `[Splice]` generator body is copied verbatim (`SpliceMemberGeneratorEmitter.cs:33-56`; `SpliceGeneratorBodyRewriter` only drops `Unquote` decls / resolves inline `Unquote("name")`), and it references the child as `Factory.TypedGetter<int>(columns, …)` — a real `internal static` method (`TemplateFactoryBuilder.cs:187-197`). Establish, with a runnable probe:
 1. **How does `Factory.TypedGetter<int>(columns, …)` in the carrier `[Splice]` source resolve at carrier compile time today** — against what declaration (self-hosted generated `Factory` partial? an inert stub?), and how does the generic `<int>` + `columns` arg become `TypedGetter(PredefinedType(IntKeyword), columns, …)` in output (`…#Factory.Reader.g.verified.cs:17-27`)? Name the exact rewrite site (or prove it is authored pre-lowered in the test source).
@@ -123,59 +128,61 @@ End state: the default (`Static = false`) sub-template is lowered as a nested lo
   Plan-Tasks: 3"
   ```
 
-### Task 4: Emit the ambient arm as a nested local function inside the owner factory (owner bindings ambient), behind `Static = false`, on a NEW nested template with no cross-references yet
+### Task 4: Emit the ambient arm — append owner class-level bindings as OPTIONAL trailing factory params, behind `Static = false`, on a NEW nested template not yet called from a `[Splice]`
 
-Build the ambient emission in isolation on a fresh minimal nested `[Template]` that references an owner class-level binding but is **not yet called from a `[Splice]`** — so the local-function emission + owner-scope capture is proven before the call-referencing (Task 5) is wired.
+Build the ambient emission in isolation on a fresh minimal nested `[Template]` that reads an owner class-level binding **without declaring it as its own param** and is **not yet called from a `[Splice]`** — so the append-optional-param + reference-resolution is proven before the call-arg injection (Task 5) is wired. (The child factory stays a normal top-level `internal static` member — NO nested local function, NO closure; the resolved §8.2 mechanic.)
 
 **Files:**
-- Modify: `src/Synto.Generators/Templating/Emit/TemplateFactoryBuilder.cs` (`EmitAmbientSubTemplate` from Task 2 — replace its isolated body: build the child body via the existing per-template quoting, then emit it as a `LocalFunctionStatement` into the **owner factory's preamble**, mirroring `SpliceMemberGeneratorEmitter.cs:35,52` — non-static local function so it closes over the owner factory's params/lifted class-level bindings; the child's varying inputs stay its local-function params, the owner class-level binding it references resolves to the captured owner param)
-- Modify: `src/Synto.Generators/Templating/Emit/TemplateScopedWalker.cs:27-34` if the ambient child's owner-binding reference must be preserved (not skipped) while its own subtree stays foreign to the parent's *staging* — confirm the walk still excludes the child's own roots but the emitter has the child body available for local-function emission.
+- Modify: `src/Synto.Generators/Templating/Emit/TemplateFactoryBuilder.cs` — `ResolveScopeAndTrimForeignChildren` (`:171-199`) passes the owner's discovered class-level bindings (name + type + lift strategy — the parent's staged roots, e.g. the `columns` field-position `= Unquote<…>()` root) into the recursive child `Build(…, InternalKeyword)` (`:191`). Inside the child build (`EmitAmbientSubTemplate` fork seam from Task 2): for each owner binding **referenced in the child body but not among the child's own declared roots**, append an **optional trailing factory parameter** (`<type> <name> = default`, after the child's own params) and register its references so they resolve to that parameter (reuse the staged-root reference-replacement path). `Static = true` children skip this entirely (author declares the param themselves — today's shape).
+- Modify: `src/Synto.Generators/Templating/Emit/TemplateInfo.cs` / `TemplateBuildContext` — thread the owner-binding set (pure data: names/types/lift, no symbols) so it flows into the child build as equatable state.
+- Modify: `src/Synto.Generators/Templating/Emit/TemplateScopedWalker.cs:27-34` only if the ambient child's owner-binding reference must be discoverable (confirm the walk still excludes the child's own roots but the owner-binding names reach the child build).
 - Test: new case in `test/Synto.Test/Templating/ChildTemplateTest.cs` + its snapshot.
 
 **Interfaces (contract):**
-- `EmitAmbientSubTemplate` appends a `LocalFunctionStatement` (non-static) to the owner factory preamble instead of a top-level method to `ctx.SubTemplates`; the owner class-level binding referenced in the child body lowers to the captured owner-factory param of the same name (no new param on the local function for it). The child's own varying inputs remain local-function params.
-- Cacheability: identical shape to `SpliceMemberGeneratorEmitter`; nothing symbolic into state.
+- An ambient (`Static = false`) sub-template's generated `internal static` factory gains **one optional trailing parameter per referenced owner class-level binding** (`= default`), in owner-declaration order, appended after the child's own params. The child body's references to that binding resolve to the appended parameter. Return-shape, generic-`TRet` handling, and the child's own `[Unquote]` params are unchanged.
+- A `Static = true` child is byte-identical to Phase 1 (author declares the binding as its own param; no append).
+- Cacheability: the owner-binding set is pure data; nothing symbolic enters pipeline state.
 
 **Failing-test intent:**
-- Ambient-capture fact: a default `[Template]` child that reads the owner's field-position `= Unquote<…>()` root, with no own reference to it as a param, emits a nested local function inside the owner factory that uses the captured owner binding — snapshot the owner factory and assert the local function + bare owner-binding use (no re-declared param).
-- Opt-out fact: the same child marked `[Template(Static = true)]` still emits the top-level `internal static` form (byte-identical to Phase 1).
+- Ambient-append fact: a default `[Template]` child that reads the owner's field-position `= Unquote<…>()` root **without declaring it**, not called from any `[Splice]`, emits a top-level `internal static` factory carrying that binding as an **optional trailing param** and resolves the body references to it — snapshot the child factory and assert the optional trailing param + resolved references (no required leading param).
+- Opt-out fact: a sibling child that DECLARES the binding as its own `[Unquote]` param and is marked `[Template(Static = true)]` still emits today's isolated form (byte-identical to Phase 1).
 
 **Steps:**
-- [ ] Write both facts; ambient fact fails (still isolated).
-- [ ] Implement `EmitAmbientSubTemplate` as local-function emission mirroring the splice emitter.
-- [ ] Accept the new ambient snapshot (eyeball: local function present, owner binding captured, child's own params intact); `Static` snapshot **byte-identical**.
+- [ ] Write both facts; ambient-append fact fails (owner binding unresolved / not appended).
+- [ ] Implement owner-binding discovery + threading into the child build; append the optional trailing param and resolve references in `EmitAmbientSubTemplate`.
+- [ ] Accept the new ambient snapshot (eyeball: optional trailing `= default` param present, references resolved, child's own params intact); `Static` snapshot **byte-identical**.
 - [ ] Full gate + cacheability guards green.
 - [ ] Commit:
   ```
-  rtk jj commit -m "feat(templating): ambient sub-template arm — nested local function capturing owner scope
+  rtk jj commit -m "feat(templating): ambient sub-template arm — append owner bindings as optional trailing factory params
 
   Plan: docs/superpowers/plans/2026-07-09-ambient-sub-template-scope.md
   Plan-Tasks: 4"
   ```
 
-### Task 5: Wire the ambient call-referencing — `[Splice]`/owner-body calls resolve to the bare local function with owner-ambient args dropped
+### Task 5: Wire the ambient call-arg injection — `[Splice]`/owner-body calls to an ambient child get the owner-binding arg appended in output
 
-Using Task 3's resolved mechanic, make a `[Splice]` generator (or owner-body call) that references an ambient sub-template emit a bare local-function invocation, dropping the owner-ambient argument(s) and lifting the generic type arg to a leading `TypeSyntax`.
+Using Task 3's resolved mechanic, make a `[Splice]` generator (or owner-body call) that invokes an ambient sub-template — writing the columns-dropped form `Factory.Child<T>(varyingArgs…)` — emit `Factory.Child<T>(varyingArgs…, ownerBinding)` in output, appending the in-scope owner-binding argument to match the optional trailing param from Task 4. The generic type arg stays a generic arg (NO positional-`TypeSyntax` lift — Finding A).
 
 **Files:**
-- Modify: `src/Synto.Generators/Templating/Staging/SpliceMemberGeneratorEmitter.cs` (extend `SpliceGeneratorBodyRewriter` — recognize a call to an ambient sub-template per Task 3's reference surface and rewrite it to the bare local-function name, drop owner-ambient args, lift the generic arg to a leading `TypeSyntax`; today the rewriter only handles `Unquote`)
-- Modify: whichever call-rewrite site Task 3 identified for the generic-arg → `TypeSyntax` lowering (cite its `path:line` from the spike)
-- Test: `test/Synto.Test/Templating/ChildTemplateTest.cs` — a `[Splice]` that invokes the ambient child.
+- Modify: `src/Synto.Generators/Templating/Staging/SpliceMemberGeneratorEmitter.cs` — extend `SpliceGeneratorBodyRewriter` (`:85-129`, today `Unquote`-only): recognize an invocation whose target is an ambient sub-template's factory (`Factory.<child>` where `<child>` is a `Static = false` sub-template of this carrier) and **append the owner-binding argument(s)** — the in-scope owner factory parameter of the same name (e.g. `columns`) — after the written args, in the Task-4 param order. A call to a `Static = true` sub-template is left verbatim (author already passes the arg).
+- Test: `test/Synto.Test/Templating/ChildTemplateTest.cs` — a `[Splice]` that invokes the ambient child with the owner arg omitted.
 
 **Interfaces (contract):**
-- A `[Splice]` body call to an ambient sub-template `Child<T>(ownerBinding, varyingArgs…)` lowers to `Child(TypeSyntaxForT, varyingArgs…)` as a bare invocation (no `Factory.`), with `ownerBinding` dropped (ambient). A call to a `Static = true` sub-template is unchanged (`Factory.Child(TypeSyntaxForT, ownerBinding, varyingArgs…)`).
+- A `[Splice]` body call `Factory.Child<T>(varyingArgs…)` to an ambient sub-template lowers to `Factory.Child<T>(varyingArgs…, ownerBinding)` in output — `Factory.` qualifier and generic `<T>` preserved, owner-binding arg **appended** (not dropped, not lifted). A `Static = true` sub-template call is unchanged (`Factory.Child<T>(ownerBinding, varyingArgs…)` as authored).
+- The rewriter needs to know which sub-templates are ambient (`Static = false`) and their appended-param order — surfaced from Task 4's owner-binding set on the carrier's scope.
 
 **Failing-test intent:**
-- End-to-end fact: an owner carrier with a field-position owner root, an ambient child reading it, and a `[Splice]` invoking the child once per type, generates a factory whose splice local function calls the child local function bare with the owner arg absent — snapshot the owner factory.
+- End-to-end fact: an owner carrier with a field-position owner root, an ambient child reading it (no own param), and a `[Splice]` invoking the child once per type with the owner arg omitted, generates a factory whose splice local function calls `Factory.Child<T>(varyingArgs…, columns)` with the owner arg appended — snapshot the owner factory.
 
 **Steps:**
-- [ ] Write the end-to-end fact; fails (call still references the old form).
-- [ ] Implement the rewrite per Task 3.
-- [ ] Accept the snapshot (eyeball the bare call + dropped owner arg).
+- [ ] Write the end-to-end fact; fails (owner arg not injected → arg count mismatch or wrong output).
+- [ ] Implement the append in `SpliceGeneratorBodyRewriter` per Task 3.
+- [ ] Accept the snapshot (eyeball the appended owner arg + preserved generic form).
 - [ ] Full gate + cacheability green.
 - [ ] Commit:
   ```
-  rtk jj commit -m "feat(templating): ambient sub-template call-referencing — bare local-fn call, owner args dropped
+  rtk jj commit -m "feat(templating): ambient sub-template call-arg injection — append owner binding at [Splice] call sites
 
   Plan: docs/superpowers/plans/2026-07-09-ambient-sub-template-scope.md
   Plan-Tasks: 5"
@@ -186,7 +193,7 @@ Using Task 3's resolved mechanic, make a `[Splice]` generator (or owner-body cal
 Flip the showcase to the ambient default and prove the dog-food end-to-end.
 
 **Files:**
-- Modify: `examples/Synto.Example.ObjectReader/Synto.Example.ObjectReader.Generator/ReaderTemplate.cs:116-140` (drop `[Unquote] EquatableArray<ColumnInfo> columns` from `TypedGetter`'s signature; the body already reads `columns` — it now resolves to the owner carrier's `static readonly … columns` field at `:50` as an ambient owner binding; the `[Splice] TypedGetters()` loop drops the `columns` argument from each `TypedGetter<…>(…)` call and adopts Task 3's reference surface for the bare call)
+- Modify: `examples/Synto.Example.ObjectReader/Synto.Example.ObjectReader.Generator/ReaderTemplate.cs:116-140` (drop `[Unquote] EquatableArray<ColumnInfo> columns` from `TypedGetter`'s signature; the body already reads `columns` — it now resolves to the owner carrier's `static readonly … columns` field at `:50` as an ambient owner binding; the `[Splice] TypedGetters()` loop drops ONLY the `columns` **argument** from each call — keeping the `Factory.TypedGetter<…>("…","…")` qualifier + generic form (Task 3's resolved mechanic; NOT a bare call). The generated `Factory.TypedGetter` gains `columns` as an optional trailing param (Task 4) and the rewriter re-injects the arg in output (Task 5), so generated getter bodies are semantically equivalent to today; the factory signature + call-arg order shift is an expected snapshot delta, not byte-identical.)
 - Re-accept: any ObjectReader generated snapshots that shift shape.
 - Test: `examples/Synto.Example.ObjectReader/Synto.Example.ObjectReader.Tests/` (all 10) + `ObjectReaderIncrementalTests.cs:32`.
 
@@ -245,4 +252,4 @@ Lock both lowerings under test and sync the navigation docs.
 - Spec §7 migration → Task 6 (ObjectReader) + Task 7 (`ChildTemplateTest` both modes).
 - Spec §8 open decisions: §8.1 name `Static` (owner-confirmed) → surface tasks; §8.2 call mechanic → **Task 3 spike (front-loaded)**; §8.3 dead-ambient = C# error → Global Constraints (no diagnostic); §8.4 `ChildTemplateTest` split → Task 7.
 
-**Known risk (called out, not hidden):** Task 3 is a genuine spike — if the ambient call-referencing has no clean surface that keeps the carrier compiling, Task 3 pauses Phase 2 for an owner decision. Phase 1 (the `Static` opt-out) has already shipped value by then and does not depend on Phase 2.
+**Known risk — RESOLVED (2026-07-09).** Task 3 (the spike) landed: the ambient call-referencing mechanic is **auto-thread owner bindings as optional trailing factory params + inject the arg at `[Splice]` call sites** (spec §8.2, owner-approved). No closure, no nested-local-fn, no phantom stub, no new call surface. The rejected closure lowering was what threatened self-host compilation; the resolved mechanic keeps the child factory a normal top-level member, so the carrier always binds. Phase 1 (the `Static` opt-out) still ships value independently and does not depend on Phase 2.

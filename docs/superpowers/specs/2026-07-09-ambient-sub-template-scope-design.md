@@ -22,7 +22,11 @@ The exploration that produced this design also *rejected* a larger surface: an e
 `Ancestry = int.MinValue`). Making sub-templates ambient **by default** supersedes it — a co-located child
 just references the owner binding by name — and the "one owner, no grandparents" rule leaves the depth enum
 nothing to range over. Net: this is a *smaller* feature than the capture surface it replaces — a lowering
-change plus one attribute bit, no new call surface.
+change plus one attribute bit, no new call surface. **[NOTE — Task 3 spike (resolved): "no new call surface"
+HOLDS. The author drops the owner argument from the existing `Factory.X<T>(…)` call; the generator appends
+that binding as an OPTIONAL trailing factory param (World-A bind target) and injects the arg in output. A
+closure/nested-local lowering would instead delete the top-level member and break self-host binding — rejected.
+See §8.2 (resolved).]**
 
 ## 1. Context — what exists today
 
@@ -131,7 +135,11 @@ public TRet TypedGetter<[Unquote] TRet>([Unquote] string clrTypeName, [Unquote] 
     Switch(i, columns.Where(c => c.ColumnTypeName == clrTypeName).Select(...));  // `columns` is ambient
     throw new InvalidCastException($"Field {i} is not {typeLabel} column.");
 }
-// [Splice] caller drops the columns arg and the Factory. qualifier: TypedGetter(typeof(bool), "…", "…")
+// [Splice] caller drops ONLY the columns arg (keeps the `Factory.` qualifier + generic form):
+//   Factory.TypedGetter<bool>("global::System.Boolean", "a Boolean")
+// ^ RESOLVED (Task 3 spike): the earlier bare `TypedGetter(typeof(bool), …)` form does NOT self-host-bind.
+//   Instead the generated factory carries `columns` as an OPTIONAL trailing param so the columns-dropped call
+//   binds in World A; SpliceGeneratorBodyRewriter injects the `columns` arg in World B. See §8.2 (resolved).
 
 // OPT-OUT — today's shipped isolated form: top-level internal static Factory.TypedGetter(columns, …).
 [Template(Static = true)]
@@ -146,9 +154,11 @@ Two lowerings, selected by the `Static` bit:
   method**, at/above the point of first use, so it closes over the owner factory's params (the lifted
   class-level bindings). Sibling ambient sub-templates are peer local functions in the same method and call
   each other by bare name. Call sites in the owner's body / `[Splice]` generators reference the child by
-  bare name (the generic-arg → leading `TypeSyntax` rewrite that already fires is unchanged; only the
-  ambient owner args are *not* passed, because they are in scope). This is the **same lowering shape as an
-  existing `[Splice]` generator** (`…#Factory.Reader.g.verified.cs:15-27`).
+  bare name (~~the generic-arg → leading `TypeSyntax` rewrite that already fires is unchanged~~ — **CORRECTION,
+  Task 3 spike: no such rewrite exists; see §8.2 Finding A**; only the ambient owner args are *not* passed,
+  because they are in scope). This is the **same lowering shape as an existing `[Splice]` generator**
+  (`…#Factory.Reader.g.verified.cs:15-27`). **But how a self-hosted `[Splice]` NAMES the child is the
+  unresolved blocker — §8.2 Finding B (owner sign-off pending).**
 - **`Static` (opt-out).** Exactly today's path: `TemplateFactoryBuilder.Build` reused verbatim to emit a
   standalone `internal static` method on the target class; owner inputs are explicit params supplied at each
   call site.
@@ -190,9 +200,97 @@ whole point), and `ChildTemplateTest` should gain coverage of **both** modes. No
 
 1. **Opt-out name:** `Static` (mechanism) vs `Isolated`/`Standalone` (semantics). Leaning `Static` per the
    owner's phrasing; confirm.
-2. **Local-function placement + naming** inside the owner factory method (single shared helper region vs.
-   at-first-use), and how the bare-name call rewrite composes with the existing generic-arg → `TypeSyntax`
-   rewrite.
+2. **RESOLVED by the Task 3 spike (2026-07-09; owner-approved same day — mechanic = auto-threaded optional
+   trailing param, see the end of this item).** The call-referencing mechanic the ambient lowering needs did
+   NOT exist yet, and the
+   spec assumed a rewrite that also does not exist. Grounded findings:
+
+   **Finding A — there is no generic-arg → `TypeSyntax` call rewrite. Two separate, already-shipped
+   mechanisms produce the two shapes in the snapshots; neither is a call-site rewrite:**
+   - `[Splice] TRet` (the `ChildTemplateTest` `GetterTemplate`): the child factory is emitted **non-generic**
+     — `public static MethodDeclarationSyntax TypedGetter(TypeSyntax TRet, …)`
+     (`…#Factory.TypedGetter.g.verified.cs:16`). The `[Splice]` caller **authors the `TypeSyntax` positional
+     argument by hand** in source — `Factory.TypedGetter(PredefinedType(Token(IntKeyword)), columns, …)`
+     (`ChildTemplateTest.cs:78,80`). The `PredefinedType(…)` seen in `…#Factory.Reader.g.verified.cs:17-27`
+     is that source copied **verbatim**, not a generator rewrite.
+   - `[Unquote] TRet` (ObjectReader): `StagedTypeParameterFinder` classifies `[Unquote]` type params as
+     `IsSplice = false`, so `TemplateFactoryBuilder.LiftStagedTypeParameters` (`TemplateFactoryBuilder.cs:225-256`)
+     emits a **generic** factory `Factory.TypedGetter<TRet>(EquatableArray<ColumnInfo> columns, string, string)`
+     with a `typeof(TRet).ToTypeSyntax()` preamble. The caller writes `Factory.TypedGetter<bool>(columns, …)`
+     (`ReaderTemplate.cs:128`); the generic arg stays a **verbatim** generic arg into output, and the
+     `TypeSyntax` conversion happens at factory **runtime** inside the child. No call-site rewrite.
+   - The only rewriter of a `[Splice]` body, `SpliceGeneratorBodyRewriter`
+     (`SpliceMemberGeneratorEmitter.cs:85-129`), touches **only** `Unquote` (`IsParameterCall`) — decls
+     dropped, `Unquote("name")` → `IdentifierName(name)`. It never visits child-factory invocations. So spec
+     §5 ("the generic-arg → leading `TypeSyntax` rewrite that already fires") and this §8.2's old wording
+     describe a seam that does not exist. (This is why an earlier investigator could not locate it.)
+
+   **Finding B — the blocker: ObjectReader self-hosts, so ambient deletes the very symbol the carrier binds
+   to.** `Synto.Example.ObjectReader.Generator.csproj` references `Synto.Generators` with
+   `OutputItemType="Analyzer"` **on its own project** — the generator runs on its own source. So the carrier's
+   real-C# `[Splice] TypedGetters()` body (`ReaderTemplate.cs:125-140`) must **bind at self-host compile time**
+   against the generator-produced `Factory.TypedGetter` in the **same** compilation. Self-host means World A
+   (carrier compile) and World B (generated output) are ONE generated artifact. Ambient lowering removes the
+   top-level `Factory.TypedGetter` member (emitting a nested local function instead) — which deletes the only
+   symbol the carrier's `[Splice]` body binds to, and the generator's own source stops compiling. **Route (a)
+   ("keep `Factory.X` nameable AND rewrite its calls to the bare local-fn in output") is impossible under
+   self-host:** one artifact cannot both be a top-level `Factory.TypedGetter` (World-A binding) and not be one
+   (ambient nested local, World-B). This is exactly §1's own mechanical constraint ("addressable top-level
+   method" ⊥ "true ambient owner scope"), applied to the same member. The spec §4 authoring line
+   (`TypedGetter(typeof(bool), "…", "…")` — bare, no `Factory.`) is likewise **not World-A-compilable** as
+   written: no such symbol exists in the `[Splice]` static method's scope.
+
+   **Why the two intuitive lowerings both fail:**
+   - **Closure (nested local function, the framing §1/§5 assumed).** Lowering the child as a nested local
+     function inside `Factory.Reader(…)` to close over `columns` **deletes** the top-level `Factory.TypedGetter`
+     member — so the self-hosted `[Splice]` call no longer binds in World A (Finding B). It is also strictly
+     **more** machinery, not less: World-A binding still needs a stand-in symbol, so closure = a stand-in **plus**
+     a local function. Rejected.
+   - **A separate inert bind-stub (nested `Factory.Getters` class + `using static`, or an injected facade).**
+     A local function shadows a `using static`-imported method of the same name with no ambiguity — *proven* by
+     probe: the same bare `TypedGetter<int>(…)` binds to the local function where one is in scope and to the
+     `using static` stub where none is. So it is mechanically viable. **But it introduces a bind-only member the
+     author is expected to call *instead of* the real factory — an unusable phantom.** Rejected on surface
+     cleanliness.
+
+   **Resolved mechanic — auto-thread owner bindings as OPTIONAL trailing factory parameters; no phantom, no
+   closure, no new marker.** The child template drops the owner binding from its own signature and reads the
+   owner's class-level binding directly in its body (exactly as the parent's own members already read the
+   `columns` field). The generator, seeing an owner class-level binding referenced in the child body, **appends
+   it as an optional trailing parameter** on the generated child factory and **injects the argument at each
+   self-hosted call site**:
+
+   ```csharp
+   // authored child — no `columns` parameter; body reads the owner field ambiently
+   [Template]
+   public TRet TypedGetter<[Unquote] TRet>([Unquote] string clrType, [Unquote] string typeLabel, int i) { … columns … }
+
+   // generated factory — owner binding appended as an OPTIONAL trailing param (still generic per the [Unquote] TRet path):
+   public static MethodDeclarationSyntax TypedGetter<TRet>(string clrType, string typeLabel,
+                                                          EquatableArray<ColumnInfo> columns = default) { … }
+   ```
+   - **World A** (carrier `[Splice]` self-host compile): the author writes `Factory.TypedGetter<bool>("…","…")`
+     (owner arg omitted) → binds to the **real, usable** factory with `columns` defaulted (inert at
+     carrier-compile). No phantom, no new call surface — the same `Factory.X<T>(…)` shape, one fewer argument.
+   - **World B** (generated output): `SpliceGeneratorBodyRewriter` (extended) recognizes a call to an ambient
+     child factory and **appends the owner-binding argument** → `Factory.TypedGetter<bool>("…","…", columns)`,
+     binding the real member and passing the owner factory's `columns`. Byte-for-byte today's output.
+
+   The bind target **is** the real factory — fully callable from anywhere with `columns` passed explicitly; the
+   optional default exists only so the terse authored form compiles. The `[Unquote] TRet` generic path is
+   unchanged (`TypedGetter<bool>(…)` binds the generic member, `typeof(TRet).ToTypeSyntax()` inside), so **no
+   positional-`TypeSyntax` lift is ever needed** — Finding A's nonexistent rewrite stays nonexistent.
+
+   **Cost (the one wart):** the owner binding becomes an **optional trailing parameter** (`= default`) and moves
+   to last. A *human* hand-calling the factory bare would get an empty `columns` → wrong output; the generator
+   never does, since it always injects the argument. The footgun is at least visible in the signature.
+
+   **Consequence for the plan:** §0's "no new call surface" **holds** (no marker, no facade, no stub) — the
+   author simply drops the owner argument from the existing call. The ambient default needs (1) the generator to
+   append owner class-level bindings as optional trailing params on the child factory, and (2) a
+   `SpliceGeneratorBodyRewriter` extension to inject those args at ambient-child call sites. **No closure, no
+   nested-local-fn lowering, no `TemplateScopedWalker` surgery.** Phase 1 (the `Static` bit, Tasks 1–2) is
+   unaffected. Tasks 4–5 are re-scoped to this mechanic.
 3. **Diagnostic for a dead-ambient reference:** if an ambient child names an identifier that is neither its
    own input nor an owner class-level binding, is that today's ordinary C# "does not exist in context" error
    (preferred — no new diagnostic) or a Synto-specific SY10xx? Default: rely on the C# compiler.
