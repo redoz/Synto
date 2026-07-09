@@ -1,7 +1,11 @@
+extern alias SyntoCore;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Synto.Test.Templating;
 
@@ -401,4 +405,71 @@ public class LiveTemplateHighlightTest
     // span — the per-span collapse is proven directly against the merge primitive in
     // LiveFragmentDiagnosticTest.Merge_DedupesBySpan (two DiagnosticInfos with equal LocationInfo -> one). This
     // note records that the R1 safety net has no reachable end-to-end trigger to exercise here.
+
+    // ----- Task 2: Seam B — highlightsOnly early-return in TemplateFactoryBuilder.Build -------------
+
+    private static ImmutableArray<TextSpan> Sy1035Spans(ImmutableArray<Diagnostic> diagnostics) =>
+        diagnostics
+            .Where(d => d.Id == "SY1035")
+            .Select(d => d.Location.SourceSpan)
+            .OrderBy(s => s.Start)
+            .ToImmutableArray();
+
+    // Direct unit assertion on the seam: Build(..., highlightsOnly: true) produces the SAME SY1035 span set the
+    // generator emits end-to-end for the same template, and returns an empty (factory-assembly-skipped) method list
+    // — proving the early-return fires after every SY1035 tap has merged, before QuoteAndAssemble.
+    [Fact]
+    public void HighlightsOnly_Build_ProducesGeneratorSy1035Spans_AndSkipsFactoryAssembly()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build() {
+                    var a = Unquote<int>();
+                    var cols = Unquote<IReadOnlyList<int>>();
+                    System.Console.WriteLine(a);
+                    foreach (var c in cols)
+                        System.Console.WriteLine(c + 1);
+                }
+            }
+            """;
+
+        // Generator (default-false) path: the reference SY1035 spans, end-to-end.
+        var generatorSpans = Sy1035Spans(RunAndGetDiagnostics(source));
+        Assert.True(generatorSpans.Length >= 3, $"fixture should surface >=3 SY1035 spans, got {generatorSpans.Length}");
+
+        // Direct highlightsOnly Build over the same source.
+        var ct = TestContext.Current.CancellationToken;
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, cancellationToken: ct);
+        var compilation = _baseCompilation.AddSyntaxTrees(syntaxTree);
+        var semanticModel = compilation.GetSemanticModel(syntaxTree);
+        var method = syntaxTree.GetRoot(ct).DescendantNodes().OfType<MethodDeclarationSyntax>().Single(m => m.Identifier.Text == "Build");
+        var attributes = semanticModel.GetDeclaredSymbol(method, ct)!.GetAttributes();
+
+        var templateInfo = TemplateInfo.Create(semanticModel, method, attributes, ct);
+        Assert.NotNull(templateInfo);
+
+        var diagnostics = new List<DiagnosticInfo>();
+        var factory = TemplateFactoryBuilder.Build(
+            diagnostics,
+            semanticModel,
+            new SyntoCore::Synto.UsingDirectiveSet(Enumerable.Empty<UsingDirectiveSyntax>()),
+            templateInfo!,
+            templateInfo!.Options,
+            highlightsOnly: true);
+
+        var buildSpans = diagnostics
+            .Where(d => d.Descriptor.Id == "SY1035")
+            .Select(d => d.Location!.Value.TextSpan)
+            .OrderBy(s => s.Start)
+            .ToImmutableArray();
+
+        Assert.Equal(generatorSpans, buildSpans);
+        Assert.True(factory is null || factory.Count == 0, "highlightsOnly build must skip factory assembly (empty/null method list)");
+    }
 }

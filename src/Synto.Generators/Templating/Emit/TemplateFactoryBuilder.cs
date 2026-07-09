@@ -29,13 +29,20 @@ namespace Synto.Generators.Templating.Emit;
 /// </summary>
 internal static class TemplateFactoryBuilder
 {
+    // highlightsOnly (default false): the SY1035 highlight analyzer reuses this whole classification+emit pass
+    // to paint live fragments inline in the editor, then DISCARDS the factory. By the time EmitLiveRegions
+    // succeeds every SY1035 tap has fired and been merged into `diagnostics` (see EmitLiveRegions :897-903), so
+    // when set we return WITHOUT running EmitSpliceMemberGenerators / QuoteAndAssemble (the throwaway factory
+    // assembly + serialization). The default-false path is the generator's, byte-for-byte unchanged. Interim
+    // workaround — Option C (front-end Classify extraction) is the 1.0 fix; see spec §Known debt / 1.0 gate.
     public static IReadOnlyList<MethodDeclarationSyntax>? Build(
         List<DiagnosticInfo> diagnostics,
         SemanticModel semanticModel,
         UsingDirectiveSet additionalUsings,
         TemplateInfo templateInfo,
         TemplateOption options,
-        SyntaxKind visibility = SyntaxKind.PublicKeyword)
+        SyntaxKind visibility = SyntaxKind.PublicKeyword,
+        bool highlightsOnly = false)
     {
         var ctx = new TemplateBuildContext(diagnostics, semanticModel, additionalUsings, templateInfo, options, visibility);
 
@@ -92,6 +99,13 @@ internal static class TemplateFactoryBuilder
 
         if (!EmitLiveRegions(ctx))
             return null;
+
+        // highlightsOnly: all SY1035 taps have fired and merged into ctx.Diagnostics by here, so the analyzer's
+        // reuse of this pass is complete — skip the factory-assembly tail (member generators + quote/assemble)
+        // and return an empty method list (the highlight caller ignores it). Interim workaround; see the Build
+        // summary above / spec §Known debt (Option C).
+        if (highlightsOnly)
+            return System.Array.Empty<MethodDeclarationSyntax>();
 
         EmitSpliceMemberGenerators(ctx);
 
