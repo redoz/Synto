@@ -21,7 +21,7 @@ internal sealed class QuoteCall(InvocationExpressionSyntax invocation, Expressio
 
 /// <summary>
 /// Discovers <c>Template.Quote(value)</c> calls in a <c>[Template]</c> body (recognized by binding, mirroring how
-/// <c>Template.Unquote</c> / <c>Splice</c> / <c>TypeOf</c> are recognized). Nothing is captured into pipeline
+/// <c>Template.Unquote</c> / <c>Splice</c> are recognized). Nothing is captured into pipeline
 /// state. The discovered invocation nodes are also handed to <see cref="BindingTimeClassifier"/> so it can shield
 /// their arguments from liveness propagation.
 /// </summary>
