@@ -428,6 +428,10 @@ internal static class TemplateDiagnostics
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
 
+    // Exposes the SY1035 descriptor so the LiveTemplateHighlightAnalyzer can advertise it in
+    // SupportedDiagnostics — interim workaround, see spec §Known debt / 1.0 gate (Option C).
+    internal static DiagnosticDescriptor LiveFragmentDescriptor => _liveFragment;
+
     public static DiagnosticInfo LiveFragment(Location? location)
     {
         return new DiagnosticInfo(_liveFragment,
