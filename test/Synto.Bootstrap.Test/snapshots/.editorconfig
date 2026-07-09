@@ -1,0 +1,12 @@
+# Verify snapshot files (*.verified.cs) are GENERATED artifacts — the recorded output of the
+# generators under test. They are not hand-authored source, so the repo-root whitespace/charset
+# rules (charset=utf-8 no-BOM, insert_final_newline, trim trailing whitespace) must not apply:
+# Verify serializes them with a UTF-8 BOM and preserves the generator's exact bytes, and forcing
+# hand-format rules would either fight Verify (snapshot flapping) or corrupt the recorded output.
+# Exempt them from the `dotnet format whitespace` green-gate. See spec
+# docs/superpowers/specs/2026-07-09-live-template-highlight-analyzer-design.md (base-gate note).
+[*.verified.cs]
+generated_code = true
+trim_trailing_whitespace = false
+insert_final_newline = false
+charset = unset
