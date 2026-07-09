@@ -56,13 +56,7 @@ internal class ObjectReaderTemplate<[Splice] T>
     // Staged scalar count-fold (Capability 2): the column count is DERIVED from the already-lifted column list via
     // `columns.Count` — `EquatableArray<ColumnInfo>.Count` folds to the same int literal at factory time, so there
     // is no redundant `Unquote<int>()`.
-    public int FieldCount
-    {
-        get
-        {
-            return columns.Count;
-        }
-    }
+    public int FieldCount => columns.Count;
 
     public string GetName(int i)
     {
