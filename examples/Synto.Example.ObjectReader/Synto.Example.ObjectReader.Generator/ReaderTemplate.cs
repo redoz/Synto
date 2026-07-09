@@ -116,15 +116,12 @@ internal class ObjectReaderTemplate<[Splice] T>
     // the carrier's [Splice] source below keep naming `Factory.TypedGetter(...)` across the class boundary in the
     // same assembly. It binds the real `_e` (`IEnumerator<T>`); only `_e.Current` is quoted, exactly as the standalone
     // carrier did. The return type is now a generic type argument (`[Unquote] TRet`, invoked `Factory.TypedGetter<int>(...)`,
-    // lifted internally via `typeof(TRet).ToTypeSyntax()`); the column list, CLR-type filter, and exception label stay as
-    // build-time `Unquote<...>()` inputs (they drive factory-time control / interpolation, so they need no value lift).
+    // lifted internally via `typeof(TRet).ToTypeSyntax()`); the column list, CLR-type filter, and exception label ride as
+    // ordinary `[Unquote]` factory parameters (they drive factory-time control / interpolation, so they need no value lift).
 
     [Template]
-    public TRet TypedGetter<[Unquote] TRet>(int i)
+    public TRet TypedGetter<[Unquote] TRet>([Unquote] EquatableArray<ColumnInfo> columns, [Unquote] string clrTypeName, [Unquote] string typeLabel, int i)
     {
-        var columns = Unquote<EquatableArray<ColumnInfo>>();
-        var clrTypeName = Unquote<string>();
-        var typeLabel = Unquote<string>();
         SyntoBuilders.Switch(i, columns.Where(c => c.ColumnTypeName == clrTypeName).Select(c =>
             SyntoBuilders.Case(c.Ordinal,
                 SyntoBuilders.Return(Member<TRet>(_e.Current, c.Name)))));
