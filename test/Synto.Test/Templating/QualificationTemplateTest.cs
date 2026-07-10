@@ -75,4 +75,32 @@ public class QualificationTemplateTest
         // GenericName (with its TypeArgumentList) survives, so a nested [Splice] type arg's ReplaceStep would fire.
         Assert.Contains("IdentifierName(\"Generic\")),GenericName(Identifier(\"List\"),", normalized, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void QualificationIsCacheable()
+    {
+        // Adding ResolveQualifications inside the transform must introduce NO new pipeline step and capture no
+        // SemanticModel/ISymbol: after an unrelated edit the tracked template steps must stay Cached/Unchanged.
+        var compilation = CSharpCompilation.Create("Test",
+            [CSharpSyntaxTree.ParseText(Source, cancellationToken: TestContext.Current.CancellationToken)],
+            references: References,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        var modified = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, TestContext.Current.CancellationToken);
+
+        var result = driver.GetRunResult().Results.Single();
+
+        // The [Template<Factory>] carrier drives the GENERIC template pipeline.
+        CacheabilityAssert.AllStepsCachedOrUnchanged(
+            result,
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
+    }
 }
