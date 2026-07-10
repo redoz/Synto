@@ -32,7 +32,11 @@ internal sealed class QualifyStep : INodeQuoteMiddleware
         ExpressionSyntax inner = next(authoredSimple)!;
 
         // Re-parent `inner` under the substitute's holes-free qualifier so the namespace / global:: prefix is
-        // injected without baking over the authored (spliceable) simple name.
+        // injected without baking over the authored (spliceable) simple name. The qualifier (`qn.Left` / alias) is
+        // taken from the SYMBOL-baked substitute — holes-free for a namespace prefix, which is the overwhelmingly
+        // common case. KNOWN LIMITATION (deep-review finding #2, deferred pre-1.0): if the qualifier is itself a
+        // GENERIC containing type with a spliced type argument (e.g. `Outer<[Splice] X>.Inner`), that splice is
+        // baked to its literal name here rather than fired — an extremely narrow, currently-unexercised shape.
         return _qualified switch
         {
             QualifiedNameSyntax qn => Invoke(nameof(QualifiedName), ctx.Quote(qn.Left)!, inner),

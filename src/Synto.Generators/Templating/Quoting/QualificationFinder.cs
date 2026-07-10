@@ -11,9 +11,11 @@ namespace Synto.Generators.Templating.Quoting;
 /// <c>global::</c>-rooted fully-qualified substitute — so the quoter emits self-contained output (spec
 /// 2026-07-10-quote-time-type-qualification). Only names that BIND to an <see cref="INamedTypeSymbol"/> as a
 /// type/namespace reference are recorded; type parameters, <c>var</c>, non-type symbols (locals, members, builder
-/// facades), already-<c>global::</c>-rooted names, and the Synto surface are skipped. A qualified name is keyed on
-/// the OUTERMOST name node (its constituent segments are not descended into), so nested/generic names produce a
-/// single substitute. Like <see cref="Builders.FacadeCallFinder"/> it is a <see cref="TemplateScopedWalker"/>: a nested
+/// facades), already-<c>global::</c>-rooted names, and the Synto surface are skipped. A written-out qualified name
+/// is keyed on its OUTERMOST node (its dotted segments are not descended into — one substitute). A GENERIC name,
+/// however, IS descended into after being recorded, so each concrete short-named type argument also gets its own
+/// substitute (QualifyStep re-quotes the authored type-arg subtree, so an undescended arg would emit bare). Like
+/// <see cref="Builders.FacadeCallFinder"/> it is a <see cref="TemplateScopedWalker"/>: a nested
 /// child <c>[Template]</c> subtree is skipped wholesale (the child qualifies itself). Runs inside the transform;
 /// captures no symbol/model — only the substitute <see cref="NameSyntax"/> (a plain syntax value).
 /// </summary>
@@ -41,8 +43,13 @@ internal sealed class QualificationFinder : TemplateScopedWalker
 
     public override void VisitGenericName(GenericNameSyntax node)
     {
-        if (TryQualify(node)) return;       // whole generic name qualified (type args come from the symbol)
-        base.VisitGenericName(node);        // else descend (e.g. type args that themselves need qualifying)
+        TryQualify(node);                   // qualify the generic name itself (if type-bound)…
+        base.VisitGenericName(node);        // …AND descend into its type arguments: a concrete short-named arg
+                                            // (e.g. StringBuilder in List<StringBuilder>) needs its OWN substitute,
+                                            // since QualifyStep re-quotes the AUTHORED type-arg subtree via `next`
+                                            // (not the symbol-baked one), so an undescended arg would emit bare.
+                                            // A type parameter / [Splice] arg binds to no INamedTypeSymbol ⇒ skipped
+                                            // here and left to its own ReplaceStep (fired through the same `next`).
     }
 
     public override void VisitQualifiedName(QualifiedNameSyntax node)

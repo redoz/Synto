@@ -24,6 +24,7 @@ public class QualificationTemplateTest
     private const string Source = """
         using System;
         using System.Collections.Generic;
+        using System.Text;
         using Synto.Templating;
         using static Synto.Templating.Template;
 
@@ -36,7 +37,7 @@ public class QualificationTemplateTest
             {
                 Type t = typeof(int);
                 object boxed = DBNull.Value;
-                List<int> nums = new List<int>();
+                List<StringBuilder> nums = new List<StringBuilder>();
                 GC.KeepAlive(nums);
                 return t;
             }
@@ -74,6 +75,10 @@ public class QualificationTemplateTest
         // (base-quoted) authored `List<...>` GenericName, exercising the QualifyStep compose path — the authored
         // GenericName (with its TypeArgumentList) survives, so a nested [Splice] type arg's ReplaceStep would fire.
         Assert.Contains("IdentifierName(\"Generic\")),GenericName(Identifier(\"List\"),", normalized, StringComparison.Ordinal);
+        // Regression (deep-review finding #1): a CONCRETE short-named type ARGUMENT must be qualified too. The
+        // finder descends into generic type args, so `StringBuilder` gets its own substitute; absent that it would
+        // render bare (CS0246 in a consumer without `using System.Text;`), defeating self-containment.
+        Assert.Contains(globalSystem + ",Token(DotToken),IdentifierName(\"Text\")),IdentifierName(\"StringBuilder\"))", normalized, StringComparison.Ordinal);
     }
 
     [Fact]
