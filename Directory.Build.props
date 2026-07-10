@@ -17,17 +17,10 @@
     <AnalysisMode>All</AnalysisMode>
   </PropertyGroup>
 
-  <!-- Warnings-as-errors, scoped to the projects that currently build warning-free. The core runtime
-       (Synto.Core, Synto.Bootstrap), the Api example, and some test projects still carry an analyzer-warning
-       backlog; add a project to this allowlist once it is warning-free so the clean set can never
-       silently regress. MSBuildProjectName is a reserved property, available at props-import time. -->
-  <PropertyGroup Condition="
-      '$(MSBuildProjectName)' == 'Synto.Diagnostics' or
-      '$(MSBuildProjectName)' == 'Synto.Generators' or
-      '$(MSBuildProjectName)' == 'Synto.Test' or
-      '$(MSBuildProjectName)' == 'Synto.Examples' or
-      '$(MSBuildProjectName)' == 'Synto.Example.ObjectReader.Generator' or
-      '$(MSBuildProjectName)' == 'Synto.Example.ObjectReader.Demo'">
+  <!-- Warnings-as-errors, solution-wide. The entire warning backlog was cleared (0 warnings on a
+       Release build of Synto.slnx), so every project now enforces warning-free builds and can never
+       silently regress. -->
+  <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
