@@ -35,4 +35,25 @@ public class QualifiedNameFactoryTest
         var name = QualifiedNameFactory.ForSymbol(Lookup("System.Collections.Generic.List`1+Enumerator"));
         Assert.Equal("global::System.Collections.Generic.List<T>.Enumerator", name.ToString());
     }
+
+    [Fact]
+    public void SpecialType_RendersAsNameNotKeyword()
+    {
+        // A special type spelled out by name (System.Int32) must render as a global::-rooted NameSyntax, NOT the
+        // `int` keyword — else the NameSyntax cast throws and generation crashes (SY0000). Regression guard.
+        var name = QualifiedNameFactory.ForSymbol(Lookup("System.Int32"));
+        Assert.Equal("global::System.Int32", name.ToString());
+    }
+
+    [Fact]
+    public void GenericWithSpecialTypeArgument_RendersArgAsName()
+    {
+        // The special type also appears as a type ARGUMENT (the crashing path was a generic name descended into a
+        // written-out special type arg). global::System.Collections.Generic.List`1<System.Int32> must round-trip.
+        var list = Lookup("System.Collections.Generic.List`1");
+        var int32 = Lookup("System.Int32");
+        var constructed = list.Construct(int32);
+        var name = QualifiedNameFactory.ForSymbol(constructed);
+        Assert.Equal("global::System.Collections.Generic.List<global::System.Int32>", name.ToString());
+    }
 }

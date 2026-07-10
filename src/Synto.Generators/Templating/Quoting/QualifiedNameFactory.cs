@@ -13,6 +13,16 @@ namespace Synto.Generators.Templating.Quoting;
 /// </summary>
 internal static class QualifiedNameFactory
 {
+    // FullyQualifiedFormat, but WITHOUT UseSpecialTypes — so a special type written out BY NAME (e.g. `System.Int32`
+    // / `System.Object` as a type argument) renders as its global::-rooted namespace-qualified name
+    // (global::System.Int32), which parses to a NameSyntax, rather than the `int` keyword (a PredefinedTypeSyntax the
+    // NameSyntax cast would reject, crashing generation). Predefined keywords authored AS keywords are never visited
+    // (they are PredefinedTypeSyntax, not name nodes); this only bites when a special type is spelled out by name,
+    // which must still round-trip to a NameSyntax. Reference types (the common case) are unaffected.
+    private static readonly SymbolDisplayFormat QualifiedFormat =
+        SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
+            SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions & ~SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
+
     public static NameSyntax ForSymbol(ISymbol symbol)
-        => (NameSyntax)SyntaxFactory.ParseTypeName(symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        => (NameSyntax)SyntaxFactory.ParseTypeName(symbol.ToDisplayString(QualifiedFormat));
 }

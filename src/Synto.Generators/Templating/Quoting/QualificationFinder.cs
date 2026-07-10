@@ -57,6 +57,18 @@ internal sealed class QualificationFinder : TemplateScopedWalker
         if (node.Parent is AliasQualifiedNameSyntax)
             return false;
 
+        // A name occupying a SimpleName-ONLY slot — the member of a member access (`System.Console`, `x.Member`), a
+        // member-binding (`?.Member`), or the right segment of a qualified name — must NOT be rewritten to a
+        // NameSyntax that may be a QualifiedName: that would break the parent's SimpleNameSyntax slot (CS1503). It is
+        // redundant anyway — the receiver/left already supplies the namespace context, and the reference's ROOT
+        // (the member-access expression / qualified-name left) is qualified in its own right when it is a bare name.
+        if (node.Parent is MemberAccessExpressionSyntax mae && mae.Name == node)
+            return false;
+        if (node.Parent is MemberBindingExpressionSyntax mbe && mbe.Name == node)
+            return false;
+        if (node.Parent is QualifiedNameSyntax qn && qn.Right == node)
+            return false;
+
         var symbol = _semanticModel.GetSymbolInfo(node).Symbol;
         if (symbol is not INamedTypeSymbol type)
             return false;                   // type parameters, methods, locals, members, unbound facades
