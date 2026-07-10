@@ -7,16 +7,6 @@ namespace Synto;
 
 internal static class SymbolExtensions
 {
-    // TODO this probably doesn't handle generic types?
-    public static NameSyntax GetQualifiedNameSyntax(this ISymbol symbol)
-    {
-        if (symbol is null) throw new ArgumentNullException(nameof(symbol));
-
-        if (symbol.ContainingNamespace is { IsGlobalNamespace: true })
-            return SyntaxFactory.IdentifierName(symbol.Name);
-        return SyntaxFactory.QualifiedName(GetQualifiedNameSyntax(symbol.ContainingNamespace), SyntaxFactory.IdentifierName(symbol.Name));
-    }
-
     public static NameSyntax? GetNamespaceNameSyntax(this ISymbol symbol)
     {
         if (symbol is null) throw new ArgumentNullException(nameof(symbol));
