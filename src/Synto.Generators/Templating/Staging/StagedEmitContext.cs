@@ -24,6 +24,7 @@ internal sealed class StagedEmitContext
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
         IReadOnlyDictionary<SyntaxNode, BuilderCall> builderCalls,
+        IReadOnlyDictionary<SyntaxNode, NameSyntax> qualifications,
         StagedRegionEmission emission)
     {
         SemanticModel = semanticModel;
@@ -33,6 +34,7 @@ internal sealed class StagedEmitContext
         BaseReplacements = baseReplacements;
         StringStagedRoots = stringStagedRoots;
         BuilderCalls = builderCalls;
+        Qualifications = qualifications;
         Emission = emission;
     }
 
@@ -45,6 +47,10 @@ internal sealed class StagedEmitContext
 
     /// <summary>Builder-call channel so island quoters inside a live region also expand facade calls (BuilderStep).</summary>
     public IReadOnlyDictionary<SyntaxNode, BuilderCall> BuilderCalls { get; }
+
+    /// <summary>Type-qualification channel so island / fixed-sibling quoters inside a live region emit their
+    /// type/namespace names global::-rooted too (QualifyStep) — otherwise unrolled output names stay bare (CS0246).</summary>
+    public IReadOnlyDictionary<SyntaxNode, NameSyntax> Qualifications { get; }
     public StagedRegionEmission Emission { get; }
 
     /// <summary>The current scaffold's run identifier (e.g. <c>__run_0</c>); reset per region by the scaffold builder.</summary>

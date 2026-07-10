@@ -10,19 +10,21 @@ namespace Synto.Generators.Templating.Emit;
 
 /// <summary>
 /// Plan-stage assembler: folds <c>QuotePlan</c> channels into the per-node / per-owner step maps the quoter
-/// runs. Precedence is hand-written here (Node: Replace → Builder → Trim → Decorate; List: InterpolationFold →
+/// runs. Precedence is hand-written here (Node: Replace → Qualify → Builder → Trim → Decorate; List: InterpolationFold →
 /// MemberSegment) — the ONLY place feature order is known. Callable from all three quoter construction sites,
 /// each with its own (partial) channels.
 /// </summary>
 internal static class PlanAssembler
 {
-    // Fold the four node-keyed channels into one ordered step list per node. Precedence within a node is
-    // fixed (Replace outermost → Builder → Trim → Decorate), reproducing the dissolved global Node chain: a
-    // ReplaceStep short-circuits before Builder/Trim/Decorate; a BuilderStep assembles (re-entrant) and
-    // short-circuits before Trim/Decorate; a TrimStep drops before Decorate; a DecorateStep wraps the base
-    // quote. Across different nodes order is irrelevant (keyed separately).
+    // Fold the node-keyed channels into one ordered step list per node. Precedence within a node is
+    // fixed (Replace outermost → Qualify → Builder → Trim → Decorate), reproducing the dissolved global Node chain:
+    // a ReplaceStep short-circuits before Qualify/Builder/Trim/Decorate; a QualifyStep composes through `next` (so a
+    // nested [Splice] child's ReplaceStep still fires); a BuilderStep assembles (re-entrant) and short-circuits
+    // before Trim/Decorate; a TrimStep drops before Decorate; a DecorateStep wraps the base quote. Across different
+    // nodes order is irrelevant (keyed separately).
     public static Dictionary<SyntaxNode, ImmutableArray<INodeQuoteMiddleware>> BuildNodeSteps(
         IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> replacements,
+        IReadOnlyDictionary<SyntaxNode, NameSyntax>? qualifications,
         IReadOnlyDictionary<SyntaxNode, BuilderCall>? builderCalls,
         HashSet<SyntaxNode> trimNodes,
         IReadOnlyDictionary<SyntaxNode, ImmutableArray<AppliedDecoration>>? decorationHooks)
@@ -41,6 +43,10 @@ internal static class PlanAssembler
 
         foreach (var replacement in replacements)
             StepsFor(replacement.Key).Add(new ReplaceStep(replacement.Value));
+
+        if (qualifications is not null)
+            foreach (var q in qualifications)
+                StepsFor(q.Key).Add(new QualifyStep(q.Value));
 
         if (builderCalls is { Count: > 0 })
             foreach (var call in builderCalls)

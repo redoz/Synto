@@ -165,7 +165,7 @@ internal static class StagedScaffoldBuilder
                 liftMap[pair.Key] = pair.Value;
             CollectLiftPoints(semanticModel, statement, stagedSet, renamer, liftMap, emission.InfoDiagnostics);
 
-            var islandNodeSteps = PlanAssembler.BuildNodeSteps(liftMap, context.BuilderCalls, new HashSet<SyntaxNode>(), null);
+            var islandNodeSteps = PlanAssembler.BuildNodeSteps(liftMap, context.Qualifications, context.BuilderCalls, new HashSet<SyntaxNode>(), null);
             var islandListSteps = PlanAssembler.BuildListSteps(context.StringStagedRoots, null);
             var islandQuoter = TemplateQuoterFactory.Create(islandNodeSteps, islandListSteps, includeTrivia: false);
             if (islandQuoter.Visit(statement) is not { } island)

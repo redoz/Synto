@@ -73,6 +73,8 @@ internal static class TemplateFactoryBuilder
         if (!ResolveBuilderCalls(ctx))
             return null;
 
+        ResolveQualifications(ctx);
+
         CollectBuilderStagedConsumedNodes(ctx);
 
         ComputeScalarFolds(ctx);
@@ -811,6 +813,19 @@ internal static class TemplateFactoryBuilder
         return true;
     }
 
+    // Record each type/namespace-bound simple name in the template body keyed at its name node -> its global::-rooted
+    // fully-qualified substitute NameSyntax (QualificationFinder). Folded by PlanAssembler into a terminal QualifyStep
+    // so the quoter emits self-contained output (compiles regardless of the host document's using context). All
+    // discovery is semantic and runs INSIDE the transform — only plain syntax values (the substitute NameSyntax) are
+    // recorded into ctx.Plan, never a SemanticModel/ISymbol, so incremental cacheability is preserved.
+    private static void ResolveQualifications(TemplateBuildContext ctx)
+    {
+        var map = QualificationFinder.FindQualifications(
+            ctx.SemanticModel, ctx.TemplateInfo.Source!.Syntax, ctx.Scope);
+        foreach (var q in map)
+            ctx.Plan.Qualifications[q.Key] = q.Value;
+    }
+
     // Record every node on a builder call's STAGED (unmarked) argument spine — the projection/list expression that
     // BuilderStep emits VERBATIM as factory-build-time code (via NestedBuilderCallRewriter, which re-quotes only
     // nested builder invocations). A staged-root reference on this spine is a runtime value that resolves to its
@@ -899,6 +914,7 @@ internal static class TemplateFactoryBuilder
             ctx.Plan.Trim,
             ctx.Plan.StringRoots,
             ctx.Plan.BuilderCalls,
+            ctx.Plan.Qualifications,
             ref ctx.StagedRegionCounter);
 
         ctx.Diagnostics.AddRange(liveRegionEmission.Diagnostics);
@@ -946,7 +962,8 @@ internal static class TemplateFactoryBuilder
 
         var prunableNodes = BranchPruneIdentifier.FindPrunableNodes(ctx.Plan.Trim, ctx.TemplateInfo.Source!.Syntax);
 
-        var nodeSteps = PlanAssembler.BuildNodeSteps(ctx.Plan.Replacements, ctx.Plan.BuilderCalls, prunableNodes, ctx.Plan.DecorationHooks);
+        var nodeSteps = PlanAssembler.BuildNodeSteps(
+            ctx.Plan.Replacements, ctx.Plan.Qualifications, ctx.Plan.BuilderCalls, prunableNodes, ctx.Plan.DecorationHooks);
         var listSteps = PlanAssembler.BuildListSteps(ctx.Plan.StringRoots, ctx.Plan.MemberSegments);
         var quoter = TemplateQuoterFactory.Create(nodeSteps, listSteps, includeTrivia: ctx.Options.HasFlag(TemplateOption.PreserveTrivia));
 

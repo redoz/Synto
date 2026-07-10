@@ -20,6 +20,12 @@ internal sealed class QuotePlan
     // the finished factory syntax (see TemplateDocumentBuilder.FindReferencedHelpers), so no usage flags here.
     public Dictionary<SyntaxNode, ExpressionSyntax> Replacements { get; } = new();
 
+    /// <summary>
+    /// Per-node type-qualification channel: an authored bare type/namespace name node -> its global::-rooted
+    /// substitute NameSyntax. Folded by PlanAssembler into a terminal QualifyStep. Populated by QualificationFinder.
+    /// </summary>
+    public Dictionary<SyntaxNode, NameSyntax> Qualifications { get; } = new();
+
     // Node-keyed drops: the quoter returns null for these (and the global branch-prune folds fully-trimmed
     // parents in — see BranchPruneIdentifier).
     public HashSet<SyntaxNode> Trim { get; } = new();
