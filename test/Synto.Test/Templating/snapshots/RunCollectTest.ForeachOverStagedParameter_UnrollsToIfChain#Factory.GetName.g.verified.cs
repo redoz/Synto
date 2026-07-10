@@ -65,8 +65,10 @@ partial class Factory
                                ObjectCreationExpression(
                                    Token(NewKeyword), 
                                    QualifiedName(
-                                       IdentifierName("System"), 
-                                       Token(DotToken), 
+                                       AliasQualifiedName(
+                                           IdentifierName("global"), 
+                                           Token(ColonColonToken), 
+                                           IdentifierName("System")), 
                                        IdentifierName("IndexOutOfRangeException")), 
                                    ArgumentList(
                                        Token(OpenParenToken), 

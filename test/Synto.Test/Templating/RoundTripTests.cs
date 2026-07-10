@@ -41,7 +41,7 @@ public partial class RoundTripTests
 
         StatementSyntax node = Factory.Simple();
 
-        AssertGenerated("Console.WriteLine(\"Hello World\");", node);
+        AssertGenerated("global::System.Console.WriteLine(\"Hello World\");", node);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public partial class RoundTripTests
 
         StatementSyntax node = Factory.Hello("World");
 
-        AssertGenerated("Console.WriteLine(\"Hello \" + \"World\");", node);
+        AssertGenerated("global::System.Console.WriteLine(\"Hello \" + \"World\");", node);
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public partial class RoundTripTests
 
         StatementSyntax node = Factory.Interp("a{b}\"");
 
-        AssertGenerated("Console.WriteLine($\"Field a{{b}}\\\" column\");", node);
+        AssertGenerated("global::System.Console.WriteLine($\"Field a{{b}}\\\" column\");", node);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public partial class RoundTripTests
         AssertGenerated("""
             static void FullMethod()
             {
-                Console.WriteLine("Hello World");
+                global::System.Console.WriteLine("Hello World");
             }
             """, node);
     }
@@ -176,9 +176,11 @@ public partial class RoundTripTests
         StatementSyntax node = Factory.Make<List<int>>();
 
         // the inlined type argument is rendered fully-qualified (no using context exists at runtime);
-        // before the fix this produced the unparseable CLR name "List`1[[System.Int32, ...]]".
+        // before the fix this produced the unparseable CLR name "List`1[[System.Int32, ...]]". Quote-time type
+        // qualification additionally roots the AUTHORED outer `List` at global:: (the spliced inner arg keeps its
+        // own inline-lift rendering), so the whole declaration is self-contained.
         AssertGenerated(
-            "List<System.Collections.Generic.List<System.Int32>> list = new List<System.Collections.Generic.List<System.Int32>>();",
+            "global::System.Collections.Generic.List<System.Collections.Generic.List<System.Int32>> list = new global::System.Collections.Generic.List<System.Collections.Generic.List<System.Int32>>();",
             node);
     }
 
@@ -196,7 +198,7 @@ public partial class RoundTripTests
 
         StatementSyntax node = Factory.Use(new Rgb(255));
 
-        AssertGenerated("Console.WriteLine(new Rgb(255));", node);
+        AssertGenerated("global::System.Console.WriteLine(new Rgb(255));", node);
     }
 
     // A [Splice] MEMBER generator (spec §2–§3): the static `Accessors` method runs at factory-build time and its

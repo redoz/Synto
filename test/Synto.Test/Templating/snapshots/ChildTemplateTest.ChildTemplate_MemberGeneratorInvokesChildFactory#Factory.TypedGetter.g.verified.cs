@@ -78,7 +78,6 @@ partial class Factory
                                            IdentifierName("global"), 
                                            Token(ColonColonToken), 
                                            IdentifierName("System")), 
-                                       Token(DotToken), 
                                        IdentifierName("InvalidCastException")), 
                                    ArgumentList(
                                        Token(OpenParenToken), 

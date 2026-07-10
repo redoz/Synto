@@ -29,12 +29,23 @@ partial class Factory
                                    Token(PrivateKeyword), 
                                    Token(ReadOnlyKeyword)), 
                                VariableDeclaration(
-                                   GenericName(
-                                       Identifier("IEnumerator"), 
-                                       TypeArgumentList(
-                                           Token(LessThanToken), 
-                                           SeparatedList<TypeSyntax>(new SyntaxNodeOrToken[] { TRet }), 
-                                           Token(GreaterThanToken))), 
+                                   QualifiedName(
+                                       QualifiedName(
+                                           QualifiedName(
+                                               AliasQualifiedName(
+                                                   IdentifierName("global"), 
+                                                   Token(ColonColonToken), 
+                                                   IdentifierName("System")), 
+                                               Token(DotToken), 
+                                               IdentifierName("Collections")), 
+                                           Token(DotToken), 
+                                           IdentifierName("Generic")), 
+                                       GenericName(
+                                           Identifier("IEnumerator"), 
+                                           TypeArgumentList(
+                                               Token(LessThanToken), 
+                                               SeparatedList<TypeSyntax>(new SyntaxNodeOrToken[] { TRet }), 
+                                               Token(GreaterThanToken)))), 
                                    SeparatedList<VariableDeclaratorSyntax>(
                                        new SyntaxNodeOrToken[] { 
                                            VariableDeclarator(
@@ -133,8 +144,10 @@ partial class Factory
                                                ObjectCreationExpression(
                                                    Token(NewKeyword), 
                                                    QualifiedName(
-                                                       IdentifierName("System"), 
-                                                       Token(DotToken), 
+                                                       AliasQualifiedName(
+                                                           IdentifierName("global"), 
+                                                           Token(ColonColonToken), 
+                                                           IdentifierName("System")), 
                                                        IdentifierName("Exception")), 
                                                    ArgumentList(
                                                        Token(OpenParenToken), 

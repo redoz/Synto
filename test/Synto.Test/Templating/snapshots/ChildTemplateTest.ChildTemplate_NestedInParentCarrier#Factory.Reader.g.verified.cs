@@ -50,10 +50,12 @@ partial class Factory
                            VariableDeclaration(
                                QualifiedName(
                                    QualifiedName(
-                                       IdentifierName("System"), 
+                                       AliasQualifiedName(
+                                           IdentifierName("global"), 
+                                           Token(ColonColonToken), 
+                                           IdentifierName("System")), 
                                        Token(DotToken), 
                                        IdentifierName("Collections")), 
-                                   Token(DotToken), 
                                    IdentifierName("IEnumerator")), 
                                SeparatedList<VariableDeclaratorSyntax>(
                                    new SyntaxNodeOrToken[] { 
@@ -137,7 +139,6 @@ partial class Factory
                                            IdentifierName("global"), 
                                            Token(ColonColonToken), 
                                            IdentifierName("System")), 
-                                       Token(DotToken), 
                                        IdentifierName("InvalidCastException")), 
                                    ArgumentList(
                                        Token(OpenParenToken), 
