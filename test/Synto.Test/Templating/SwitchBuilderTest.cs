@@ -121,7 +121,7 @@ public class SwitchBuilderTest
                 public TRet GetTypedExpr(int i)
                 {
                     var cols = Unquote<IReadOnlyList<Col>>();
-                    var built = Switch(i, cols.Where(c => c.Ordinal >= 0).Select(c =>
+                    var built = Switch<TRet>(i, cols.Where(c => c.Ordinal >= 0).Select(c =>
                         Arm(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
                             Member<TRet>(_e.Current, c.Name))));
                     System.Console.WriteLine(built);
@@ -144,7 +144,7 @@ public class SwitchBuilderTest
                 private readonly IEnumerator<TRet> _e;
                 public TRet GetTypedExpr(int i)
                 {
-                    var built = Switch(i,
+                    var built = Switch<TRet>(i,
                         Arm(LiteralExpression(NumericLiteralExpression, Literal(0)), Member<TRet>(_e.Current, "A")),
                         Arm(LiteralExpression(NumericLiteralExpression, Literal(1)), Member<TRet>(_e.Current, "B")));
                     System.Console.WriteLine(built);
@@ -169,11 +169,39 @@ public class SwitchBuilderTest
                 private readonly IEnumerator<TRet> _e;
                 public TRet GetTypedExpr(int i)
                 {
-                    var built = Switch(i,
+                    var built = Switch<TRet>(i,
                         WhenArm(LiteralExpression(NumericLiteralExpression, Literal(0)), i > 0, Member<TRet>(_e.Current, "A")),
                         DefaultArm(Member<TRet>(_e.Current, "B")));
                     System.Console.WriteLine(built);
                     throw new System.Exception();
+                }
+            }
+            """);
+    }
+
+    // Root-cause coverage for the facade is-a-ExpressionSyntax bridge + arity narrowing: a switch EXPRESSION
+    // returned DIRECTLY as the method's TRet value. SwitchExpressionSyntax derives from ExpressionSyntax, so its
+    // facade earns a fresh TResult and `Switch<TRet>(...)` lands in the TRet return slot; the explicit type
+    // argument also disambiguates the expression overload from the (non-generic, statement) Switch overload so
+    // they coexist without SY1018. The `.Append(DefaultArm(Throw<TRet>(...)))` exercises the Throw builder in
+    // value position. Mirrors the ObjectReader typed-getter shape (`return i switch { ... _ => throw ... };`).
+    [Fact]
+    public Task SwitchExpression_ReturnedAsTypedValue_WithThrowingDefaultArm()
+    {
+        return VerifySwitchTemplate(Prelude +
+            """
+
+            [Template<Factory>]
+            public class Reader<[Splice] TRet>
+            {
+                private readonly IEnumerator<TRet> _e;
+                public TRet GetTypedExpr(int i)
+                {
+                    var cols = Unquote<IReadOnlyList<Col>>();
+                    return Switch<TRet>(i, cols.Where(c => c.Ordinal >= 0).Select(c =>
+                            Arm(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
+                                Member<TRet>(_e.Current, c.Name)))
+                        .Append(DefaultArm(Throw<TRet>(new System.InvalidCastException("no")))));
                 }
             }
             """);

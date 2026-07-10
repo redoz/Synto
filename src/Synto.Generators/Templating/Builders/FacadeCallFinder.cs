@@ -95,18 +95,27 @@ internal sealed class FacadeCallFinder : TemplateScopedWalker
                 return;
             }
 
-            // Same-name overloads are allowed as long as they share a binding shape (e.g. the two `Switch`
-            // overloads are both `[Quoted governing, Staged list]`): bind with the shared shape and let the
-            // C# compiler resolve the real overload from the typed argument at factory-compile time. SY1018
-            // fires only on a genuine shape conflict (differing quoted/staged/type-arg parameter kinds).
-            if (candidates.Count > 1 && !ShareBindingShape(candidates))
+            // Explicit type arguments select among heterogeneous same-name overloads. A fresh-TResult facade
+            // (an ExpressionSyntax-derived builder such as the expression `Switch<T>`) is callable ONLY with a
+            // type argument — TResult is return-only, never inferable — while a non-generic overload (the
+            // statement `Switch`) cannot receive one. Narrowing by the call's type-argument arity lets the two
+            // coexist, mirroring how the C# compiler picks the real overload at factory-compile time.
+            List<IMethodSymbol> resolved = candidates.Count > 1
+                ? NarrowByTypeArgArity(candidates, GetTypeArgumentCount(invocation))
+                : candidates;
+
+            // Same-name overloads that survive narrowing are allowed as long as they share a binding shape (e.g.
+            // the two `Switch` overloads are both `[Quoted governing, Staged list]`): bind with the shared shape
+            // and let the C# compiler resolve the real overload from the typed argument. SY1018 fires only on a
+            // genuine, unresolved shape conflict (differing quoted/staged/type-arg parameter kinds).
+            if (resolved.Count > 1 && !ShareBindingShape(resolved))
             {
                 _diagnostics.Add(TemplateDiagnostics.AmbiguousBuilder(invocation.GetLocation(), simpleName));
                 base.VisitInvocationExpression(invocation);
                 return;
             }
 
-            var match = FacadeArgumentBinder.Bind(_semanticModel, invocation, candidates[0], _valueLift, _diagnostics);
+            var match = FacadeArgumentBinder.Bind(_semanticModel, invocation, resolved[0], _valueLift, _diagnostics);
             if (match is not null)
                 _calls.Add(match);
         }
@@ -120,6 +129,42 @@ internal sealed class FacadeCallFinder : TemplateScopedWalker
     /// identically (candidates[0] is representative); the C# compiler resolves the real one from the emitted
     /// fully-qualified call's argument types. Any candidate that fails to derive a facade is treated as a conflict.
     /// </summary>
+    /// <summary>
+    /// Narrows same-name builder overloads to those callable with the given explicit type-argument count. A
+    /// fresh-TResult facade needs exactly one explicit type argument (TResult is return-only, uninferable), so a
+    /// call supplying none can never target it; conversely a call supplying some can never target a non-generic
+    /// overload. Returns the input unchanged when nothing matches (the arity is ambiguous — let SY1018 decide).
+    /// </summary>
+    private static List<IMethodSymbol> NarrowByTypeArgArity(List<IMethodSymbol> candidates, int callTypeArgCount)
+    {
+        var narrowed = new List<IMethodSymbol>();
+        foreach (var candidate in candidates)
+        {
+            var shape = FacadeShape.Derive(candidate, out _, out _);
+            if (shape is null)
+                continue;
+
+            bool compatible = callTypeArgCount > 0
+                ? shape.GenericParameters.Count == callTypeArgCount
+                : !shape.FreshReturnTypeParam;
+
+            if (compatible)
+                narrowed.Add(candidate);
+        }
+
+        return narrowed.Count > 0 ? narrowed : candidates;
+    }
+
+    private static int GetTypeArgumentCount(InvocationExpressionSyntax invocation)
+    {
+        return invocation.Expression switch
+        {
+            GenericNameSyntax g => g.TypeArgumentList.Arguments.Count,
+            MemberAccessExpressionSyntax { Name: GenericNameSyntax g } => g.TypeArgumentList.Arguments.Count,
+            _ => 0,
+        };
+    }
+
     private static bool ShareBindingShape(List<IMethodSymbol> candidates)
     {
         string? key = null;

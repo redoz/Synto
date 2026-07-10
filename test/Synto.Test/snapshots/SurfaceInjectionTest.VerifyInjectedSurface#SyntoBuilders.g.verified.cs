@@ -73,4 +73,10 @@ internal static partial class SyntoBuilders
     [SyntaxBuilder]
     public static StatementSyntax Return([Quoted] ExpressionSyntax value) =>
         ReturnStatement(value);
+
+    /// <summary>Builds <c>throw exception</c> — a throw <em>expression</em> (quoted exception island); pairs with
+    /// <see cref="DefaultArm"/> to give a switch expression a throwing discard arm.</summary>
+    [SyntaxBuilder]
+    public static ExpressionSyntax Throw([Quoted] ExpressionSyntax exception) =>
+        ThrowExpression(exception);
 }

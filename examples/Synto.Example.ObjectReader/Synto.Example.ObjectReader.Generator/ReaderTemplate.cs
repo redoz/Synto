@@ -34,10 +34,10 @@ namespace Synto.Example.ObjectReader.Generator;
 [Identifier]
 [Visibility(Access.File)]
 [Sealed]
-[Implements<global::System.Data.IDataReader>]
+[Implements<System.Data.IDataReader>]
 internal class ObjectReaderTemplate<[Splice] T>
 {
-    private readonly global::System.Collections.Generic.IEnumerator<T> _e;
+    private readonly IEnumerator<T> _e;
     private bool _closed;
     private bool _onRow;
 
@@ -49,7 +49,7 @@ internal class ObjectReaderTemplate<[Splice] T>
     // affect generated code, and instance members reading a static field is legal C#.
     private static readonly EquatableArray<ColumnInfo> columns = Unquote<EquatableArray<ColumnInfo>>();
 
-    public ObjectReaderTemplate(global::System.Collections.Generic.IEnumerable<T> source) => _e = source.GetEnumerator();
+    public ObjectReaderTemplate(IEnumerable<T> source) => _e = source.GetEnumerator();
 
     // ---- data-driven members: each repeats over the live column list (unrolled at factory time) -------------
 
@@ -74,7 +74,7 @@ internal class ObjectReaderTemplate<[Splice] T>
         throw NoColumn(name);
     }
 
-    public global::System.Type GetFieldType(int i)
+    public Type GetFieldType(int i)
     {
         foreach (var c in columns)
             if (i == c.Ordinal)
@@ -86,13 +86,13 @@ internal class ObjectReaderTemplate<[Splice] T>
     {
         if (!_onRow)                          // invariant guard — literal, precedes the repeater
         {
-            throw new global::System.InvalidOperationException("No current row. Call Read() and ensure it returned true before reading values.");
+            throw new InvalidOperationException("No current row. Call Read() and ensure it returned true before reading values.");
         }
 
         foreach (var c in columns)
             if (i == c.Ordinal)
                 // Member<object>(_e.Current, c.Name) → `_e.Current.<Name>` (identifier hole), then box + DBNull.
-                return (object?)Member<object>(_e.Current, c.Name) ?? global::System.DBNull.Value;
+                return (object?)Member<object>(_e.Current, c.Name) ?? DBNull.Value;
         throw OutOfRange(i);
     }
 
@@ -116,10 +116,10 @@ internal class ObjectReaderTemplate<[Splice] T>
     [Template]
     public TRet TypedGetter<[Unquote] TRet>([Unquote] EquatableArray<ColumnInfo> columns, [Unquote] string clrTypeName, [Unquote] string typeLabel, int i)
     {
-        SyntoBuilders.Switch(i, columns.Where(c => c.ColumnTypeName == clrTypeName).Select(c =>
-            SyntoBuilders.Case(c.Ordinal,
-                SyntoBuilders.Return(Member<TRet>(_e.Current, c.Name)))));
-        throw new global::System.InvalidCastException($"Field {i} is not {typeLabel} column.");
+        return Switch<TRet>(i, columns.Where(c => c.ColumnTypeName == clrTypeName).Select(c =>
+                Arm(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
+                    Member<TRet>(_e.Current, c.Name)))
+            .Append(DefaultArm(Throw<TRet>(new InvalidCastException($"Field {i} is not {typeLabel} column.")))));
     }
 
     [Splice]
@@ -128,11 +128,11 @@ internal class ObjectReaderTemplate<[Splice] T>
         yield return Factory.TypedGetter<bool>(columns, "global::System.Boolean", "a Boolean").WithIdentifier(Identifier("GetBoolean"));
         yield return Factory.TypedGetter<byte>(columns, "global::System.Byte", "a Byte").WithIdentifier(Identifier("GetByte"));
         yield return Factory.TypedGetter<char>(columns, "global::System.Char", "a Char").WithIdentifier(Identifier("GetChar"));
-        yield return Factory.TypedGetter<global::System.DateTime>(columns, "global::System.DateTime", "a DateTime").WithIdentifier(Identifier("GetDateTime"));
+        yield return Factory.TypedGetter<DateTime>(columns, "global::System.DateTime", "a DateTime").WithIdentifier(Identifier("GetDateTime"));
         yield return Factory.TypedGetter<decimal>(columns, "global::System.Decimal", "a Decimal").WithIdentifier(Identifier("GetDecimal"));
         yield return Factory.TypedGetter<double>(columns, "global::System.Double", "a Double").WithIdentifier(Identifier("GetDouble"));
         yield return Factory.TypedGetter<float>(columns, "global::System.Single", "a Single").WithIdentifier(Identifier("GetFloat"));
-        yield return Factory.TypedGetter<global::System.Guid>(columns, "global::System.Guid", "a Guid").WithIdentifier(Identifier("GetGuid"));
+        yield return Factory.TypedGetter<Guid>(columns, "global::System.Guid", "a Guid").WithIdentifier(Identifier("GetGuid"));
         yield return Factory.TypedGetter<short>(columns, "global::System.Int16", "an Int16").WithIdentifier(Identifier("GetInt16"));
         yield return Factory.TypedGetter<int>(columns, "global::System.Int32", "an Int32").WithIdentifier(Identifier("GetInt32"));
         yield return Factory.TypedGetter<long>(columns, "global::System.Int64", "an Int64").WithIdentifier(Identifier("GetInt64"));
@@ -145,7 +145,7 @@ internal class ObjectReaderTemplate<[Splice] T>
     {
         if (values is null)
         {
-            throw new global::System.ArgumentNullException(nameof(values));
+            throw new ArgumentNullException(nameof(values));
         }
 
         int count = values.Length < FieldCount ? values.Length : FieldCount;
@@ -157,7 +157,7 @@ internal class ObjectReaderTemplate<[Splice] T>
         return count;
     }
 
-    public bool IsDBNull(int i) => GetValue(i) is global::System.DBNull;
+    public bool IsDBNull(int i) => GetValue(i) is DBNull;
 
     public object this[int i] => GetValue(i);
 
@@ -173,7 +173,7 @@ internal class ObjectReaderTemplate<[Splice] T>
     {
         if (_closed)
         {
-            throw new global::System.InvalidOperationException("The data reader is closed.");
+            throw new InvalidOperationException("The data reader is closed.");
         }
 
         _onRow = _e.MoveNext();
@@ -194,22 +194,22 @@ internal class ObjectReaderTemplate<[Splice] T>
 
     public void Dispose() => Close();
 
-    public global::System.Data.DataTable? GetSchemaTable() => null;
+    public System.Data.DataTable? GetSchemaTable() => null;
 
     public long GetBytes(int i, long fieldOffset, byte[]? buffer, int bufferOffset, int length)
-        => throw new global::System.NotSupportedException("GetBytes is not supported; expose the member as a typed column and use GetValue instead.");
+        => throw new NotSupportedException("GetBytes is not supported; expose the member as a typed column and use GetValue instead.");
 
     public long GetChars(int i, long fieldOffset, char[]? buffer, int bufferOffset, int length)
-        => throw new global::System.NotSupportedException("GetChars is not supported; expose the member as a typed column and use GetValue instead.");
+        => throw new NotSupportedException("GetChars is not supported; expose the member as a typed column and use GetValue instead.");
 
-    public global::System.Data.IDataReader GetData(int i)
-        => throw new global::System.NotSupportedException("GetData (nested data readers) is not supported by the ObjectReader.");
+    public System.Data.IDataReader GetData(int i)
+        => throw new NotSupportedException("GetData (nested data readers) is not supported by the ObjectReader.");
 
-    private static global::System.IndexOutOfRangeException OutOfRange(int i)
-        => new global::System.IndexOutOfRangeException($"Field index {i} is out of range.");
+    private static IndexOutOfRangeException OutOfRange(int i)
+        => new IndexOutOfRangeException($"Field index {i} is out of range.");
 
-    private static global::System.IndexOutOfRangeException NoColumn(string name)
-        => new global::System.IndexOutOfRangeException($"Column '{name}' was not found.");
+    private static IndexOutOfRangeException NoColumn(string name)
+        => new IndexOutOfRangeException($"Column '{name}' was not found.");
 }
 
 #pragma warning restore CS8604

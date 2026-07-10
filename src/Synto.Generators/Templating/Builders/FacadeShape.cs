@@ -98,8 +98,12 @@ internal sealed class FacadeShape
         returnShapeError = null;
 
         string returnDisplay = builder.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        bool returnsExpression = IsNamed(builder.ReturnType, "Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax");
         bool returnsType = IsNamed(builder.ReturnType, "Microsoft.CodeAnalysis.CSharp.Syntax.TypeSyntax");
+        // Any ExpressionSyntax-DERIVED return (e.g. SwitchExpressionSyntax) — not just the bare base — earns the
+        // fresh-TResult bridge, so its facade is callable in a typed value/return position (`Switch<T>(...)`),
+        // exactly like Member/Throw. TypeSyntax also derives from ExpressionSyntax but keeps its own `System.Type`
+        // handling, so it is excluded here.
+        bool returnsExpression = !returnsType && IsExpressionSyntax(builder.ReturnType);
         // A concrete Roslyn syntax-node return type (e.g. SwitchStatementSyntax / SwitchSectionSyntax) is also
         // accepted, and its facade returns that concrete type VERBATIM (see the return-display block below).
         bool returnsSyntaxNode = IsSyntaxNode(builder.ReturnType);
@@ -277,6 +281,14 @@ internal sealed class FacadeShape
     {
         for (ITypeSymbol? t = type; t is not null; t = t.BaseType)
             if (t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Microsoft.CodeAnalysis.SyntaxNode")
+                return true;
+        return false;
+    }
+
+    private static bool IsExpressionSyntax(ITypeSymbol type)
+    {
+        for (ITypeSymbol? t = type; t is not null; t = t.BaseType)
+            if (t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax")
                 return true;
         return false;
     }
