@@ -265,14 +265,10 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
             """)!);
 
         // The reader template body is quoted lexically (unqualified `Type`, `IEnumerator<T>`, `DBNull`,
-        // `InvalidCastException`, …), and the output document carries no using context of its own, so it must
-        // supply the two namespaces those names resolve through — otherwise generated code fails to compile for
-        // any consumer with ImplicitUsings disabled (the compiler default). Both are genuinely referenced, so
-        // neither is a CS8019 unnecessary-using.
+        // `InvalidCastException`, …), but quote-time type qualification now emits every type/namespace name in its
+        // global::-rooted fully-qualified form, so the generated document is self-contained by construction — it
+        // needs no using context of its own and compiles for any consumer regardless of ImplicitUsings.
         var unit = SyntaxFactory.CompilationUnit()
-            .AddUsings(
-                SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System")),
-                SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System.Collections.Generic")))
             .AddMembers(SyntaxFactory.FileScopedNamespaceDeclaration(SyntaxFactory.ParseName(GeneratedNamespace))
                 .AddMembers(members.ToArray()))
             .NormalizeWhitespace();
