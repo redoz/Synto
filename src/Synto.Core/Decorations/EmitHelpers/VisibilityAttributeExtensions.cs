@@ -10,6 +10,8 @@ public static class VisibilityAttributeExtensions
 {
     public static T ApplyVisibilityAttribute<T>(this T node, Access access) where T : MemberDeclarationSyntax
     {
+        if (node is null) throw new System.ArgumentNullException(nameof(node));
+
         SyntaxToken[] newTokens = AccessTokens(access);
         SyntaxTokenList result = TokenList(newTokens);
         foreach (var m in node.Modifiers)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -120,6 +121,7 @@ internal sealed partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<Expressio
         return IdentifierName(kind.ToString());
     }
 
+    [SuppressMessage("Maintainability", "CA1508:Avoid dead conditional code", Justification = "False positive: SyntaxToken.Value is object? (nullable); the null-guard is required because removing it trips CS8602 (verified). The two analyzers are mutually exclusive at this site.")]
     public ExpressionSyntax Visit(SyntaxToken token)
     {
         static bool TokenKindHasText(SyntaxKind kind) => SyntaxFacts.GetText(kind).Length != 0;

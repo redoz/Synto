@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -109,6 +110,7 @@ internal abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionS
         return IdentifierName(kind.ToString());
     }
 
+    [SuppressMessage("Maintainability", "CA1508:Avoid dead conditional code", Justification = "False positive: SyntaxToken.Value is object? (nullable); the null-guard is required because removing it trips CS8602 (verified). The two analyzers are mutually exclusive at this site.")]
     public virtual ExpressionSyntax Visit(SyntaxToken token)
     {
         static bool TokenKindHasText(SyntaxKind kind) => SyntaxFacts.GetText(kind).Length != 0;
@@ -202,7 +204,7 @@ internal abstract class CSharpSyntaxQuoterBase : CSharpSyntaxVisitor<ExpressionS
         return SyntaxFactoryInvocation(nameof(TriviaList), quoted.ToArray());
     }
 
-    private static ExpressionSyntax? QuoteTrivia(SyntaxTrivia trivia)
+    private static InvocationExpressionSyntax? QuoteTrivia(SyntaxTrivia trivia)
     {
         switch (trivia.Kind())
         {

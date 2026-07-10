@@ -1,3 +1,4 @@
+using System;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
@@ -7,6 +8,8 @@ public static class ImplementsAttributeExtensions
 {
     public static T ApplyImplementsAttribute<T>(this T node, string interfaceFqn) where T : TypeDeclarationSyntax
     {
+        if (node is null) throw new ArgumentNullException(nameof(node));
+
         var baseType = SimpleBaseType(ParseTypeName(interfaceFqn));
         if (node.BaseList is null)
             return (T)node.WithBaseList(BaseList(SingletonSeparatedList<BaseTypeSyntax>(baseType)));

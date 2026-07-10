@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SF = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
@@ -29,6 +32,8 @@ public static class CollectionSyntaxExtensions
     public static SyntaxList<TNode> BuildList<TNode>(params ListSegment<TNode>[] segments)
         where TNode : SyntaxNode
     {
+        if (segments is null) throw new ArgumentNullException(nameof(segments));
+
         var nodes = new List<TNode>();
         foreach (var segment in segments)
             segment.AppendTo(nodes);
@@ -40,7 +45,8 @@ public static class CollectionSyntaxExtensions
     /// One slot in a <see cref="BuildList{TNode}"/> call: either a single fixed node (implicitly converted
     /// from a <typeparamref name="TNode"/>) or a run of nodes (<see cref="Run"/>).
     /// </summary>
-    public readonly struct ListSegment<TNode>
+    [SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Authored public only so it can be embedded and emitted as a 'file static' helper into generated output (see the type's XML remarks); consumers never see it as public API, so the nested-visibility API-design rule does not apply.")]
+    public readonly struct ListSegment<TNode> : IEquatable<ListSegment<TNode>>
         where TNode : SyntaxNode
     {
         private readonly TNode? _single;
@@ -53,10 +59,37 @@ public static class CollectionSyntaxExtensions
         }
 
         /// <summary>A fixed single node becomes a one-element segment.</summary>
+        [SuppressMessage("Usage", "CA2225:Operator overloads have named alternates", Justification = "The implicit conversion is the embedded segment-construction spelling on generated (embed-as-file-local) surface; a named alternate would be unwanted noise there.")]
         public static implicit operator ListSegment<TNode>(TNode node) => new(node, null);
 
         /// <summary>A run of nodes (e.g. an unrolled live region's collected islands) in slot order.</summary>
+        [SuppressMessage("Design", "CA1000:Do not declare static members on generic types", Justification = "This type is embedded and emitted as a 'file static' helper into generated output (see the type's XML remarks); it is not consumed as public API, so the static-members-on-generic-types API-design rule does not apply.")]
         public static ListSegment<TNode> Run(IEnumerable<TNode> nodes) => new(null, nodes);
+
+        /// <summary>Segments are equal when they carry the same single-node / run references.</summary>
+        public bool Equals(ListSegment<TNode> other) =>
+            ReferenceEquals(_single, other._single) && ReferenceEquals(_run, other._run);
+
+        /// <inheritdoc />
+        public override bool Equals(object? obj) => obj is ListSegment<TNode> other && Equals(other);
+
+        /// <inheritdoc />
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = (hash * 31) + (_single is null ? 0 : RuntimeHelpers.GetHashCode(_single));
+                hash = (hash * 31) + (_run is null ? 0 : RuntimeHelpers.GetHashCode(_run));
+                return hash;
+            }
+        }
+
+        /// <summary>Reference-equality comparison of two segments.</summary>
+        public static bool operator ==(ListSegment<TNode> left, ListSegment<TNode> right) => left.Equals(right);
+
+        /// <summary>Reference-inequality comparison of two segments.</summary>
+        public static bool operator !=(ListSegment<TNode> left, ListSegment<TNode> right) => !left.Equals(right);
 
         internal void AppendTo(List<TNode> target)
         {

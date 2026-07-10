@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -57,7 +59,7 @@ public class DiagnosticsGeneratorTest
     }
 
     [Fact]
-    public void TargetNotPartial_ReportsSDG1001_WithLocationAndMethodName()
+    public void TargetNotPartialReportsSDG1001WithLocationAndMethodName()
     {
         // A method carrying [Diagnostic] but not declared partial. This is the exact case that the SDG1001
         // argument-order bug mangled: the diagnostic must carry a real span AND name the method in {0}.
@@ -83,11 +85,11 @@ public class DiagnosticsGeneratorTest
         Assert.False(diag.Location.SourceSpan.IsEmpty);
         Assert.NotEmpty(diag.Location.GetLineSpan().Path);
         // ... and {0} must render the method name, not a Location dump.
-        Assert.Contains("NotPartial", diag.GetMessage());
+        Assert.Contains("NotPartial", diag.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void TargetInStruct_ReportsSDG1003_NotInternalError()
+    public void TargetInStructReportsSDG1003NotInternalError()
     {
         // A [Diagnostic] partial method in a struct (a legal partial-method container). The old unconditional
         // (ClassDeclarationSyntax) cast threw InvalidCastException, surfacing as an opaque SDG0000. It must
@@ -111,14 +113,14 @@ public class DiagnosticsGeneratorTest
         Assert.NotEqual(Location.None, diag.Location);
         Assert.False(diag.Location.SourceSpan.IsEmpty);
         Assert.NotEmpty(diag.Location.GetLineSpan().Path);
-        Assert.Contains("InStruct", diag.GetMessage());
+        Assert.Contains("InStruct", diag.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
 
         // C4 regression guard: no opaque internal error.
         Assert.DoesNotContain(diagnostics, d => d.Id == "SDG0000");
     }
 
     [Fact]
-    public void TargetInRecord_ReportsSDG1003_NotInternalError()
+    public void TargetInRecordReportsSDG1003NotInternalError()
     {
         var diagnostics = RunAndGetDiagnostics(
             """
@@ -139,12 +141,12 @@ public class DiagnosticsGeneratorTest
         Assert.NotEqual(Location.None, diag.Location);
         Assert.False(diag.Location.SourceSpan.IsEmpty);
         Assert.NotEmpty(diag.Location.GetLineSpan().Path);
-        Assert.Contains("InRecord", diag.GetMessage());
+        Assert.Contains("InRecord", diag.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
         Assert.DoesNotContain(diagnostics, d => d.Id == "SDG0000");
     }
 
     [Fact]
-    public void AncestorNotPartial_ReportsSDG1002_WithLocation()
+    public void AncestorNotPartialReportsSDG1002WithLocation()
     {
         var diagnostics = RunAndGetDiagnostics(
             """
@@ -167,12 +169,12 @@ public class DiagnosticsGeneratorTest
         Assert.NotEqual(Location.None, diag.Location);
         Assert.False(diag.Location.SourceSpan.IsEmpty);
         Assert.NotEmpty(diag.Location.GetLineSpan().Path);
-        Assert.Contains("Outer", diag.GetMessage());
-        Assert.Contains("Nested", diag.GetMessage());
+        Assert.Contains("Outer", diag.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("Nested", diag.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void MalformedAttribute_ReportsSDG0000_InternalError()
+    public void MalformedAttributeReportsSDG0000InternalError()
     {
         // [Diagnostic] with no argument list reaches ProcessTarget, where AttributeSyntax.ArgumentList! throws.
         // The generator must convert any such exception to the SDG0000 catch-all rather than crash the host.
@@ -193,7 +195,7 @@ public class DiagnosticsGeneratorTest
     }
 
     [Fact]
-    public void Generator_IsIncremental_OnUnrelatedEdit()
+    public void GeneratorIsIncrementalOnUnrelatedEdit()
     {
         // P1 cacheability guard: with the pipeline carrying only equatable value types (and no captured
         // Compilation/SemanticModel/SyntaxNode), an unrelated edit must leave every tracked step cached.
@@ -218,13 +220,13 @@ public class DiagnosticsGeneratorTest
             generators: new[] { new DiagnosticsGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         // An unrelated edit in a separate tree: the [Diagnostic] tree is byte-identical, so its results must
         // come from cache.
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
@@ -234,7 +236,7 @@ public class DiagnosticsGeneratorTest
     }
 
     [Fact]
-    public void OverloadedDiagnosticMethods_ProduceDistinctHints_NoCollision()
+    public void OverloadedDiagnosticMethodsProduceDistinctHintsNoCollision()
     {
         // Two [Diagnostic] partial methods share a name but differ in arity. With ParameterOptions.None and no
         // arity suffix, both hashed to the same hint name and the second AddSource threw ArgumentException,
@@ -256,18 +258,18 @@ public class DiagnosticsGeneratorTest
             """);
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new DiagnosticsGenerator());
-        var runResult = driver.RunGenerators(compilation).GetRunResult().Results.Single();
+        var runResult = driver.RunGenerators(compilation, TestContext.Current.CancellationToken).GetRunResult().Results.Single();
 
         Assert.Null(runResult.Exception);
         Assert.DoesNotContain(runResult.Diagnostics, d => d.Id == "SDG0000");
 
         var hints = runResult.GeneratedSources.Select(s => s.HintName).ToArray();
         Assert.Equal(hints.Length, hints.Distinct().Count());
-        Assert.Equal(2, hints.Count(h => h.Contains("Dup")));
+        Assert.Equal(2, hints.Count(h => h.Contains("Dup", StringComparison.Ordinal)));
     }
 
     [Fact]
-    public void GeneratedPartial_IsCleanShell_NoClonedAttributesBaseListOrPrimaryCtor()
+    public void GeneratedPartialIsCleanShellNoClonedAttributesBaseListOrPrimaryCtor()
     {
         // The container carries an AllowMultiple=false attribute, a base list, and a C# 12 primary constructor.
         // Cloning parent.WithMembers would replicate all three into the generated partial: CS0579 (duplicate
@@ -295,24 +297,24 @@ public class DiagnosticsGeneratorTest
         var compilation = CreateCompilation(source);
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new DiagnosticsGenerator());
-        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out _);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out _, TestContext.Current.CancellationToken);
 
         // The generated partial must not re-clone the container's attribute / base list / primary-constructor.
         var runResult = driver.GetRunResult().Results.Single();
-        var generated = runResult.GeneratedSources.Single(s => s.SourceText.ToString().Contains("Report")).SourceText.ToString();
-        Assert.DoesNotContain("ExcludeFromCodeCoverage", generated);
-        Assert.DoesNotContain("IMarker", generated);
-        Assert.DoesNotContain("seed", generated);
+        var generated = runResult.GeneratedSources.Single(s => s.SourceText.ToString().Contains("Report", StringComparison.Ordinal)).SourceText.ToString();
+        Assert.DoesNotContain("ExcludeFromCodeCoverage", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("IMarker", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("seed", generated, StringComparison.Ordinal);
 
         // Post-generation, the two partials must compile together: none of the duplicate-declaration errors the
         // clone produced (CS0579 duplicate attribute, CS8863 duplicate primary ctor) may appear. (Unrelated
         // reference/entry-point diagnostics from this bare compilation are ignored — not this task's concern.)
-        var errors = outputCompilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        var errors = outputCompilation.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
         Assert.DoesNotContain(errors, d => d.Id is "CS0579" or "CS8863");
     }
 
     [Fact]
-    public void InjectedAttributeSource_HasNoCarriageReturns_CheckoutIndependent()
+    public void InjectedAttributeSourceHasNoCarriageReturnsCheckoutIndependent()
     {
         // The post-init DiagnosticsAttribute raw-string literal inherits the generator source file's checkout
         // line endings. On a CRLF checkout it emits \r\n, so Windows re-accepts write CRLF while CI writes LF —
@@ -321,11 +323,11 @@ public class DiagnosticsGeneratorTest
         var compilation = CreateCompilation("namespace X;");
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new DiagnosticsGenerator());
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         var injected = driver.GetRunResult().Results.Single()
             .GeneratedSources
-            .Single(s => s.HintName.Contains("DiagnosticsAttribute"))
+            .Single(s => s.HintName.Contains("DiagnosticsAttribute", StringComparison.Ordinal))
             .SourceText.ToString();
 
         Assert.DoesNotContain('\r', injected);

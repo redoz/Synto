@@ -4,10 +4,13 @@ using Synto.Generators;
 namespace Synto.Example.ObjectReader.Generator;
 
 /// <summary>One resolved column: its ordinal (position in the member list), the member name (also the direct
-/// accessor on <c>_e.Current</c>), and its fully-qualified type name (used for <c>GetFieldType</c>). Pure value
-/// type — safe to cache (C-5). The <c>Ordinal</c> lets the live-staged template read it uniformly as
-/// <c>c.Ordinal</c> rather than the emit-time loop index.</summary>
-internal readonly record struct ColumnInfo(int Ordinal, string Name, string ColumnTypeName);
+/// accessor on <c>_e.Current</c>), its fully-qualified (NON-annotated) type name (used for <c>GetFieldType</c>
+/// and the typed-getter CLR-type filter), and whether the member is a nullable REFERENCE type
+/// (<c>NullableAnnotation.Annotated</c> on a reference type). The nullability flag drives the ADO.NET-correct
+/// null-safe typed getter (a null column throws <c>InvalidCastException</c> rather than returning null from a
+/// non-nullable signature). Pure value type — the <c>bool</c> keeps it safe to cache (C-5). The <c>Ordinal</c>
+/// lets the live-staged template read it uniformly as <c>c.Ordinal</c> rather than the emit-time loop index.</summary>
+internal readonly record struct ColumnInfo(int Ordinal, string Name, string ColumnTypeName, bool IsNullableReference);
 
 /// <summary>Which diagnostic an equatable <see cref="PendingDiagnostic"/> carries; mapped back to a real
 /// <c>Synto.Diagnostics</c>-generated factory call in the output stage.</summary>

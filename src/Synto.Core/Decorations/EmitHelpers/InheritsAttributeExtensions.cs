@@ -1,3 +1,4 @@
+using System;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
@@ -7,6 +8,8 @@ public static class InheritsAttributeExtensions
 {
     public static T ApplyInheritsAttribute<T>(this T node, string baseFqn) where T : TypeDeclarationSyntax
     {
+        if (node is null) throw new ArgumentNullException(nameof(node));
+
         var baseType = SimpleBaseType(ParseTypeName(baseFqn));
         if (node.BaseList is null)
             return (T)node.WithBaseList(BaseList(SingletonSeparatedList<BaseTypeSyntax>(baseType)));

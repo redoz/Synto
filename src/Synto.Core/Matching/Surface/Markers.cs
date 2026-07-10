@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -8,6 +9,7 @@ namespace Synto.Matching;
 /// many statements the hole consumes and the captured shape. The verbs are never executed — they are
 /// recognized structurally at generation time; their return types document the captured member type.
 /// </summary>
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Deliberate DSL surface: the quantifier verbs are called on a '[Capture] Stmt' pattern-parameter instance (e.g. 'stmt.One()'); making them static would break the pattern-parameter spelling.")]
 public sealed class Stmt
 {
     /// <summary>Captures exactly one statement.</summary>

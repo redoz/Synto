@@ -165,10 +165,10 @@ file static class LiteralSyntaxExtensions
     }
 
     private static string? NonFiniteMember(bool isNaN, bool isPositiveInfinity, bool isNegativeInfinity) => isNaN ? "NaN" : isPositiveInfinity ? "PositiveInfinity" : isNegativeInfinity ? "NegativeInfinity" : null;
-    private static ExpressionSyntax NonFiniteMemberAccess(SyntaxKind keyword, string member) => SF.MemberAccessExpression(
-                                                                                                    SyntaxKind.SimpleMemberAccessExpression, 
-                                                                                                    SF.PredefinedType(SF.Token(keyword)), 
-                                                                                                    SF.IdentifierName(member));
+    private static MemberAccessExpressionSyntax NonFiniteMemberAccess(SyntaxKind keyword, string member) => SF.MemberAccessExpression(
+                                                                                                                SyntaxKind.SimpleMemberAccessExpression, 
+                                                                                                                SF.PredefinedType(SF.Token(keyword)), 
+                                                                                                                SF.IdentifierName(member));
     public static ExpressionSyntax ToSyntax(this char value)
     {
         return SF.LiteralExpression(
@@ -207,6 +207,8 @@ file static class LiteralSyntaxExtensions
     /// </summary>
     public static ExpressionSyntax ToSyntax(this Enum value)
     {
+        if (value is null)
+            throw new ArgumentNullException(nameof(value));
         Type enumType = value.GetType();
         string qualifiedName = "global::" + enumType.FullName!.Replace(
                                                 '+', 

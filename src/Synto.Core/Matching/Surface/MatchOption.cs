@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Synto.Matching;
 
 /// <summary>
@@ -7,6 +9,7 @@ namespace Synto.Matching;
 /// Unlike <c>Synto.Templating.TemplateOption</c> this is deliberately NOT a <c>[Flags]</c> enum: the
 /// values are mutually-exclusive cardinalities, not bit fields that combine.
 /// </remarks>
+[SuppressMessage("Naming", "CA1720:Identifier contains type name", Justification = "'Single' names the single-node cardinality; it is shipped public API and the domain term, not the System.Single type.")]
 public enum MatchOption
 {
     /// <summary>Match the whole declared shape (no reduction).</summary>

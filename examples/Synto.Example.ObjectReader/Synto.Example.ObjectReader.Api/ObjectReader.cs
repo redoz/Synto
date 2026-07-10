@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Synto.Example.ObjectReader.Api;
 
@@ -8,6 +9,7 @@ namespace Synto.Example.ObjectReader.Api;
 /// list is intercepted by the ObjectReader generator and routed to a type-specialized reader with
 /// no runtime reflection.
 /// </summary>
+[SuppressMessage("Naming", "CA1724:Type names should not match namespaces", Justification = "'ObjectReader' is the deliberate public entry-point name and 'Synto.Example.ObjectReader' is the example's identity; renaming either would break the showcase surface.")]
 public static class ObjectReader
 {
     /// <summary>Create an <see cref="IDataReader"/> over <paramref name="source"/> exposing the named members as columns.</summary>

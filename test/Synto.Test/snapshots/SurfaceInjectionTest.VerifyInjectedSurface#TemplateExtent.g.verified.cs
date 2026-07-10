@@ -1,5 +1,7 @@
 ﻿//HintName: TemplateExtent.g.cs
 #nullable enable
+using System.Diagnostics.CodeAnalysis;
+
 namespace Synto.Templating;
 
 /// <summary>
@@ -9,6 +11,7 @@ namespace Synto.Templating;
 /// Unlike <see cref="TemplateOption"/> (an orthogonal <c>[Flags]</c> switch set) this is deliberately NOT a
 /// <c>[Flags]</c> enum: the values are mutually-exclusive extents, not bit fields that combine.
 /// </remarks>
+[SuppressMessage("Naming", "CA1720:Identifier contains type name", Justification = "'Single' names the single-node cardinality; it is shipped public API and the domain term, not the System.Single type.")]
 internal enum TemplateExtent
 {
     /// <summary>Quote the whole <c>[Template]</c> carrier node (no reduction).</summary>

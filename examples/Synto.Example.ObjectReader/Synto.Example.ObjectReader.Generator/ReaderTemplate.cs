@@ -116,9 +116,32 @@ internal class ObjectReaderTemplate<[Splice] T>
     [Template]
     public TRet TypedGetter<[Unquote] TRet>([Unquote] EquatableArray<ColumnInfo> columns, [Unquote] string clrTypeName, [Unquote] string typeLabel, int i)
     {
+        // Each matching column expands (unrolled at factory time) into ONE switch-expression arm:
+        //  - A value type or a NON-nullable reference column → a plain `N => _e.Current.X` arm — the
+        //    nullability-blind form, byte-identical to main.
+        //  - A nullable REFERENCE column → an ADO.NET-correct, cast-free null-guarded arm:
+        //      N => _e.Current.X ?? throw new InvalidCastException(...)   // null → "call IsDBNull first"; the
+        //                                                                 //   `?? throw` result is non-null, so the
+        //                                                                 //   non-nullable getter never returns null (no CS8603).
+        //    The plain arm rides the Arm/Member builders. The guarded arm is a raw (staged) SwitchExpressionArm whose
+        //    value is a `??` BinaryExpression: its left is the `_e.Current.<Name>` access built directly (Member's
+        //    facade returns TRet, not ExpressionSyntax, so it can't feed a raw BinaryExpression), and its right is the
+        //    throw EXPRESSION built via the `Throw<ExpressionSyntax>` builder island (so the exception type is
+        //    fully-qualified and `{i}` stays an output interpolation). Nullable VALUE types are out of scope (a
+        //    different warning) — ResolveMemberType never flags them, so they take the plain path above.
         return Switch<TRet>(i, columns.Where(c => c.ColumnTypeName == clrTypeName).Select(c =>
-                Arm(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
-                    Member<TRet>(_e.Current, c.Name)))
+                !c.IsNullableReference
+                    ? Arm(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
+                        Member<TRet>(_e.Current, c.Name))
+                    : SwitchExpressionArm(
+                        ConstantPattern(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal))),
+                        BinaryExpression(
+                            CoalesceExpression,
+                            MemberAccessExpression(
+                                SimpleMemberAccessExpression,
+                                MemberAccessExpression(SimpleMemberAccessExpression, IdentifierName("_e"), IdentifierName("Current")),
+                                IdentifierName(c.Name)),
+                            Throw<ExpressionSyntax>(new InvalidCastException($"Field {i} is null; call IsDBNull first.")))))
             .Append(DefaultArm(Throw<TRet>(new InvalidCastException($"Field {i} is not {typeLabel} column.")))));
     }
 

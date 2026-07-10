@@ -138,8 +138,8 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
                 continue;
             }
 
-            string? columnType = ResolveMemberType(target, memberName);
-            if (columnType is null)
+            (string TypeName, bool IsNullableReference)? resolved = ResolveMemberType(target, memberName);
+            if (resolved is null)
             {
                 // Unknown member → record SOR0001 and skip the column (C-2).
                 diagnostics.Add(new PendingDiagnostic(
@@ -149,7 +149,7 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
                 continue;
             }
 
-            columns.Add(new ColumnInfo(columns.Count, memberName, columnType));
+            columns.Add(new ColumnInfo(columns.Count, memberName, resolved.Value.TypeName, resolved.Value.IsNullableReference));
         }
 
         if (!allConstant)
@@ -181,7 +181,11 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
             Intercept: true);
     }
 
-    private static string? ResolveMemberType(ITypeSymbol target, string memberName)
+    // Resolve the member's fully-qualified (NON-annotated) type name plus whether it is a nullable REFERENCE
+    // type. The type name deliberately omits the nullable `?` annotation (FullyQualified has no
+    // IncludeNullableReferenceTypeModifier) so the typed getter's `ColumnTypeName == clrTypeName` filter still
+    // matches on the bare CLR name (e.g. `global::System.String`); the nullability rides separately in the bool.
+    private static (string TypeName, bool IsNullableReference)? ResolveMemberType(ITypeSymbol target, string memberName)
     {
         for (ITypeSymbol? type = target; type is not null && type.SpecialType != SpecialType.System_Object; type = type.BaseType)
         {
@@ -195,15 +199,21 @@ public sealed class ObjectReaderGenerator : IIncrementalGenerator
                 switch (member)
                 {
                     case IPropertySymbol { GetMethod: not null } property:
-                        return property.Type.ToDisplayString(FullyQualified);
+                        return (property.Type.ToDisplayString(FullyQualified), IsNullableReference(property.Type));
                     case IFieldSymbol field:
-                        return field.Type.ToDisplayString(FullyQualified);
+                        return (field.Type.ToDisplayString(FullyQualified), IsNullableReference(field.Type));
                 }
             }
         }
 
         return null;
     }
+
+    // A nullable reference column is a reference type annotated `T?` in a nullable-aware context. Nullable VALUE
+    // types (int?) report IsReferenceType == false, so they are intentionally NOT flagged here — guarding them
+    // is a separate concern (a different warning) and out of scope for the null-safe reference getter.
+    private static bool IsNullableReference(ITypeSymbol type) =>
+        type.NullableAnnotation == NullableAnnotation.Annotated && type.IsReferenceType;
 
     private static void Emit(SourceProductionContext spc, System.Collections.Immutable.ImmutableArray<ObjectReaderModel> models)
     {

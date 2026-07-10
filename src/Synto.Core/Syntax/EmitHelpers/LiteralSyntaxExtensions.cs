@@ -88,7 +88,7 @@ public static class LiteralSyntaxExtensions
         : isNegativeInfinity ? "NegativeInfinity"
         : null;
 
-    private static ExpressionSyntax NonFiniteMemberAccess(SyntaxKind keyword, string member) =>
+    private static MemberAccessExpressionSyntax NonFiniteMemberAccess(SyntaxKind keyword, string member) =>
         SF.MemberAccessExpression(
             SyntaxKind.SimpleMemberAccessExpression,
             SF.PredefinedType(SF.Token(keyword)),
@@ -132,6 +132,8 @@ public static class LiteralSyntaxExtensions
     /// </summary>
     public static ExpressionSyntax ToSyntax(this Enum value)
     {
+        if (value is null) throw new ArgumentNullException(nameof(value));
+
         Type enumType = value.GetType();
         string qualifiedName = "global::" + enumType.FullName!.Replace('+', '.');
 
