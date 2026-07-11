@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
@@ -56,6 +57,15 @@ public static partial class SyntoBuilders
     [SyntaxBuilder]
     public static SwitchExpressionArmSyntax Arm(ExpressionSyntax pattern, [Quoted] ExpressionSyntax value) =>
         SwitchExpressionArm(ConstantPattern(pattern), value);
+
+    /// <summary>Builds <c>ordinal =&gt; value</c> — an ordinal-labelled switch-expression arm: a factory-time
+    /// ordinal ([Constant], value-lifted to a literal pattern) + a quoted value island. Overloads the staged
+    /// <see cref="Arm(Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax, Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax)"/>;
+    /// the builder param is <c>SyntaxNode</c> (not <c>ExpressionSyntax</c>) so the signature differs from the
+    /// staged overload — the lifted <c>ExpressionSyntax</c> binds and is cast back.</summary>
+    [SyntaxBuilder]
+    public static SwitchExpressionArmSyntax Arm([Constant] SyntaxNode ordinal, [Quoted] ExpressionSyntax value) =>
+        SwitchExpressionArm(ConstantPattern((ExpressionSyntax)ordinal), value);
 
     /// <summary>Builds <c>pattern when guard =&gt; value</c> — a guarded switch-expression arm (staged pattern + quoted guard/value islands).</summary>
     [SyntaxBuilder]

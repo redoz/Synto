@@ -605,6 +605,81 @@ public class SyntaxBuilderTest
         AssertHasRealSpan(diag);
     }
 
+    // Task 3 (spec §2.2): ordinal Arm overload — `Arm(c.Ordinal, value)` lifts the factory-time ordinal into a
+    // constant literal pattern (via ToSyntax) and pairs it with a quoted value island — no hand-built
+    // ConstantPattern(Literal(...)). Resolves the new constant Arm overload against the existing staged
+    // Arm(ExpressionSyntax, …) via Task 2's argument-directed resolver (int arg → constant overload, no SY1018).
+    [Fact]
+    public void OrdinalArm_LiftsOrdinal_AndCompiles()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using static Synto.Templating.SyntoBuilders;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                object Build([Splice] object obj) => Switch<object>(obj, Arm(2, Member<object>(obj, "X")));
+            }
+            """;
+
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(source);
+        Assert.Contains("SyntoBuilders.Arm", generated, StringComparison.Ordinal);
+        Assert.Contains("2.ToSyntax()", generated, StringComparison.Ordinal); // ordinal lifted, not hand-built
+
+        // Post-gen compiles clean (two Arm overloads coexist, no SY1018).
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
+    // Task 3 regression (spec §4): the EXISTING staged Arm(<built pattern>, value) overload still binds — an
+    // ExpressionSyntax first argument resolves the staged overload (more specific than the ordinal's `object`
+    // facade param) and is passed verbatim (never lifted via ToSyntax).
+    [Fact]
+    public void StagedArm_PrebuiltPattern_StillBinds()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            using static Synto.Templating.SyntoBuilders;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                object Build([Splice] object obj) => Switch<object>(obj,
+                    Arm(LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(2)), Member<object>(obj, "X")));
+            }
+            """;
+
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(source);
+        Assert.Contains("SyntoBuilders.Arm", generated, StringComparison.Ordinal);
+        // pre-built pattern passed verbatim — NOT lifted through ToSyntax (that path is the ordinal overload).
+        Assert.DoesNotContain("Literal(2).ToSyntax()", generated, StringComparison.Ordinal);
+
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
     // Zero-collision: the built-in Member builder is injected internal and called fully-qualified, so the
     // generated output compiles alongside the PUBLIC Synto.Core in the default scope with no CS0121 ambiguity
     // and no Synto.Core runtime dependency (the injected SyntoBuilders is the consumer's own internal copy).
