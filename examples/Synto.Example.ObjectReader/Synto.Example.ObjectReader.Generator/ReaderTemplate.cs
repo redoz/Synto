@@ -164,7 +164,7 @@ internal class ObjectReaderTemplate<[Splice] T>
             throw new ArgumentNullException(nameof(values));
         }
 
-        int count = values.Length < FieldCount ? values.Length : FieldCount;
+        int count = Math.Min(values.Length, FieldCount);
         for (int i = 0; i < count; i++)
         {
             values[i] = GetValue(i);
