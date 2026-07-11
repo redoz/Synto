@@ -185,6 +185,14 @@ Add to `SyntaxBuilderTest.cs`:
 // SY1018 (ShareBindingShape rejects the differing kinds); after, the finder resolves each call by argument
 // type — an int argument binds the constant overload (lifted via ToSyntax), an ExpressionSyntax argument the
 // staged overload (passed verbatim).
+//
+// The `Pick(7, Picks.Wrap(v))` call is the guard for the resolver's object-facing rule (spec
+// `2026-07-11-builder-overload-resolution-design.md` §4): its second argument is a NESTED facade call
+// (`Wrap`), which is UNBOUND in the analyzed compilation (a synthesized facade, not present) — so
+// `GetTypeInfo(...).Type` on it is null/error. A resolver that type-checked EVERY argument would reject both
+// `Pick` candidates at that `[Quoted]` slot and spuriously report SY1018. Because the two overloads differ
+// only at the object-facing value param, the int/first-arg alone must decide. This mirrors the real dog-food
+// call `Arm(c.Ordinal, Member<TRet>(...))` — do NOT drop this call; it is the case the naive resolver fails.
 [Fact]
 public void NonSharedShapeOverloads_ResolvedByArgumentType_NoSY1018()
 {
@@ -204,6 +212,10 @@ public void NonSharedShapeOverloads_ResolvedByArgumentType_NoSY1018()
             [SyntaxBuilder]
             public static SwitchExpressionArmSyntax Pick([Constant] SyntaxNode label, [Quoted] ExpressionSyntax v)
                 => SwitchExpressionArm(ConstantPattern((ExpressionSyntax)label), v);
+            // A nested [Quoted]-island builder returning ExpressionSyntax — its bare facade call is unbound in
+            // the analyzed compilation, so it stresses the object-facing rule when used as a `[Quoted]` argument.
+            [SyntaxBuilder]
+            public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax inner) => inner;
         }
 
         public class TestClass {
@@ -211,8 +223,10 @@ public void NonSharedShapeOverloads_ResolvedByArgumentType_NoSY1018()
             void Build([Splice] object v) {
                 var a = Picks.Pick(42, v);                                             // int -> constant overload
                 var b = Picks.Pick(LiteralExpression(SyntaxKind.NullLiteralExpression), v); // ExpressionSyntax -> staged
+                var c = Picks.Pick(7, Picks.Wrap(v));                                  // nested UNBOUND facade as [Quoted] arg -> constant overload, no SY1018
                 System.Console.WriteLine(a);
                 System.Console.WriteLine(b);
+                System.Console.WriteLine(c);
             }
         }
         """;
@@ -221,10 +235,11 @@ public void NonSharedShapeOverloads_ResolvedByArgumentType_NoSY1018()
     Assert.DoesNotContain(diagnostics, d => d.Id == "SY1018");
     Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-    // The int-arg call resolved to the CONSTANT overload (its argument is lifted via ToSyntax); the
+    // The int-arg calls resolved to the CONSTANT overload (their arguments are lifted via ToSyntax); the
     // ExpressionSyntax-arg call resolved to the STAGED overload (its argument is passed verbatim, not lifted).
     var generated = RunAndGetGeneratedText(source);
     Assert.Contains("42.ToSyntax()", generated, StringComparison.Ordinal);
+    Assert.Contains("7.ToSyntax()", generated, StringComparison.Ordinal); // nested-facade arg did not block resolution
 }
 ```
 
@@ -242,8 +257,9 @@ In `FacadeCallFinder.cs`, add `using System.Linq;` and `using Synto.Generators.S
             if (resolved.Count > 1 && !ShareBindingShape(resolved))
             {
                 // Differing binding shapes (e.g. staged `Arm(ExpressionSyntax,…)` vs constant `Arm([Constant],…)`):
-                // replicate C# overload resolution over the synthesized facade value-param types. SY1018 fires only
-                // when that leaves zero or an ambiguous set.
+                // bounded argument-directed resolution over the synthesized facade value-param types (only staged
+                // params discriminate; object-facing islands never do). SY1018 fires only when that leaves zero or
+                // a tied set — a predictable error with a fix-it, never an arbitrary pick.
                 var picked = ResolveOverloadByArguments(resolved, invocation);
                 if (picked is null)
                 {
@@ -267,34 +283,40 @@ Then add these private members to the class:
 
 ```csharp
     /// <summary>
-    /// Resolves same-name builder overloads whose binding shapes DIFFER by replicating C# overload resolution
-    /// over the SYNTHESIZED facade value-parameter types: a [Staged] param faces the builder parameter type; a
-    /// [Quoted]/[Constant] param faces <c>object</c>; a [TypeArg] param is not a value argument (already handled
-    /// by type-argument-arity narrowing). A candidate is applicable when its value-param count matches the call's
-    /// argument count and every argument implicitly converts to the matching facade param type. Among applicable
-    /// candidates the most concretely-typed one wins (fewest <c>object</c> value params — the staged
-    /// <c>Arm(ExpressionSyntax, object)</c> beats the constant <c>Arm(object, object)</c> when an ExpressionSyntax
-    /// argument fits both). Returns null on zero or a tied set, so the caller reports SY1018. Runs entirely inside
-    /// the transform; captures nothing into pipeline state.
+    /// Resolves same-name builder overloads whose binding shapes DIFFER, with a bounded rule (spec
+    /// 2026-07-11-builder-overload-resolution-design.md §2). ONLY [Staged] value params discriminate: a [Staged]
+    /// param faces the builder parameter type and the argument's resolved type must implicitly convert to it. A
+    /// [Quoted]/[Constant] param is object-facing and ALWAYS applicable — it is an island that accepts any
+    /// expression and is NEVER type-checked here (its argument is frequently a nested, still-unbound facade call
+    /// whose type cannot be resolved; type-checking it would spuriously reject the candidate — see spec §4). A
+    /// [TypeArg] param is not a value argument (handled upstream by type-argument-arity narrowing). Among
+    /// applicable candidates the most concretely-typed one wins (fewest object-facing params — staged
+    /// <c>Arm(ExpressionSyntax, object)</c> beats constant <c>Arm(object, object)</c> when an ExpressionSyntax
+    /// argument fits both). Returns null on zero applicable or a tie, so the caller reports SY1018. Runs entirely
+    /// inside the transform; captures nothing into pipeline state.
     /// </summary>
     private IMethodSymbol? ResolveOverloadByArguments(List<IMethodSymbol> candidates, InvocationExpressionSyntax invocation)
     {
         var args = invocation.ArgumentList.Arguments;
         var objectType = _semanticModel.Compilation.GetSpecialType(SpecialType.System_Object);
 
-        var applicable = new List<(IMethodSymbol Method, int ObjectParams)>();
+        var applicable = new List<(IMethodSymbol Method, int ObjectFacing)>();
         foreach (var candidate in candidates)
         {
-            var facadeParamTypes = FacadeValueParamTypes(candidate, objectType);
-            if (facadeParamTypes is null || facadeParamTypes.Count != args.Count)
+            var facadeParams = FacadeValueParams(candidate, objectType);
+            if (facadeParams is null || facadeParams.Count != args.Count)
                 continue;
 
             bool ok = true;
             for (int i = 0; i < args.Count; i++)
             {
+                if (facadeParams[i].ObjectFacing)
+                    continue; // island: accepts any expression, never type-checked (may be an unbound nested facade)
+
+                // Staged param: the argument must be a real, bound factory-time expression that converts.
                 var argType = _semanticModel.GetTypeInfo(args[i].Expression).Type;
                 if (argType is null ||
-                    !_semanticModel.Compilation.ClassifyConversion(argType, facadeParamTypes[i]).IsImplicit)
+                    !_semanticModel.Compilation.ClassifyConversion(argType, facadeParams[i].Type).IsImplicit)
                 {
                     ok = false;
                     break;
@@ -302,44 +324,49 @@ Then add these private members to the class:
             }
             if (ok)
             {
-                int objectParams = facadeParamTypes.Count(t => t.SpecialType == SpecialType.System_Object);
-                applicable.Add((candidate, objectParams));
+                int objectFacing = facadeParams.Count(p => p.ObjectFacing);
+                applicable.Add((candidate, objectFacing));
             }
         }
 
         if (applicable.Count == 0)
             return null;
 
-        int min = applicable.Min(a => a.ObjectParams);
-        var best = applicable.Where(a => a.ObjectParams == min).ToList();
+        int min = applicable.Min(a => a.ObjectFacing);
+        var best = applicable.Where(a => a.ObjectFacing == min).ToList();
         return best.Count == 1 ? best[0].Method : null;
     }
 
     /// <summary>
-    /// The synthesized facade's value-parameter types in call order (type-argument params skipped): a [Staged]
-    /// param faces its builder parameter type; a [Quoted]/[Constant] param faces <c>object</c>. Null when the
-    /// candidate does not derive a valid facade.
+    /// The synthesized facade's value parameters in call order (type-argument params skipped), each carrying its
+    /// classification type and whether it is object-facing. A [Staged] param carries its builder parameter type
+    /// and discriminates (not object-facing); a [Quoted]/[Constant] param is object-facing (an island, never
+    /// classified — its facade type is immaterial here, so <c>object</c> is stored). Null when the candidate does
+    /// not derive a valid facade.
     /// </summary>
-    private List<ITypeSymbol>? FacadeValueParamTypes(IMethodSymbol builder, ITypeSymbol objectType)
+    private List<(ITypeSymbol Type, bool ObjectFacing)>? FacadeValueParams(IMethodSymbol builder, ITypeSymbol objectType)
     {
         if (FacadeShape.Derive(builder, out var annotationError, out var returnShapeError) is null
             || annotationError is not null || returnShapeError is not null)
             return null;
 
-        var types = new List<ITypeSymbol>();
+        var result = new List<(ITypeSymbol, bool)>();
         foreach (var p in builder.Parameters)
         {
             if (SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.TypeArgAttribute).FullName!) is not null)
                 continue; // type argument, not a value argument
-            bool facesObject =
+
+            bool objectFacing =
                 SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.QuotedAttribute).FullName!) is not null
                 || SymbolMetadataExtensions.FindAttribute(p, typeof(global::Synto.Templating.ConstantAttribute).FullName!) is not null;
-            types.Add(facesObject ? objectType : p.Type);
+            result.Add((objectFacing ? objectType : p.Type, objectFacing));
         }
-        return types;
+        return result;
     }
 ```
 
+> **Note on the object-facing rule:** `[Quoted]`/`[Constant]` arguments are the real dog-food's nested builder islands (`Member<TRet>(…)`, `Coalesce(…)`) — UNBOUND in the analyzed compilation, so `GetTypeInfo(...).Type` on them is null/error. They must never gate applicability (spec §4); only `[Staged]` params carry a bound, classifiable type. The `Pick(7, Picks.Wrap(v))` line in Step 1 is the guard.
+>
 > **Note on `params`:** the only shape-sharing overload set today (the two `Switch` forms) never reaches this path, and neither new overload uses `params`, so exact `Count == args.Count` matching is sufficient. If a future non-shared-shape overload adds `params`, extend the count check then — do not add speculative handling now (YAGNI).
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -385,6 +412,17 @@ public void NonSharedShapeOverloads_TrulyAmbiguous_StillReportsSY1018()
 
 Run: `dotnet test --project test/Synto.Test/Synto.Test.csproj --filter-method "*NonSharedShapeOverloads*"`
 Expected: PASS (both).
+
+- [ ] **Step 5b: Upgrade the SY1018 message to be actionable**
+
+The widening changes when SY1018 fires — no longer "any non-shape-sharing overloads" but "the arguments don't distinguish the overloads". Make the message tell the author how to fix it. Find the `SY1018`/`AmbiguousBuilder` descriptor (in `TemplateDiagnostics`) and replace its message with actionable guidance, e.g.:
+
+> Cannot determine which `{0}` overload this call targets — the candidates differ in binding shape and the arguments don't distinguish them. Fix by one of: (a) give the overloads a distinguishing non-`[Quoted]`/`[Constant]` (staged) parameter whose type the argument selects; (b) rename one overload; (c) pass an argument whose type matches exactly one overload.
+
+Keep the existing message argument (`{0}` = the builder name) and the diagnostic id/severity/category unchanged — only the format string changes, so no new args and nothing new enters equatable diagnostic state (spec §5). Rendering the candidate signature list is deferred (spec §9). If `AmbiguousBuilder_ReportsSY1018` asserts on message text, update that assertion.
+
+Run: `dotnet test --project test/Synto.Test/Synto.Test.csproj --filter-method "*AmbiguousBuilder_ReportsSY1018*"`
+Expected: PASS.
 
 - [ ] **Step 6: Full Synto.Test run — no regression, cacheability intact**
 
@@ -608,7 +646,7 @@ Expected: PASS, including all cacheability asserts (no `SyntaxNode`/`ISymbol`/`S
 jj commit examples/Synto.Example.ObjectReader/Synto.Example.ObjectReader.Generator/ReaderTemplate.cs -m "refactor(example): ObjectReader typed-getter arm rides Coalesce + ordinal Arm"
 ```
 
-> **Note:** the user has an in-progress working-copy edit to `ReaderTemplate.cs`. Before Step 2, confirm with the user whether to build on their edit or the committed version; scope the `jj commit` to exactly this file so their unrelated changes aren't swept.
+> **Note — do NOT sweep the user's WIP.** The user has an unrelated in-progress working-copy edit elsewhere in `ReaderTemplate.cs` (a `Math.Min` refactor in `GetValues`, NOT the getter arm). An isolated implement-plan workspace bases off a commit, so that uncommitted edit is not present there and `jj commit <file>` is clean — but before committing, run `jj diff` on the file and confirm it shows ONLY the typed-getter arm change. If any other hunk appears (i.e. run applied in a dirty workspace), `jj split` the file to separate the arm change before committing; never fold the user's WIP into this commit.
 
 ---
 
@@ -616,7 +654,7 @@ jj commit examples/Synto.Example.ObjectReader/Synto.Example.ObjectReader.Generat
 
 **Spec coverage:**
 - §2.1 `Coalesce` (fixed facade, no type-arg, nested re-entry) → Task 1. ✓
-- §2.2 ordinal `Arm` (`[Constant]` overload, existing staged Arm preserved) → Task 3, enabled by Task 2. ✓ (Q2 resolved to the overload path per the user; the SY1018 blocker is handled by Task 2's generator widening.)
+- §2.2 ordinal `Arm` (`[Constant]` overload, existing staged Arm preserved) → Task 3, enabled by Task 2. ✓ (Q2 resolved to the overload path per the user; the SY1018 blocker is handled by Task 2's generator widening, whose resolver is specified in `docs/superpowers/specs/2026-07-11-builder-overload-resolution-design.md` — object-facing args never gate resolution (spec §4), ambiguity emits an actionable SY1018 (spec §5).)
 - §2.3 `Throw`/`Member` type-argument shed → **explicitly out of scope** (spec §6 "drop if it balloons": a fixed facade on `Member`/`Throw` breaks every `<T>` caller across the suite). Arm operands keep `<object>`/`<TRet>`. ✓ (documented)
 - §3 rewrite `TypedGetter` onto the builders → Task 4. ✓
 - §4 contracts: `Coalesce(a,b)`→`a ?? b` (Task 1 executed test); no call-site type arg (Task 1 bare-call compile); `Arm(c.Ordinal, value)` + staged-Arm regression (Task 3); semantic-not-byte-identical + behavior green (Task 4); cacheability preserved (Task 2 note + Task 4 Step 7). ✓
