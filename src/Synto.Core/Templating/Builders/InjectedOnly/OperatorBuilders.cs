@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 
 namespace Synto.Templating;
 
@@ -26,4 +27,13 @@ internal static partial class OperatorBuilders
     /// <summary>Builds <c>sizeof(name)</c> from a factory-time type name.</summary>
     [SyntaxBuilder(Returns = typeof(int), Facade = typeof(Operators))]
     internal static ExpressionSyntax SizeOf(string name) => SizeOfExpression(ParseTypeName(name));
+
+    /// <summary>Builds a <c>left ?? right</c> null-coalescing expression from two quoted operand islands.
+    /// Fixed <c>ExpressionSyntax</c> facade (into <see cref="Operators"/>) so a bare, type-argument-free
+    /// <c>Coalesce(...)</c> composes inside an island; the operands expand nested builders (<c>Member</c>,
+    /// <c>Throw</c>) via re-entry. A fresh-<c>TResult</c> facade (<c>Coalesce&lt;TResult&gt;</c>) couldn't infer
+    /// <c>TResult</c> and would force an explicit type argument — the fixed facade is the whole point.</summary>
+    [SyntaxBuilder(Returns = typeof(ExpressionSyntax), Facade = typeof(Operators))]
+    internal static ExpressionSyntax Coalesce([Quoted] ExpressionSyntax left, [Quoted] ExpressionSyntax right) =>
+        BinaryExpression(CoalesceExpression, left, right);
 }

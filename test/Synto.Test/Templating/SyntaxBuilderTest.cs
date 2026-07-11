@@ -761,6 +761,84 @@ public class SyntaxBuilderTest
         Assert.Contains("sizeof(int)", rendered, System.StringComparison.Ordinal);
     }
 
+    // Task 1 (spec §2.1): Coalesce is a fixed-ExpressionSyntax-facade `??` builder. A bare, type-argument-free
+    // `Coalesce(left, right)` is rewritten to the fully-qualified `OperatorBuilders.Coalesce`, and its [Quoted]
+    // operand islands expand nested builders via re-entry — a nested `Member(...)` becomes `SyntoBuilders.Member`.
+    [Fact]
+    public void Coalesce_RewritesToBuilder_AndExpandsNestedMember()
+    {
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            using static Synto.Templating.SyntoBuilders;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                object Build([Splice] object obj) =>
+                    Coalesce(Member<object>(obj, "X"), Throw<object>(Member<object>(obj, "Err")));
+            }
+            """);
+
+        // Fixed-ExpressionSyntax facade: rewritten to the fully-qualified builder (no call-site type argument).
+        Assert.Contains("OperatorBuilders.Coalesce", generated, StringComparison.Ordinal);
+        // The [Quoted] operand islands expand nested builders (Member / Throw) via re-entry.
+        Assert.Contains("SyntoBuilders.Member", generated, StringComparison.Ordinal);
+        Assert.Contains("SyntoBuilders.Throw", generated, StringComparison.Ordinal);
+    }
+
+    // Task 1: executed end-to-end proof (modeled on NameOf_Executed_EmitsNameofExpression) that a BARE
+    // `Coalesce(...)` (no type argument) type-checks against the ExpressionSyntax facade, the post-gen output
+    // compiles clean, and the factory renders `obj.X ?? throw obj.Err` — proving both `??` emission and the
+    // nested Member/Throw re-entry.
+    [Fact]
+    public void Coalesce_Executed_EmitsCoalesceWithThrow()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            using static Synto.Templating.SyntoBuilders;
+
+            partial class Factory {}
+
+            [Template<Factory>]
+            public class Reader {
+                public object Build([Splice] object obj) =>
+                    Coalesce(Member<object>(obj, "X"), Throw<object>(Member<object>(obj, "Err")));
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new SurfaceInjectionGenerator(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var compileErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(compileErrors.Count == 0,
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        using var peStream = new System.IO.MemoryStream();
+        var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        var assembly = Assembly.Load(peStream.ToArray());
+        var readerFactory = assembly.GetType("Factory")!.GetMethod("Reader")!;
+        var obj = Microsoft.CodeAnalysis.CSharp.SyntaxFactory.IdentifierName("row");
+        var built = readerFactory.Invoke(null, new object?[] { obj });
+
+        var node = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.SyntaxNode>(built!);
+        var rendered = node.NormalizeWhitespace().ToString();
+        Assert.Contains("?? throw", rendered, System.StringComparison.Ordinal);
+        Assert.Contains(".X", rendered, System.StringComparison.Ordinal);
+    }
+
     // #1: a call whose simple name COLLIDES with a registered builder but which BINDS to a real, unrelated
     // user method must NOT be hijacked as a builder facade — it is quoted verbatim. Today the finder matches by
     // simple name alone and mis-binds `settings.Wrap()` (0 args) to the 1-param builder, emitting SY1016.
