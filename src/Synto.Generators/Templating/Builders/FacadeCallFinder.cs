@@ -1,7 +1,10 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Symbols;
 using Synto.Generators.Templating.Emit;
 using Synto.Generators.Templating.Diagnostics;
 using Synto.Generators.Templating.Lifting;
@@ -106,21 +109,111 @@ internal sealed class FacadeCallFinder : TemplateScopedWalker
 
             // Same-name overloads that survive narrowing are allowed as long as they share a binding shape (e.g.
             // the two `Switch` overloads are both `[Quoted governing, Staged list]`): bind with the shared shape
-            // and let the C# compiler resolve the real overload from the typed argument. SY1018 fires only on a
-            // genuine, unresolved shape conflict (differing quoted/staged/type-arg parameter kinds).
+            // and let the C# compiler resolve the real overload from the typed argument. A group whose shapes
+            // DIFFER (e.g. staged `Arm(ExpressionSyntax, …)` vs ordinal `Arm([Constant] SyntaxNode, …)`) is
+            // resolved by argument type via the bounded resolver (spec 2026-07-11-builder-overload-resolution-
+            // design.md §2); SY1018 fires only when it cannot pick a single overload.
+            IMethodSymbol chosen;
             if (resolved.Count > 1 && !ShareBindingShape(resolved))
             {
-                _diagnostics.Add(TemplateDiagnostics.AmbiguousBuilder(invocation.GetLocation(), simpleName));
-                base.VisitInvocationExpression(invocation);
-                return;
+                var picked = ResolveOverloadByArguments(resolved, invocation);
+                if (picked is null)
+                {
+                    _diagnostics.Add(TemplateDiagnostics.AmbiguousBuilder(invocation.GetLocation(), simpleName));
+                    base.VisitInvocationExpression(invocation);
+                    return;
+                }
+                chosen = picked;
+            }
+            else
+            {
+                chosen = resolved[0];
             }
 
-            var match = FacadeArgumentBinder.Bind(_semanticModel, invocation, resolved[0], _valueLift, _diagnostics);
+            var match = FacadeArgumentBinder.Bind(_semanticModel, invocation, chosen, _valueLift, _diagnostics);
             if (match is not null)
                 _calls.Add(match);
         }
 
         base.VisitInvocationExpression(invocation);
+    }
+
+    /// <summary>
+    /// Resolves same-name builder overloads whose binding shapes DIFFER, by the bounded, argument-directed rule
+    /// (spec 2026-07-11-builder-overload-resolution-design.md §2). ONLY staged params discriminate: a staged
+    /// param faces a real builder-typed facade parameter, so the argument's resolved type must exist and
+    /// implicitly convert to it. A <c>[Quoted]</c>/<c>[Constant]</c> param is object-facing — an island that
+    /// accepts any expression — and is NEVER type-checked (its argument is frequently a nested, still-unbound
+    /// facade call whose type cannot resolve; type-checking would spuriously reject the candidate — spec §4). A
+    /// <c>[TypeArg]</c> param is not a value argument (already narrowed upstream by type-argument arity). Among
+    /// applicable candidates the most concretely-typed one wins (fewest object-facing params — staged
+    /// <c>Arm(ExpressionSyntax, object)</c> beats ordinal <c>Arm(object, object)</c> when an ExpressionSyntax
+    /// argument fits both). Returns null on zero applicable or a tie, so the caller reports SY1018. Runs entirely
+    /// inside the transform; captures nothing into pipeline state.
+    /// </summary>
+    private IMethodSymbol? ResolveOverloadByArguments(List<IMethodSymbol> candidates, InvocationExpressionSyntax invocation)
+    {
+        var args = invocation.ArgumentList.Arguments;
+        var compilation = (CSharpCompilation)_semanticModel.Compilation;
+
+        var applicable = new List<(IMethodSymbol Method, int ObjectFacing)>();
+        foreach (var candidate in candidates)
+        {
+            var shape = FacadeShape.Derive(candidate, out var annotationError, out var returnShapeError);
+            if (shape is null || annotationError is not null || returnShapeError is not null)
+                continue;
+
+            // Facade value params (skip [TypeArg]) in call order, paired with the builder param that supplies a
+            // staged slot's real conversion target. shape.Parameters is 1:1 with builder.Parameters in order.
+            var valueParams = new List<(FacadeParam Facade, IParameterSymbol Builder)>();
+            for (int i = 0; i < shape.Parameters.Count; i++)
+            {
+                if (shape.Parameters[i].Kind == BuilderArgKind.QuotedTypeArg)
+                    continue;
+                valueParams.Add((shape.Parameters[i], candidate.Parameters[i]));
+            }
+
+            if (valueParams.Count != args.Count)
+                continue;
+
+            bool ok = true;
+            int objectFacing = 0;
+            for (int i = 0; i < valueParams.Count; i++)
+            {
+                var (facade, builderParam) = valueParams[i];
+                if (facade.Kind == BuilderArgKind.Quoted || facade.Kind == BuilderArgKind.Constant)
+                {
+                    // Object-facing island: unconditionally applicable, never type-checked (spec §4).
+                    objectFacing++;
+                    continue;
+                }
+
+                // Staged: the argument must have a resolved type implicitly convertible to the builder param type.
+                var argType = _semanticModel.GetTypeInfo(args[i].Expression).Type;
+                if (argType is null || argType.TypeKind == TypeKind.Error)
+                {
+                    ok = false;
+                    break;
+                }
+
+                var conversion = compilation.ClassifyConversion(argType, builderParam.Type);
+                if (!conversion.IsImplicit)
+                {
+                    ok = false;
+                    break;
+                }
+            }
+
+            if (ok)
+                applicable.Add((candidate, objectFacing));
+        }
+
+        if (applicable.Count == 0)
+            return null;
+
+        int min = applicable.Min(a => a.ObjectFacing);
+        var best = applicable.Where(a => a.ObjectFacing == min).ToList();
+        return best.Count == 1 ? best[0].Method : null;
     }
 
     /// <summary>

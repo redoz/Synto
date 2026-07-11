@@ -495,16 +495,110 @@ public class SyntaxBuilderTest
             partial class Factory {}
 
             static partial class Builders {
-                // two builders with the SAME facade name `Wrap` -> ambiguous once a call matches.
+                // two builders with the SAME facade name `Wrap`, same arity, differing binding shapes, both
+                // object-facing (one [Quoted], one [Constant]) -> a call cannot distinguish them -> SY1018.
                 [SyntaxBuilder]
                 public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
                 [SyntaxBuilder]
-                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x, [Quoted] ExpressionSyntax y) => x;
+                public static ExpressionSyntax Wrap([Constant] Microsoft.CodeAnalysis.SyntaxNode x) => (ExpressionSyntax)x;
             }
 
             public class TestClass {
                 [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Builders.Wrap(x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1018");
+        AssertHasRealSpan(diag);
+    }
+
+    // Overload resolution (Task 2 widening): two same-name overloads with DIFFERENT binding shapes — staged
+    // `Pick(ExpressionSyntax, …)` and constant `Pick([Constant] SyntaxNode, …)`. Before the widening they trip
+    // SY1018 (ShareBindingShape rejects the differing kinds); after, the finder resolves each call by argument
+    // type — an int argument binds the constant overload (lifted via ToSyntax), an ExpressionSyntax argument the
+    // staged overload (passed verbatim).
+    //
+    // The `Pick(7, Picks.Wrap(v))` call is the guard for the resolver's object-facing rule (spec
+    // `2026-07-11-builder-overload-resolution-design.md` §4): its second argument is a NESTED facade call
+    // (`Wrap`), which is UNBOUND in the analyzed compilation (a synthesized facade, not present) — so
+    // `GetTypeInfo(...).Type` on it is null/error. A resolver that type-checked EVERY argument would reject both
+    // `Pick` candidates at that `[Quoted]` slot and spuriously report SY1018. Because the two overloads differ
+    // only at the object-facing value param, the int/first-arg alone must decide. This mirrors the real dog-food
+    // call `Arm(c.Ordinal, Member<TRet>(...))` — do NOT drop this call; it is the case the naive resolver fails.
+    [Fact]
+    public void NonSharedShapeOverloads_ResolvedByArgumentType_NoSY1018()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis;
+            using Microsoft.CodeAnalysis.CSharp;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class Picks {
+                [SyntaxBuilder]
+                public static SwitchExpressionArmSyntax Pick(ExpressionSyntax pattern, [Quoted] ExpressionSyntax v)
+                    => SwitchExpressionArm(ConstantPattern(pattern), v);
+                [SyntaxBuilder]
+                public static SwitchExpressionArmSyntax Pick([Constant] SyntaxNode label, [Quoted] ExpressionSyntax v)
+                    => SwitchExpressionArm(ConstantPattern((ExpressionSyntax)label), v);
+                // A nested [Quoted]-island builder returning ExpressionSyntax — its bare facade call is unbound in
+                // the analyzed compilation, so it stresses the object-facing rule when used as a `[Quoted]` argument.
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax inner) => inner;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object v) {
+                    var a = Picks.Pick(42, v);                                             // int -> constant overload
+                    var b = Picks.Pick(LiteralExpression(SyntaxKind.NullLiteralExpression), v); // ExpressionSyntax -> staged
+                    var c = Picks.Pick(7, Picks.Wrap(v));                                  // nested UNBOUND facade as [Quoted] arg -> constant overload, no SY1018
+                    System.Console.WriteLine(a);
+                    System.Console.WriteLine(b);
+                    System.Console.WriteLine(c);
+                }
+            }
+            """;
+
+        var diagnostics = RunAndGetDiagnostics(source);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SY1018");
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        // The int-arg calls resolved to the CONSTANT overload (their arguments are lifted via ToSyntax); the
+        // ExpressionSyntax-arg call resolved to the STAGED overload (its argument is passed verbatim, not lifted).
+        var generated = RunAndGetGeneratedText(source);
+        Assert.Contains("42.ToSyntax()", generated, StringComparison.Ordinal);
+        Assert.Contains("7.ToSyntax()", generated, StringComparison.Ordinal); // nested-facade arg did not block resolution
+    }
+
+    // Widening must NOT swallow genuine ambiguity: two non-shared-shape overloads BOTH applicable to the same
+    // argument with no most-specific winner still report SY1018 (spec §6). Both `Two` overloads are object-facing
+    // (one [Quoted], one [Constant]) so a `null` argument ties them.
+    [Fact]
+    public void NonSharedShapeOverloads_TrulyAmbiguous_StillReportsSY1018()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Amb {
+                // Both faces `object` (one [Quoted], one [Constant]) -> a `null` argument -> equal object-param
+                // counts -> tied -> SY1018.
+                [SyntaxBuilder]
+                public static ExpressionSyntax Two([Quoted] ExpressionSyntax x) => x;
+                [SyntaxBuilder]
+                public static ExpressionSyntax Two([Constant] SyntaxNode x) => (ExpressionSyntax)x;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build() => System.Console.WriteLine(Amb.Two(null));
             }
             """);
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1018");

@@ -197,7 +197,10 @@ internal static class TemplateDiagnostics
 
     private static readonly DiagnosticDescriptor _ambiguousBuilder = new(IdPrefix + "1018",
         "Ambiguous Syntax Builder",
-        "Two [SyntaxBuilder] methods synthesize colliding facade '{0}'; keep exactly one",
+        "Cannot determine which [SyntaxBuilder] overload the call to '{0}' targets — the same-name candidates "
+            + "differ in binding shape and the arguments don't distinguish them; give the overloads a "
+            + "distinguishing staged parameter whose type the argument selects, rename one overload, or call "
+            + "with an argument whose type matches exactly one staged parameter",
         "Synto.Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
