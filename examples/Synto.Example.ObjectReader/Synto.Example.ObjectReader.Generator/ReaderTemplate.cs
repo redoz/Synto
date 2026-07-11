@@ -4,7 +4,6 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto.Generators;
 using Synto.Templating;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
 using static Synto.Templating.Template;
 using static Synto.Templating.SyntoBuilders;
 using static Synto.Templating.Operators;
@@ -123,25 +122,19 @@ internal class ObjectReaderTemplate<[Splice] T>
         //      N => _e.Current.X ?? throw new InvalidCastException(...)   // null → "call IsDBNull first"; the
         //                                                                 //   `?? throw` result is non-null, so the
         //                                                                 //   non-nullable getter never returns null (no CS8603).
-        //    The plain arm rides the Arm/Member builders. The guarded arm is a raw (staged) SwitchExpressionArm whose
-        //    value is a `??` BinaryExpression: its left is the `_e.Current.<Name>` access built directly (Member's
-        //    facade returns TRet, not ExpressionSyntax, so it can't feed a raw BinaryExpression), and its right is the
-        //    throw EXPRESSION built via the `Throw<ExpressionSyntax>` builder island (so the exception type is
-        //    fully-qualified and `{i}` stays an output interpolation). Nullable VALUE types are out of scope (a
-        //    different warning) — ResolveMemberType never flags them, so they take the plain path above.
+        //    Both arms ride the ordinal `Arm(c.Ordinal, value)` builder (the factory-time ordinal is value-lifted
+        //    into the constant pattern). The plain arm's value is `Member<TRet>(...)`. The guarded arm wraps its
+        //    `_e.Current.<Name>` access (as `Member<object>` so the `??` operands stay object-typed) in the
+        //    `Coalesce(left, right)` builder, pairing it with a throw EXPRESSION built via the `Throw<object>`
+        //    builder island (so the exception type is fully-qualified and `{i}` stays an output interpolation).
+        //    Nullable VALUE types are out of scope (a different warning) — ResolveMemberType never flags them, so
+        //    they take the plain path above.
         return Switch<TRet>(i, columns.Where(c => c.ColumnTypeName == clrTypeName).Select(c =>
                 !c.IsNullableReference
-                    ? Arm(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal)),
-                        Member<TRet>(_e.Current, c.Name))
-                    : SwitchExpressionArm(
-                        ConstantPattern(LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal))),
-                        BinaryExpression(
-                            CoalesceExpression,
-                            MemberAccessExpression(
-                                SimpleMemberAccessExpression,
-                                MemberAccessExpression(SimpleMemberAccessExpression, IdentifierName("_e"), IdentifierName("Current")),
-                                IdentifierName(c.Name)),
-                            Throw<ExpressionSyntax>(new InvalidCastException($"Field {i} is null; call IsDBNull first.")))))
+                    ? Arm(c.Ordinal, Member<TRet>(_e.Current, c.Name))
+                    : Arm(c.Ordinal, Coalesce(
+                        Member<object>(_e.Current, c.Name),
+                        Throw<object>(new InvalidCastException($"Field {i} is null; call IsDBNull first.")))))
             .Append(DefaultArm(Throw<TRet>(new InvalidCastException($"Field {i} is not {typeLabel} column.")))));
     }
 
