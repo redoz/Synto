@@ -136,3 +136,98 @@ the `LiveTemplateHighlightAnalyzer` class doc.
 - In-scope: Seam A, Seam B, the analyzer, tests, workaround comments, the 1.0-gate record.
 - Out of scope: changing SY1035 severity/prominence (stays `Info`; inline renders as the faint
   suggestion underline — a separate decision); the Option C extraction itself.
+
+---
+
+## Option C — implementation refinement (2026-07-12)
+
+The workaround above shipped and lives on `main`. This section pins the concrete, code-verified
+shape of the Option C extraction (the 1.0 gate) after a brainstorm against the actual emit path.
+It **supersedes** the sketch in "Known debt / 1.0 gate" wherever they differ.
+
+### Decision: shallow split (formalize the front-half), not a re-implementation
+
+Liveness is **not** re-derived independently. `Classify` is the existing `Build` front-half —
+`TemplateFactoryBuilder.Build` lines 52–102 (`DiscoverStagedRootsAndClassify` … `EmitLiveRegions`)
+plus the SY1035 merge — refactored to **return** the highlight set as a product instead of tapping
+`ctx.Diagnostics` mid-walk. Emit's factory-assembly tail (`EmitSpliceMemberGenerators`,
+`QuoteAndAssemble`, lines 112–122) is unchanged. The `.ToSyntax()` lift *applications* stay inside
+`Classify` (they are cheap and the analyzer already runs them today under `highlightsOnly`); a
+genuinely mutation-free pass (splitting lift-detection from lift-application) is the *deep* split,
+**deferred** until a concrete consumer — e.g. a VS tagger hot path — needs it. Shallow delivers the
+1.0-gate architecture win (reusable product, no mid-walk tapping, one classification both sides
+read); it does **not** claim the tagger-grade "slim front half" perf, which is a later concern.
+
+### The product — one field, no new span type
+
+The taps already produce SY1035-shaped `DiagnosticInfo` on two channels held separate from the
+error sink: `StagedRegionEmitter`'s `InfoDiagnostics` (Tap 1 in-region holes + Tap 3 control
+drivers) and `ctx.LiveFragmentInfos` (Tap 2a `StagedRootLifter:71`, Tap 2b `TemplateFactoryBuilder:598`,
+quote-call `:781`). They commingle into `ctx.Diagnostics` at exactly **one line** —
+`TemplateFactoryBuilder.cs:931-933` — via `LiveFragmentMerge.Merge` (dedupe/order/cap-100). That one
+line is the whole seam.
+
+```
+sealed record TemplateClassification(EquatableArray<DiagnosticInfo> Highlights);
+//   null return  = template can't be built (any front-half bail)
+//   non-null     = the merged SY1035 set (may be empty)
+```
+
+No new `LiveSpan` type: `DiagnosticInfo` is already the equatable, `SyntaxNode`-free carrier, so the
+product is cacheable as-is.
+
+**`StagingErrors` is dropped** from the spec's original `{LiveSpans, StagingErrors}` signature: no
+consumer needs it as a distinct field. The generator still reports SY1014 staging errors via
+`ctx.Diagnostics` (unchanged); the analyzer encodes suppression purely by **empty `Highlights`** (a
+bail returns `null` → nothing painted). A `StagingErrors` field would have no reader — add it only
+when a real consumer appears.
+
+### `:173` reconciliation — no divergence under shallow
+
+§88-98 worried that a front-end `Classify` could not see the emit-time "staged region body could not
+be quoted" bail (`StagedScaffoldBuilder.cs:173`), so the analyzer would over-highlight where the
+generator suppresses. **That divergence does not arise under the shallow split.** The island quoter
+runs inside `EmitLiveRegions` (line 102), which is *before* the old `highlightsOnly` boundary (line
+109) and therefore *inside* `Classify`. Both the generator (via `Build`) and the analyzer (via
+`Classify`) run the same `EmitLiveRegions`, hit `:173` identically, and suppress identically. The
+§88-98 two-tier concern is retired; a comment at the `Classify` boundary records this.
+
+### Blast radius — 5 files, all at the seam
+
+- `TemplateFactoryBuilder.cs` — extract `Classify` from `Build`; change line 931-933 from "append to
+  `ctx.Diagnostics`" to "store the merged set as the product"; `Build` calls `Classify`, then
+  `ctx.Diagnostics.AddRange(classification.Highlights)` (restores the byte-identical Error-List
+  position/set), then the unchanged emit tail; **delete** the `highlightsOnly` parameter and the
+  lines 109-110 early-return.
+- `TemplateFactorySourceGenerator.cs` — extract the gate preamble (`NestedTemplateCheck` +
+  `TemplateInfo.Create` + `TemplateValidator.Validate`) into a shared helper; `TryGenerate` → gates
+  → `Build` (unchanged behavior, no `highlightsOnly`); new `TryClassify` → gates → `Classify`.
+- `LiveTemplateHighlightAnalyzer.cs` — call `TryClassify`; report each `Highlights` entry;
+  run-and-discard framing removed.
+- `TemplateBuildContext.cs` — minimal (carry/return the merged highlight set out of `EmitLiveRegions`).
+- New: `TemplateClassification` record (one field).
+
+**Zero edits to the four tap sites or any detection predicate.** The taps and `LiveFragmentMerge`
+are untouched — only the finalization append and the entry wiring move.
+
+### Verification pins
+
+- Existing SY1035 generator tests stay **byte-identical** (Error-List set + position preserved by
+  the restored `AddRange`).
+- Existing analyzer-highlight tests: identical spans.
+- **Parity test** (analyzer `Highlights` == generator SY1035 set) — now provable, both read the one
+  product; keep as the anti-drift pin.
+- Generator output snapshots unchanged (emit tail untouched).
+- New: `Classify` returns `null` on a staging bail → analyzer paints nothing (suppression pin).
+- `CacheabilityAssert.AllStepsCachedOrUnchanged` green (product is `EquatableArray<DiagnosticInfo>`).
+- ObjectReader example builds green (dogfood gate).
+
+### Comment hygiene
+
+The interim-workaround comments pointing at "Option C / 1.0 gate" (`TryGenerate` summary,
+`highlightsOnly` notes, `LiveTemplateHighlightAnalyzer` class doc) are removed — Option C is the
+landed design, not deferred debt.
+
+### Branch
+
+`experimental/live-template-highlight-analyzer` (per the experimental-features-own-branch rule).
