@@ -2,6 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **⚠ REPOINTED onto the DLL-layering restructure (2026-07-15).** This plan predates the decision in `docs/superpowers/specs/2026-07-15-synto-dll-layering-single-package.md` and its plan `docs/superpowers/plans/2026-07-15-synto-dll-layering-restructure.md`, which **lands first (gate)**. Apply these standing substitutions throughout this plan:
+> - **Trio home:** wherever a file path says `src/Synto.Generators/Incremental/<X>.cs` (e.g. `DiagnosticInfo.cs`, `DiagnosticBag.cs`), read it as **`src/Synto.Incremental/<X>.cs`** — the trio + `DiagnosticBag`/`Drain`/`ToEquatableArray` now live in the `Synto.Incremental` DLL. Its embedded-resource `<EmbeddedResource>` entries live in `src/Synto.Incremental/Synto.Incremental.csproj`, not `Synto.Generators.csproj`.
+> - **Injector:** the trio is injected by `IncrementalSurfaceInjector` (in `Synto.Incremental`), a `SurfaceInjectorBase` subclass — NOT the old monolithic `SurfaceInjectionGenerator`. The namespace is unchanged (`Synto.Generators`).
+> - **Packaging (Task 7):** DROPPED — superseded by the restructure. `Synto.Diagnostics` is now a feature DLL bundled inside the single `Synto` nupkg (restructure Task 9), so a cacheable-`[Diagnostic]` consumer already receives the trio from `Synto.Incremental` via the one `Synto` package. No cross-package dependency is authored here.
+
 **Goal:** Give Synto consumers a first-class, cache-safe way to author and carry diagnostics: a return-type-directed `[Diagnostic]` factory that emits `DiagnosticInfo` (not a live `Diagnostic`), a shipped consumer-facing cacheable trio (`DiagnosticInfo` / `LocationInfo` / `EquatableArray<T>`) with symbol/node provenance helpers, and a `DiagnosticBag` + `Drain` collector pair that removes collect/report boilerplate.
 
 **Architecture:** The consumer-facing cacheable surface is the ONE already-injected `Synto.Generators`-namespaced trio (injected by the `Synto` package's `SurfaceInjectionGenerator`); we extend it in place (`LocationInfo.From` helpers, new `DiagnosticBag`/`Drain`) rather than authoring a third copy. The `[Diagnostic]` generator in `Synto.Diagnostics` gains a cacheable body-emission sibling selected by the factory's declared return type, factored behind a strategy seam so the live and cacheable forms are peers (no `if (isCacheable)` thread). The two forms materialize a live `Diagnostic` only at source-output time via `ToDiagnostic()`.
@@ -543,38 +548,15 @@ git commit -m "feat(diagnostics): report SDG1004 for unsupported [Diagnostic] re
 
 ## Phase 3 — Packaging: single injected trio for cacheable-`[Diagnostic]` consumers
 
-### Task 7: `Synto.Diagnostics` package depends on `Synto` (reviewer-veto decision)
+### Task 7: ~~`Synto.Diagnostics` package depends on `Synto`~~ — DROPPED (superseded by the restructure)
 
-**Files:**
-- Modify: `src/Synto.Diagnostics/Synto.Diagnostics.csproj`
+**This task no longer exists.** It resolved spec OQ1 under the old multi-package model (make `Synto.Diagnostics` depend on the `Synto` package so consumers of cacheable `[Diagnostic]` receive one injected trio). The DLL-layering restructure (`docs/superpowers/plans/2026-07-15-synto-dll-layering-restructure.md`, gate — lands first) makes it moot:
 
-**Context:** A real consumer of cacheable `[Diagnostic]` writes `partial DiagnosticInfo Foo(LocationInfo? loc, …)`. For that DECLARATION (and the generated body) to compile, the injected trio (`Synto.Generators.*`) must be present in their compilation. That injection is owned by the `Synto` package's `SurfaceInjectionGenerator`. This task makes the dependency explicit so exactly ONE injected copy of the trio + `DiagnosticBag`/`Drain` reaches the consumer. (This is the resolution of spec OQ1 — flagged for reviewer veto; see "Decisions" above.)
+- `Synto.Diagnostics` is no longer a separate package; it is a **feature DLL bundled inside the single `Synto` nupkg** (restructure Task 9).
+- The trio + `DiagnosticBag`/`Drain`/`ToEquatableArray` live in `Synto.Incremental` and are injected exactly once by `IncrementalSurfaceInjector` (restructure Tasks 4, 6).
+- A consumer therefore receives the trio from the one `Synto` package automatically — there is no cross-package dependency to author, and the CS0101 collision path this task worried about is closed structurally by the single-injector invariant.
 
-- [ ] **Step 1: Add the package dependency.** In `src/Synto.Diagnostics/Synto.Diagnostics.csproj`, add a package reference so consuming `Synto.Diagnostics` transitively brings the `Synto` generator (which injects the trio). Because both are analyzer/generator packages, wire it as an analyzer-flavored dependency consistent with the repo's packaging (`Directory.Build.targets` `IsSyntoGeneratorPackage` logic):
-
-```xml
-<ItemGroup>
-  <!-- Cacheable [Diagnostic] emits references to the Synto.Generators.* cacheable trio, injected by the
-       Synto package's SurfaceInjectionGenerator. Depend on Synto so consumers receive exactly one injected
-       copy of DiagnosticInfo / LocationInfo / EquatableArray / DiagnosticBag. -->
-  <ProjectReference Include="..\Synto.Generators\Synto.Generators.csproj" />
-</ItemGroup>
-```
-Confirm against `Directory.Build.targets` whether generator-to-generator packaging needs `PrivateAssets`/`OutputItemType` tuning so the dependency ships as a NuGet package dependency (not a private/analyzer-only asset). Adjust to match how sibling generator packages express cross-package deps.
-
-- [ ] **Step 2: Verify the whole solution still builds clean (TWAE, 0 warnings) and no double-injection.**
-Run: `dotnet build Synto.sln --no-incremental`
-Expected: PASS, 0 warnings. Then re-run the two test suites touched so far to confirm nothing regressed:
-Run: `dotnet test test/Synto.Diagnostics.Test --filter-class Synto.Diagnostics.Test.DiagnosticsGeneratorTest`
-Run: `dotnet test test/Synto.Test --filter-class Synto.Test.SurfaceInjectionTest`
-Expected: PASS.
-
-- [ ] **Step 3: Commit.**
-
-```bash
-git add src/Synto.Diagnostics/Synto.Diagnostics.csproj
-git commit -m "build(diagnostics): depend on Synto so cacheable [Diagnostic] gets one injected trio"
-```
+**Nothing to do here.** Skip to Phase 4. The build/no-double-injection verification that was Step 2 is subsumed by the restructure's Task 10 Step 4 (CS0101 consumer smoke) and its byte-identical `SurfaceInjectionTest` gate.
 
 ---
 
