@@ -16,7 +16,7 @@ namespace Synto.Generators.Matching;
 /// Compiles each <c>[Match&lt;TMatcher&gt;]</c> pattern method into a bespoke Roslyn matcher. Mirrors
 /// <see cref="TemplateFactorySourceGenerator"/>: all semantic work runs inside the
 /// <c>ForAttributeWithMetadataName</c> transform, which flows out only an equatable
-/// <see cref="MatchGenerationResult"/> (generated text + diagnostic data) — never the
+/// <see cref="GenerationResult"/> (generated text + diagnostic data) — never the
 /// <see cref="SemanticModel"/>, symbols or syntax nodes — so the pipeline stays cacheable.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
@@ -59,10 +59,10 @@ public class MatchFactorySourceGenerator : IIncrementalGenerator
             .Where(static result => result is not null)
             .WithTrackingName(MatchTrackingNames.Result);
 
-        context.RegisterSourceOutput(results, static (context, result) => Emit(context, result!.Value));
+        context.RegisterSourceOutput(results, static (context, result) => context.Emit(result!.Value));
     }
 
-    private static MatchGenerationResult? GenerateMatcher(GeneratorAttributeSyntaxContext syntaxContext)
+    private static GenerationResult? GenerateMatcher(GeneratorAttributeSyntaxContext syntaxContext)
     {
         var matchInfo = MatchInfo.Create(syntaxContext);
         if (matchInfo is null)
@@ -93,27 +93,7 @@ public class MatchFactorySourceGenerator : IIncrementalGenerator
             diagnostics.Add(Incremental.Diagnostics.InternalError(ex));
         }
 
-        return new MatchGenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
-    }
-
-    private static void Emit(SourceProductionContext context, MatchGenerationResult result)
-    {
-        foreach (var diagnostic in result.Diagnostics)
-            context.ReportDiagnostic(diagnostic.ToDiagnostic());
-
-        if (result.FileName is not null && result.Source is not null)
-        {
-            try
-            {
-                context.AddSource(result.FileName, SourceText.From(result.Source, Encoding.UTF8));
-            }
-#pragma warning disable CA1031 // degrade an AddSource failure (e.g. a duplicate/invalid hint) to a diagnostic instead of crashing the generator
-            catch (ArgumentException ex)
-#pragma warning restore CA1031
-            {
-                context.ReportDiagnostic(Incremental.Diagnostics.InternalError(ex).ToDiagnostic());
-            }
-        }
+        return new GenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
     /// <summary>

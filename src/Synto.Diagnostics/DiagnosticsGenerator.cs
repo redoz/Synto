@@ -23,7 +23,7 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
         context.RegisterPostInitializationOutput(InjectAttribute);
 
         // All semantic work happens inside the transform, which flows out an equatable
-        // DiagnosticGenerationResult (generated text + serializable diagnostic data). The SemanticModel /
+        // GenerationResult (generated text + serializable diagnostic data). The SemanticModel /
         // symbols / syntax nodes never enter cached pipeline state, so the generator stays incremental and
         // does not root the compilation in memory across edits. (Note: there is no .Combine(Compilation)
         // here — combining the CompilationProvider would re-root the compilation and defeat caching.)
@@ -38,7 +38,7 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
         // RegisterSourceOutput (not RegisterImplementationSourceOutput): the implementation-only variant is
         // excluded from design-time / IntelliSense builds, so a consumer's partial declaration would get no
         // implementing half in the editor (a live CS8795). The normal variant participates in design-time.
-        context.RegisterSourceOutput(results, static (context, result) => Emit(context, result!.Value));
+        context.RegisterSourceOutput(results, static (context, result) => context.Emit(result!.Value));
     }
 
     private void InjectAttribute(IncrementalGeneratorPostInitializationContext context)
@@ -85,7 +85,7 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
             source.Replace("\r\n", "\n"));
     }
 
-    private static DiagnosticGenerationResult? GenerateDiagnostic(GeneratorAttributeSyntaxContext syntaxContext, CancellationToken cancellationToken)
+    private static GenerationResult? GenerateDiagnostic(GeneratorAttributeSyntaxContext syntaxContext, CancellationToken cancellationToken)
     {
         var targetInfo = TargetInfo.Create(syntaxContext, cancellationToken);
         if (targetInfo is null)
@@ -112,27 +112,7 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
             diagnostics.Add(Diagnostics.InternalError(ex));
         }
 
-        return new DiagnosticGenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
-    }
-
-    private static void Emit(SourceProductionContext context, DiagnosticGenerationResult result)
-    {
-        foreach (var diagnostic in result.Diagnostics)
-            context.ReportDiagnostic(diagnostic.ToDiagnostic());
-
-        if (result.FileName is not null && result.Source is not null)
-        {
-            try
-            {
-                context.AddSource(result.FileName, SourceText.From(result.Source, Encoding.UTF8));
-            }
-#pragma warning disable CA1031 // degrade an AddSource failure (e.g. a duplicate/invalid hint) to a diagnostic instead of crashing the generator
-            catch (ArgumentException ex)
-#pragma warning restore CA1031
-            {
-                context.ReportDiagnostic(Diagnostics.InternalError(ex).ToDiagnostic());
-            }
-        }
+        return new GenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
     private static bool ValidateTarget(List<DiagnosticInfo> diagnostics, TargetInfo targetInfo)

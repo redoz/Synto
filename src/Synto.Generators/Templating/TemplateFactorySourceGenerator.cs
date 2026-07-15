@@ -24,7 +24,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // The whole template is processed inside the transform so the value flowing through the pipeline is
-        // an equatable TemplateGenerationResult (just generated text + diagnostic data). This keeps the
+        // an equatable GenerationResult (just generated text + diagnostic data). This keeps the
         // SemanticModel / symbols / syntax nodes out of the cached pipeline state, which restores
         // incrementality and avoids rooting the compilation in memory across edits.
         // The parameterless [Template] form carries no target. A top-level bare [Template] is misuse (SY1033);
@@ -39,7 +39,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             .Where(static result => result is not null)
             .WithTrackingName(TemplateTrackingNames.Result);
 
-        context.RegisterSourceOutput(results, static (context, result) => Emit(context, result!.Value));
+        context.RegisterSourceOutput(results, static (context, result) => context.Emit(result!.Value));
 
         // Second discovery source: the generic [Template<T>] form, whose factory target is carried by the type
         // argument. It flows through the identical GenerateTemplate/Emit shape (TemplateInfo.Create derives the
@@ -53,10 +53,10 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             .Where(static result => result is not null)
             .WithTrackingName(TemplateTrackingNames.GenericResult);
 
-        context.RegisterSourceOutput(genericResults, static (context, result) => Emit(context, result!.Value));
+        context.RegisterSourceOutput(genericResults, static (context, result) => context.Emit(result!.Value));
     }
 
-    private static TemplateGenerationResult? GenerateBareTemplate(GeneratorAttributeSyntaxContext syntaxContext)
+    private static GenerationResult? GenerateBareTemplate(GeneratorAttributeSyntaxContext syntaxContext)
     {
         // Nested inside a [Template]/[Template<T>] carrier: interim no-op — the parent will own this as a private
         // sub-template in Phase 2. Nothing is emitted and no diagnostic is raised (characterized pin).
@@ -69,10 +69,10 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         var location = syntaxContext.Attributes.FirstOrDefault()?.ApplicationSyntaxReference?.GetSyntax().GetLocation();
         diagnostics.Add(TemplateDiagnostics.BareTemplateRequiresTarget(location));
 
-        return new TemplateGenerationResult(null, null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
+        return new GenerationResult(null, null, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
-    private static TemplateGenerationResult? GenerateTemplate(GeneratorAttributeSyntaxContext syntaxContext)
+    private static GenerationResult? GenerateTemplate(GeneratorAttributeSyntaxContext syntaxContext)
     {
         // Thin wrapper: unpack the generator-only context and delegate to the shared plain-input core
         // (highlightsOnly: false — the generator's full-build path, byte-identical to before).
@@ -85,7 +85,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
     // nested-carrier SY1034 check and the TemplateValidator.Validate gate run in BOTH modes so the analyzer
     // highlights exactly the templates the generator would build. Interim workaround — Option C (front-end
     // Classify extraction) is the 1.0 fix; see spec §Known debt / 1.0 gate.
-    internal static TemplateGenerationResult? TryGenerate(SemanticModel semanticModel, SyntaxNode target, ImmutableArray<AttributeData> attributes, bool highlightsOnly, CancellationToken cancellationToken)
+    internal static GenerationResult? TryGenerate(SemanticModel semanticModel, SyntaxNode target, ImmutableArray<AttributeData> attributes, bool highlightsOnly, CancellationToken cancellationToken)
     {
         // A generic [Template<T>] nested inside a [Template]/[Template<T>] carrier illegally pins a target of its
         // own — a nested template inherits its parent carrier's target and must be authored as a bare [Template]
@@ -96,7 +96,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
         {
             var location = attributes.FirstOrDefault()?.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation();
             var nestedDiagnostics = new List<DiagnosticInfo> { TemplateDiagnostics.NestedTemplateMustNotPinTarget(location) };
-            return new TemplateGenerationResult(null, null, new EquatableArray<DiagnosticInfo>(nestedDiagnostics.ToImmutableArray()));
+            return new GenerationResult(null, null, new EquatableArray<DiagnosticInfo>(nestedDiagnostics.ToImmutableArray()));
         }
 
         var assemblyName = semanticModel.Compilation.AssemblyName;
@@ -140,27 +140,7 @@ public class TemplateFactorySourceGenerator : IIncrementalGenerator
             diagnostics.Add(Incremental.Diagnostics.InternalError(ex));
         }
 
-        return new TemplateGenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
-    }
-
-    private static void Emit(SourceProductionContext context, TemplateGenerationResult result)
-    {
-        foreach (var diagnostic in result.Diagnostics)
-            context.ReportDiagnostic(diagnostic.ToDiagnostic());
-
-        if (result.FileName is not null && result.Source is not null)
-        {
-            try
-            {
-                context.AddSource(result.FileName, SourceText.From(result.Source, Encoding.UTF8));
-            }
-#pragma warning disable CA1031 // degrade an AddSource failure (e.g. a duplicate/invalid hint) to a diagnostic instead of crashing the generator
-            catch (ArgumentException ex)
-#pragma warning restore CA1031
-            {
-                context.ReportDiagnostic(Incremental.Diagnostics.InternalError(ex).ToDiagnostic());
-            }
-        }
+        return new GenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
 }

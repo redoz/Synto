@@ -110,8 +110,8 @@ public class PipelineEquatabilityTests
         var diagB = new EquatableArray<DiagnosticInfo>(ImmutableArray.Create(
             new DiagnosticInfo(SampleDescriptor, Location: null, new EquatableArray<string>(ImmutableArray.Create("x")))));
 
-        var a = new TemplateGenerationResult("File.g.cs", "source", diagA);
-        var b = new TemplateGenerationResult("File.g.cs", "source", diagB);
+        var a = new GenerationResult("File.g.cs", "source", diagA);
+        var b = new GenerationResult("File.g.cs", "source", diagB);
 
         Assert.Equal(a, b);
         Assert.Equal(a.GetHashCode(), b.GetHashCode());
@@ -122,8 +122,8 @@ public class PipelineEquatabilityTests
     {
         var empty = EquatableArray<DiagnosticInfo>.Empty;
 
-        var a = new TemplateGenerationResult("File.g.cs", "source one", empty);
-        var b = new TemplateGenerationResult("File.g.cs", "source two", empty);
+        var a = new GenerationResult("File.g.cs", "source one", empty);
+        var b = new GenerationResult("File.g.cs", "source two", empty);
 
         Assert.NotEqual(a, b);
     }
@@ -140,8 +140,8 @@ public class PipelineEquatabilityTests
         var diagB = new EquatableArray<DiagnosticInfo>(ImmutableArray.Create(
             new DiagnosticInfo(SampleDescriptor, Location: null, new EquatableArray<string>(ImmutableArray.Create("x")))));
 
-        var a = new MatchGenerationResult("File.g.cs", "source", diagA);
-        var b = new MatchGenerationResult("File.g.cs", "source", diagB);
+        var a = new GenerationResult("File.g.cs", "source", diagA);
+        var b = new GenerationResult("File.g.cs", "source", diagB);
 
         Assert.Equal(a, b);
         Assert.Equal(a.GetHashCode(), b.GetHashCode());
@@ -152,8 +152,8 @@ public class PipelineEquatabilityTests
     {
         var empty = EquatableArray<DiagnosticInfo>.Empty;
 
-        var a = new MatchGenerationResult("File.g.cs", "source one", empty);
-        var b = new MatchGenerationResult("File.g.cs", "source two", empty);
+        var a = new GenerationResult("File.g.cs", "source one", empty);
+        var b = new GenerationResult("File.g.cs", "source two", empty);
 
         Assert.NotEqual(a, b);
     }
