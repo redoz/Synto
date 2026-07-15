@@ -1,4 +1,5 @@
 extern alias SyntoGenerators;
+extern alias SyntoIncremental;
 
 // The generator assembly is referenced through the `SyntoGenerators` extern alias (see Synto.Test.csproj)
 // so its metadata copies of the pipeline value types stay out of the default scope and can never collide
@@ -7,7 +8,12 @@ extern alias SyntoGenerators;
 // test code binds the SHIPPED (compiled) types — replacing the per-file `using Synto.Generators.*;`
 // directives, which would otherwise fail (the metadata namespaces are no longer in the global alias).
 global using SyntoGenerators::Synto.Generators;
-global using SyntoGenerators::Synto.Generators.Incremental;
+// The cacheable trio (EquatableArray/DiagnosticInfo/LocationInfo) authored under `namespace
+// Synto.Generators` now lives in Synto.Incremental.dll (Task 4); expose it via the SyntoIncremental
+// alias so test code binds the SHIPPED (compiled) trio. The two assemblies' `Synto.Generators` type
+// sets are disjoint, so re-exposing both aliases' namespace is unambiguous.
+global using SyntoIncremental::Synto.Generators;
+global using SyntoIncremental::Synto.Generators.Incremental;
 global using SyntoGenerators::Synto.Generators.Symbols;
 global using SyntoGenerators::Synto.Generators.Matching;
 global using SyntoGenerators::Synto.Generators.Matching.Discovery;

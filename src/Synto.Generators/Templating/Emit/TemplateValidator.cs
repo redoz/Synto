@@ -19,19 +19,19 @@ internal static class TemplateValidator
     {
         if (template.Target.Type.DeclaringSyntaxReferences.FirstOrDefault() is not { } syntaxRef)
         {
-            diagnostics.Add(Incremental.Diagnostics.TargetNotDeclaredInSource(template.Target, assemblyName));
+            diagnostics.Add(Incremental.Diagnostics.TargetNotDeclaredInSource(LocationInfo.CreateFrom(template.Target.GetReferenceLocation()), template.Target.FullName, assemblyName));
             return false;
         }
 
         if (syntaxRef.GetSyntax() is not ClassDeclarationSyntax classSyntax)
         {
-            diagnostics.Add(Incremental.Diagnostics.TargetNotClass(template.Target));
+            diagnostics.Add(Incremental.Diagnostics.TargetNotClass(LocationInfo.CreateFrom(template.Target.GetReferenceLocation()), template.Target.FullName));
             return false;
         }
 
         if (!classSyntax.Modifiers.Any(SyntaxKind.PartialKeyword))
         {
-            diagnostics.Add(Incremental.Diagnostics.TargetNotPartial(template.Target));
+            diagnostics.Add(Incremental.Diagnostics.TargetNotPartial(LocationInfo.CreateFrom(template.Target.GetReferenceLocation()), template.Target.FullName));
             return false;
         }
 
@@ -56,7 +56,7 @@ internal static class TemplateValidator
 
                 if (!parentClass.Modifiers.Any(SyntaxKind.PartialKeyword))
                 {
-                    diagnostics.Add(Incremental.Diagnostics.TargetAncestorNotPartial(template.Target, parentClass.Identifier.Text));
+                    diagnostics.Add(Incremental.Diagnostics.TargetAncestorNotPartial(LocationInfo.CreateFrom(template.Target.GetReferenceLocation()), template.Target.FullName, parentClass.Identifier.Text));
                     ret = false;
                 }
 

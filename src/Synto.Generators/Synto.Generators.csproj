@@ -17,6 +17,11 @@
 		 (see SyntoGetDependencyTargetPaths in Directory.Build.targets) so Roslyn can load the injector. -->
 	<SyntoBundlesGenKit>true</SyntoBundlesGenKit>
 
+	<!-- This generator also references Synto.Incremental (the cacheable trio + the lone trio
+		 injector). Surface Synto.Incremental.dll onto consumers' analyzer load path so its
+		 IncrementalSurfaceInjector runs (injecting the trio exactly once) and Roslyn can resolve it. -->
+	<SyntoBundlesIncremental>true</SyntoBundlesIncremental>
+
 	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
 	<PackageId>Synto</PackageId>
 	<PackageReadmeFile>Synto.NuGet.md</PackageReadmeFile>
@@ -53,20 +58,6 @@
 	<EmbeddedResource Include="..\Synto.Core\**\InjectedOnly\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
   </ItemGroup>
 
-  <!-- The cacheability toolkit for generator AUTHORS (EquatableArray<T> / LocationInfo / DiagnosticInfo).
-	   These are Synto's OWN internal pipeline value types, authored DIRECTLY under `namespace Synto.Generators`
-	   and STILL compiled into this assembly (no <Compile Remove>). They are ALSO embedded here under the
-	   PLAIN "Synto.Runtime." prefix so SurfaceInjectionGenerator injects them downstream VERBATIM (no
-	   namespace rewrite — the source already says `Synto.Generators`, exactly like Interceptors.cs). A file
-	   may be both <Compile> and <EmbeddedResource>.
-		   NOTE: Do NOT add an in-file header comment to either: the embedded resource is injected verbatim, so
-		   any added leading trivia leaks into the byte-identical injected-surface snapshots
-		   (SurfaceInjectionTest.VerifyInjectedSurface). -->
-  <ItemGroup>
-	<EmbeddedResource Include="Incremental\EquatableArray.cs" LogicalName="Synto.Runtime.EquatableArray.cs" />
-	<EmbeddedResource Include="Incremental\DiagnosticInfo.cs" LogicalName="Synto.Runtime.DiagnosticInfo.cs" />
-  </ItemGroup>
-
   <!-- The runtime HELPERS that CAN be emitted into consumer code (ToSyntax / ToTypeSyntax /
 	   OrNullLiteralExpression). TemplateFactorySourceGenerator embeds them under the "Synto.Helper."
 	   prefix and, for each generated factory, SCANS the emitted syntax for real calls to a helper's
@@ -87,6 +78,7 @@
 
   <ItemGroup>
 	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
+	<ProjectReference Include="..\Synto.Incremental\Synto.Incremental.csproj" />
 	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all" />
   </ItemGroup>
 

@@ -4,11 +4,6 @@
 ### New Rules
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
-SY0000 | Synto.Internal | Error | Diagnostics
-SY1001 | Synto.Usage | Error | Diagnostics
-SY1002 | Synto.Usage | Error | Diagnostics
-SY1003 | Synto.Usage | Error | Diagnostics
-SY1004 | Synto.Usage | Error | Diagnostics
 SY1005 | Synto.Usage | Error | Diagnostics
 SY1006 | Synto.Usage | Error | Diagnostics
 SY1007 | Synto.Usage | Error | Diagnostics
@@ -35,7 +30,6 @@ SY1027 | Synto.Usage | Error | Diagnostics
 SY1028 | Synto.Usage | Error | Diagnostics
 SY1029 | Synto.Usage | Error | Diagnostics
 SY1031 | Synto.Usage | Error | Diagnostics
-SY1032 | Synto.Usage | Error | Diagnostics
 SY1033 | Synto.Usage | Error | Diagnostics
 SY1034 | Synto.Usage | Error | Diagnostics
 SY1035 | Synto.Staging | Info | Diagnostics

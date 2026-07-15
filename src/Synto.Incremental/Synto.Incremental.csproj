@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFramework>netstandard2.0</TargetFramework>
+	<RootNamespace>Synto.Generators</RootNamespace>
+	<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+	<!-- Bundled into the Synto package by the umbrella; not itself a package. -->
+	<IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+	<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+	<PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
+  </ItemGroup>
+
+  <!-- The cacheability trio (EquatableArray<T> / DiagnosticInfo / LocationInfo) is authored here directly
+	   under `namespace Synto.Generators` (frozen namespace) and ALSO embedded verbatim so the lone
+	   IncrementalSurfaceInjector injects it downstream. This is the SINGLE home + SINGLE injector of the
+	   trio across the whole package (CS0101-proof). Do NOT add leading header comments to either embedded
+	   file: any leading trivia leaks into the byte-identical injected-surface snapshots. -->
+  <ItemGroup>
+	<EmbeddedResource Include="EquatableArray.cs" LogicalName="Synto.Runtime.EquatableArray.cs" />
+	<EmbeddedResource Include="DiagnosticInfo.cs" LogicalName="Synto.Runtime.DiagnosticInfo.cs" />
+  </ItemGroup>
+
+  <!-- SY0000/SY1001-1004/SY1032 descriptors are declared in this assembly (Diagnostics.cs), so per-assembly
+	   RS2008 release tracking is owned here. -->
+  <ItemGroup>
+	<AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+	<AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <!-- The trio + Diagnostics are `internal`; Synto.Generators (which references this project and calls
+	   Incremental.Diagnostics + uses the trio value types) needs access, as does the test project. -->
+  <ItemGroup>
+	<InternalsVisibleTo Include="Synto.Generators" />
+	<InternalsVisibleTo Include="Synto.Test" />
+  </ItemGroup>
+
+</Project>

@@ -154,7 +154,8 @@ internal static class MatchTestHarness
         result.GeneratedTrees.Single(tree => tree.ToString().Contains("IsExternalInit", StringComparison.Ordinal)).ToString();
 
     /// <summary>
-    /// Runs <see cref="SurfaceInjectionGenerator"/> over an empty compilation and returns the single injected
+    /// Runs <see cref="SurfaceInjectionGenerator"/> + <see cref="IncrementalSurfaceInjector"/> over an empty
+    /// compilation and returns the single injected
     /// (post-init) source whose text contains <paramref name="contentMarker"/> — e.g.
     /// <c>"readonly struct MatchPattern"</c> selects the injected data surface <c>ForMatchHelpers.g.cs</c>.
     /// This is the same surface a real consumer's generator project receives.
@@ -174,7 +175,10 @@ internal static class MatchTestHarness
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var result = CSharpGeneratorDriver
-            .Create(new SurfaceInjectionGenerator())
+            // Run BOTH surface injectors so the probe sees the FULL injected surface: the marker surface
+            // (SurfaceInjectionGenerator, embedded in Synto.Generators.dll) plus the cacheable trio
+            // (IncrementalSurfaceInjector, embedded in Synto.Incremental.dll). They inject disjoint sets.
+            .Create(new SurfaceInjectionGenerator(), new IncrementalSurfaceInjector())
             .RunGenerators(compilation)
             .GetRunResult();
 

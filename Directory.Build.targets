@@ -63,6 +63,15 @@
 										   Condition="'$(SyntoBundlesGenKit)' == 'true'"
 										   IncludeRuntimeDependency="false"
 										   MSBuildSourceProjectFile="Synto.GenKit.csproj" />
+
+	  <!-- Synto.Incremental.dll carries the cacheable trio AND the lone IncrementalSurfaceInjector
+		   [Generator]. Surfacing it as an analyzer dependency both lets Roslyn resolve it and makes its
+		   trio injector RUN in the consumer compilation (injecting the trio exactly once). Only generator
+		   packages that opt in (SyntoBundlesIncremental=true) surface it. -->
+	  <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)Synto.Incremental.dll"
+										   Condition="'$(SyntoBundlesIncremental)' == 'true'"
+										   IncludeRuntimeDependency="false"
+										   MSBuildSourceProjectFile="Synto.Incremental.csproj" />
 	</ItemGroup>
   </Target>
 

@@ -1,0 +1,2 @@
+﻿Synto.Runtime.DiagnosticInfo.cs
+Synto.Runtime.EquatableArray.cs

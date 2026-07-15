@@ -1,14 +1,11 @@
 using System;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Synto.Generators.Templating;
-using Synto.Generators.Templating.Emit;
 
 namespace Synto.Generators.Incremental;
 
 internal static class Diagnostics
 {
-
 
     internal const string IdPrefix = "SY";
 
@@ -35,13 +32,8 @@ internal static class Diagnostics
                                                                             DiagnosticSeverity.Error,
                                                                             isEnabledByDefault: true);
 
-    public static DiagnosticInfo TargetNotPartial(TargetType target)
-    {
-        return TargetNotPartial(LocationInfo.CreateFrom(target.GetReferenceLocation()), target.FullName);
-    }
-
-    // LocationInfo-based overload (C5): Matching has only the attribute Location (no typeof argument), so it
-    // supplies the located target name directly. Same descriptor / ID as the TargetType overload above.
+    // Located overload (SY1001): callers (Templating + Matching) supply the target's Location + display
+    // name directly.
     public static DiagnosticInfo TargetNotPartial(LocationInfo? location, string targetName)
     {
         return new DiagnosticInfo(_targetNotPartial,
@@ -55,11 +47,6 @@ internal static class Diagnostics
                                                                         "Synto.Usage",
                                                                         DiagnosticSeverity.Error,
                                                                         isEnabledByDefault: true);
-
-    public static DiagnosticInfo TargetNotClass(TargetType target)
-    {
-        return TargetNotClass(LocationInfo.CreateFrom(target.GetReferenceLocation()), target.FullName);
-    }
 
     public static DiagnosticInfo TargetNotClass(LocationInfo? location, string targetName)
     {
@@ -75,11 +62,6 @@ internal static class Diagnostics
                                                                                     DiagnosticSeverity.Error,
                                                                                     isEnabledByDefault: true);
 
-    public static DiagnosticInfo TargetNotDeclaredInSource(TargetType target, string? projectName)
-    {
-        return TargetNotDeclaredInSource(LocationInfo.CreateFrom(target.GetReferenceLocation()), target.FullName, projectName);
-    }
-
     public static DiagnosticInfo TargetNotDeclaredInSource(LocationInfo? location, string targetName, string? projectName)
     {
         return new DiagnosticInfo(_targetNotDeclaredInSource,
@@ -93,11 +75,6 @@ internal static class Diagnostics
                                                                                     "Synto.Usage",
                                                                                     DiagnosticSeverity.Error,
                                                                                     isEnabledByDefault: true);
-
-    public static DiagnosticInfo TargetAncestorNotPartial(TargetType target, string ancestorName)
-    {
-        return TargetAncestorNotPartial(LocationInfo.CreateFrom(target.GetReferenceLocation()), target.FullName, ancestorName);
-    }
 
     public static DiagnosticInfo TargetAncestorNotPartial(LocationInfo? location, string targetName, string ancestorName)
     {

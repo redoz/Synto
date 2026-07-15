@@ -101,6 +101,13 @@
     <!-- The dep-free helpers (SyntaxFormatter / UsingDirectiveSet) moved from Synto.Core to Synto.GenKit.
          Alias it the same way Core is aliased so its internal helper types stay out of the default scope. -->
     <ProjectReference Include="..\..\src\Synto.GenKit\Synto.GenKit.csproj" Aliases="SyntoGenKit" />
+    <!-- The cacheable trio (EquatableArray/DiagnosticInfo/LocationInfo) and the lone IncrementalSurfaceInjector
+         moved from Synto.Generators into Synto.Incremental (Task 4). Reference it through an extern alias
+         (SyntoIncremental) for the SAME reason Synto.Generators is aliased: the trio is ALSO injected as an
+         internal source copy into this compilation, so aliasing keeps the metadata copy out of the default
+         scope (no CS0436). Its IncrementalSurfaceInjector is surfaced separately onto the analyzer load path
+         by Synto.Generators' SyntoBundlesIncremental hook. -->
+    <ProjectReference Include="..\..\src\Synto.Incremental\Synto.Incremental.csproj" Aliases="SyntoIncremental" />
   </ItemGroup>
 
   <ItemGroup>

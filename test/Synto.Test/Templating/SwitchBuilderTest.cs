@@ -290,6 +290,9 @@ public class SwitchBuilderTest
 
         var driver = CSharpGeneratorDriver.Create(
             new SurfaceInjectionGenerator(),
+            // The template Unquotes `Synto.Generators.EquatableArray<Col>`; the trio now injects from
+            // Synto.Incremental's IncrementalSurfaceInjector, so run it too or EquatableArray is unresolved.
+            new IncrementalSurfaceInjector(),
             new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);

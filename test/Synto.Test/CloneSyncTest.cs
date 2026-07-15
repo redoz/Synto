@@ -7,7 +7,7 @@ namespace Synto.Test;
 
 /// <summary>
 /// Clone-sync guard for the two remaining hand-maintained copies of the cacheability toolkit's equatable
-/// models — the generator's canonical pair (<c>src/Synto.Generators/Incremental/{EquatableArray,DiagnosticInfo}.cs</c>,
+/// models — the generator's canonical pair (<c>src/Synto.Incremental/{EquatableArray,DiagnosticInfo}.cs</c>,
 /// <c>namespace Synto.Generators</c>) versus <c>Synto.Diagnostics</c>'s deliberately-independent copy
 /// (<c>src/Synto.Diagnostics/{EquatableArray,DiagnosticInfo}.cs</c>, <c>namespace Synto.Diagnostics</c>).
 /// Bootstrap's third copy is gone (it now <c>&lt;Compile Link&gt;</c>s the generator's pair), so these two are
@@ -30,10 +30,10 @@ namespace Synto.Test;
 /// </remarks>
 public class CloneSyncTest
 {
-    // SYNC: Phase 2 re-rooted Shared/ -> Incremental/; the paired project rename (Synto.SourceGenerator ->
-    // Synto.Generators) has landed and re-rooted the dir prefix.
-    private const string GeneratorEquatableArray = "src/Synto.Generators/Incremental/EquatableArray.cs";
-    private const string GeneratorDiagnosticInfo = "src/Synto.Generators/Incremental/DiagnosticInfo.cs";
+    // SYNC: the cacheable trio moved from src/Synto.Generators/Incremental/ into the src/Synto.Incremental/
+    // project (DLL-layering restructure, Task 4); the generator-copy constants are rooted there now.
+    private const string GeneratorEquatableArray = "src/Synto.Incremental/EquatableArray.cs";
+    private const string GeneratorDiagnosticInfo = "src/Synto.Incremental/DiagnosticInfo.cs";
     private const string DiagnosticsEquatableArray = "src/Synto.Diagnostics/EquatableArray.cs";
     private const string DiagnosticsDiagnosticInfo = "src/Synto.Diagnostics/DiagnosticInfo.cs";
 
