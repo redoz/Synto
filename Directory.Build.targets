@@ -56,6 +56,13 @@
 	  <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)Synto.Core.dll"
 										   IncludeRuntimeDependency="false"
 										   MSBuildSourceProjectFile="Synto.Core.csproj" />
+	  <!-- Synto.GenKit.dll carries the injection mechanism (SurfaceInjectorBase); Roslyn must resolve it
+		   alongside the generator when it loads a SurfaceInjector, or CS8032 results. Only generator
+		   packages that opt in (SyntoBundlesGenKit=true, i.e. actually reference GenKit) surface it. -->
+	  <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)Synto.GenKit.dll"
+										   Condition="'$(SyntoBundlesGenKit)' == 'true'"
+										   IncludeRuntimeDependency="false"
+										   MSBuildSourceProjectFile="Synto.GenKit.csproj" />
 	</ItemGroup>
   </Target>
 

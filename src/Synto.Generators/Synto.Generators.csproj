@@ -13,6 +13,10 @@
 		 Synto.Core.dll is only needed by the generator at analysis time. -->
 	<IsSyntoGeneratorPackage>true</IsSyntoGeneratorPackage>
 
+	<!-- This generator references Synto.GenKit; surface GenKit.dll onto consumers' analyzer load path
+		 (see SyntoGetDependencyTargetPaths in Directory.Build.targets) so Roslyn can load the injector. -->
+	<SyntoBundlesGenKit>true</SyntoBundlesGenKit>
+
 	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
 	<PackageId>Synto</PackageId>
 	<PackageReadmeFile>Synto.NuGet.md</PackageReadmeFile>
@@ -82,6 +86,7 @@
   </ItemGroup>
 
   <ItemGroup>
+	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
 	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all" />
   </ItemGroup>
 
