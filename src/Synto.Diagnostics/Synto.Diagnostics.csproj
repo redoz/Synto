@@ -33,6 +33,7 @@
 
   <ItemGroup>
 	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
+	<ProjectReference Include="..\Synto.Incremental\Synto.Incremental.csproj" />
 	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all"/>
   </ItemGroup>
 

@@ -1,3 +1,5 @@
+using Synto.Generators;
+
 namespace Synto.Diagnostics;
 
 /// <summary>

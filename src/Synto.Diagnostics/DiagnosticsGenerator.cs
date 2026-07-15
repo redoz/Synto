@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using Synto.Formatting;
+using Synto.Generators;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Synto.Diagnostics;
