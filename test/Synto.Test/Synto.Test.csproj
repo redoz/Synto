@@ -98,6 +98,9 @@
          the imported public copy and the injected internal copy. Reach the public assembly via
          `extern alias SyntoCore;` (see SyntoCoreAssembly.cs). -->
     <ProjectReference Include="..\..\src\Synto.Core\Synto.Core.csproj" Aliases="SyntoCore" />
+    <!-- The dep-free helpers (SyntaxFormatter / UsingDirectiveSet) moved from Synto.Core to Synto.GenKit.
+         Alias it the same way Core is aliased so its internal helper types stay out of the default scope. -->
+    <ProjectReference Include="..\..\src\Synto.GenKit\Synto.GenKit.csproj" Aliases="SyntoGenKit" />
   </ItemGroup>
 
   <ItemGroup>

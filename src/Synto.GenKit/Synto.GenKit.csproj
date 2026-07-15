@@ -12,4 +12,12 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The dep-free helpers (UsingDirectiveSet / SyntaxFormatter / GeneratedSourceFilenameExtensions /
+         NameAllocator) are internal; the generator projects that call them need visibility. -->
+    <InternalsVisibleTo Include="Synto.Generators" />
+    <InternalsVisibleTo Include="Synto.Diagnostics" />
+    <InternalsVisibleTo Include="Synto.Test" />
+  </ItemGroup>
+
 </Project>

@@ -10,8 +10,10 @@
 	</PropertyGroup>
 	<ItemGroup>
 		<Compile Include="..\Synto.Core\Syntax\EmitHelpers\LiteralSyntaxExtensions.cs" Link="LiteralSyntaxExtensions.cs" />
-		<Compile Include="..\Synto.Core\Emit\UsingDirectiveSet.cs" Link="UsingDirectiveSet.cs" />
-		<Compile Include="..\Synto.Core\Formatting\SyntaxFormatter.cs" Link="SyntaxFormatter.cs" />
+		<!-- UsingDirectiveSet + SyntaxFormatter now live in Synto.GenKit; Compile-Link them so Bootstrap
+		     stays self-contained on the analyzer load path (it runs as an analyzer for Synto.Core). -->
+		<Compile Include="..\Synto.GenKit\UsingDirectiveSet.cs" Link="UsingDirectiveSet.cs" />
+		<Compile Include="..\Synto.GenKit\SyntaxFormatter.cs" Link="SyntaxFormatter.cs" />
 		<!-- The cacheability toolkit (EquatableArray / DiagnosticInfo / LocationInfo) is NOT copied here:
 		     Bootstrap is the one sanctioned place that <Compile Link>s the generator's canonical pair
 		     (namespace Synto.Generators), so the copy can never silently drift. Bootstrap never ships. -->

@@ -1,9 +1,10 @@
 extern alias SyntoCore;
+extern alias SyntoGenKit;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
-using CoreFormatter = SyntoCore::Synto.Formatting.SyntaxFormatter;
+using CoreFormatter = SyntoGenKit::Synto.Formatting.SyntaxFormatter;
 using CoreLiterals = SyntoCore::Synto.LiteralSyntaxExtensions;
 
 namespace Synto.Test;

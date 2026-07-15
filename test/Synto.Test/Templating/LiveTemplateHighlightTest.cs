@@ -1,4 +1,5 @@
 extern alias SyntoCore;
+extern alias SyntoGenKit;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -458,7 +459,7 @@ public class LiveTemplateHighlightTest
         var factory = TemplateFactoryBuilder.Build(
             diagnostics,
             semanticModel,
-            new SyntoCore::Synto.UsingDirectiveSet(Enumerable.Empty<UsingDirectiveSyntax>()),
+            new SyntoGenKit::Synto.UsingDirectiveSet(Enumerable.Empty<UsingDirectiveSyntax>()),
             templateInfo!,
             templateInfo!.Options,
             highlightsOnly: true);

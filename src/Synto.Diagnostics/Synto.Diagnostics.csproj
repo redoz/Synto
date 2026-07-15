@@ -8,6 +8,9 @@
 		 Synto.Core.dll is only needed by the generator at analysis time here, so it is NOT shipped
 		 as a consumer runtime dependency. -->
 	<IsSyntoGeneratorPackage>true</IsSyntoGeneratorPackage>
+	<!-- Diagnostics now references Synto.GenKit for the dep-free helpers; bundle GenKit.dll on the
+	     analyzer load path so Roslyn resolves it when this generator is loaded. -->
+	<SyntoBundlesGenKit>true</SyntoBundlesGenKit>
 	<developmentDependency>true</developmentDependency>
 
 	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
@@ -29,6 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
+	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
 	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all"/>
   </ItemGroup>
 
