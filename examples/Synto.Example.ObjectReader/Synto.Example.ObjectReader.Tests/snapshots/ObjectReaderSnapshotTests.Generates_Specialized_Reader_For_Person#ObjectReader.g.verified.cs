@@ -145,7 +145,7 @@ file sealed class ObjectReader_Person_0 : global::System.Data.IDataReader
             throw new global::System.ArgumentNullException(nameof(values));
         }
 
-        int count = values.Length < FieldCount ? values.Length : FieldCount;
+        int count = global::System.Math.Min(values.Length, FieldCount);
         for (int i = 0; i < count; i++)
         {
             values[i] = GetValue(i);
