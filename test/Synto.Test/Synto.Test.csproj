@@ -114,6 +114,12 @@
          GeneratorAliasUsings.cs), keeping them out of the default scope. Its TemplateSurfaceInjector is
          surfaced onto the analyzer load path by Synto.Generators' SyntoBundlesTemplate hook. -->
     <ProjectReference Include="..\..\src\Synto.Template\Synto.Template.csproj" Aliases="SyntoTemplate" />
+    <!-- The Match feature generator internals (Synto.Generators.Matching.*) moved from Synto.Generators into
+         Synto.Match (Task 8). Reference it through an extern alias (SyntoMatch) so the SHIPPED metadata types
+         are reached via the alias (re-exposed globally in GeneratorAliasUsings.cs), keeping them out of the
+         default scope. Its MatchSurfaceInjector is surfaced onto the analyzer load path by Synto.Generators'
+         SyntoBundlesMatch hook. -->
+    <ProjectReference Include="..\..\src\Synto.Match\Synto.Match.csproj" Aliases="SyntoMatch" />
   </ItemGroup>
 
   <ItemGroup>

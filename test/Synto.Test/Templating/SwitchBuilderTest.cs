@@ -54,7 +54,7 @@ public class SwitchBuilderTest
 
         // Snapshot: SurfaceInjection (discovery) + TemplateFactory (rewrite). Verify only the factory output.
         var snapDriver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
         var runResult = snapDriver.RunGenerators(compilation, TestContext.Current.CancellationToken).GetRunResult();
 
@@ -74,7 +74,7 @@ public class SwitchBuilderTest
             return;
 
         var fullDriver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
         fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
@@ -289,7 +289,7 @@ public class SwitchBuilderTest
         var compilation = CompilationWithSource(source);
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             // The template Unquotes `Synto.Generators.EquatableArray<Col>`; the trio now injects from
             // Synto.Incremental's IncrementalSurfaceInjector, so run it too or EquatableArray is unresolved.
             new IncrementalSurfaceInjector(),

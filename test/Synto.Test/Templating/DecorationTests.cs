@@ -37,7 +37,7 @@ public class DecorationTests
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver
-            .Create(new SurfaceInjectionGenerator(), new TemplateSurfaceInjector())
+            .Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector())
             .RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult();

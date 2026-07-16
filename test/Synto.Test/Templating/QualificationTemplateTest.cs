@@ -53,7 +53,7 @@ public class QualificationTemplateTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
         var runResult = driver.RunGenerators(compilation, TestContext.Current.CancellationToken).GetRunResult();
 

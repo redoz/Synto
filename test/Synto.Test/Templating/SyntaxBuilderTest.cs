@@ -99,7 +99,7 @@ public class SyntaxBuilderTest
     {
         var compilation = CompilationWithSource(source);
 
-        var injectDriver = CSharpGeneratorDriver.Create(new SurfaceInjectionGenerator(), new TemplateSurfaceInjector());
+        var injectDriver = CSharpGeneratorDriver.Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector());
         injectDriver.RunGeneratorsAndUpdateCompilation(compilation, out var injectedCompilation, out _, TestContext.Current.CancellationToken);
 
         var result = _driver.RunGenerators(injectedCompilation);
@@ -122,7 +122,7 @@ public class SyntaxBuilderTest
     private ImmutableArray<Diagnostic> RunAndGetDiagnosticsWithInjectedSurface(string source)
     {
         var compilation = CompilationWithSource(source);
-        var injectDriver = CSharpGeneratorDriver.Create(new SurfaceInjectionGenerator(), new TemplateSurfaceInjector());
+        var injectDriver = CSharpGeneratorDriver.Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector());
         injectDriver.RunGeneratorsAndUpdateCompilation(compilation, out var injectedCompilation, out _, TestContext.Current.CancellationToken);
         var result = _driver.RunGenerators(injectedCompilation);
         return result.GetRunResult().Diagnostics;
@@ -630,7 +630,7 @@ public class SyntaxBuilderTest
         // Post-gen compiles clean (two Arm overloads coexist, no SY1018).
         var compilation = CompilationWithSource(source);
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
@@ -669,7 +669,7 @@ public class SyntaxBuilderTest
 
         var compilation = CompilationWithSource(source);
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
@@ -710,7 +710,7 @@ public class SyntaxBuilderTest
         // `Member` facade the ORIGINAL template body type-checks against, and TemplateFactorySourceGenerator
         // rewrites the recognized call to the fully-qualified builder invocation.
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
@@ -747,7 +747,7 @@ public class SyntaxBuilderTest
 
         var compilation = CompilationWithSource(source);
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
@@ -838,7 +838,7 @@ public class SyntaxBuilderTest
         var compilation = CompilationWithSource(source);
 
         var fullDriver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
         fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
@@ -905,7 +905,7 @@ public class SyntaxBuilderTest
         var compilation = CompilationWithSource(source);
 
         var fullDriver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
         fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
@@ -981,7 +981,7 @@ public class SyntaxBuilderTest
         var compilation = CompilationWithSource(source);
 
         var fullDriver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
         fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
@@ -1232,7 +1232,7 @@ public class SyntaxBuilderTest
     private static string RunAndGetGeneratedTextWithInjectedSurface(string source)
     {
         var compilation = CompilationWithSource(source);
-        var injectDriver = CSharpGeneratorDriver.Create(new SurfaceInjectionGenerator(), new TemplateSurfaceInjector());
+        var injectDriver = CSharpGeneratorDriver.Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector());
         injectDriver.RunGeneratorsAndUpdateCompilation(compilation, out var injectedCompilation, out _, TestContext.Current.CancellationToken);
         var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
         var runResult = driver.RunGenerators(injectedCompilation).GetRunResult();

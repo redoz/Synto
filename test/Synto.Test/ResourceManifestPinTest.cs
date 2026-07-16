@@ -52,4 +52,20 @@ public class ResourceManifestPinTest
 
         return Verify(string.Join("\n", resourceNames)).UseDirectory("snapshots");
     }
+
+    // The Match marker surface (the Synto.Runtime.* Matching markers) moved into Synto.Match.dll (Task 8),
+    // whose MatchSurfaceInjector injects them. Pin that assembly's manifest too so the per-assembly resource
+    // split stays a reviewable Verify diff. After Task 8 the umbrella (Synto.Generators.dll) embeds NOTHING,
+    // so VerifyEmbeddedResourceManifest's pinned list is now empty.
+    [Fact]
+    public Task VerifyMatchEmbeddedResourceManifest()
+    {
+        var assembly = typeof(MatchSurfaceInjector).Assembly;
+
+        var resourceNames = assembly.GetManifestResourceNames()
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+
+        return Verify(string.Join("\n", resourceNames)).UseDirectory("snapshots");
+    }
 }

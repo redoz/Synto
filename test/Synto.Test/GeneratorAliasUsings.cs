@@ -1,6 +1,7 @@
 extern alias SyntoGenerators;
 extern alias SyntoIncremental;
 extern alias SyntoTemplate;
+extern alias SyntoMatch;
 
 // The generator assembly is referenced through the `SyntoGenerators` extern alias (see Synto.Test.csproj)
 // so its metadata copies of the pipeline value types stay out of the default scope and can never collide
@@ -18,10 +19,12 @@ global using SyntoIncremental::Synto.Generators.Incremental;
 // Synto.Generators.Symbols + the whole Synto.Generators.Templating.* tree moved into Synto.Template.dll
 // (Task 7); reach them through the SyntoTemplate alias so test code binds the SHIPPED (compiled) types.
 global using SyntoTemplate::Synto.Generators.Symbols;
-global using SyntoGenerators::Synto.Generators.Matching;
-global using SyntoGenerators::Synto.Generators.Matching.Discovery;
-global using SyntoGenerators::Synto.Generators.Matching.Emit;
-global using SyntoGenerators::Synto.Generators.Matching.Diagnostics;
+// Synto.Generators.Matching.* moved into Synto.Match.dll (Task 8); reach it through the SyntoMatch alias so
+// test code binds the SHIPPED (compiled) types (incl. MatchSurfaceInjector).
+global using SyntoMatch::Synto.Generators.Matching;
+global using SyntoMatch::Synto.Generators.Matching.Discovery;
+global using SyntoMatch::Synto.Generators.Matching.Emit;
+global using SyntoMatch::Synto.Generators.Matching.Diagnostics;
 global using SyntoTemplate::Synto.Generators.Templating;
 global using SyntoTemplate::Synto.Generators.Templating.Discovery;
 global using SyntoTemplate::Synto.Generators.Templating.BindingTime;

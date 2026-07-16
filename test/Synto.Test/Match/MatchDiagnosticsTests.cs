@@ -484,7 +484,7 @@ public class MatchDiagnosticsTests
         var directory = AppContext.BaseDirectory;
         while (directory is not null)
         {
-            var candidate = Path.Combine(directory, "src", "Synto.Generators", "AnalyzerReleases.Unshipped.md");
+            var candidate = Path.Combine(directory, "src", "Synto.Match", "AnalyzerReleases.Unshipped.md");
             if (File.Exists(candidate))
                 return candidate;
             directory = Path.GetDirectoryName(directory);

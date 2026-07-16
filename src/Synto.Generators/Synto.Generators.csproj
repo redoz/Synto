@@ -27,6 +27,11 @@
 		 (injecting the Template markers exactly once) and Roslyn can resolve it. -->
 	<SyntoBundlesTemplate>true</SyntoBundlesTemplate>
 
+	<!-- This umbrella references the Synto.Match feature DLL (its own marker surface + MatchSurfaceInjector).
+		 Surface Synto.Match.dll onto consumers' analyzer load path so its MatchSurfaceInjector runs
+		 (injecting the Match markers exactly once) and Roslyn can resolve it. -->
+	<SyntoBundlesMatch>true</SyntoBundlesMatch>
+
 	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
 	<PackageId>Synto</PackageId>
 	<PackageReadmeFile>Synto.NuGet.md</PackageReadmeFile>
@@ -49,20 +54,6 @@
 	<AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
   </ItemGroup>
 
-  <!-- The consumer-facing MARKER surface is authored once in src\Synto and embedded here so
-	   SurfaceInjectionGenerator can rewrite it to internal source and inject it into consumers.
-	   LogicalName (the "Synto.Runtime." prefix) gives each marker resource a stable name the
-	   generator looks up at runtime. -->
-  <ItemGroup>
-	<!-- Role-convention leaf folders under src\Synto.Core drive the embedded-resource set: Surface/ and
-		 InjectedOnly/ both inject under the "Synto.Runtime." prefix (Surface files are also <Compile>d
-		 into Synto.Core; InjectedOnly files are <Compile Remove>d there via the mirror glob in Synto.Core.csproj).
-		 The glob computes the same LogicalName the hand-typed list used to (ResourceManifestPinTest guards
-		 the exact set is unchanged). -->
-	<EmbeddedResource Include="..\Synto.Core\Matching\**\Surface\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
-	<EmbeddedResource Include="..\Synto.Core\Matching\**\InjectedOnly\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
-  </ItemGroup>
-
   <ItemGroup>
 	<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
 	<!-- we do want a pacakge dependency on this for whoever consumes our package -->
@@ -73,6 +64,7 @@
 	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
 	<ProjectReference Include="..\Synto.Incremental\Synto.Incremental.csproj" />
 	<ProjectReference Include="..\Synto.Template\Synto.Template.csproj" />
+	<ProjectReference Include="..\Synto.Match\Synto.Match.csproj" />
 	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all" />
   </ItemGroup>
 

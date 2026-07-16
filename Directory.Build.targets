@@ -81,6 +81,15 @@
 										   Condition="'$(SyntoBundlesTemplate)' == 'true'"
 										   IncludeRuntimeDependency="false"
 										   MSBuildSourceProjectFile="Synto.Template.csproj" />
+
+	  <!-- Synto.Match.dll carries the Match feature generator + its own MatchSurfaceInjector [Generator]
+		   (injects the Match markers). Surfacing it as an analyzer dependency both lets Roslyn resolve it
+		   and makes its injector RUN in the consumer compilation. Only generator packages that opt in
+		   (SyntoBundlesMatch=true) surface it. -->
+	  <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)Synto.Match.dll"
+										   Condition="'$(SyntoBundlesMatch)' == 'true'"
+										   IncludeRuntimeDependency="false"
+										   MSBuildSourceProjectFile="Synto.Match.csproj" />
 	</ItemGroup>
   </Target>
 

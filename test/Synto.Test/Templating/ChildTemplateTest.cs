@@ -94,7 +94,7 @@ public class ChildTemplateTest
             references: references,
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        var injectDriver = CSharpGeneratorDriver.Create(new SurfaceInjectionGenerator(), new TemplateSurfaceInjector());
+        var injectDriver = CSharpGeneratorDriver.Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector());
         injectDriver.RunGeneratorsAndUpdateCompilation(compilation, out var injectedCompilation, out _, TestContext.Current.CancellationToken);
         return (CSharpCompilation)injectedCompilation;
     }

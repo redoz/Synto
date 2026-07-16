@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFramework>netstandard2.0</TargetFramework>
+	<RootNamespace>Synto.Generators.Matching</RootNamespace>
+	<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+	<!-- Bundled into the Synto package by the umbrella; not itself a package. -->
+	<IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+	<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+	<PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
+	<ProjectReference Include="..\Synto.Incremental\Synto.Incremental.csproj" />
+	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- The Match consumer-facing MARKER surface is authored once under src\Synto.Core\Matching and embedded
+	   here so MatchSurfaceInjector can rewrite it to internal source and inject it into consumers. Only the
+	   Matching feature's markers belong to Synto.Match (Template owns every OTHER Synto.Core surface); Match
+	   uses NO EmitHelpers. Each feature DLL injects a DISJOINT marker set (CS0101-proof) and
+	   ResourceManifestPinTest guards the exact set. -->
+  <ItemGroup>
+	<EmbeddedResource Include="..\Synto.Core\Matching\**\Surface\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto.Core\Matching\**\InjectedOnly\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- SY1201-SY1205 (MatchDiagnostics) are declared in THIS assembly, so per-assembly RS2008 release
+	   tracking is owned here. -->
+  <ItemGroup>
+	<AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+	<AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <!-- The Match generator internals + MatchSurfaceInjector are `internal`; the test project exercises them
+	   (cacheability/equatability) and instantiates the injector directly in SurfaceInjectionTest. -->
+  <ItemGroup>
+	<InternalsVisibleTo Include="Synto.Test" />
+  </ItemGroup>
+
+</Project>

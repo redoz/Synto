@@ -39,6 +39,7 @@
   <ItemGroup>
 	<InternalsVisibleTo Include="Synto.Generators" />
 	<InternalsVisibleTo Include="Synto.Template" />
+	<InternalsVisibleTo Include="Synto.Match" />
 	<InternalsVisibleTo Include="Synto.Diagnostics" />
 	<InternalsVisibleTo Include="Synto.Test" />
   </ItemGroup>
