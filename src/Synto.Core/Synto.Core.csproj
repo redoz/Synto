@@ -51,6 +51,7 @@
        source files it uses into its own assembly rather than referencing Synto.Core.dll. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Synto.Generators" />
+    <InternalsVisibleTo Include="Synto.Template" />
     <InternalsVisibleTo Include="Synto.Diagnostics" />
     <InternalsVisibleTo Include="Synto.Test" />
   </ItemGroup>

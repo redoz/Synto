@@ -210,7 +210,7 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
@@ -273,7 +273,7 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
@@ -336,7 +336,7 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
@@ -412,7 +412,7 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
@@ -496,7 +496,7 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
@@ -545,7 +545,7 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver
-            .Create(new SurfaceInjectionGenerator())
+            .Create(new SurfaceInjectionGenerator(), new TemplateSurfaceInjector())
             .RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         var injected = driver.GetRunResult().GeneratedTrees
@@ -585,7 +585,7 @@ public class InjectedSurfaceCompletenessTest
         // is no longer enough for the ORIGINAL call sites to type-check (TypeOf now rides the structural
         // operator path via the synthesized Operators.TypeOf facade, exactly like Member).
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
             new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
 
@@ -638,7 +638,7 @@ public class InjectedSurfaceCompletenessTest
         // template binds against (post-init), TemplateFactorySourceGenerator emits the factory + the
         // scan-detected file-local helpers.
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
@@ -707,7 +707,7 @@ public class InjectedSurfaceCompletenessTest
         // template binds against (post-init), TemplateFactorySourceGenerator emits the factory + the
         // scan-detected file-local helpers inside the namespace.
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
@@ -785,7 +785,7 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
@@ -868,7 +868,7 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);

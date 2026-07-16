@@ -16,6 +16,7 @@
     <!-- The dep-free helpers (UsingDirectiveSet / SyntaxFormatter / GeneratedSourceFilenameExtensions /
          NameAllocator) are internal; the generator projects that call them need visibility. -->
     <InternalsVisibleTo Include="Synto.Generators" />
+    <InternalsVisibleTo Include="Synto.Template" />
     <InternalsVisibleTo Include="Synto.Diagnostics" />
     <InternalsVisibleTo Include="Synto.Test" />
   </ItemGroup>

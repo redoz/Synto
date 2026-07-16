@@ -31,11 +31,12 @@ public class SurfaceInjectionTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver
-            // Run BOTH surface injectors: SurfaceInjectionGenerator (marker surface, embedded in
-            // Synto.Generators.dll) and IncrementalSurfaceInjector (the cacheable trio, embedded in
+            // Run all surface injectors: SurfaceInjectionGenerator (the Match marker surface still embedded
+            // in Synto.Generators.dll), TemplateSurfaceInjector (the Template markers, embedded in
+            // Synto.Template.dll) and IncrementalSurfaceInjector (the cacheable trio, embedded in
             // Synto.Incremental.dll). They inject DISJOINT resource sets, so the combined injected surface
             // is byte-identical to the pre-split single-assembly surface.
-            .Create(new SurfaceInjectionGenerator(), new IncrementalSurfaceInjector())
+            .Create(new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(), new IncrementalSurfaceInjector())
             .RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         return Verify(driver).UseDirectory("snapshots");

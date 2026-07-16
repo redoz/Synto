@@ -38,6 +38,7 @@
 	   Incremental.Diagnostics + uses the trio value types) needs access, as does the test project. -->
   <ItemGroup>
 	<InternalsVisibleTo Include="Synto.Generators" />
+	<InternalsVisibleTo Include="Synto.Template" />
 	<InternalsVisibleTo Include="Synto.Diagnostics" />
 	<InternalsVisibleTo Include="Synto.Test" />
   </ItemGroup>

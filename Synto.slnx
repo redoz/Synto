@@ -16,6 +16,7 @@
     <Project Path="src/Synto.Core/Synto.Core.csproj" />
     <Project Path="src/Synto.GenKit/Synto.GenKit.csproj" />
     <Project Path="src/Synto.Incremental/Synto.Incremental.csproj" />
+    <Project Path="src/Synto.Template/Synto.Template.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/Synto.Bootstrap.Test/Synto.Bootstrap.Test.csproj" />

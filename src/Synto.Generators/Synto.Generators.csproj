@@ -22,6 +22,11 @@
 		 IncrementalSurfaceInjector runs (injecting the trio exactly once) and Roslyn can resolve it. -->
 	<SyntoBundlesIncremental>true</SyntoBundlesIncremental>
 
+	<!-- This umbrella references the Synto.Template feature DLL (its own marker surface + TemplateSurfaceInjector).
+		 Surface Synto.Template.dll onto consumers' analyzer load path so its TemplateSurfaceInjector runs
+		 (injecting the Template markers exactly once) and Roslyn can resolve it. -->
+	<SyntoBundlesTemplate>true</SyntoBundlesTemplate>
+
 	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
 	<PackageId>Synto</PackageId>
 	<PackageReadmeFile>Synto.NuGet.md</PackageReadmeFile>
@@ -54,20 +59,8 @@
 		 into Synto.Core; InjectedOnly files are <Compile Remove>d there via the mirror glob in Synto.Core.csproj).
 		 The glob computes the same LogicalName the hand-typed list used to (ResourceManifestPinTest guards
 		 the exact set is unchanged). -->
-	<EmbeddedResource Include="..\Synto.Core\**\Surface\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
-	<EmbeddedResource Include="..\Synto.Core\**\InjectedOnly\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
-  </ItemGroup>
-
-  <!-- The runtime HELPERS that CAN be emitted into consumer code (ToSyntax / ToTypeSyntax /
-	   OrNullLiteralExpression). TemplateFactorySourceGenerator embeds them under the "Synto.Helper."
-	   prefix and, for each generated factory, SCANS the emitted syntax for real calls to a helper's
-	   public method, appending only the referenced helper(s) as a `file static class` into that file
-	   (single source of truth, never injected globally), so they can never collide with Synto.Core's
-	   public copies. QuoteSyntaxExtensions (OrNullLiteralExpression) is embedded so the injected surface
-	   is COMPLETE by construction: with the scan-based approach it is only ever emitted into a file that
-	   actually calls .OrNullLiteralExpression(), so today it costs nothing but the surface is future-proof. -->
-  <ItemGroup>
-	<EmbeddedResource Include="..\Synto.Core\**\EmitHelpers\*.cs" LogicalName="Synto.Helper.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto.Core\Matching\**\Surface\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto.Core\Matching\**\InjectedOnly\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -79,6 +72,7 @@
   <ItemGroup>
 	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
 	<ProjectReference Include="..\Synto.Incremental\Synto.Incremental.csproj" />
+	<ProjectReference Include="..\Synto.Template\Synto.Template.csproj" />
 	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all" />
   </ItemGroup>
 

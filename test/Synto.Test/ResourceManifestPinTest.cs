@@ -37,4 +37,19 @@ public class ResourceManifestPinTest
 
         return Verify(string.Join("\n", resourceNames)).UseDirectory("snapshots");
     }
+
+    // The Template marker surface + emit helpers (all Synto.Runtime.* / Synto.Helper.* resources except the
+    // Match markers) moved into Synto.Template.dll (Task 7), whose TemplateSurfaceInjector injects them. Pin
+    // that assembly's manifest too so the per-assembly resource split stays a reviewable Verify diff.
+    [Fact]
+    public Task VerifyTemplateEmbeddedResourceManifest()
+    {
+        var assembly = typeof(TemplateSurfaceInjector).Assembly;
+
+        var resourceNames = assembly.GetManifestResourceNames()
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+
+        return Verify(string.Join("\n", resourceNames)).UseDirectory("snapshots");
+    }
 }

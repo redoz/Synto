@@ -72,6 +72,15 @@
 										   Condition="'$(SyntoBundlesIncremental)' == 'true'"
 										   IncludeRuntimeDependency="false"
 										   MSBuildSourceProjectFile="Synto.Incremental.csproj" />
+
+	  <!-- Synto.Template.dll carries the Template feature generator + its own TemplateSurfaceInjector
+		   [Generator] (injects the Template markers). Surfacing it as an analyzer dependency both lets Roslyn
+		   resolve it and makes its injector RUN in the consumer compilation. Only generator packages that opt
+		   in (SyntoBundlesTemplate=true) surface it. -->
+	  <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)Synto.Template.dll"
+										   Condition="'$(SyntoBundlesTemplate)' == 'true'"
+										   IncludeRuntimeDependency="false"
+										   MSBuildSourceProjectFile="Synto.Template.csproj" />
 	</ItemGroup>
   </Target>
 

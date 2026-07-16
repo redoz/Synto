@@ -108,6 +108,12 @@
          scope (no CS0436). Its IncrementalSurfaceInjector is surfaced separately onto the analyzer load path
          by Synto.Generators' SyntoBundlesIncremental hook. -->
     <ProjectReference Include="..\..\src\Synto.Incremental\Synto.Incremental.csproj" Aliases="SyntoIncremental" />
+    <!-- The Template feature generator internals (Synto.Generators.Templating.* + Synto.Generators.Symbols)
+         moved from Synto.Generators into Synto.Template (Task 7). Reference it through an extern alias
+         (SyntoTemplate) so the SHIPPED metadata types are reached via the alias (re-exposed globally in
+         GeneratorAliasUsings.cs), keeping them out of the default scope. Its TemplateSurfaceInjector is
+         surfaced onto the analyzer load path by Synto.Generators' SyntoBundlesTemplate hook. -->
+    <ProjectReference Include="..\..\src\Synto.Template\Synto.Template.csproj" Aliases="SyntoTemplate" />
   </ItemGroup>
 
   <ItemGroup>

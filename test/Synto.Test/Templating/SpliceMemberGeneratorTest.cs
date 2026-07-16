@@ -43,7 +43,7 @@ public class SpliceMemberGeneratorTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);

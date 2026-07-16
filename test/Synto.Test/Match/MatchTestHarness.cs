@@ -175,10 +175,11 @@ internal static class MatchTestHarness
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var result = CSharpGeneratorDriver
-            // Run BOTH surface injectors so the probe sees the FULL injected surface: the marker surface
-            // (SurfaceInjectionGenerator, embedded in Synto.Generators.dll) plus the cacheable trio
+            // Run ALL surface injectors so the probe sees the FULL injected surface: the Match marker surface
+            // (SurfaceInjectionGenerator, embedded in Synto.Generators.dll), the Template marker surface incl.
+            // Interceptors (TemplateSurfaceInjector, embedded in Synto.Template.dll) plus the cacheable trio
             // (IncrementalSurfaceInjector, embedded in Synto.Incremental.dll). They inject disjoint sets.
-            .Create(new SurfaceInjectionGenerator(), new IncrementalSurfaceInjector())
+            .Create(new SurfaceInjectionGenerator(), new TemplateSurfaceInjector(), new IncrementalSurfaceInjector())
             .RunGenerators(compilation)
             .GetRunResult();
 

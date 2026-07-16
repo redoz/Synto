@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFramework>netstandard2.0</TargetFramework>
+	<RootNamespace>Synto.Generators.Templating</RootNamespace>
+	<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+	<!-- Bundled into the Synto package by the umbrella; not itself a package. -->
+	<IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+	<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+	<PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
+	<ProjectReference Include="..\Synto.Incremental\Synto.Incremental.csproj" />
+	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- The Template consumer-facing MARKER surface is authored once under src\Synto.Core and embedded here
+	   so TemplateSurfaceInjector can rewrite it to internal source and inject it into consumers. Every
+	   Synto.Core surface EXCEPT the Matching feature's markers (which Synto.Match owns) belongs to Template:
+	   Templating/**, Decorations/**, Quoting/**, Syntax/**, Generators/** Surface + InjectedOnly, plus all
+	   EmitHelpers. The Matching Surface/InjectedOnly are excluded so each feature DLL injects a DISJOINT
+	   marker set (CS0101-proof). ResourceManifestPinTest guards the exact set. -->
+  <ItemGroup>
+	<EmbeddedResource Include="..\Synto.Core\**\Surface\*.cs" Exclude="..\Synto.Core\Matching\**\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto.Core\**\InjectedOnly\*.cs" Exclude="..\Synto.Core\Matching\**\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto.Core\**\EmitHelpers\*.cs" LogicalName="Synto.Helper.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- SY1005-SY1035 (TemplateDiagnostics + LiveTemplateHighlightAnalyzer) are declared in THIS assembly, so
+	   per-assembly RS2008 release tracking is owned here. -->
+  <ItemGroup>
+	<AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+	<AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <!-- The Template generator internals + TemplateSurfaceInjector are `internal`; the test project exercises
+	   them (cacheability/equatability) and instantiates the injector directly in SurfaceInjectionTest. -->
+  <ItemGroup>
+	<InternalsVisibleTo Include="Synto.Test" />
+  </ItemGroup>
+
+</Project>

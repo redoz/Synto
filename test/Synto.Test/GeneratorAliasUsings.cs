@@ -1,5 +1,6 @@
 extern alias SyntoGenerators;
 extern alias SyntoIncremental;
+extern alias SyntoTemplate;
 
 // The generator assembly is referenced through the `SyntoGenerators` extern alias (see Synto.Test.csproj)
 // so its metadata copies of the pipeline value types stay out of the default scope and can never collide
@@ -14,20 +15,22 @@ global using SyntoGenerators::Synto.Generators;
 // sets are disjoint, so re-exposing both aliases' namespace is unambiguous.
 global using SyntoIncremental::Synto.Generators;
 global using SyntoIncremental::Synto.Generators.Incremental;
-global using SyntoGenerators::Synto.Generators.Symbols;
+// Synto.Generators.Symbols + the whole Synto.Generators.Templating.* tree moved into Synto.Template.dll
+// (Task 7); reach them through the SyntoTemplate alias so test code binds the SHIPPED (compiled) types.
+global using SyntoTemplate::Synto.Generators.Symbols;
 global using SyntoGenerators::Synto.Generators.Matching;
 global using SyntoGenerators::Synto.Generators.Matching.Discovery;
 global using SyntoGenerators::Synto.Generators.Matching.Emit;
 global using SyntoGenerators::Synto.Generators.Matching.Diagnostics;
-global using SyntoGenerators::Synto.Generators.Templating;
-global using SyntoGenerators::Synto.Generators.Templating.Discovery;
-global using SyntoGenerators::Synto.Generators.Templating.BindingTime;
-global using SyntoGenerators::Synto.Generators.Templating.Quoting;
-global using SyntoGenerators::Synto.Generators.Templating.Quoting.Passes;
-global using SyntoGenerators::Synto.Generators.Templating.Staging;
-global using SyntoGenerators::Synto.Generators.Templating.Lifting;
-global using SyntoGenerators::Synto.Generators.Templating.Builders;
-global using SyntoGenerators::Synto.Generators.Templating.Decorations;
-global using SyntoGenerators::Synto.Generators.Templating.Emit;
-global using SyntoGenerators::Synto.Generators.Templating.Prelude;
-global using SyntoGenerators::Synto.Generators.Templating.Diagnostics;
+global using SyntoTemplate::Synto.Generators.Templating;
+global using SyntoTemplate::Synto.Generators.Templating.Discovery;
+global using SyntoTemplate::Synto.Generators.Templating.BindingTime;
+global using SyntoTemplate::Synto.Generators.Templating.Quoting;
+global using SyntoTemplate::Synto.Generators.Templating.Quoting.Passes;
+global using SyntoTemplate::Synto.Generators.Templating.Staging;
+global using SyntoTemplate::Synto.Generators.Templating.Lifting;
+global using SyntoTemplate::Synto.Generators.Templating.Builders;
+global using SyntoTemplate::Synto.Generators.Templating.Decorations;
+global using SyntoTemplate::Synto.Generators.Templating.Emit;
+global using SyntoTemplate::Synto.Generators.Templating.Prelude;
+global using SyntoTemplate::Synto.Generators.Templating.Diagnostics;
