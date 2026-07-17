@@ -5,8 +5,8 @@ namespace Synto.Test;
 
 /// <summary>
 /// Pins the exact set of embedded manifest resources the generator assemblies ship. The set is enumerated
-/// the same way <see cref="SurfaceInjectionGenerator"/> and the helper loader read it — straight off
-/// <c>Assembly.GetManifestResourceNames()</c> — so any later glob/embed change surfaces as a reviewable
+/// the same way each feature's <c>SurfaceInjectorBase</c> subclass and the helper loader read it — straight
+/// off <c>Assembly.GetManifestResourceNames()</c> — so any later glob/embed change surfaces as a reviewable
 /// Verify diff (a list-delta) rather than a silent glob footgun.
 /// </summary>
 public class ResourceManifestPinTest
@@ -14,7 +14,10 @@ public class ResourceManifestPinTest
     [Fact]
     public Task VerifyEmbeddedResourceManifest()
     {
-        var assembly = typeof(SurfaceInjectionGenerator).Assembly;
+        // The umbrella (Synto.Generators.dll) is reference-only: it carries no code and embeds no resources
+        // (its former SurfaceInjectionGenerator was deleted in Task 10). Load it by name to pin that it stays
+        // resource-free — every marker surface now lives in a feature DLL, pinned below.
+        var assembly = System.Reflection.Assembly.Load("Synto.Generators");
 
         var resourceNames = assembly.GetManifestResourceNames()
             .OrderBy(name => name, StringComparer.Ordinal)

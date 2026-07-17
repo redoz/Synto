@@ -1,15 +1,10 @@
-extern alias SyntoGenerators;
 extern alias SyntoIncremental;
 extern alias SyntoTemplate;
 extern alias SyntoMatch;
 
-// The generator assembly is referenced through the `SyntoGenerators` extern alias (see Synto.Test.csproj)
-// so its metadata copies of the pipeline value types stay out of the default scope and can never collide
-// with the internal source copies SurfaceInjectionGenerator injects into this compilation under the same
-// `Synto.Generators` namespace. Re-expose the generator's internal namespaces globally VIA the alias so
-// test code binds the SHIPPED (compiled) types — replacing the per-file `using Synto.Generators.*;`
-// directives, which would otherwise fail (the metadata namespaces are no longer in the global alias).
-global using SyntoGenerators::Synto.Generators;
+// The umbrella (Synto.Generators.dll) is reference-only after Task 10 — its former SurfaceInjectionGenerator
+// (the sole type in its `Synto.Generators` namespace) was deleted, so there is nothing to re-expose from it;
+// every pipeline type now lives in a feature DLL, aliased below.
 // The cacheable trio (EquatableArray/DiagnosticInfo/LocationInfo) authored under `namespace
 // Synto.Generators` now lives in Synto.Incremental.dll (Task 4); expose it via the SyntoIncremental
 // alias so test code binds the SHIPPED (compiled) trio. The two assemblies' `Synto.Generators` type

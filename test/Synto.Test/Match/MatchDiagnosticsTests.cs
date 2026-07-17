@@ -1,3 +1,4 @@
+extern alias SyntoIncremental;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -461,7 +462,10 @@ public class MatchDiagnosticsTests
         // carrying the exception text (the generator's try/catch never throws).
         var exception = new InvalidOperationException("boom-marker-7f3a");
 
-        var diagnostic = Diagnostics.InternalError(exception).ToDiagnostic();
+        // Qualify via the SyntoIncremental alias: Task 10 surfaces the Synto.Diagnostics feature DLL onto this
+        // project's references, whose `Synto.Diagnostics` namespace would otherwise shadow this SY0000 helper
+        // (Synto.Generators.Diagnostics, authored in Synto.Incremental).
+        var diagnostic = SyntoIncremental::Synto.Generators.Incremental.Diagnostics.InternalError(exception).ToDiagnostic();
 
         Assert.Equal("SY0000", diagnostic.Id);
         Assert.Equal(Location.None, diagnostic.Location);

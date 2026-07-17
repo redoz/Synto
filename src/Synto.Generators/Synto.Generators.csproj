@@ -32,6 +32,12 @@
 		 (injecting the Match markers exactly once) and Roslyn can resolve it. -->
 	<SyntoBundlesMatch>true</SyntoBundlesMatch>
 
+	<!-- This umbrella references the Synto.Diagnostics feature DLL (the [Diagnostic] generator; its
+		 DiagnosticAttribute marker is delivered by RegisterPostInitializationOutput, not a SurfaceInjector).
+		 Surface Synto.Diagnostics.dll onto consumers' analyzer load path so its DiagnosticsGenerator runs
+		 and Roslyn can resolve it. -->
+	<SyntoBundlesDiagnostics>true</SyntoBundlesDiagnostics>
+
 	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
 	<PackageId>Synto</PackageId>
 	<PackageReadmeFile>Synto.NuGet.md</PackageReadmeFile>
@@ -65,6 +71,7 @@
 	<ProjectReference Include="..\Synto.Incremental\Synto.Incremental.csproj" />
 	<ProjectReference Include="..\Synto.Template\Synto.Template.csproj" />
 	<ProjectReference Include="..\Synto.Match\Synto.Match.csproj" />
+	<ProjectReference Include="..\Synto.Diagnostics\Synto.Diagnostics.csproj" />
 	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all" />
   </ItemGroup>
 

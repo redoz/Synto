@@ -42,7 +42,13 @@
   <!-- LICENSE + generator assembly + Synto helper assembly into analyzers/dotnet/cs -->
   <ItemGroup Condition="'$(IsSyntoGeneratorPackage)' == 'true'">
 	<None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" Visible="false" PackagePath="\" />
-	<None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	<!-- The umbrella (Synto.Generators.dll) carries no code of its own; it packs the feature DLLs it
+		 references. Each is gated on the matching SyntoBundles* flag so only referencing packages pack it. -->
+		<None Include="$(OutputPath)Synto.GenKit.dll" Condition="'$(SyntoBundlesGenKit)' == 'true'" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(OutputPath)Synto.Incremental.dll" Condition="'$(SyntoBundlesIncremental)' == 'true'" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(OutputPath)Synto.Template.dll" Condition="'$(SyntoBundlesTemplate)' == 'true'" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(OutputPath)Synto.Match.dll" Condition="'$(SyntoBundlesMatch)' == 'true'" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(OutputPath)Synto.Diagnostics.dll" Condition="'$(SyntoBundlesDiagnostics)' == 'true'" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	<None Include="$(OutputPath)Synto.Core.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
@@ -90,6 +96,15 @@
 										   Condition="'$(SyntoBundlesMatch)' == 'true'"
 										   IncludeRuntimeDependency="false"
 										   MSBuildSourceProjectFile="Synto.Match.csproj" />
+
+	  <!-- Synto.Diagnostics.dll carries the [Diagnostic] generator (DiagnosticsGenerator). Its
+		   DiagnosticAttribute marker is delivered by RegisterPostInitializationOutput (not a SurfaceInjector).
+		   Surfacing it as an analyzer dependency lets Roslyn resolve it and makes its generator RUN in the
+		   consumer compilation. Only generator packages that opt in (SyntoBundlesDiagnostics=true) surface it. -->
+	  <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)Synto.Diagnostics.dll"
+										   Condition="'$(SyntoBundlesDiagnostics)' == 'true'"
+										   IncludeRuntimeDependency="false"
+										   MSBuildSourceProjectFile="Synto.Diagnostics.csproj" />
 	</ItemGroup>
   </Target>
 

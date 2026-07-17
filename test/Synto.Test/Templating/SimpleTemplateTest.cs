@@ -1,3 +1,4 @@
+extern alias SyntoIncremental;
 using System.Collections.Immutable;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
@@ -745,7 +746,10 @@ public class SimpleTemplateTest
         // message.
         var ex = new InvalidOperationException("boom");
 
-        var diag = Diagnostics.InternalError(ex).ToDiagnostic();
+        // Qualify via the SyntoIncremental alias: Task 10 surfaces the Synto.Diagnostics feature DLL onto this
+        // project's references, whose `Synto.Diagnostics` namespace would otherwise shadow this SY0000 helper
+        // (Synto.Generators.Diagnostics, authored in Synto.Incremental).
+        var diag = SyntoIncremental::Synto.Generators.Incremental.Diagnostics.InternalError(ex).ToDiagnostic();
 
         Assert.Equal("SY0000", diag.Id);
         Assert.Equal(Location.None, diag.Location); // internal errors are not tied to a source location
