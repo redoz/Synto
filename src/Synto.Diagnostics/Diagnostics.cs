@@ -70,4 +70,19 @@ internal static class Diagnostics
             location,
             new EquatableArray<string>(ImmutableArray.Create(methodName)));
     }
+
+    private static readonly DiagnosticDescriptor _UnsupportedReturnType = new(
+        IdPrefix + "1004",
+        "Invalid Target",
+        "Diagnostic factory method '{0}' has unsupported return type '{1}'; declare it to return 'Microsoft.CodeAnalysis.Diagnostic' or 'Synto.Generators.DiagnosticInfo'",
+        "Synto.Diagnostics.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo UnsupportedReturnType(LocationInfo? location, string methodName, string returnType)
+    {
+        return new DiagnosticInfo(_UnsupportedReturnType,
+            location,
+            new EquatableArray<string>(ImmutableArray.Create(methodName, returnType)));
+    }
 }

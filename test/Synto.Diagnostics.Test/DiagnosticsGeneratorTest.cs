@@ -333,6 +333,35 @@ public class DiagnosticsGeneratorTest
         Assert.DoesNotContain('\r', injected);
     }
 
+    [Fact]
+    public void UnsupportedReturnTypeReportsSDG1004NotInternalError()
+    {
+        // A [Diagnostic] factory declared to return neither Microsoft.CodeAnalysis.Diagnostic nor
+        // Synto.Generators.DiagnosticInfo (here: string). No emit strategy matches, so the generator must
+        // report the precise, located SDG1004 rather than silently falling through to a live-shaped body.
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Microsoft.CodeAnalysis;
+            using Synto.Diagnostics;
+
+            namespace X;
+
+            internal static partial class Diags
+            {
+                [Diagnostic("TST0001", "Title", "msg {0}", "Cat", DiagnosticSeverity.Error, true)]
+                public static partial string Wrong(Location location, string arg);
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SDG1004");
+        // Serialized-then-reconstructed locations are ExternalFile (SourceTree is null by design); assert the
+        // squiggle still carries a real, non-empty source span pointing at the return type.
+        Assert.NotEqual(Location.None, diag.Location);
+        Assert.False(diag.Location.SourceSpan.IsEmpty);
+        Assert.Contains("Wrong", diag.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SDG0000");
+    }
+
     private const string CacheableSource =
         """
         using Synto.Generators;

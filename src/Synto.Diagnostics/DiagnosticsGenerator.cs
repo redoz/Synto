@@ -187,10 +187,17 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
         Debug.Assert(parentSymbol is not null);
 
         // Route body emission through the return-type strategy seam so the live and cacheable return shapes
-        // are peers. For this refactor an unknown return type falls back to live (today's behavior); Task 6
-        // tightens that into a precise SDG1004 diagnostic.
-        var strategy = DiagnosticEmitStrategy.ForReturnType(methodSymbol!.ReturnType, semanticModel.Compilation)
-            ?? new LiveDiagnosticEmitStrategy();
+        // are peers. A return type that maps to no strategy is a usage error: report a precise, located
+        // SDG1004 and emit no source (accumulate-and-continue — never throw).
+        var strategy = DiagnosticEmitStrategy.ForReturnType(methodSymbol!.ReturnType, semanticModel.Compilation);
+        if (strategy is null)
+        {
+            diagnostics.Add(Diagnostics.UnsupportedReturnType(
+                LocationInfo.CreateFrom(targetMethod.ReturnType.GetLocation()),
+                methodSymbol.Name,
+                methodSymbol.ReturnType.ToDisplayString()));
+            return null;
+        }
 
         UsingDirectiveSet additionalUsings = new UsingDirectiveSet([]);
 
