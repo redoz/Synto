@@ -38,6 +38,10 @@ internal abstract class DiagnosticEmitStrategy
         if (SymbolEqualityComparer.Default.Equals(returnType, diagnosticType))
             return new LiveDiagnosticEmitStrategy();
 
+        var diagnosticInfoType = compilation.GetTypeByMetadataName("Synto.Generators.DiagnosticInfo");
+        if (SymbolEqualityComparer.Default.Equals(returnType, diagnosticInfoType))
+            return new CacheableDiagnosticEmitStrategy();
+
         return null;
     }
 }
@@ -82,5 +86,65 @@ internal sealed class LiveDiagnosticEmitStrategy : DiagnosticEmitStrategy
                         Argument(properties),
                         .. messageArgExprs.Select(Argument)
                     ]))));
+    }
+}
+
+/// <summary>
+/// Emits a cacheable <c>new Synto.Generators.DiagnosticInfo(descriptor, location, new EquatableArray&lt;string&gt;(...))</c>
+/// return — a value-equatable diagnostic that rides the incremental cache and materializes a live
+/// <c>Diagnostic</c> only at source-output time via <c>ToDiagnostic()</c>. Location parameter type:
+/// <c>Synto.Generators.LocationInfo</c> (matched through its nullable-underlying type, so <c>LocationInfo?</c> matches).
+/// Severity is baked into the descriptor, so no separate severity argument is emitted.
+/// </summary>
+internal sealed class CacheableDiagnosticEmitStrategy : DiagnosticEmitStrategy
+{
+    public override bool IsLocationParameter(IParameterSymbol parameter, Compilation compilation)
+    {
+        var locationInfoType = compilation.GetTypeByMetadataName("Synto.Generators.LocationInfo");
+
+        // A cacheable factory takes LocationInfo? (Nullable<LocationInfo>); compare the nullable-underlying type.
+        var paramType = parameter.Type;
+        if (paramType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+            paramType = nullable.TypeArguments[0];
+
+        return SymbolEqualityComparer.Default.Equals(paramType, locationInfoType);
+    }
+
+    public override StatementSyntax BuildReturn(
+        IdentifierNameSyntax descriptorName,
+        ExpressionSyntax? locationExpr,
+        ExpressionSyntax? severityExpr,
+        IReadOnlyList<ExpressionSyntax> messageArgExprs,
+        UsingDirectiveSet usings)
+    {
+        ExpressionSyntax location = locationExpr ?? LiteralExpression(SyntaxKind.NullLiteralExpression);
+
+        // new EquatableArray<string>(ImmutableArray.Create(args...))  — or ImmutableArray<string>.Empty when no args.
+        ExpressionSyntax messageArgs = messageArgExprs.Count == 0
+            ? MemberAccessExpression(
+                SyntaxKind.SimpleMemberAccessExpression,
+                usings.GetTypeName(ParseName("System.Collections.Immutable.ImmutableArray<string>")),
+                IdentifierName("Empty"))
+            : InvocationExpression(
+                MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    usings.GetTypeName(ParseName("System.Collections.Immutable.ImmutableArray")),
+                    IdentifierName("Create")),
+                ArgumentList(SeparatedList(messageArgExprs.Select(Argument))));
+
+        ExpressionSyntax equatableArray = ObjectCreationExpression(
+            usings.GetTypeName(ParseName("Synto.Generators.EquatableArray<string>")))
+            .WithArgumentList(ArgumentList(SeparatedList([Argument(messageArgs)])));
+
+        return ReturnStatement(
+            ObjectCreationExpression(
+                usings.GetTypeName(ParseName("Synto.Generators.DiagnosticInfo")))
+                .WithArgumentList(
+                    ArgumentList(
+                        SeparatedList([
+                            Argument(descriptorName),
+                            Argument(location),
+                            Argument(equatableArray)
+                        ]))));
     }
 }

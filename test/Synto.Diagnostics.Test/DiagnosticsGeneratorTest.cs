@@ -333,6 +333,76 @@ public class DiagnosticsGeneratorTest
         Assert.DoesNotContain('\r', injected);
     }
 
+    private const string CacheableSource =
+        """
+        using Synto.Generators;
+        using Synto.Diagnostics;
+
+        namespace X;
+
+        internal static partial class Diagnostics
+        {
+            [Diagnostic("TST0001", "Unsupported property type", "Property '{0}' has unsupported type '{1}'", "MyGen.Usage", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning, true)]
+            public static partial DiagnosticInfo UnsupportedProp(LocationInfo? location, string name, string type);
+        }
+        """;
+
+    private static (CSharpCompilation compilation, GeneratorDriver driver) RunCacheable(string source, bool trackSteps = false)
+    {
+        var tree = CSharpSyntaxTree.ParseText(source, path: "Cacheable.cs");
+        var refs = Directory
+            .EnumerateFiles(Path.GetDirectoryName(typeof(CSharpSyntaxVisitor<>).Assembly.Location)!, "*.dll")
+            .Select(f => (MetadataReference)MetadataReference.CreateFromFile(f))
+            .Concat([
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                // The injected trio (EquatableArray / DiagnosticBag) references ImmutableArray<T>.
+                MetadataReference.CreateFromFile(typeof(ImmutableArray).Assembly.Location)
+            ]);
+        var compilation = CSharpCompilation.Create("CacheableTest", [tree], refs,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new IIncrementalGenerator[]
+                { new global::Synto.Generators.Incremental.IncrementalSurfaceInjector(), new DiagnosticsGenerator() }
+                .Select(g => g.AsSourceGenerator()),
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: trackSteps));
+        return (compilation, driver.RunGenerators(compilation, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public Task CacheableReturnTypeEmitsDiagnosticInfoFactory()
+    {
+        var (_, driver) = RunCacheable(CacheableSource);
+        return Verify(driver).UseDirectory("snapshots");
+    }
+
+    [Fact]
+    public void CacheableFactoryCompilesAgainstInjectedTrioNoErrors()
+    {
+        var (compilation, driver) = RunCacheable(CacheableSource);
+        var updated = driver.RunGeneratorsAndUpdateCompilation(
+            compilation, out var output, out _, TestContext.Current.CancellationToken);
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.DoesNotContain(errors, d => d.Id is "CS0246" or "CS0117" or "CS8795"); // trio resolves; partial is implemented
+    }
+
+    [Fact]
+    public void CacheableGeneratorIsIncrementalOnUnrelatedEdit()
+    {
+        var (compilation, driver) = RunCacheable(CacheableSource, trackSteps: true);
+        var modified = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Z { class Unrelated { } }",
+                cancellationToken: TestContext.Current.CancellationToken));
+        var result = driver.RunGenerators(modified, TestContext.Current.CancellationToken)
+            .GetRunResult().Results.Single(r => r.Generator.GetGeneratorType() == typeof(DiagnosticsGenerator));
+
+        CacheabilityAssert.AllStepsCachedOrUnchanged(
+            result, new[] { TrackingNames.Transform, TrackingNames.Result });
+    }
+
     static ImmutableArray<Diagnostic> RunAndGetDiagnostics(string source)
     {
         var compilation = CreateCompilation(source);
