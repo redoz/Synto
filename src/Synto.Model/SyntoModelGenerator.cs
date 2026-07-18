@@ -45,9 +45,15 @@ public class SyntoModelGenerator : IIncrementalGenerator
 
         try
         {
-            // Task 5+ builds ModelInfo, validates cache-safety (Task 8), and emits the record + From factory
-            // (Tasks 5-7). The stub reports nothing for a well-formed spec — the pipeline shape (equatable
-            // GenerationResult, no rooted Roslyn objects) is what this task pins.
+            // Build the transform-local ModelInfo (record-name derivation; SY1039 on a name that cannot be
+            // derived). Cache-safety validation (Task 8) and Project.Each/One rewriting (Task 7) slot in here.
+            // Only the equatable GenerationResult flows out — no ModelInfo/symbol/syntax is ever captured.
+            if (ModelInfo.Create(syntaxContext, diagnostics) is { } info)
+            {
+                var generated = ModelFactoryBuilder.Build(info);
+                fileName = generated.FileName;
+                source = generated.Source;
+            }
         }
 #pragma warning disable CA1031 // we're explicitly catching _any_ exception and converting it to a diagnostic message
         catch (Exception ex)
