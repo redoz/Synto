@@ -186,6 +186,12 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
 
         Debug.Assert(parentSymbol is not null);
 
+        // Route body emission through the return-type strategy seam so the live and cacheable return shapes
+        // are peers. For this refactor an unknown return type falls back to live (today's behavior); Task 6
+        // tightens that into a precise SDG1004 diagnostic.
+        var strategy = DiagnosticEmitStrategy.ForReturnType(methodSymbol!.ReturnType, semanticModel.Compilation)
+            ?? new LiveDiagnosticEmitStrategy();
+
         UsingDirectiveSet additionalUsings = new UsingDirectiveSet([]);
 
 
@@ -254,12 +260,9 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
 
         ExpressionSyntax? locationExpr = null;
         ExpressionSyntax? severityExpr = null;
-        ExpressionSyntax additionalLocationsExpr = LiteralExpression(SyntaxKind.NullLiteralExpression);
-        ExpressionSyntax propertiesExpr = LiteralExpression(SyntaxKind.NullLiteralExpression);
 
         List<ExpressionSyntax> messageArgExprs = [];
 
-        var locationTypeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(Location).FullName!);
         var diagnosticSeverityTypeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(DiagnosticSeverity).FullName!);
 
         foreach (ParameterSyntax parameter in targetMethod.ParameterList.Parameters)
@@ -267,7 +270,7 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
             var paramSymbol = semanticModel.GetDeclaredSymbol(parameter, cancellationToken);
             Debug.Assert(paramSymbol is not null);
 
-            if (SymbolEqualityComparer.Default.Equals(paramSymbol!.Type, locationTypeSymbol))
+            if (strategy.IsLocationParameter(paramSymbol!, semanticModel.Compilation))
             {
                 locationExpr = IdentifierName(parameter.Identifier);
             }
@@ -281,32 +284,17 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
             }
         }
 
-        locationExpr ??= LiteralExpression(SyntaxKind.NullLiteralExpression);
-        severityExpr ??= LiteralExpression(SyntaxKind.NullLiteralExpression);
-
         members.Add(targetMethod
             .WithSemicolonToken(Token(SyntaxKind.None))
             .WithAttributeLists([]) // clear the attribute
             .WithBody(
                 Block(
-                    ReturnStatement(
-                        InvocationExpression(
-                            MemberAccessExpression(
-                                SyntaxKind.SimpleMemberAccessExpression,
-                                additionalUsings.GetTypeName(
-                                    ParseName(typeof(Diagnostic).FullName!)
-                                ),
-                                IdentifierName("Create")),
-                            ArgumentList(
-                                SeparatedList([
-                                    Argument(IdentifierName(descriptorName)),
-                                    Argument(locationExpr),
-                                    Argument(severityExpr),
-                                    Argument(additionalLocationsExpr),
-                                    Argument(propertiesExpr),
-                                    .. messageArgExprs.Select(Argument)
-                                ]))))
-                )));
+                    strategy.BuildReturn(
+                        IdentifierName(descriptorName),
+                        locationExpr,
+                        severityExpr,
+                        messageArgExprs,
+                        additionalUsings))));
 
 
         // Rebuild a clean partial shell (mirroring MatchComposer) rather than cloning the user's declaration.
