@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
@@ -17,6 +18,16 @@ internal record struct LocationInfo(string FilePath, TextSpan TextSpan, LinePosi
             return null;
 
         return new LocationInfo(location.SourceTree.FilePath, location.SourceSpan, location.GetLineSpan().Span);
+    }
+
+    public static LocationInfo? From(SyntaxNode node) => CreateFrom(node.GetLocation());
+
+    public static LocationInfo? From(ISymbol symbol)
+    {
+        var reference = symbol.DeclaringSyntaxReferences.FirstOrDefault();
+        return reference is not null
+            ? CreateFrom(reference.GetSyntax().GetLocation())
+            : CreateFrom(symbol.Locations.FirstOrDefault());
     }
 }
 
