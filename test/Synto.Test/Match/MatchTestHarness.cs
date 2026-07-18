@@ -330,6 +330,32 @@ internal static class MatchTestHarness
         return CreateNetStandardClosure(equatableArray, diagnostics, interceptors, polyfill).GetDiagnostics();
     }
 
+    /// <summary>
+    /// C-2 self-containment proof for the injected <c>DiagnosticBag</c> collector + <c>Drain</c> extension:
+    /// compiles the injected (and namespace-shifted) EquatableArray + DiagnosticInfo + DiagnosticBag on the
+    /// FAITHFUL netstandard2.0 closure (which resolves <c>SourceProductionContext</c> from the ns2.0 Roslyn
+    /// build), alongside the IsExternalInit polyfill the record structs need. Returns the resulting
+    /// diagnostics (must be error-free).
+    /// </summary>
+    public static ImmutableArray<Diagnostic> CompileInjectedDiagnosticBagOnNetStandard20()
+    {
+        var equatableArray = InjectedSurfaceSource("struct EquatableArray");
+        var diagnostics = InjectedSurfaceSource("record struct DiagnosticInfo"); // carries LocationInfo + DiagnosticInfo
+        var bag = InjectedSurfaceSource("class DiagnosticBag");
+        var polyfill = GeneratedPolyfillSource(Run(
+            """
+            using Synto.Matching;
+            partial class M { }
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object Sum([Capture] int a, [Capture] int b) => a + b;
+            }
+            """));
+
+        return CreateNetStandardClosure(equatableArray, diagnostics, bag, polyfill).GetDiagnostics();
+    }
+
     private static CSharpCompilation CreateClosure(string assemblyName, ImmutableArray<MetadataReference> references, string[] sources)
     {
         var parseOptions = new CSharpParseOptions(LanguageVersion.Latest);

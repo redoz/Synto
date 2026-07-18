@@ -29,6 +29,13 @@ public class InjectedGeneratorUtilitiesTests
     }
 
     [Fact]
+    public void InjectedDiagnosticBag_CompilesOn_NetStandard20() // C-2 extension: DiagnosticBag + Drain
+    {
+        var diagnostics = MatchTestHarness.CompileInjectedDiagnosticBagOnNetStandard20();
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Fact]
     public void InjectedInterceptorsHelper_DefinesTheCanonicalAttribute() // C-4
     {
         var source = MatchTestHarness.InjectedSurfaceSource("class Interceptors");
