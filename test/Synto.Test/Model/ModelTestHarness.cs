@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
@@ -73,6 +74,57 @@ internal static class ModelTestHarness
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new SyntoModelGenerator());
         return driver.RunGenerators(compilation).GetRunResult();
+    }
+
+    /// <summary>
+    /// Builds a minimal input compilation over <paramref name="source"/> (corlib + netstandard + System.Runtime,
+    /// no Synto/Roslyn surface) whose real symbols a dog-food test feeds into a generated <c>From</c> factory.
+    /// This models the source-symbol world a consumer generator projects over.
+    /// </summary>
+    public static CSharpCompilation CreateInputCompilation(string source)
+    {
+        var tree = CSharpSyntaxTree.ParseText(source);
+        Assert.Empty(tree.GetDiagnostics());
+
+        return CSharpCompilation.Create("ModelInput",
+            new[] { tree },
+            references: [CorlibReference, NetStandardReference, SystemRuntimeReference],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+    }
+
+    /// <summary>
+    /// Compiles the record trees a <see cref="SyntoModelGenerator"/> run produced into an in-memory assembly and
+    /// loads it, so a dog-food test can invoke the generated <c>From(TSymbol)</c> factory over real
+    /// <see cref="ISymbol"/> inputs and observe the emitted record's structural equality. Asserts the generated
+    /// output compiles clean (the standalone-compile gate the text-only snapshot tests lack) and emits.
+    /// </summary>
+    public static Assembly EmitGeneratedAssembly(GeneratorDriverRunResult runResult, string assemblyName = "ModelE2E")
+    {
+        var trees = runResult.GeneratedTrees
+            .Where(tree => tree.ToString().Contains("record ", StringComparison.Ordinal))
+            .ToArray();
+        Assert.NotEmpty(trees);
+
+        var compilation = CSharpCompilation.Create(assemblyName,
+            trees,
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.CSharp.SyntaxKind).Assembly.Location),
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        Assert.Empty(compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        using var stream = new MemoryStream();
+        var emitResult = compilation.Emit(stream);
+        Assert.True(emitResult.Success, string.Join(Environment.NewLine, emitResult.Diagnostics));
+
+        return Assembly.Load(stream.ToArray());
     }
 
     /// <summary>
