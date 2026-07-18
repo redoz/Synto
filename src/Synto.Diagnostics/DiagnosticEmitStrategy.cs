@@ -4,9 +4,17 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto;
+using Synto.Generators;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Synto.Diagnostics;
+
+/// <summary>The classification of a <c>[Diagnostic]</c> factory parameter, used by <see cref="DiagnosticEmitStrategy.ValidateParameter"/>.</summary>
+internal enum ParameterRole
+{
+    Severity,
+    MessageArg
+}
 
 /// <summary>
 /// The body-emission seam for the <c>[Diagnostic]</c> factory. The live and cacheable return shapes are
@@ -18,6 +26,20 @@ internal abstract class DiagnosticEmitStrategy
 {
     /// <summary>Recognizes this strategy's location-parameter type (live: <c>Location</c>).</summary>
     public abstract bool IsLocationParameter(IParameterSymbol parameter, Compilation compilation);
+
+    /// <summary>
+    /// Validates a parameter that has already been classified as <see cref="ParameterRole.Severity"/> or
+    /// <see cref="ParameterRole.MessageArg"/>, returning an SDG1005 <see cref="DiagnosticInfo"/> when this
+    /// strategy's shape cannot represent it, or <c>null</c> when the parameter is fine as-is. The live strategy
+    /// (whose <c>Diagnostic.Create</c> body can carry any severity/message-arg type via <c>string.Format</c>)
+    /// never rejects; the cacheable strategy overrides this to reject non-<c>string</c> message args and any
+    /// severity parameter (both would otherwise be silently dropped or emit uncompilable code).
+    /// </summary>
+    public virtual DiagnosticInfo? ValidateParameter(
+        IParameterSymbol parameter,
+        ParameterRole role,
+        Compilation compilation,
+        LocationInfo? location) => null;
 
     /// <summary>Builds the factory's <c>return</c> statement for this strategy's shape.</summary>
     public abstract StatementSyntax BuildReturn(
@@ -108,6 +130,37 @@ internal sealed class CacheableDiagnosticEmitStrategy : DiagnosticEmitStrategy
             paramType = nullable.TypeArguments[0];
 
         return SymbolEqualityComparer.Default.Equals(paramType, locationInfoType);
+    }
+
+    public override DiagnosticInfo? ValidateParameter(
+        IParameterSymbol parameter,
+        ParameterRole role,
+        Compilation compilation,
+        LocationInfo? location)
+    {
+        switch (role)
+        {
+            // DiagnosticInfo has no severity field — severity is fixed by the descriptor. A severity parameter
+            // would be captured and then silently dropped by BuildReturn.
+            case ParameterRole.Severity:
+                return Diagnostics.UnsupportedCacheableParameter(
+                    location,
+                    parameter.Name,
+                    parameter.Type.ToDisplayString(),
+                    "severity is fixed by the descriptor on a cacheable [Diagnostic] factory; remove this parameter");
+
+            // DiagnosticInfo.MessageArgs is EquatableArray<string> — a non-string message arg would emit
+            // uncompilable code (CS1503) rather than being formatted, unlike the live path's string.Format.
+            case ParameterRole.MessageArg when parameter.Type.SpecialType != SpecialType.System_String:
+                return Diagnostics.UnsupportedCacheableParameter(
+                    location,
+                    parameter.Name,
+                    parameter.Type.ToDisplayString(),
+                    "message arguments must be of type 'string' on a cacheable [Diagnostic] factory");
+
+            default:
+                return null;
+        }
     }
 
     public override StatementSyntax BuildReturn(

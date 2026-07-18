@@ -85,4 +85,19 @@ internal static class Diagnostics
             location,
             new EquatableArray<string>(ImmutableArray.Create(methodName, returnType)));
     }
+
+    private static readonly DiagnosticDescriptor _UnsupportedCacheableParameter = new(
+        IdPrefix + "1005",
+        "Invalid Target",
+        "Parameter '{0}' of type '{1}' is not supported on a cacheable [Diagnostic] factory: {2}",
+        "Synto.Diagnostics.Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static DiagnosticInfo UnsupportedCacheableParameter(LocationInfo? location, string parameterName, string parameterType, string reason)
+    {
+        return new DiagnosticInfo(_UnsupportedCacheableParameter,
+            location,
+            new EquatableArray<string>(ImmutableArray.Create(parameterName, parameterType, reason)));
+    }
 }

@@ -469,6 +469,72 @@ public class DiagnosticsGeneratorTest
         Assert.DoesNotContain("Diagnostic.Create", generated, StringComparison.Ordinal); // NOT the live form
     }
 
+    [Fact]
+    public void CacheableFactory_WithNonStringMessageArg_ReportsSDG1005()
+    {
+        // DiagnosticInfo.MessageArgs is EquatableArray<string> — a non-string message-arg parameter cannot be
+        // captured into it. Must fail loud (SDG1005), never coerce/ToString (that would diverge from the live
+        // path's string.Format formatting) and never emit uncompilable code (CS1503).
+        const string source =
+            """
+            using Synto.Generators;
+            using Synto.Diagnostics;
+
+            namespace X;
+
+            internal static partial class Diagnostics
+            {
+                [Diagnostic("TST0001", "Title", "msg {0}", "Cat", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning, true)]
+                public static partial DiagnosticInfo BadArg(LocationInfo? location, int count);
+            }
+            """;
+
+        var (_, driver) = RunCacheable(source);
+        var diagnostics = driver.GetRunResult().Diagnostics;
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SDG1005");
+        Assert.NotEqual(Location.None, diag.Location);
+        Assert.False(diag.Location.SourceSpan.IsEmpty);
+        Assert.Contains("count", diag.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+
+        // No source emitted for the offending factory.
+        Assert.DoesNotContain(
+            driver.GetRunResult().Results.SelectMany(r => r.GeneratedSources),
+            s => s.SourceText.ToString().Contains("BadArg", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void CacheableFactory_WithSeverityParameter_ReportsSDG1005()
+    {
+        // DiagnosticInfo has no severity field (severity is fixed by the descriptor) — a DiagnosticSeverity
+        // parameter on a cacheable factory would silently be dropped. Must fail loud instead.
+        const string source =
+            """
+            using Synto.Generators;
+            using Synto.Diagnostics;
+
+            namespace X;
+
+            internal static partial class Diagnostics
+            {
+                [Diagnostic("TST0001", "Title", "msg", "Cat", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning, true)]
+                public static partial DiagnosticInfo BadSeverity(LocationInfo? location, Microsoft.CodeAnalysis.DiagnosticSeverity severity);
+            }
+            """;
+
+        var (_, driver) = RunCacheable(source);
+        var diagnostics = driver.GetRunResult().Diagnostics;
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SDG1005");
+        Assert.NotEqual(Location.None, diag.Location);
+        Assert.False(diag.Location.SourceSpan.IsEmpty);
+        Assert.Contains("severity", diag.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+
+        Assert.DoesNotContain(
+            driver.GetRunResult().Results.SelectMany(r => r.GeneratedSources),
+            s => s.SourceText.ToString().Contains("BadSeverity", StringComparison.Ordinal));
+    }
+
     static ImmutableArray<Diagnostic> RunAndGetDiagnostics(string source)
     {
         var compilation = CreateCompilation(source);

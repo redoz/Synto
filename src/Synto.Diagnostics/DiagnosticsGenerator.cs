@@ -284,12 +284,29 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
             else if (SymbolEqualityComparer.Default.Equals(paramSymbol!.Type, diagnosticSeverityTypeSymbol))
             {
                 severityExpr = IdentifierName(parameter.Identifier);
+
+                if (strategy.ValidateParameter(paramSymbol!, ParameterRole.Severity, semanticModel.Compilation,
+                        LocationInfo.CreateFrom(parameter.GetLocation())) is { } severityDiagnostic)
+                {
+                    diagnostics.Add(severityDiagnostic);
+                }
             }
             else
             {
                 messageArgExprs.Add(IdentifierName(parameter.Identifier));
+
+                if (strategy.ValidateParameter(paramSymbol!, ParameterRole.MessageArg, semanticModel.Compilation,
+                        LocationInfo.CreateFrom(parameter.GetLocation())) is { } messageArgDiagnostic)
+                {
+                    diagnostics.Add(messageArgDiagnostic);
+                }
             }
         }
+
+        // SDG1005 (accumulate-and-continue, mirroring SDG1004): a cacheable factory with an unsupported
+        // severity or non-string message-arg parameter emits no source.
+        if (diagnostics.Any(d => d.Descriptor.Id == "SDG1005"))
+            return null;
 
         members.Add(targetMethod
             .WithSemicolonToken(Token(SyntaxKind.None))

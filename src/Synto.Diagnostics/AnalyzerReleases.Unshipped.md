@@ -10,3 +10,4 @@ SDG1001 | Synto.Diagnostics.Usage | Error | Parent not partial class
 SDG1002 | Synto.Diagnostics.Usage | Error | Ancestry not partial
 SDG1003 | Synto.Diagnostics.Usage | Error | Target method must be declared in a partial class
 SDG1004 | Synto.Diagnostics.Usage | Error | Unsupported [Diagnostic] factory return type
+SDG1005 | Synto.Diagnostics.Usage | Error | Unsupported parameter on a cacheable [Diagnostic] factory
