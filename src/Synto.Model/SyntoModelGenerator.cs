@@ -46,13 +46,18 @@ public class SyntoModelGenerator : IIncrementalGenerator
         try
         {
             // Build the transform-local ModelInfo (record-name derivation; SY1039 on a name that cannot be
-            // derived). Cache-safety validation (Task 8) and Project.Each/One rewriting (Task 7) slot in here.
-            // Only the equatable GenerationResult flows out — no ModelInfo/symbol/syntax is ever captured.
+            // derived), then validate field cache-safety (SY1036/SY1037), dropping offending fields and continuing.
+            // A fully-invalid spec (no surviving field) reports every violation but emits no record. Only the
+            // equatable GenerationResult flows out — no ModelInfo/symbol/syntax is ever captured.
             if (ModelInfo.Create(syntaxContext, diagnostics) is { } info)
             {
-                var generated = ModelFactoryBuilder.Build(info);
-                fileName = generated.FileName;
-                source = generated.Source;
+                var validatedFields = ModelValidator.Validate(diagnostics, info);
+                if (validatedFields.Count > 0)
+                {
+                    var generated = ModelFactoryBuilder.Build(info.WithFields(validatedFields));
+                    fileName = generated.FileName;
+                    source = generated.Source;
+                }
             }
         }
 #pragma warning disable CA1031 // we're explicitly catching _any_ exception and converting it to a diagnostic message

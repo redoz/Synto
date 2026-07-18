@@ -156,7 +156,8 @@ public class ModelDiagnosticsTests
     public void ProjectEach_ElementNotSyntoModel_ReportsSY1038_AndDropsField()
     {
         // Project.Each/One can only project into a [SyntoModel] spec class. A non-model type argument (here
-        // `string`) reports SY1038 and the offending field is dropped (accumulate-and-continue).
+        // `string`) reports SY1038 and the offending field is dropped (accumulate-and-continue). Here the dropped
+        // field is the spec's ONLY projection, so no record survives to emit (fully-invalid spec -> no record).
         var result = ModelTestHarness.Run(
             """
             using Synto.Model;
@@ -171,8 +172,79 @@ public class ModelDiagnosticsTests
 
         var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1038");
         AssertHasRealSpan(diag);
-        var typeModel = Assert.Single(result.GeneratedTrees.Where(t => t.ToString().Contains("record TypeModel", StringComparison.Ordinal)));
-        Assert.DoesNotContain("Bad", typeModel.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("record TypeModel", StringComparison.Ordinal));
+        Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("Bad", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SymbolTypedField_ReportsSY1036_WithSymbolLeakTail_AndDropsField()
+    {
+        // A projected field whose DECLARED type is a Roslyn symbol can never be cached: SY1036 fires with the
+        // symbol-leak message tail steering the author to project it to a value, and the field is dropped. Since it
+        // is the only field, no record survives.
+        var result = ModelTestHarness.Run(
+            """
+            using Synto.Model;
+            using Microsoft.CodeAnalysis;
+
+            [SyntoModel]
+            class BadShape : SyntoModel<INamedTypeSymbol>
+            {
+                INamedTypeSymbol Bad => Symbol;
+            }
+            """);
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1036");
+        AssertHasRealSpan(diag);
+        Assert.Contains("would leak symbol", diag.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("record Bad", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void OpaqueField_ReturningSymbol_ReportsSY1037_AndDropsField()
+    {
+        // The declared type `object` looks benign, but the LIFTED getter RHS returns a symbol — the declared-type
+        // check alone would miss it, so SY1037 catches the leak on the projection result type and drops the field.
+        var result = ModelTestHarness.Run(
+            """
+            using Synto.Model;
+            using Microsoft.CodeAnalysis;
+
+            [SyntoModel]
+            class LeakShape : SyntoModel<INamedTypeSymbol>
+            {
+                object Leak => Symbol;
+            }
+            """);
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1037");
+        AssertHasRealSpan(diag);
+        Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("record Leak", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void MixedFields_DropsBadField_KeepsGoodField_AccumulateAndContinue()
+    {
+        // Accumulate-and-continue: one cache-unsafe field is dropped (SY1036) while the sibling cache-safe field
+        // still lands in the emitted record.
+        var result = ModelTestHarness.Run(
+            """
+            using Synto.Model;
+            using Microsoft.CodeAnalysis;
+
+            [SyntoModel]
+            class MixedShape : SyntoModel<INamedTypeSymbol>
+            {
+                INamedTypeSymbol Bad => Symbol;
+                string Name => Symbol.Name;
+            }
+            """);
+
+        Assert.Single(result.Diagnostics, d => d.Id == "SY1036");
+        var tree = Assert.Single(result.GeneratedTrees.Where(t => t.ToString().Contains("record Mixed", StringComparison.Ordinal)));
+        var generated = tree.ToString();
+        Assert.Contains("string Name", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("Bad", generated, StringComparison.Ordinal);
     }
 
     private static void AssertHasRealSpan(Diagnostic diag)

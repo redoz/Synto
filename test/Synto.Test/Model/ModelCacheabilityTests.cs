@@ -58,4 +58,41 @@ public class ModelCacheabilityTests
             result,
             new[] { ModelTrackingNames.Transform, ModelTrackingNames.Result });
     }
+
+    [Fact]
+    public void Generator_IsIncremental_OnUnrelatedEdit_ForDiagnosticReportingSpec()
+    {
+        // Cacheability under diagnostics: a spec that REPORTS a cache-safety violation (SY1036) must still ride the
+        // cache. The violation is carried as an equatable DiagnosticInfo in the GenerationResult, so an unrelated
+        // edit leaves every tracked step Cached/Unchanged (no Compilation/ISymbol/Location captured into state).
+        const string diagnosticSpec =
+            """
+            using Synto.Model;
+            using Microsoft.CodeAnalysis;
+
+            [SyntoModel]
+            class BadShape : SyntoModel<INamedTypeSymbol>
+            {
+                INamedTypeSymbol Bad => Symbol;
+            }
+            """;
+
+        var compilation = ModelTestHarness.CreateCompilation(diagnosticSpec);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new SyntoModelGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
+
+        var modified = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
+
+        var result = driver.GetRunResult().Results.Single();
+
+        CacheabilityAssert.AllStepsCachedOrUnchanged(
+            result,
+            new[] { ModelTrackingNames.Transform, ModelTrackingNames.Result });
+    }
 }

@@ -61,6 +61,14 @@ internal sealed class ModelInfo
     public IReadOnlyList<ProjectedField> Fields { get; }
 
     /// <summary>
+    /// Returns a copy of this <see cref="ModelInfo"/> carrying <paramref name="fields"/> in place of <see cref="Fields"/>.
+    /// Used after cache-safety validation drops offending fields (accumulate-and-continue) so the builder emits
+    /// only the surviving projections.
+    /// </summary>
+    public ModelInfo WithFields(IReadOnlyList<ProjectedField> fields) =>
+        new(SemanticModel, AttributeSyntax, SpecSymbol, RecordName, SymbolTypeDisplay, ContainingNamespace, fields);
+
+    /// <summary>
     /// Builds a <see cref="ModelInfo"/> from a <c>[SyntoModel]</c> target. Returns <see langword="null"/> (adding
     /// <c>SY1039</c> to <paramref name="diagnostics"/>) when no record name can be derived — the spec name lacks a
     /// trailing <c>Shape</c> and no <c>[SyntoModel(Name=…)]</c> override was given.
