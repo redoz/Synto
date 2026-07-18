@@ -21,13 +21,14 @@
 
   <!-- The Template consumer-facing MARKER surface is authored once under src\Synto.Core and embedded here
 	   so TemplateSurfaceInjector can rewrite it to internal source and inject it into consumers. Every
-	   Synto.Core surface EXCEPT the Matching feature's markers (which Synto.Match owns) belongs to Template:
-	   Templating/**, Decorations/**, Quoting/**, Syntax/**, Generators/** Surface + InjectedOnly, plus all
-	   EmitHelpers. The Matching Surface/InjectedOnly are excluded so each feature DLL injects a DISJOINT
-	   marker set (CS0101-proof). ResourceManifestPinTest guards the exact set. -->
+	   Synto.Core surface EXCEPT the Matching feature's markers (Synto.Match owns) and the Model feature's
+	   surface (Synto.Model owns) belongs to Template: Templating/**, Decorations/**, Quoting/**, Syntax/**,
+	   Generators/** Surface + InjectedOnly, plus all EmitHelpers. The Matching + Model Surface/InjectedOnly are
+	   excluded so each feature DLL injects a DISJOINT marker set (CS0101-proof). ResourceManifestPinTest guards
+	   the exact set. -->
   <ItemGroup>
-	<EmbeddedResource Include="..\Synto.Core\**\Surface\*.cs" Exclude="..\Synto.Core\Matching\**\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
-	<EmbeddedResource Include="..\Synto.Core\**\InjectedOnly\*.cs" Exclude="..\Synto.Core\Matching\**\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto.Core\**\Surface\*.cs" Exclude="..\Synto.Core\Matching\**\*.cs;..\Synto.Core\Model\**\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto.Core\**\InjectedOnly\*.cs" Exclude="..\Synto.Core\Matching\**\*.cs;..\Synto.Core\Model\**\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
 	<EmbeddedResource Include="..\Synto.Core\**\EmitHelpers\*.cs" LogicalName="Synto.Helper.%(Filename)%(Extension)" />
   </ItemGroup>
 

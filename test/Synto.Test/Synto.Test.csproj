@@ -120,10 +120,16 @@
          default scope. Its MatchSurfaceInjector is surfaced onto the analyzer load path by Synto.Generators'
          SyntoBundlesMatch hook. -->
     <ProjectReference Include="..\..\src\Synto.Match\Synto.Match.csproj" Aliases="SyntoMatch" />
+    <!-- The Model feature generator internals (Synto.Generators.Model.*) live in Synto.Model.dll. Reference it
+         through an extern alias (SyntoModel) so its internal types (incl. ModelSurfaceInjector) are reached via
+         the alias, keeping them out of the default scope. Its ModelSurfaceInjector is instantiated directly in
+         the Model surface tests. -->
+    <ProjectReference Include="..\..\src\Synto.Model\Synto.Model.csproj" Aliases="SyntoModel" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Match\" />
+    <Folder Include="Model\" />
   </ItemGroup>
 
 </Project>

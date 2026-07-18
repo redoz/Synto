@@ -1,6 +1,7 @@
 extern alias SyntoIncremental;
 extern alias SyntoTemplate;
 extern alias SyntoMatch;
+extern alias SyntoModel;
 
 // The umbrella (Synto.Generators.dll) is reference-only after Task 10 — its former SurfaceInjectionGenerator
 // (the sole type in its `Synto.Generators` namespace) was deleted, so there is nothing to re-expose from it;
@@ -20,6 +21,9 @@ global using SyntoMatch::Synto.Generators.Matching;
 global using SyntoMatch::Synto.Generators.Matching.Discovery;
 global using SyntoMatch::Synto.Generators.Matching.Emit;
 global using SyntoMatch::Synto.Generators.Matching.Diagnostics;
+// Synto.Generators.Model.* lives in Synto.Model.dll; reach it through the SyntoModel alias so test code
+// binds the SHIPPED (compiled) types (incl. ModelSurfaceInjector).
+global using SyntoModel::Synto.Generators.Model;
 global using SyntoTemplate::Synto.Generators.Templating;
 global using SyntoTemplate::Synto.Generators.Templating.Discovery;
 global using SyntoTemplate::Synto.Generators.Templating.BindingTime;

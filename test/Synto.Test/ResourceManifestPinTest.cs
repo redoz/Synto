@@ -71,4 +71,19 @@ public class ResourceManifestPinTest
 
         return Verify(string.Join("\n", resourceNames)).UseDirectory("snapshots");
     }
+
+    // The Model marker surface ([SyntoModel]/SyntoModel<T>/Project) lives in Synto.Model.dll, whose
+    // ModelSurfaceInjector injects it. Pin that assembly's manifest too so the per-assembly resource split
+    // stays a reviewable Verify diff.
+    [Fact]
+    public Task VerifyModelEmbeddedResourceManifest()
+    {
+        var assembly = typeof(ModelSurfaceInjector).Assembly;
+
+        var resourceNames = assembly.GetManifestResourceNames()
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+
+        return Verify(string.Join("\n", resourceNames)).UseDirectory("snapshots");
+    }
 }

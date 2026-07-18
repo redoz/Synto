@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFramework>netstandard2.0</TargetFramework>
+	<RootNamespace>Synto.Generators.Model</RootNamespace>
+	<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+	<!-- Bundled into the Synto package by the umbrella; not itself a package. -->
+	<IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+	<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+	<PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
+	<ProjectReference Include="..\Synto.Incremental\Synto.Incremental.csproj" />
+	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- The Model consumer-facing surface ([SyntoModel]/SyntoModel<T>/Project) is authored once under
+	   src\Synto.Core\Model and embedded here so ModelSurfaceInjector can rewrite it to internal source and
+	   inject it into consumers. The Surface\ types are ALSO compiled into Synto.Core (public marker copy);
+	   the InjectedOnly\ Project shim references the injected EquatableArray and is embed-only (never compiled
+	   into Synto.Core). Each feature DLL injects a DISJOINT surface set (CS0101-proof) and
+	   ResourceManifestPinTest guards the exact set. -->
+  <ItemGroup>
+	<EmbeddedResource Include="..\Synto.Core\Model\**\Surface\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+	<EmbeddedResource Include="..\Synto.Core\Model\**\InjectedOnly\*.cs" LogicalName="Synto.Runtime.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- SY1036-SY1039 (ModelDiagnostics) are declared in THIS assembly, so per-assembly RS2008 release
+	   tracking is owned here. -->
+  <ItemGroup>
+	<AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+	<AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <!-- The Model generator internals + ModelSurfaceInjector are `internal`; the test project exercises them
+	   (cacheability/equatability) and instantiates the injector directly in the surface tests. -->
+  <ItemGroup>
+	<InternalsVisibleTo Include="Synto.Test" />
+  </ItemGroup>
+
+</Project>
