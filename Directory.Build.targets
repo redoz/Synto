@@ -49,6 +49,7 @@
 		<None Include="$(OutputPath)Synto.Template.dll" Condition="'$(SyntoBundlesTemplate)' == 'true'" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 		<None Include="$(OutputPath)Synto.Match.dll" Condition="'$(SyntoBundlesMatch)' == 'true'" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 		<None Include="$(OutputPath)Synto.Diagnostics.dll" Condition="'$(SyntoBundlesDiagnostics)' == 'true'" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+		<None Include="$(OutputPath)Synto.Model.dll" Condition="'$(SyntoBundlesModel)' == 'true'" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	<None Include="$(OutputPath)Synto.Core.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
@@ -105,6 +106,15 @@
 										   Condition="'$(SyntoBundlesDiagnostics)' == 'true'"
 										   IncludeRuntimeDependency="false"
 										   MSBuildSourceProjectFile="Synto.Diagnostics.csproj" />
+
+	  <!-- Synto.Model.dll carries the SyntoModelGenerator + its own ModelSurfaceInjector [Generator] (injects the
+		   [SyntoModel]/SyntoModel<T>/Project markers). Surfacing it as an analyzer dependency both lets Roslyn resolve
+		   it and makes its injector RUN in the consumer compilation. Only generator packages that opt in
+		   (SyntoBundlesModel=true) surface it. -->
+	  <TargetPathWithTargetPlatformMoniker Include="$(MSBuildProjectDirectory)\$(OutputPath)Synto.Model.dll"
+										   Condition="'$(SyntoBundlesModel)' == 'true'"
+										   IncludeRuntimeDependency="false"
+										   MSBuildSourceProjectFile="Synto.Model.csproj" />
 	</ItemGroup>
   </Target>
 

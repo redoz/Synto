@@ -280,6 +280,19 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
 
 Deferred, independently shippable. Builds on Phase 1 with no changes to the generator's output.
 
+> **PARKED — owner ruling 2026-07-19. Not being implemented from this plan.**
+> A `CompletionProvider` requires `Microsoft.CodeAnalysis.Features` (+ `Workspaces` for tests) — an IDE-layer
+> dependency with zero repo precedent (`LiveTemplateHighlightAnalyzer` is a compiler-layer `DiagnosticAnalyzer`,
+> so it dodged this). Task 10's `src/Synto.Model` target is bundled into the compiler-loaded `Synto` nupkg;
+> dragging heavy IDE Features/Workspaces assemblies into that package conflicts with the single-package
+> DLL-layering model and risks analyzer-load failures. **Ruling:** if built, the completion provider ships in a
+> NEW, separate IDE-facing package OUTSIDE the compiler nupkg (its own project + NuGet id) — Tasks 10/11 below
+> must be re-pitched against that package, not `src/Synto.Model`.
+> **Decision: park indefinitely.** The SY1036–SY1039 diagnostics (compiler-layer, already shipping in Phase 1)
+> deliver authoring feedback without the Features dependency; that is deemed sufficient. Revisit only if a
+> concrete `[SyntoModel]` authoring pain surfaces that autocomplete would remove. The Task 10/11 sketch below is
+> retained for reference only.
+
 ### Task 10: Completion provider skeleton (in-spec-class trigger)
 
 **Files:**

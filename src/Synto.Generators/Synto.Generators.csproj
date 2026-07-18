@@ -38,6 +38,11 @@
 		 and Roslyn can resolve it. -->
 	<SyntoBundlesDiagnostics>true</SyntoBundlesDiagnostics>
 
+	<!-- This umbrella references the Synto.Model feature DLL ([SyntoModel] symbol-to-model generator + its own
+		 ModelSurfaceInjector). Surface Synto.Model.dll onto consumers' analyzer load path so its SyntoModelGenerator
+		 + ModelSurfaceInjector run (injecting the model markers exactly once) and Roslyn can resolve it. -->
+	<SyntoBundlesModel>true</SyntoBundlesModel>
+
 	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
 	<PackageId>Synto</PackageId>
 	<PackageReadmeFile>Synto.NuGet.md</PackageReadmeFile>
@@ -67,6 +72,7 @@
 	<ProjectReference Include="..\Synto.Template\Synto.Template.csproj" />
 	<ProjectReference Include="..\Synto.Match\Synto.Match.csproj" />
 	<ProjectReference Include="..\Synto.Diagnostics\Synto.Diagnostics.csproj" />
+	<ProjectReference Include="..\Synto.Model\Synto.Model.csproj" />
 	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all" />
   </ItemGroup>
 
