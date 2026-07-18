@@ -187,6 +187,7 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
 
 **Interfaces:**
 - Produces: `ModelInfo` (record name resolved from spec-class name minus trailing `Shape`, or `[SyntoModel(Name=…)]`; `TSymbol` display string; ordered `ProjectedField { TypeSyntax DeclaredType, string Name, ... }` list built from **instance expression-bodied getters only** — static/field/method/block-bodied members ignored). `ModelFactoryBuilder.Build(ModelInfo) → CompilationUnitSyntax` emitting `sealed record {Name}({fields}) { public static {Name} From({TSymbol} symbol) => new(...); }`.
+- **`ProjectedField.DeclaredType` is copied verbatim from the getter's declared type EXCEPT for nested-model getters whose RHS binds a `Project.Each/One` shim — those are rewritten in Task 7 (spec-collection → `EquatableArray<Record>` / `Record?`).** Task 5's own snapshot fixture stays scalar (no `Project` getters) so this exception does not bite here.
 
 **Notes:** At this task the `From` body may reference `Symbol.*` verbatim (rebind lands in Task 6) — snapshot will still be valid C# but not yet parameter-bound; keep the snapshot fixture's getters trivial (e.g. a constant/`Symbol`-free RHS) so this task's snapshot compiles, OR gate the compile-assert until Task 6. Prefer: this task's snapshot fixture uses a single `Symbol.Name` getter and Task 6 turns the snapshot green end-to-end.
 
@@ -222,17 +223,24 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
 - Modify: `src/Synto.Model/ModelFactoryBuilder.cs` (or a small `ProjectCallRewriter.cs`)
 - Test: `test/Synto.Test/Model/ModelSnapshotTests.cs`, `ModelDiagnosticsTests.cs`
 
+**Surface prerequisite (Option 2 — already applied to the shim):** `Project.Each<TModel>` returns the **unconstrained** `IEnumerable<TModel>` (NOT `EquatableArray<TModel>`, which is defined `where T : IEquatable<T>` — a spec class is not `IEquatable`, so `EquatableArray<Spec>` fails to bind (CS0311), the shim call goes unbound, and `SY1038` can never fire). The type argument is the **spec** class, so the nested-model getter is **authored** with a spec-collection declared type — `IEnumerable<PropModelShape> Props => Project.Each<PropModelShape>(…)` and `PropModelShape? Owner => Project.One<PropModelShape>(…)`. The generator is responsible for rewriting that declared type into the record collection/nullable type on the emitted record field (see Step 3b). Do NOT re-add any `IEquatable` constraint or re-widen the shim return to `EquatableArray`.
+
 **Interfaces:**
 - Produces: recognition of `Project.Each<TModel>(seq)` / `Project.One<TModel>(sym)` **by bound symbol** (the injected `Project` shims), rewritten in the emitted `From` body to:
   - `Project.Each<PropModelShape>(seq)` → `seq.Select(PropModel.From).ToEquatableArray()`
-  - `Project.One<PropModelShape>(sym)` → `sym is null ? null : PropModel.From(sym)` (nullable-aware; field type must be `PropModel?`)
+  - `Project.One<PropModelShape>(sym)` → `sym is null ? null : PropModel.From(sym)` (nullable-aware)
 - The `TModel` type argument is the **spec** class; the generated call targets its **record** name's `From` (name-derived per Task 5). Emits `SY1038` if the type arg is not a `[SyntoModel]` spec class in the same compilation.
+- **Field-type rewrite (generator-only, consumer surface stays clean):** for a getter whose RHS is a bound `Project.Each<Spec>` / `Project.One<Spec>` shim call, the emitted record field's **declared type** is synthesized from the resolved record name, NOT copied from the getter's spec-collection type:
+  - `IEnumerable<PropModelShape>` (getter) → `EquatableArray<PropModel>` (record field)
+  - `PropModelShape?` / `PropModelShape` (getter) → `PropModel?` (record field, nullable-aware)
+  - This resolves the Task 5 assumption that `ProjectedField.DeclaredType` is copied verbatim from the getter — for `Project`-shim getters the field type is REWRITTEN here.
 
 **Notes:** Recognize the shim calls the way `QuoteCallFinder`/`SpliceCallFinder` recognize inert shims — by the bound method symbol, resolved against the injected/public `Project` type. Carrier-binding invariant: `PropModel.From` is a sibling generated record in the same compilation; nested-model forward references are fine because both records are emitted.
 
-- [ ] **Step 1: Write failing nested-model test** — a `TypeModelShape` with `EquatableArray<PropModel> Props => Project.Each<PropModelShape>(Symbol.GetMembers().OfType<IPropertySymbol>());` emits `...Select(PropModel.From).ToEquatableArray()` and both records are generated.
+- [ ] **Step 1: Write failing nested-model test** — a `TypeModelShape` with `IEnumerable<PropModelShape> Props => Project.Each<PropModelShape>(Symbol.GetMembers().OfType<IPropertySymbol>());` emits a record whose `Props` field is declared `EquatableArray<PropModel>` with RHS `...Select(PropModel.From).ToEquatableArray()`, and both records are generated.
 - [ ] **Step 2: Run, verify FAIL.**
-- [ ] **Step 3: Implement the `Project.Each/One` rewrite** + `SY1038` for a non-`[SyntoModel]` element type.
+- [ ] **Step 3: Implement the `Project.Each/One` RHS rewrite** + `SY1038` for a non-`[SyntoModel]` element type.
+- [ ] **Step 3b: Implement the field-type rewrite** — when a getter's RHS binds to a `Project` shim, synthesize the emitted field's declared type from the resolved record name (`EquatableArray<Record>` for `Each`, `Record?` for `One`) instead of copying the getter's spec-collection type.
 - [ ] **Step 4: Run, verify PASS**; add a `Project.One` null-aware snapshot.
 - [ ] **Step 5: Commit.**
 
