@@ -141,8 +141,9 @@ public class ModelDiagnosticsTests
 
         var typeModel = Assert.Single(result.GeneratedTrees.Where(t => t.ToString().Contains("record TypeModel", StringComparison.Ordinal)));
         var generated = typeModel.ToString();
-        // The record field carries the synthesized cache-safe collection type, not the spec-collection type.
-        Assert.Contains("global::Synto.Generators.EquatableArray<PropModel> Props", generated, StringComparison.Ordinal);
+        // The record field carries the synthesized cache-safe collection type, not the spec-collection type; the
+        // nested record is global::-qualified (the fixture's specs sit in the global namespace).
+        Assert.Contains("global::Synto.Generators.EquatableArray<global::PropModel> Props", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("EquatableArray<PropModelShape>", generated, StringComparison.Ordinal);
         // The RHS projects each element through the nested record's From and materializes an EquatableArray, with
         // the Symbol root rebound to the `symbol` factory parameter (no bare `Symbol.` survives).
@@ -150,6 +151,46 @@ public class ModelDiagnosticsTests
         Assert.Contains("ToEquatableArray", generated, StringComparison.Ordinal);
         Assert.Contains("symbol.GetMembers()", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("Symbol.GetMembers()", generated, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProjectEach_NestedSpecInDifferentNamespace_QualifiesRecordReference()
+    {
+        // The nested record is emitted as a sibling in its OWN spec's namespace. When the parent spec lives in a
+        // different namespace, the projection must reference the nested record global::-qualified — an unqualified
+        // `PropModel.From` would fail to bind across namespaces.
+        var result = ModelTestHarness.Run(
+            """
+            using Synto.Model;
+            using System.Collections.Generic;
+            using System.Linq;
+            using Microsoft.CodeAnalysis;
+
+            namespace Props
+            {
+                [SyntoModel]
+                class PropModelShape : SyntoModel<IPropertySymbol>
+                {
+                    string Name => Symbol.Name;
+                }
+            }
+
+            namespace Types
+            {
+                [SyntoModel]
+                class TypeModelShape : SyntoModel<INamedTypeSymbol>
+                {
+                    IEnumerable<Props.PropModelShape> Props => Project.Each<Props.PropModelShape>(Symbol.GetMembers().OfType<IPropertySymbol>());
+                }
+            }
+            """);
+
+        Assert.Empty(result.Diagnostics);
+        var typeModel = Assert.Single(result.GeneratedTrees.Where(t => t.ToString().Contains("record TypeModel", StringComparison.Ordinal)));
+        var generated = typeModel.ToString();
+        // Field type AND the nested From reference are fully qualified with the nested spec's namespace.
+        Assert.Contains("global::Synto.Generators.EquatableArray<global::Props.PropModel> Props", generated, StringComparison.Ordinal);
+        Assert.Contains("global::Props.PropModel.From", generated, StringComparison.Ordinal);
     }
 
     [Fact]

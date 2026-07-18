@@ -201,7 +201,7 @@ internal sealed class ModelInfo
         var specAttr = typeArgument is INamedTypeSymbol named
             ? named.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == SyntoModelAttributeName)
             : null;
-        if (specAttr is null)
+        if (specAttr is null || typeArgument is not INamedTypeSymbol specType)
         {
             diagnostics.Add(ModelDiagnostics.ProjectElementNotSyntoModel(invocation.GetLocation(), typeArgument.ToDisplayString()));
             return ProjectionResult.Dropped;
@@ -210,12 +210,19 @@ internal sealed class ModelInfo
         // The nested spec derives its own record name (Shape-strip / Name override). If it cannot, the nested
         // spec reports its own SY1039 during its independent generation; drop the reference here rather than
         // emit an unresolved projection.
-        var resolved = ResolveRecordName(specAttr, typeArgument.Name);
+        var resolved = ResolveRecordName(specAttr, specType.Name);
         if (resolved is null)
             return ProjectionResult.Dropped;
 
+        // Qualify the nested record reference with the nested spec's namespace (where its record is emitted as a
+        // sibling). Without this, a nested model in a different namespace than its parent would emit an unqualified
+        // `Record.From` that fails to bind — every other emitted reference is already global::-qualified.
+        var nestedNamespace = specType.ContainingNamespace is { IsGlobalNamespace: false } nestedNs
+            ? nestedNs.ToDisplayString()
+            : null;
+
         kind = projectionKind;
-        nestedRecordName = resolved;
+        nestedRecordName = nestedNamespace is null ? $"global::{resolved}" : $"global::{nestedNamespace}.{resolved}";
         return ProjectionResult.Resolved;
     }
 }
