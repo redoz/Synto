@@ -3,5 +3,5 @@
 namespace Demo;
 sealed record PropModel(string Name, bool Required)
 {
-    public static PropModel From(global::Microsoft.CodeAnalysis.IPropertySymbol symbol) => new(Symbol.Name, Symbol.IsRequired);
+    public static PropModel From(global::Microsoft.CodeAnalysis.IPropertySymbol symbol) => new(symbol.Name, symbol.IsRequired);
 }

@@ -1,32 +1,18 @@
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using Synto.GenKit;
 
 namespace Synto.Generators.Templating.Staging;
 
-/// <summary>Rewrites live-root identifier references to their factory parameter names (identity when unchanged).</summary>
-internal sealed class RootRenameRewriter : CSharpSyntaxRewriter
+/// <summary>
+/// Rewrites live-root identifier references to their factory parameter names (identity when unchanged). A thin
+/// staging-flavored alias over the shared <see cref="SymbolReferenceRenamer"/> so the template path keeps its
+/// descriptive name while the pure rewrite is reused by the model path.
+/// </summary>
+internal sealed class RootRenameRewriter : SymbolReferenceRenamer
 {
-    private readonly SemanticModel _semanticModel;
-    private readonly IReadOnlyDictionary<ISymbol, string> _rootNames;
-
     public RootRenameRewriter(SemanticModel semanticModel, IReadOnlyDictionary<ISymbol, string> rootNames)
+        : base(semanticModel, rootNames)
     {
-        _semanticModel = semanticModel;
-        _rootNames = rootNames;
-    }
-
-    public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
-    {
-        if (node.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == node)
-            return base.VisitIdentifierName(node);
-
-        var symbol = _semanticModel.GetSymbolInfo(node).Symbol;
-        if (symbol is not null && _rootNames.TryGetValue(symbol, out var name))
-            return IdentifierName(name);
-
-        return base.VisitIdentifierName(node);
     }
 }

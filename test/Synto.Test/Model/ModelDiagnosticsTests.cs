@@ -86,6 +86,29 @@ public class ModelDiagnosticsTests
         Assert.DoesNotContain(result.GeneratedTrees, t => t.ToString().Contains("record ", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void FromBody_RebindsSymbolReferences_ToFactoryParameter()
+    {
+        // The getter RHS references the inherited SyntoModel<T>.Symbol property; the emitted From factory must
+        // rebind every such reference to its `symbol` parameter, leaving no bare `Symbol.` in the output.
+        var result = ModelTestHarness.Run(
+            """
+            using Synto.Model;
+
+            [SyntoModel]
+            class TypeModelShape : SyntoModel<Microsoft.CodeAnalysis.INamedTypeSymbol>
+            {
+                string NamespaceName => Symbol.ContainingNamespace.ToDisplayString();
+            }
+            """);
+
+        Assert.Empty(result.Diagnostics);
+        var tree = Assert.Single(result.GeneratedTrees.Where(t => t.ToString().Contains("record TypeModel", StringComparison.Ordinal)));
+        var generated = tree.ToString();
+        Assert.Contains("symbol.ContainingNamespace.ToDisplayString()", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("Symbol.", generated, StringComparison.Ordinal);
+    }
+
     private static void AssertHasRealSpan(Diagnostic diag)
     {
         Assert.NotEqual(Location.None, diag.Location);

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -5,6 +6,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Synto;
 using Synto.Formatting;
+using Synto.GenKit;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Synto.Generators.Model;
@@ -22,8 +24,12 @@ internal static class ModelFactoryBuilder
     {
         var recordName = info.RecordName;
 
+        // Rebind SyntoModel<T>.Symbol references in each getter RHS to the `symbol` From-parameter. The renamer
+        // matches by bound symbol, so the map key is the inherited base `Symbol` property (SymbolEqualityComparer).
+        var renamer = BuildSymbolRenamer(info);
+
         var parameters = string.Join(", ", info.Fields.Select(field => $"{field.DeclaredType} {field.Name}"));
-        var arguments = string.Join(", ", info.Fields.Select(field => field.Rhs.ToString()));
+        var arguments = string.Join(", ", info.Fields.Select(field => RenderArgument(field.Rhs, renamer)));
 
         var record = (RecordDeclarationSyntax)ParseMemberDeclaration(
             $"sealed record {recordName}({parameters}) {{ public static {recordName} From({info.SymbolTypeDisplay} symbol) => new({arguments}); }}")!;
@@ -44,5 +50,26 @@ internal static class ModelFactoryBuilder
 
         var qualifiedName = info.ContainingNamespace is { } containing ? $"{containing}.{recordName}" : recordName;
         return (qualifiedName.SanitizeHintName() + ".g.cs", source);
+    }
+
+    /// <summary>
+    /// Builds the renamer that rebinds the inherited <c>SyntoModel&lt;T&gt;.Symbol</c> property references to the
+    /// <c>From</c> factory's <c>symbol</c> parameter. Returns <see langword="null"/> when the spec's base carries no
+    /// <c>Symbol</c> member (a malformed spec) — then the getter RHS flow through verbatim.
+    /// </summary>
+    private static SymbolReferenceRenamer? BuildSymbolRenamer(ModelInfo info)
+    {
+        var symbolProperty = info.SpecSymbol.BaseType?.GetMembers("Symbol").FirstOrDefault();
+        if (symbolProperty is null)
+            return null;
+
+        var map = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default) { [symbolProperty] = "symbol" };
+        return new SymbolReferenceRenamer(info.SemanticModel, map);
+    }
+
+    private static string RenderArgument(ExpressionSyntax rhs, SymbolReferenceRenamer? renamer)
+    {
+        var rewritten = renamer is null ? rhs : (ExpressionSyntax)renamer.Visit(rhs)!;
+        return rewritten.ToString();
     }
 }

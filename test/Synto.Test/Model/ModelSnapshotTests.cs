@@ -6,8 +6,8 @@ namespace Synto.Test.Model;
 /// <summary>
 /// Snapshot (Verify) goldens for the <c>[SyntoModel]</c> generator's emitted output. The pinned shape is the
 /// sibling <c>sealed record</c> + its positional fields + the <c>From(TSymbol)</c> factory under
-/// <c>#nullable enable</c>. At Task 5 the <c>From</c> body still references <c>Symbol.*</c> verbatim (the
-/// rebind to the factory parameter lands in Task 6), so the snapshot is valid C# but not yet parameter-bound.
+/// <c>#nullable enable</c>. The <c>From</c> body is parameter-bound: each getter RHS has its
+/// <c>SyntoModel&lt;T&gt;.Symbol</c> references rebound to the <c>symbol</c> factory parameter (Task 6).
 /// </summary>
 public class ModelSnapshotTests
 {
@@ -27,8 +27,8 @@ public class ModelSnapshotTests
     public Task TwoFieldRecord()
     {
         // A two-field spec (Name, Required): a positional `sealed record PropModel(string Name, bool Required)`
-        // with a `From(IPropertySymbol symbol)` factory. The From arguments are the getter RHS verbatim
-        // (Symbol.* rebind lands in Task 6).
+        // with a `From(IPropertySymbol symbol)` factory whose arguments are the getter RHS with `Symbol.*`
+        // rebound to the `symbol` parameter (Task 6).
         return VerifyModel(
             """
             using Synto.Model;
