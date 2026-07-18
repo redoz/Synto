@@ -2,24 +2,19 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **⚠ REPOINTED onto the DLL-layering restructure (2026-07-15).** This plan predates the decision in `docs/superpowers/specs/2026-07-15-synto-dll-layering-single-package.md` and its plan `docs/superpowers/plans/2026-07-15-synto-dll-layering-restructure.md`, which **lands first (gate)**. Apply these standing substitutions throughout this plan:
-> - **Open-Q2 (consumer-facing `EquatableArray` home) is RESOLVED:** use the single `Synto.Incremental` trio. Wherever a file path says `src/Synto.Generators/Incremental/EquatableArray.cs`, read it as **`src/Synto.Incremental/EquatableArray.cs`**; its `<EmbeddedResource>` entry lives in `src/Synto.Incremental/Synto.Incremental.csproj`. The injected namespace is unchanged (`Synto.Generators`), injected once by `IncrementalSurfaceInjector`.
-> - **`ToEquatableArray()` (Task 2)** is added to `Synto.Incremental` (beside the trio), NOT `src/Synto.Generators`. It is shared with the cacheable-diagnostics plan — whichever plan runs first authors it there; the second reuses it (do NOT create a second copy).
-> - **`Synto.Model` is its OWN feature DLL** (`src/Synto.Model/`), created BY this plan, mirroring the `Synto.Template`/`Synto.Match` shape from the restructure: refs `Synto.GenKit` + `Synto.Incremental` (never another feature), its own `[Generator] ModelSurfaceInjector : SurfaceInjectorBase {}`, its own marker surface embed, its own `AnalyzerReleases.{Shipped,Unshipped}.md` for `SY1036+`, bundled into the umbrella `Synto` nupkg. Generator code (`SyntoModelGenerator` etc.) moves from `src/Synto.Generators/Model/` to `src/Synto.Model/`; surface stays authored under `src/Synto.Core/Model/Surface/`.
-
 **Goal:** Give incremental-generator authors a `[SyntoModel]` spec class whose expression-bodied getters are pure projections over a source `ISymbol`, from which Synto emits a sibling cache-safe `record` plus a `From(TSymbol)` factory.
 
-**Architecture:** A **new, separate** `IIncrementalGenerator` (`SyntoModelGenerator`) discovers `[SyntoModel]` spec classes via `ForAttributeWithMetadataName`, and — entirely inside its transform, so no `ISymbol`/`SemanticModel`/`SyntaxNode` leaks into pipeline state — validates field-type cache-safety, lifts each getter RHS into a `From` factory (rebinding the `Symbol` root to the factory parameter), rewrites `Project.Each/One` shim calls to real nested-model projections, and returns an equatable `ModelGenerationResult { FileName, Source, Diagnostics }`. Consumer surface (`[SyntoModel]`, `SyntoModel<T>`, `Project`) is authored once in `Synto.Core` and injected `internal` by the existing `SurfaceInjectionGenerator` glob — no injector code change. This mirrors, almost one-for-one, the existing `MatchFactorySourceGenerator` and its `MatchTestHarness`.
+**Architecture:** A **new, separate** `IIncrementalGenerator` (`SyntoModelGenerator`) discovers `[SyntoModel]` spec classes via `ForAttributeWithMetadataName`, and — entirely inside its transform, so no `ISymbol`/`SemanticModel`/`SyntaxNode` leaks into pipeline state — validates field-type cache-safety, lifts each getter RHS into a `From` factory (rebinding the `Symbol` root to the factory parameter), rewrites `Project.Each/One` shim calls to real nested-model projections, and returns an equatable `ModelGenerationResult { FileName, Source, Diagnostics }`. Consumer surface (`[SyntoModel]`, `SyntoModel<T>`, `Project`) is authored once under `src/Synto.Core/Model/Surface/` and injected `internal` by this feature DLL's own `ModelSurfaceInjector : SurfaceInjectorBase` (mirroring `MatchSurfaceInjector`), fed by the `..\Synto.Core\Model\**\Surface\*.cs` embed in `Synto.Model.csproj`. This mirrors, almost one-for-one, the existing `MatchFactorySourceGenerator` and its `MatchTestHarness`.
 
-**Tech Stack:** C#, Roslyn (`Microsoft.CodeAnalysis.CSharp`), incremental source generators (`netstandard2.0`), xUnit + `Verify` snapshots. Generator project: `src/Synto.Generators`. Surface source: `src/Synto.Core`. Tests: `test/Synto.Test`.
+**Tech Stack:** C#, Roslyn (`Microsoft.CodeAnalysis.CSharp`), incremental source generators (`netstandard2.0`), xUnit + `Verify` snapshots. Generator project: `src/Synto.Model` (its own feature DLL — refs `Synto.GenKit` + `Synto.Incremental`, bundled into the umbrella `Synto` nupkg). Surface source: `src/Synto.Core`. Tests: `test/Synto.Test`.
 
 ## Global Constraints
 
 - **No Roslyn objects in the model.** A generated `[SyntoModel]` record MUST NEVER contain an `ISymbol`, `Compilation`, or `Location` (or any type derived from them). Fields are limited to: C# primitive, `string`, an `enum`, `EquatableArray<…>`, or another `[SyntoModel]` record. This is enforced mechanically (symbol/syntax facts only — **no** LLM/heuristic judgement), matching Synto's existing generator-diagnostic discipline.
 - **Cacheability preserved.** All semantic work happens inside the transform; the value flowing through the pipeline is the equatable `ModelGenerationResult` only. Every tracked step must stay `Cached`/`Unchanged` on an unrelated edit (`CacheabilityAssert.AllStepsCachedOrUnchanged`).
 - **Accumulate-and-continue diagnostics.** Cache-safety violations drop the offending field and continue collecting, mirroring `TemplateValidator` / `DecorationFinder`. Do not bail the whole spec on the first bad getter.
-- **New diagnostic IDs continue the `SY10xx` sequence**, category `"Synto.Usage"`, `DiagnosticSeverity.Error`, `isEnabledByDefault: true`. Next free block is **`SY1036+`** (final numbers assigned during implementation; `SY12xx` is owned by Matching). Every new descriptor MUST be registered in `src/Synto.Generators/AnalyzerReleases.Unshipped.md` (RS2008), guarded by a registration-audit test.
-- **Single source of truth for surface.** Consumer-facing types are authored ONCE under `src/Synto.Core/**/Surface/` and injected verbatim/rewritten by `SurfaceInjectionGenerator`; never hand-duplicate them into the generator. `ResourceManifestPinTest` pins the exact embedded-resource set — update it when adding surface files.
+- **New diagnostic IDs continue the `SY10xx` sequence**, category `"Synto.Usage"`, `DiagnosticSeverity.Error`, `isEnabledByDefault: true`. Next free block is **`SY1036+`** (final numbers assigned during implementation; `SY12xx` is owned by Matching, `SY1005`–`SY1035` by Templating). Every new descriptor MUST be registered in this feature DLL's own `src/Synto.Model/AnalyzerReleases.Unshipped.md` (RS2008 — AnalyzerReleases ownership sits on each feature DLL), guarded by a registration-audit test.
+- **Single source of truth for surface.** Consumer-facing types are authored ONCE under `src/Synto.Core/**/Surface/` and injected verbatim/rewritten by the feature DLL's `ModelSurfaceInjector : SurfaceInjectorBase`; never hand-duplicate them into the generator. `ResourceManifestPinTest` pins the exact embedded-resource set — update it when adding surface files.
 - **Reuse-refactor discipline (spec §Reuse discipline).** Where a shared template-path mechanism does not cleanly serve the model path, **extract the common seam behind a fitting abstraction** so it genuinely serves both — never thread an `isModel` flag through template code, and never force the model path into a template-shaped hole (e.g. do NOT route model getters through `ValueLift`'s value→syntax conversion; the model path emits plain runtime projections).
 
 ## Resolved open questions (spec §Open questions)
@@ -27,7 +22,7 @@
 These were left open by the spec; this plan resolves them as the default. Flagged so a reviewer can veto before Phase 1.
 
 1. **IDs / category** — `SY1036+`, category `Synto.Usage` (see Global Constraints).
-2. **Consumer-facing `EquatableArray`** — **reuse the copy already injected today.** `src/Synto.Generators/Incremental/EquatableArray.cs` is already embedded under `LogicalName="Synto.Runtime.EquatableArray.cs"` and injected verbatim into every consumer as `Synto.Generators.EquatableArray<T>`. Do **not** create a third copy. Add only the missing `ToEquatableArray()` extension (Task 2).
+2. **Consumer-facing `EquatableArray`** — **reuse the copy already injected today.** `src/Synto.Incremental/EquatableArray.cs` is already embedded (via `Synto.Incremental.csproj`) under `LogicalName="Synto.Runtime.EquatableArray.cs"` and injected verbatim into every consumer as `Synto.Generators.EquatableArray<T>` (injected namespace unchanged; injected once by `IncrementalSurfaceInjector`). Do **not** create a third copy. Add only the missing `ToEquatableArray()` extension (Task 2), which is **shared with the cacheable-diagnostics plan** — whichever plan runs first authors it in `Synto.Incremental`; the second reuses it (do NOT author a second copy).
 3. **`Project.One` on a `null` source symbol** — emit `null` (nullable-aware): the rewrite is `sym is null ? null : TModel.From(sym)`, and the field's declared type must be a nullable `TModel?`. No diagnostic for null itself.
 4. **Generated record shape** — emit `sealed record`; keep the compiler-default `ToString` (YAGNI — no suppression until a concrete need appears).
 
@@ -35,8 +30,9 @@ These were left open by the spec; this plan resolves them as the default. Flagge
 
 ## File Structure
 
-**New (generator) — `src/Synto.Generators/Model/`** (new leaf, sibling to `Matching/` and `Templating/`):
+**New (generator) — `src/Synto.Model/`** (its own feature DLL, sibling to `src/Synto.Match/` and `src/Synto.Template/`; new `Synto.Model.csproj` refs `Synto.GenKit` + `Synto.Incremental` + `Synto.Core` (PrivateAssets), with `InternalsVisibleTo("Synto.Test")` and the `..\Synto.Core\Model\**\Surface\*.cs` embed — mirror `Synto.Match.csproj`):
 
+- `ModelSurfaceInjector.cs` — the feature DLL's `[Generator] ModelSurfaceInjector : SurfaceInjectorBase {}` (mirror `MatchSurfaceInjector.cs`); injects the embedded `Synto.Runtime.*` Model surface as `internal`.
 - `SyntoModelGenerator.cs` — the `[Generator]`; FAWMN discovery, transform core, `Emit`. Responsibility: orchestration only (mirror `MatchFactorySourceGenerator.cs`).
 - `ModelInfo.cs` — parsed, equatable spec description built inside the transform (spec-class name, resolved record name, `TSymbol` display, ordered list of projected fields with declared-type + name + RHS-as-string-or-node-metadata). Holds no live Roslyn objects on the pipeline boundary.
 - `ModelValidator.cs` — cache-safety checks (field-type equatability, symbol-leak, `Project` element type), accumulate-and-continue. Mirror `TemplateValidator`.
@@ -54,14 +50,16 @@ These were left open by the spec; this plan resolves them as the default. Flagge
 
 Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` / `Synto.Templating`).
 
-**Reuse-refactor (extraction) — `src/Synto.Generators/`:**
+**Reuse-refactor (extraction) — `src/Synto.Template/`:**
 
-- The `Symbol` → factory-parameter rebind reuses/extracts the symbol-reference renamer currently embedded in the staging path (`Templating/Staging/RootRenameRewriter.cs`, driven by `StagedRootLifter` step 3 `ctx.RootNames`). See Task 6.
+- The `Symbol` → factory-parameter rebind reuses/extracts the symbol-reference renamer currently embedded in the staging path (`src/Synto.Template/Staging/RootRenameRewriter.cs`, driven by the staged-lift `ctx.RootNames` wiring). See Task 6.
+
+**New (feature DLL wiring):**
+
+- `src/Synto.Model/Synto.Model.csproj` — new feature-DLL project embedding `..\Synto.Core\Model\**\Surface\*.cs` under `Synto.Runtime.%(Filename)%(Extension)` (mirror `Synto.Match.csproj`); refs `Synto.GenKit` + `Synto.Incremental` + `Synto.Core` (PrivateAssets); `InternalsVisibleTo("Synto.Test")`. Confirm the surface embed by test.
+- `src/Synto.Model/AnalyzerReleases.Shipped.md` / `AnalyzerReleases.Unshipped.md` — the feature DLL's own release-tracking files; register new `SY1036+` descriptors in `AnalyzerReleases.Unshipped.md`.
 
 **Modified:**
-
-- `src/Synto.Generators/Synto.Generators.csproj` — no change expected (the `..\Synto.Core\**\Surface\*.cs` glob already embeds new surface files); confirm by test.
-- `src/Synto.Generators/AnalyzerReleases.Unshipped.md` — register new `SY1036+` descriptors.
 - `test/Synto.Test/ResourceManifestPinTest*` — extend the pinned resource set for new surface files.
 
 **New tests — `test/Synto.Test/Model/`:**
@@ -83,7 +81,7 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
 **Interfaces:**
 - Produces: `Synto.Model.SyntoModelAttribute` (`public string? Name { get; set; }`); `Synto.Model.SyntoModel<T>` (`protected T Symbol => default!;`); `Synto.Model.Project` (`public static EquatableArray<TModel> Each<TModel>(IEnumerable<...>) => default!;`, `public static TModel One<TModel>(... symbol) => default!;`). All `public` in source (rewritten to `internal` on injection).
 
-**Notes for the implementer:** `SurfaceInjectionGenerator` already injects any `**/Surface/*.cs` file (glob in the csproj, `PublicToInternalRewriter` flips top-level `public` → `internal`). No injector code change. `Project.Each`/`One` are inert shims recognized later by bound symbol; keep the arity/signatures shaped so an authored spec type-checks (`Each` returns `EquatableArray<TModel>`, `One` returns `TModel`).
+**Notes for the implementer:** This feature DLL provides its own `ModelSurfaceInjector : SurfaceInjectorBase` (mirror `MatchSurfaceInjector`), fed by the `..\Synto.Core\Model\**\Surface\*.cs` embed in `Synto.Model.csproj`; `SurfaceInjectorBase` flips top-level `public` → `internal` on injection. Author the injector + csproj embed alongside these surface files. `Project.Each`/`One` are inert shims recognized later by bound symbol; keep the arity/signatures shaped so an authored spec type-checks (`Each` returns `EquatableArray<TModel>`, `One` returns `TModel`).
 
 - [ ] **Step 1: Write failing surface test.** In `ModelSurfaceTests.cs`, assert the injected surface is present and internal:
   ```csharp
@@ -95,7 +93,7 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
       Assert.Contains("protected", src, StringComparison.Ordinal); // Symbol member
   }
   ```
-  (Reuse the `InjectedSurfaceSource` helper pattern from `MatchTestHarness`; it will live in `ModelTestHarness` from Task 4 — if authoring this before Task 4, inline a `SurfaceInjectionGenerator` run.)
+  (Reuse the `InjectedSurfaceSource` helper pattern from `MatchTestHarness`; it will live in `ModelTestHarness` from Task 4 — if authoring this before Task 4, inline a `ModelSurfaceInjector` run.)
 - [ ] **Step 2: Run it, verify FAIL** (surface files not authored / `ModelTestHarness` absent). Run: `dotnet test test/Synto.Test --filter-class Synto.Test.Model.ModelSurfaceTests`
 - [ ] **Step 3: Author the three surface files** under `src/Synto.Core/Model/Surface/`, namespace `Synto.Model`, each a single `public` top-level type, no leading header comment (leading trivia leaks into byte-identical injected snapshots — see csproj note).
 - [ ] **Step 4: Run surface test, verify PASS.**
@@ -109,17 +107,17 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
 ### Task 2: `ToEquatableArray()` extension on the already-injected `EquatableArray`
 
 **Files:**
-- Create: `src/Synto.Core/Model/Surface/EquatableArrayExtensions.cs` (or extend the existing injected `Incremental/EquatableArray.cs` — decide per note below)
+- Create: `src/Synto.Incremental/EquatableArrayExtensions.cs` (beside the trio — see note below; NOT under `Synto.Core/Model/Surface/`, because it is shared with the cacheable-diagnostics plan)
 - Test: `test/Synto.Test/Model/ModelSurfaceTests.cs` (self-containment proof)
 
 **Interfaces:**
 - Produces: `EquatableArray<T> ToEquatableArray<T>(this IEnumerable<T> source) where T : IEquatable<T>` visible in the consumer compilation (so generated `From` bodies can call `.ToEquatableArray()`).
 
-**Decision (resolves open Q2):** reuse the already-injected `Synto.Generators.EquatableArray<T>` (embedded verbatim today). Add `ToEquatableArray` as a **sibling injected internal extension** in the **`Synto.Generators` namespace** so it sits beside the injected struct and binds without an extra `using`. Do **not** create a third `EquatableArray` copy. Generated code fully-qualifies the array type as `global::Synto.Generators.EquatableArray<T>` to avoid any name-resolution ambiguity.
+**Decision (resolves open Q2):** reuse the already-injected `Synto.Generators.EquatableArray<T>` (embedded verbatim today from `src/Synto.Incremental/EquatableArray.cs`). Add `ToEquatableArray` as a **sibling injected internal extension** in the **`Synto.Generators` namespace** (injected namespace unchanged), authored beside the trio in `src/Synto.Incremental/` so it sits beside the injected struct and binds without an extra `using`. This extension is **shared with the cacheable-diagnostics plan** — whichever plan runs first authors it in `Synto.Incremental`; the second reuses it, so do **not** author a second copy (and do **not** create a third `EquatableArray` copy). Generated code fully-qualifies the array type as `global::Synto.Generators.EquatableArray<T>` to avoid any name-resolution ambiguity.
 
 - [ ] **Step 1: Write failing self-containment test** — compile the injected `EquatableArray` + the new extension on the pinned `netstandard2.0` closure (clone `CompileInjectedGeneratorUtilitiesOnNetStandard20` and assert no error diagnostics, and that `ToEquatableArray` resolves).
 - [ ] **Step 2: Run, verify FAIL.**
-- [ ] **Step 3: Author `ToEquatableArray`** as an injected internal static extension (single source of truth; embedded via the Surface glob or the `Synto.Runtime.` prefix, matching how `EquatableArray.cs` is embedded).
+- [ ] **Step 3: Author `ToEquatableArray`** as an injected internal static extension (single source of truth; embedded via a `Synto.Runtime.*` `<EmbeddedResource>` in `Synto.Incremental.csproj`, matching how `EquatableArray.cs` is embedded there). Skip if the cacheable-diagnostics plan already authored it in `Synto.Incremental`.
 - [ ] **Step 4: Run, verify PASS.**
 - [ ] **Step 5: Extend `ResourceManifestPinTest`** for the new resource; green.
 - [ ] **Step 6: Commit.**
@@ -127,8 +125,8 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
 ### Task 3: `ModelDiagnostics` descriptors + release registration
 
 **Files:**
-- Create: `src/Synto.Generators/Model/ModelDiagnostics.cs`
-- Modify: `src/Synto.Generators/AnalyzerReleases.Unshipped.md`
+- Create: `src/Synto.Model/ModelDiagnostics.cs`
+- Modify: `src/Synto.Model/AnalyzerReleases.Unshipped.md`
 - Test: `test/Synto.Test/Model/ModelDiagnosticsTests.cs`
 
 **Interfaces:**
@@ -146,16 +144,16 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
   }
   ```
 - [ ] **Step 2: Run, verify FAIL.**
-- [ ] **Step 3: Author `ModelDiagnostics`** (4 descriptors, category `Synto.Usage`) and add the 4 rows to `AnalyzerReleases.Unshipped.md`.
-- [ ] **Step 4: Run, verify PASS**; also run a full `dotnet build` on the generator to confirm no RS2008.
+- [ ] **Step 3: Author `ModelDiagnostics`** (4 descriptors, category `Synto.Usage`) and add the 4 rows to `src/Synto.Model/AnalyzerReleases.Unshipped.md`.
+- [ ] **Step 4: Run, verify PASS**; also run a full `dotnet build src/Synto.Model` to confirm no RS2008.
 - [ ] **Step 5: Commit.**
 
 ### Task 4: `SyntoModelGenerator` skeleton + `ModelTestHarness` + cacheability
 
 **Files:**
-- Create: `src/Synto.Generators/Model/SyntoModelGenerator.cs`, `ModelGenerationResult.cs`, `ModelTrackingNames.cs`
+- Create: `src/Synto.Model/SyntoModelGenerator.cs`, `ModelGenerationResult.cs`, `ModelTrackingNames.cs`
 - Create: `test/Synto.Test/Model/ModelTestHarness.cs`, `ModelCacheabilityTests.cs`
-- Modify: `src/Synto.Generators/Synto.Generators.csproj` `InternalsVisibleTo` already covers `Synto.Test`; confirm `ModelTrackingNames` is visible.
+- Modify: `src/Synto.Model/Synto.Model.csproj` — ensure its `InternalsVisibleTo("Synto.Test")` is present; confirm `ModelTrackingNames` is visible.
 
 **Interfaces:**
 - Produces: `SyntoModelGenerator : IIncrementalGenerator`; `ModelGenerationResult(string? FileName, string? Source, EquatableArray<DiagnosticInfo> Diagnostics)`; `ModelTrackingNames.Transform` / `.Result`.
@@ -184,7 +182,7 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
 ### Task 5: Record name derivation + field/record emission
 
 **Files:**
-- Create: `src/Synto.Generators/Model/ModelInfo.cs`, `ModelFactoryBuilder.cs`
+- Create: `src/Synto.Model/ModelInfo.cs`, `ModelFactoryBuilder.cs`
 - Test: `test/Synto.Test/Model/ModelSnapshotTests.cs` (+ `snapshots/`), `ModelDiagnosticsTests.cs`
 
 **Interfaces:**
@@ -202,8 +200,8 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
 ### Task 6: `Symbol` → factory-parameter rebind (reuse-refactor)
 
 **Files:**
-- Modify/extract: `src/Synto.Generators/Templating/Staging/RootRenameRewriter.cs` → extract a plain, template-agnostic symbol-reference renamer usable by both paths (do NOT add an `isModel` flag).
-- Modify: `src/Synto.Generators/Model/ModelFactoryBuilder.cs` (apply the renamer to each getter RHS)
+- Modify/extract: `src/Synto.Template/Staging/RootRenameRewriter.cs` → extract a plain, template-agnostic symbol-reference renamer usable by both paths (do NOT add an `isModel` flag). NOTE: this rewriter lives in the `Synto.Template` feature DLL; if the model path must consume it, hoist the pure renamer into a shared home (`Synto.GenKit` or `Synto.Incremental`) rather than making `Synto.Model` depend on `Synto.Template` (feature DLLs never reference each other).
+- Modify: `src/Synto.Model/ModelFactoryBuilder.cs` (apply the renamer to each getter RHS)
 - Test: `test/Synto.Test/Model/ModelSnapshotTests.cs`, `ModelDiagnosticsTests.cs`
 
 **Interfaces:**
@@ -221,7 +219,7 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
 ### Task 7: `Project.Each` / `Project.One` rewrite
 
 **Files:**
-- Modify: `src/Synto.Generators/Model/ModelFactoryBuilder.cs` (or a small `ProjectCallRewriter.cs`)
+- Modify: `src/Synto.Model/ModelFactoryBuilder.cs` (or a small `ProjectCallRewriter.cs`)
 - Test: `test/Synto.Test/Model/ModelSnapshotTests.cs`, `ModelDiagnosticsTests.cs`
 
 **Interfaces:**
@@ -241,8 +239,8 @@ Namespace for all consumer surface: **`Synto.Model`** (mirrors `Synto.Matching` 
 ### Task 8: Cache-safety diagnostics (field-type + symbol-leak)
 
 **Files:**
-- Create: `src/Synto.Generators/Model/ModelValidator.cs`
-- Modify: `src/Synto.Generators/Model/SyntoModelGenerator.cs` (invoke validator, accumulate-and-continue)
+- Create: `src/Synto.Model/ModelValidator.cs`
+- Modify: `src/Synto.Model/SyntoModelGenerator.cs` (invoke validator, accumulate-and-continue)
 - Test: `test/Synto.Test/Model/ModelDiagnosticsTests.cs`
 
 **Interfaces:**
@@ -277,7 +275,7 @@ Deferred, independently shippable. Builds on Phase 1 with no changes to the gene
 ### Task 10: Completion provider skeleton (in-spec-class trigger)
 
 **Files:**
-- Create: `src/Synto.Generators/Model/SyntoModelCompletionProvider.cs` (or the analyzer project if completion providers live separately — follow where `LiveTemplateHighlightAnalyzer` and any existing `CompletionProvider` live)
+- Create: `src/Synto.Model/SyntoModelCompletionProvider.cs` (or the analyzer project if completion providers live separately — follow where `LiveTemplateHighlightAnalyzer` and any existing `CompletionProvider` live)
 - Test: `test/Synto.Test/Model/ModelCompletionTests.cs`
 
 **Interfaces:**
@@ -289,7 +287,7 @@ Deferred, independently shippable. Builds on Phase 1 with no changes to the gene
 ### Task 11: Equatable-projection completions over `T`'s members
 
 **Files:**
-- Modify: `src/Synto.Generators/Model/SyntoModelCompletionProvider.cs`
+- Modify: `src/Synto.Model/SyntoModelCompletionProvider.cs`
 - Test: `test/Synto.Test/Model/ModelCompletionTests.cs`
 
 **Interfaces:**
@@ -306,7 +304,7 @@ Deferred, independently shippable. Builds on Phase 1 with no changes to the gene
 2. **Cacheability:** the `AllStepsCachedOrUnchanged` guards (Tasks 4, 8) prove no `ISymbol`/`Compilation`/`SyntaxNode` leaked into pipeline state (an unrelated-edit re-run keeps `Transform`/`Result` `Cached`/`Unchanged`).
 3. **Structural equality (the whole point):** the Task 9 end-to-end test proves two `From` calls over equal symbol inputs yield `.Equals`-equal records, and unequal inputs yield unequal records — the model is cache-safe **by construction**.
 4. **Self-containment:** the injected surface + `EquatableArray`/`ToEquatableArray` compile clean on the pinned `netstandard2.0` closure (Task 2), proving a consumer needs only the `Synto` generator package.
-5. **Registration hygiene:** `dotnet build src/Synto.Generators` is RS2008-clean; the registration-audit test (Task 3) confirms every `SY1036+` descriptor is in `AnalyzerReleases.Unshipped.md`.
+5. **Registration hygiene:** `dotnet build src/Synto.Model` is RS2008-clean; the registration-audit test (Task 3) confirms every `SY1036+` descriptor is in `src/Synto.Model/AnalyzerReleases.Unshipped.md`.
 6. **Full suite:** `dotnet test test/Synto.Test` + the ObjectReader example build are green with zero warnings (global `TreatWarningsAsErrors`).
 
 ## Self-review notes

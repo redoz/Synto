@@ -2,27 +2,22 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **⚠ REPOINTED onto the DLL-layering restructure (2026-07-15).** This plan predates the decision in `docs/superpowers/specs/2026-07-15-synto-dll-layering-single-package.md` and its plan `docs/superpowers/plans/2026-07-15-synto-dll-layering-restructure.md`, which **lands first (gate)**. Apply these standing substitutions throughout this plan:
-> - **Trio home:** wherever a file path says `src/Synto.Generators/Incremental/<X>.cs` (e.g. `DiagnosticInfo.cs`, `DiagnosticBag.cs`), read it as **`src/Synto.Incremental/<X>.cs`** — the trio + `DiagnosticBag`/`Drain`/`ToEquatableArray` now live in the `Synto.Incremental` DLL. Its embedded-resource `<EmbeddedResource>` entries live in `src/Synto.Incremental/Synto.Incremental.csproj`, not `Synto.Generators.csproj`.
-> - **Injector:** the trio is injected by `IncrementalSurfaceInjector` (in `Synto.Incremental`), a `SurfaceInjectorBase` subclass — NOT the old monolithic `SurfaceInjectionGenerator`. The namespace is unchanged (`Synto.Generators`).
-> - **Packaging (Task 7):** DROPPED — superseded by the restructure. `Synto.Diagnostics` is now a feature DLL bundled inside the single `Synto` nupkg (restructure Task 9), so a cacheable-`[Diagnostic]` consumer already receives the trio from `Synto.Incremental` via the one `Synto` package. No cross-package dependency is authored here.
-
 **Goal:** Give Synto consumers a first-class, cache-safe way to author and carry diagnostics: a return-type-directed `[Diagnostic]` factory that emits `DiagnosticInfo` (not a live `Diagnostic`), a shipped consumer-facing cacheable trio (`DiagnosticInfo` / `LocationInfo` / `EquatableArray<T>`) with symbol/node provenance helpers, and a `DiagnosticBag` + `Drain` collector pair that removes collect/report boilerplate.
 
-**Architecture:** The consumer-facing cacheable surface is the ONE already-injected `Synto.Generators`-namespaced trio (injected by the `Synto` package's `SurfaceInjectionGenerator`); we extend it in place (`LocationInfo.From` helpers, new `DiagnosticBag`/`Drain`) rather than authoring a third copy. The `[Diagnostic]` generator in `Synto.Diagnostics` gains a cacheable body-emission sibling selected by the factory's declared return type, factored behind a strategy seam so the live and cacheable forms are peers (no `if (isCacheable)` thread). The two forms materialize a live `Diagnostic` only at source-output time via `ToDiagnostic()`.
+**Architecture:** The consumer-facing cacheable surface is the ONE already-injected `Synto.Generators`-namespaced trio (authored in `src/Synto.Incremental/`, injected by that DLL's `IncrementalSurfaceInjector : SurfaceInjectorBase`); we extend it in place (`LocationInfo.From` helpers, new `DiagnosticBag`/`Drain`) rather than authoring a third copy. The `[Diagnostic]` generator in `Synto.Diagnostics` gains a cacheable body-emission sibling selected by the factory's declared return type, factored behind a strategy seam so the live and cacheable forms are peers (no `if (isCacheable)` thread). The two forms materialize a live `Diagnostic` only at source-output time via `ToDiagnostic()`.
 
 **Tech Stack:** C# / .NET, Roslyn incremental source generators (`IIncrementalGenerator`, `ForAttributeWithMetadataName`, `RegisterSourceOutput`), xUnit v3 + Microsoft.Testing.Platform (MTP), Verify snapshot testing.
 
 ## Global Constraints
 
 - **Cache-safety is the domain invariant.** Nothing that crosses a pipeline boundary may hold `ISymbol`, `Compilation`, `SemanticModel`, `Location`, or `SyntaxNode`. Only equatable value types (primitive / `string` / `enum` / `EquatableArray<T>` / `record` / `record struct`) may ride the cache. Diagnostics are carried as `DiagnosticInfo` + `LocationInfo` and reconstructed at emit time via `ToDiagnostic()`.
-- **One consumer-facing injected trio.** Do NOT add a third authored copy of `EquatableArray<T>` / `DiagnosticInfo` / `LocationInfo`. The consumer-facing copy is `Synto.Generators\Incremental\{EquatableArray.cs, DiagnosticInfo.cs}` (embedded under `LogicalName="Synto.Runtime.*"`, injected verbatim as `internal` under `namespace Synto.Generators`). Extend these in place.
+- **One consumer-facing injected trio.** Do NOT add a third authored copy of `EquatableArray<T>` / `DiagnosticInfo` / `LocationInfo`. The consumer-facing copy is `src/Synto.Incremental/{EquatableArray.cs, DiagnosticInfo.cs}` (embedded under `LogicalName="Synto.Runtime.*"` via `Synto.Incremental.csproj`, injected verbatim as `internal` under `namespace Synto.Generators` by `IncrementalSurfaceInjector`). Extend these in place. The shared IEnumerable `ToEquatableArray()` extension is **co-owned with the `[SyntoModel]` symbol-to-model plan** — whichever plan runs first authors it in `Synto.Incremental` (beside the trio); the second reuses it, so do NOT author a second copy.
 - **Injected resources are emitted VERBATIM.** Do NOT add any leading header comment / trivia to a file that is embedded under `Synto.Runtime.*` — leading trivia leaks into the byte-identical injected-surface snapshots.
 - **`TreatWarningsAsErrors` is on solution-wide.** 0 warnings tolerated. `--no-incremental` clean builds must be green.
 - **No git pre-commit hooks.** Format via CI; keep edits `dotnet format whitespace`-clean.
 - **Do NOT touch `main`.** HEAD is a detached commit off `main`; commit each task on the current detached HEAD (like the sibling spec/plan commits). Never rebase/reset onto or push `main`.
-- **Leave these pre-existing dirty/staged files untouched:** `docs/superpowers/plans/2026-07-12-live-highlight-option-c.md` (staged), `Directory.Build.props`, `src/Synto.Generators/AnalyzerReleases.Unshipped.md`, `src/Synto.Generators/Templating/Diagnostics/TemplateDiagnostics.cs`.
-- **Diagnostic-ID discipline:** `Synto.Generators`' `SY`-prefixed descriptors MUST be registered in `src/Synto.Generators/AnalyzerReleases.Unshipped.md` (RS2008). `Synto.Diagnostics`' `SDG`-prefixed descriptors do NOT (that project does not reference `Microsoft.CodeAnalysis.Analyzers`, so RS2008 does not run there) — new `SDG` descriptors need no release-tracking edit.
+- **Leave these pre-existing dirty/staged files untouched:** `docs/superpowers/plans/2026-07-12-live-highlight-option-c.md` (staged), `Directory.Build.props`, and the feature DLLs' own `AnalyzerReleases.Unshipped.md` files (SY release-tracking now sits per feature DLL — e.g. `src/Synto.Template/AnalyzerReleases.Unshipped.md`, `src/Synto.Incremental/AnalyzerReleases.Unshipped.md`), `src/Synto.Template/Diagnostics/TemplateDiagnostics.cs`. This plan touches none of the SY `AnalyzerReleases` files (its only new descriptor, `SDG1004`, lives in `Synto.Diagnostics`).
+- **Diagnostic-ID discipline:** `SY`-prefixed descriptors are registered in their owning feature DLL's own `AnalyzerReleases.Unshipped.md` (RS2008 — AnalyzerReleases ownership sits per feature DLL; this plan adds no `SY` descriptor). `Synto.Diagnostics`' `SDG`-prefixed descriptors do NOT participate in RS2008 (that project references `Microsoft.CodeAnalysis.CSharp` but not `Microsoft.CodeAnalysis.Analyzers`) — new `SDG` descriptors need no release-tracking edit.
 - **Test invocation (SDK 10 MTP, raw `dotnet test`; do NOT use rtk's dotnet-test rewrite):**
   - `dotnet test test/Synto.Test --filter-class <FQN>`
   - `dotnet test test/Synto.Diagnostics.Test --filter-class <FQN>`
@@ -31,7 +26,7 @@
 
 ## Decisions on spec open questions (reviewer veto)
 
-1. **Namespace & injection ownership (spec OQ1).** DEFAULT: the consumer-facing trio stays the single `Synto.Generators`-namespaced injected surface owned by the `Synto` package's `SurfaceInjectionGenerator`. `DiagnosticBag` + `Drain` join that same injected surface. Cacheable `[Diagnostic]` factories emit references to `Synto.Generators.DiagnosticInfo` / `Synto.Generators.EquatableArray`. To guarantee the trio is present exactly once for a cacheable-`[Diagnostic]` consumer, **`Synto.Diagnostics` takes a package dependency on `Synto`** (Task 7). Trade-off flagged for veto: this makes the standalone `Synto.Diagnostics` package pull the full `Synto` generator. *Reviewer alternative:* keep `Synto.Diagnostics` standalone by giving it its own injector under a distinct consumer namespace — rejected here because it produces two consumer-facing injected copies (violates the one-type constraint) and a co-reference collision on `EquatableArray<T>`.
+1. **Namespace & injection ownership (spec OQ1).** DEFAULT: the consumer-facing trio stays the single `Synto.Generators`-namespaced injected surface owned by `Synto.Incremental`'s `IncrementalSurfaceInjector`. `DiagnosticBag` + `Drain` join that same injected surface. Cacheable `[Diagnostic]` factories emit references to `Synto.Generators.DiagnosticInfo` / `Synto.Generators.EquatableArray`. Ensuring the trio is present exactly once for a cacheable-`[Diagnostic]` consumer was originally to be solved by a package dependency (old Task 7) — that is **superseded by the DLL-layering restructure**: `Synto.Diagnostics` and `Synto.Incremental` are now feature DLLs bundled in the one `Synto` nupkg, so the trio arrives from `Synto.Incremental` automatically and the single-injector invariant closes the CS0101 path structurally (see Task 7, DROPPED). *Reviewer alternative (historical):* keep `Synto.Diagnostics` standalone by giving it its own injector under a distinct consumer namespace — rejected because it produces two consumer-facing injected copies (violates the one-type constraint) and a co-reference collision on `EquatableArray<T>`.
 2. **`DiagnosticBag` mutability (spec OQ2).** DEFAULT: a lightweight **mutable collector** (`ImmutableArray<DiagnosticInfo>.Builder`-backed) used only during the transform step; it never itself crosses a cache boundary — only its `ToEquatableArray()` output does. Matches the spec's usage example. *Reviewer alternative:* immutable-with-`Add`-returning-new; not chosen (heavier, no benefit since the bag is transform-local).
 3. **`LocationInfo.From(ISymbol)` with multiple declarations (spec OQ3).** DEFAULT: first `DeclaringSyntaxReferences` location, falling back to `symbol.Locations.FirstOrDefault()`; extracted to a `LocationInfo` value immediately (cache-safe). *Reviewer alternative:* emit all locations — deferred (the `DiagnosticInfo` model carries a single primary location; `additionalLocations` is an explicit spec non-goal).
 4. **`Drain` de-duplication (spec OQ4).** DEFAULT: NO de-dup — report every `DiagnosticInfo` (matches the existing `Emit` loop). *Reviewer alternative:* suppress structurally-identical duplicates — deferred (a behavior change; a consumer that legitimately reports the "same" diagnostic twice should not be silently collapsed).
@@ -40,23 +35,23 @@
 
 ## File Structure
 
-**Consumer-facing injected surface (`Synto` package):**
-- Modify: `src/Synto.Generators/Incremental/DiagnosticInfo.cs` — add `LocationInfo.From(SyntaxNode)` + `LocationInfo.From(ISymbol)` (keep `CreateFrom(Location?)`).
-- Create: `src/Synto.Generators/Incremental/DiagnosticBag.cs` — `DiagnosticBag` collector + `DiagnosticBagExtensions.Drain`. Embedded under `Synto.Runtime.DiagnosticBag.cs`.
-- Modify: `src/Synto.Generators/Synto.Generators.csproj` — add the new embedded resource.
+**Consumer-facing injected surface (`Synto.Incremental` feature DLL):**
+- Modify: `src/Synto.Incremental/DiagnosticInfo.cs` — add `LocationInfo.From(SyntaxNode)` + `LocationInfo.From(ISymbol)` (keep `CreateFrom(Location?)`).
+- Create: `src/Synto.Incremental/DiagnosticBag.cs` — `DiagnosticBag` collector + `DiagnosticBagExtensions.Drain`. Embedded under `Synto.Runtime.DiagnosticBag.cs`.
+- Modify: `src/Synto.Incremental/Synto.Incremental.csproj` — add the new embedded resource.
 
-**`[Diagnostic]` generator (`Synto.Diagnostics` package):**
+**`[Diagnostic]` generator (`Synto.Diagnostics` feature DLL):**
 - Modify: `src/Synto.Diagnostics/DiagnosticsGenerator.cs` — extract body-emission behind a strategy seam; add the cacheable sibling; add unsupported-return-type diagnostic.
 - Create: `src/Synto.Diagnostics/DiagnosticEmitStrategy.cs` — the seam (live + cacheable emitters).
 - Modify: `src/Synto.Diagnostics/Diagnostics.cs` — add `SDG1004` unsupported-return-type descriptor.
-- Modify: `src/Synto.Diagnostics/Synto.Diagnostics.csproj` — add package dependency on `Synto`.
+- No csproj dependency change: `Synto.Diagnostics` already references `Synto.Incremental` (both are feature DLLs in the one `Synto` nupkg), so the trio is available without any added package dependency (old Task 7 dropped).
 
 **Tests:**
 - Modify: `test/Synto.Test/Generators/InjectedGeneratorUtilitiesTests.cs` + `test/Synto.Test/Match/MatchTestHarness.cs` — cover injected `DiagnosticBag`/`Drain` on netstandard2.0.
 - Create: `test/Synto.Test/Generators/LocationInfoProvenanceTests.cs` — unit tests for `LocationInfo.From`.
 - Create: `test/Synto.Test/Generators/DiagnosticBagTests.cs` — unit tests for `DiagnosticBag` + `Drain`.
 - Modify: `test/Synto.Diagnostics.Test/DiagnosticsGeneratorTest.cs` — cacheable-form snapshot, cacheability, unsupported-return-type, and end-to-end tests.
-- Modify: `test/Synto.Diagnostics.Test/Synto.Diagnostics.Test.csproj` — add `Synto.Generators` analyzer reference so the cacheable-form harness can inject the trio.
+- Modify: `test/Synto.Diagnostics.Test/Synto.Diagnostics.Test.csproj` — add `Synto.Incremental` analyzer reference so the cacheable-form harness can run `IncrementalSurfaceInjector` to inject the trio.
 - Update: `test/Synto.Test/snapshots/ResourceManifestPinTest.VerifyEmbeddedResourceManifest.verified.txt`, `SurfaceInjectionTest.VerifyInjectedSurface#DiagnosticInfo.g.verified.cs`, and new `#DiagnosticBag.g.verified.cs`.
 
 ---
@@ -66,20 +61,20 @@
 ### Task 1: `LocationInfo` provenance helpers (`From(SyntaxNode)` / `From(ISymbol)`)
 
 **Files:**
-- Modify: `src/Synto.Generators/Incremental/DiagnosticInfo.cs`
+- Modify: `src/Synto.Incremental/DiagnosticInfo.cs`
 - Test: `test/Synto.Test/Generators/LocationInfoProvenanceTests.cs` (create)
 - Update: `test/Synto.Test/snapshots/SurfaceInjectionTest.VerifyInjectedSurface#DiagnosticInfo.g.verified.cs`
 
 **Interfaces:**
 - Produces: `Synto.Generators.LocationInfo.From(Microsoft.CodeAnalysis.SyntaxNode node) : LocationInfo?` and `Synto.Generators.LocationInfo.From(Microsoft.CodeAnalysis.ISymbol symbol) : LocationInfo?`. Existing `CreateFrom(Location?)` and `ToLocation()` unchanged.
 
-- [ ] **Step 1: Write the failing test.** Create `test/Synto.Test/Generators/LocationInfoProvenanceTests.cs`. The trio is `internal` in `Synto.Generators` (Synto.Test has the `SyntoGenerators` extern alias + `InternalsVisibleTo`), so call it through the alias.
+- [ ] **Step 1: Write the failing test.** Create `test/Synto.Test/Generators/LocationInfoProvenanceTests.cs`. The trio is `internal` in the `Synto.Generators` namespace but ships in `Synto.Incremental.dll` (Synto.Test reaches it through the `SyntoIncremental` extern alias + `InternalsVisibleTo`), so call it through that alias.
 
 ```csharp
-extern alias SyntoGenerators;
+extern alias SyntoIncremental;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using LocationInfo = SyntoGenerators::Synto.Generators.LocationInfo;
+using LocationInfo = SyntoIncremental::Synto.Generators.LocationInfo;
 
 namespace Synto.Test.Generators;
 
@@ -122,7 +117,7 @@ public class LocationInfoProvenanceTests
 Run: `dotnet test test/Synto.Test --filter-class Synto.Test.Generators.LocationInfoProvenanceTests`
 Expected: FAIL — `LocationInfo` has no `From` member (compile error).
 
-- [ ] **Step 3: Add the helpers.** In `src/Synto.Generators/Incremental/DiagnosticInfo.cs`, add `using System.Linq;` and two static factories on `LocationInfo`. Contract: both are cache-safe (extract a value immediately, never retain the node/symbol). `From(ISymbol)` prefers the first declaring-syntax reference, falls back to the symbol's first location. Representative sketch:
+- [ ] **Step 3: Add the helpers.** In `src/Synto.Incremental/DiagnosticInfo.cs`, add `using System.Linq;` and two static factories on `LocationInfo`. Contract: both are cache-safe (extract a value immediately, never retain the node/symbol). `From(ISymbol)` prefers the first declaring-syntax reference, falls back to the symbol's first location. Representative sketch:
 
 ```csharp
 public static LocationInfo? From(SyntaxNode node) => CreateFrom(node.GetLocation());
@@ -148,7 +143,7 @@ Expected: FAIL on `#DiagnosticInfo.g.verified.cs` (now includes the two `From` m
 - [ ] **Step 6: Commit.**
 
 ```bash
-git add src/Synto.Generators/Incremental/DiagnosticInfo.cs \
+git add src/Synto.Incremental/DiagnosticInfo.cs \
         test/Synto.Test/Generators/LocationInfoProvenanceTests.cs \
         test/Synto.Test/snapshots/SurfaceInjectionTest.VerifyInjectedSurface#DiagnosticInfo.g.verified.cs
 git commit -m "feat(diagnostics): add LocationInfo.From(SyntaxNode/ISymbol) provenance helpers"
@@ -159,8 +154,8 @@ git commit -m "feat(diagnostics): add LocationInfo.From(SyntaxNode/ISymbol) prov
 ### Task 2: `DiagnosticBag` collector + `SourceProductionContext.Drain`
 
 **Files:**
-- Create: `src/Synto.Generators/Incremental/DiagnosticBag.cs`
-- Modify: `src/Synto.Generators/Synto.Generators.csproj`
+- Create: `src/Synto.Incremental/DiagnosticBag.cs`
+- Modify: `src/Synto.Incremental/Synto.Incremental.csproj`
 - Test: `test/Synto.Test/Generators/DiagnosticBagTests.cs` (create)
 - Update: `test/Synto.Test/snapshots/ResourceManifestPinTest.VerifyEmbeddedResourceManifest.verified.txt` and new `SurfaceInjectionTest.VerifyInjectedSurface#DiagnosticBag.g.verified.cs`
 
@@ -172,11 +167,11 @@ git commit -m "feat(diagnostics): add LocationInfo.From(SyntaxNode/ISymbol) prov
 - [ ] **Step 1: Write the failing test.** Create `test/Synto.Test/Generators/DiagnosticBagTests.cs`. Exercise the collector directly (through the `SyntoGenerators` alias) and assert the equatable output has value-equality (cache-safety proxy).
 
 ```csharp
-extern alias SyntoGenerators;
+extern alias SyntoIncremental;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using DiagnosticBag = SyntoGenerators::Synto.Generators.DiagnosticBag;
-using DiagnosticInfo = SyntoGenerators::Synto.Generators.DiagnosticInfo;
+using DiagnosticBag = SyntoIncremental::Synto.Generators.DiagnosticBag;
+using DiagnosticInfo = SyntoIncremental::Synto.Generators.DiagnosticInfo;
 
 namespace Synto.Test.Generators;
 
@@ -187,7 +182,7 @@ public class DiagnosticBagTests
 
     private static DiagnosticInfo Info(string arg) =>
         new(Desc, Location: null,
-            new SyntoGenerators::Synto.Generators.EquatableArray<string>(ImmutableArray.Create(arg)));
+            new SyntoIncremental::Synto.Generators.EquatableArray<string>(ImmutableArray.Create(arg)));
 
     [Fact]
     public void EmptyBag_IsEmpty_AndYieldsEmptyEquatableArray()
@@ -212,7 +207,7 @@ public class DiagnosticBagTests
 Run: `dotnet test test/Synto.Test --filter-class Synto.Test.Generators.DiagnosticBagTests`
 Expected: FAIL — `DiagnosticBag` does not exist (compile error).
 
-- [ ] **Step 3: Create the type.** Create `src/Synto.Generators/Incremental/DiagnosticBag.cs` with NO leading header comment (verbatim-injection). Representative sketch:
+- [ ] **Step 3: Create the type.** Create `src/Synto.Incremental/DiagnosticBag.cs` with NO leading header comment (verbatim-injection). Representative sketch:
 
 ```csharp
 using System.Collections.Immutable;
@@ -242,10 +237,10 @@ internal static class DiagnosticBagExtensions
 }
 ```
 
-- [ ] **Step 4: Embed the file for injection.** In `src/Synto.Generators/Synto.Generators.csproj`, add to the `Synto.Runtime.*` toolkit `<ItemGroup>` (next to `Incremental\EquatableArray.cs` / `Incremental\DiagnosticInfo.cs`):
+- [ ] **Step 4: Embed the file for injection.** In `src/Synto.Incremental/Synto.Incremental.csproj`, add to the `Synto.Runtime.*` toolkit `<ItemGroup>` (next to `EquatableArray.cs` / `DiagnosticInfo.cs` — the trio files sit at the project root, not under an `Incremental\` subfolder):
 
 ```xml
-<EmbeddedResource Include="Incremental\DiagnosticBag.cs" LogicalName="Synto.Runtime.DiagnosticBag.cs" />
+<EmbeddedResource Include="DiagnosticBag.cs" LogicalName="Synto.Runtime.DiagnosticBag.cs" />
 ```
 
 - [ ] **Step 5: Run test to verify it passes.**
@@ -261,8 +256,8 @@ Expected: FAIL — a new `#DiagnosticBag.g.verified.cs` snapshot is emitted. Ver
 - [ ] **Step 7: Commit.**
 
 ```bash
-git add src/Synto.Generators/Incremental/DiagnosticBag.cs \
-        src/Synto.Generators/Synto.Generators.csproj \
+git add src/Synto.Incremental/DiagnosticBag.cs \
+        src/Synto.Incremental/Synto.Incremental.csproj \
         test/Synto.Test/Generators/DiagnosticBagTests.cs \
         "test/Synto.Test/snapshots/ResourceManifestPinTest.VerifyEmbeddedResourceManifest.verified.txt" \
         "test/Synto.Test/snapshots/SurfaceInjectionTest.VerifyInjectedSurface#DiagnosticBag.g.verified.cs"
@@ -375,21 +370,21 @@ git commit -m "refactor(diagnostics): extract [Diagnostic] body-emission behind 
 
 **Files:**
 - Modify: `src/Synto.Diagnostics/DiagnosticEmitStrategy.cs` (add `CacheableDiagnosticEmitStrategy` + wire into `ForReturnType`)
-- Modify: `test/Synto.Diagnostics.Test/Synto.Diagnostics.Test.csproj` (add `Synto.Generators` analyzer reference so the harness can inject the trio)
+- Modify: `test/Synto.Diagnostics.Test/Synto.Diagnostics.Test.csproj` (add `Synto.Incremental` analyzer reference so the harness can run `IncrementalSurfaceInjector` to inject the trio)
 - Modify: `test/Synto.Diagnostics.Test/DiagnosticsGeneratorTest.cs` (add a cacheable harness + tests)
 
 **Interfaces:**
 - Consumes: `DiagnosticEmitStrategy.ForReturnType(...)` from Task 4.
 - Produces: `CacheableDiagnosticEmitStrategy : DiagnosticEmitStrategy` — location param type `Synto.Generators.LocationInfo` (nullable-annotated `LocationInfo?`); return `new Synto.Generators.DiagnosticInfo(descriptor, location, new Synto.Generators.EquatableArray<string>(ImmutableArray.Create(args...)))`. Emitted body adds `using Synto.Generators;` + `using System.Collections.Immutable;` via `AdditionalUsingsSet`. `ForReturnType` maps `Synto.Generators.DiagnosticInfo` → this strategy.
 
-- [ ] **Step 1: Wire the test harness for injected surface.** In `test/Synto.Diagnostics.Test/Synto.Diagnostics.Test.csproj`, add a reference to `Synto.Generators` as an analyzer (so the harness can instantiate `SurfaceInjectionGenerator`, which injects the trio into the in-memory consumer compilation — exactly how a real cacheable-`[Diagnostic]` consumer receives it via the `Synto` package):
+- [ ] **Step 1: Wire the test harness for injected surface.** In `test/Synto.Diagnostics.Test/Synto.Diagnostics.Test.csproj`, add a reference to `Synto.Incremental` as an analyzer (so the harness can instantiate `IncrementalSurfaceInjector`, which injects the trio into the in-memory consumer compilation — exactly how a real cacheable-`[Diagnostic]` consumer receives it via the `Synto` package's bundled `Synto.Incremental` DLL):
 
 ```xml
-<ProjectReference Include="..\..\src\Synto.Generators\Synto.Generators.csproj"
+<ProjectReference Include="..\..\src\Synto.Incremental\Synto.Incremental.csproj"
                   OutputItemType="Analyzer" ReferenceOutputAssembly="True" />
 ```
 
-- [ ] **Step 2: Write the failing snapshot + cacheability tests.** Add to `test/Synto.Diagnostics.Test/DiagnosticsGeneratorTest.cs` a helper that runs BOTH `SurfaceInjectionGenerator` (injects the trio) AND `DiagnosticsGenerator`, over a compilation that does NOT reference `Synto.Core` (avoids CS0436 on the injected markers). Then a snapshot + cacheability test.
+- [ ] **Step 2: Write the failing snapshot + cacheability tests.** Add to `test/Synto.Diagnostics.Test/DiagnosticsGeneratorTest.cs` a helper that runs BOTH `IncrementalSurfaceInjector` (injects the trio) AND `DiagnosticsGenerator`, over a compilation that does NOT reference `Synto.Core` (avoids CS0436 on the injected markers). Then a snapshot + cacheability test.
 
 ```csharp
 private static (CSharpCompilation compilation, GeneratorDriver driver) RunCacheable(string source, bool trackSteps = false)
@@ -404,7 +399,7 @@ private static (CSharpCompilation compilation, GeneratorDriver driver) RunCachea
 
     GeneratorDriver driver = CSharpGeneratorDriver.Create(
         generators: new IIncrementalGenerator[]
-            { new global::Synto.Generators.SurfaceInjectionGenerator(), new DiagnosticsGenerator() }
+            { new global::Synto.Generators.Incremental.IncrementalSurfaceInjector(), new DiagnosticsGenerator() }
             .Select(g => g.AsSourceGenerator()),
         driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: trackSteps));
     return (compilation, driver.RunGenerators(compilation, TestContext.Current.CancellationToken));
