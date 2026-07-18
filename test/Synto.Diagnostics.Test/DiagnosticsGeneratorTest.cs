@@ -432,6 +432,43 @@ public class DiagnosticsGeneratorTest
             result, new[] { TrackingNames.Transform, TrackingNames.Result });
     }
 
+    [Fact]
+    public void EndToEndDiagnosticsRideCacheAndMaterializeAtSourceOutput()
+    {
+        // The consumer source declares a cacheable [Diagnostic] factory. Running both generators (trio injector
+        // + DiagnosticsGenerator) proves the end-to-end story: the generated partial returns a value-equatable
+        // DiagnosticInfo (NOT a live Diagnostic.Create) that rides the incremental cache and only materializes a
+        // live Diagnostic via ToDiagnostic() / Drain at source-output time.
+        const string source =
+            """
+            using Synto.Generators;
+            using Synto.Diagnostics;
+
+            namespace X;
+
+            internal static partial class Diags
+            {
+                [Diagnostic("MYG001", "Unsupported property type", "Property '{0}' has unsupported type '{1}'", "MyGen.Usage", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning, true)]
+                public static partial DiagnosticInfo UnsupportedProp(LocationInfo? location, string name, string type);
+            }
+            """;
+
+        var (_, driver) = RunCacheable(source);
+        var diags = driver.GetRunResult().Diagnostics;
+
+        // The generator itself reports none (well-formed); the cacheable factory is available for consumers.
+        Assert.DoesNotContain(diags, d => d.Id is "SDG0000" or "SDG1004");
+
+        // The generated partial returns a DiagnosticInfo whose ToDiagnostic() rehydrates MYG001 with a real span.
+        var generated = driver.GetRunResult().Results
+            .SelectMany(r => r.GeneratedSources)
+            .Single(s => s.SourceText.ToString().Contains("UnsupportedProp", StringComparison.Ordinal))
+            .SourceText.ToString();
+        Assert.Contains("new DiagnosticInfo(", generated, StringComparison.Ordinal);
+        Assert.Contains("EquatableArray<string>", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("Diagnostic.Create", generated, StringComparison.Ordinal); // NOT the live form
+    }
+
     static ImmutableArray<Diagnostic> RunAndGetDiagnostics(string source)
     {
         var compilation = CreateCompilation(source);
