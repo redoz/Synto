@@ -24,6 +24,7 @@
 	   file: any leading trivia leaks into the byte-identical injected-surface snapshots. -->
   <ItemGroup>
 	<EmbeddedResource Include="EquatableArray.cs" LogicalName="Synto.Runtime.EquatableArray.cs" />
+	<EmbeddedResource Include="EquatableArrayExtensions.cs" LogicalName="Synto.Runtime.EquatableArrayExtensions.cs" />
 	<EmbeddedResource Include="DiagnosticInfo.cs" LogicalName="Synto.Runtime.DiagnosticInfo.cs" />
 	<EmbeddedResource Include="DiagnosticBag.cs" LogicalName="Synto.Runtime.DiagnosticBag.cs" />
   </ItemGroup>

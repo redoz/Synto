@@ -1,3 +1,4 @@
 ﻿Synto.Runtime.DiagnosticBag.cs
 Synto.Runtime.DiagnosticInfo.cs
 Synto.Runtime.EquatableArray.cs
+Synto.Runtime.EquatableArrayExtensions.cs
