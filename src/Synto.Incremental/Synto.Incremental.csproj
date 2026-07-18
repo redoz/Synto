@@ -25,6 +25,7 @@
   <ItemGroup>
 	<EmbeddedResource Include="EquatableArray.cs" LogicalName="Synto.Runtime.EquatableArray.cs" />
 	<EmbeddedResource Include="DiagnosticInfo.cs" LogicalName="Synto.Runtime.DiagnosticInfo.cs" />
+	<EmbeddedResource Include="DiagnosticBag.cs" LogicalName="Synto.Runtime.DiagnosticBag.cs" />
   </ItemGroup>
 
   <!-- SY0000/SY1001-1004/SY1032 descriptors are declared in this assembly (Diagnostics.cs), so per-assembly
