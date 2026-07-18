@@ -43,4 +43,25 @@ public class ModelSnapshotTests
             }
             """);
     }
+
+    [Fact]
+    public Task NestedModelNullable_ProjectOne()
+    {
+        // A `Project.One<TSpec>(sym)` getter emits a nullable nested-record field (`TypeModel? Base`) whose RHS is
+        // the nullable-aware rewrite `symbol.BaseType is null ? null : TypeModel.From(symbol.BaseType)` — the spec's
+        // declared `TypeModelShape?` is rewritten to the record type, and the Symbol root is rebound to `symbol`.
+        return VerifyModel(
+            """
+            using Synto.Model;
+
+            namespace Demo;
+
+            [SyntoModel]
+            class TypeModelShape : SyntoModel<Microsoft.CodeAnalysis.INamedTypeSymbol>
+            {
+                string Name => Symbol.Name;
+                TypeModelShape? Base => Project.One<TypeModelShape>(Symbol.BaseType);
+            }
+            """);
+    }
 }

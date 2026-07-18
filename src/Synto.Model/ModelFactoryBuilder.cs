@@ -28,8 +28,8 @@ internal static class ModelFactoryBuilder
         // matches by bound symbol, so the map key is the inherited base `Symbol` property (SymbolEqualityComparer).
         var renamer = BuildSymbolRenamer(info);
 
-        var parameters = string.Join(", ", info.Fields.Select(field => $"{field.DeclaredType} {field.Name}"));
-        var arguments = string.Join(", ", info.Fields.Select(field => RenderArgument(field.Rhs, renamer)));
+        var parameters = string.Join(", ", info.Fields.Select(field => $"{RenderFieldType(field)} {field.Name}"));
+        var arguments = string.Join(", ", info.Fields.Select(field => RenderArgument(field, renamer)));
 
         var record = (RecordDeclarationSyntax)ParseMemberDeclaration(
             $"sealed record {recordName}({parameters}) {{ public static {recordName} From({info.SymbolTypeDisplay} symbol) => new({arguments}); }}")!;
@@ -67,9 +67,45 @@ internal static class ModelFactoryBuilder
         return new SymbolReferenceRenamer(info.SemanticModel, map);
     }
 
-    private static string RenderArgument(ExpressionSyntax rhs, SymbolReferenceRenamer? renamer)
+    /// <summary>
+    /// The emitted record field's declared type. Plain getters keep the getter's declared type verbatim;
+    /// <c>Project.Each/One</c> nested-model getters are rewritten from the spec-collection type to the cache-safe
+    /// record type — <c>EquatableArray&lt;Record&gt;</c> for <c>Each</c>, a nullable <c>Record?</c> for <c>One</c>.
+    /// </summary>
+    private static string RenderFieldType(ProjectedField field) => field.Kind switch
     {
-        var rewritten = renamer is null ? rhs : (ExpressionSyntax)renamer.Visit(rhs)!;
-        return rewritten.ToString();
+        ProjectionKind.Each => $"global::Synto.Generators.EquatableArray<{field.NestedRecordName}>",
+        ProjectionKind.One => $"{field.NestedRecordName}?",
+        _ => field.DeclaredType.ToString(),
+    };
+
+    /// <summary>
+    /// The <c>From</c> factory argument for a field. Plain getters flow the (Symbol-rebound) RHS through verbatim;
+    /// <c>Project.Each/One</c> getters are rewritten to real nested-model projections over the (Symbol-rebound)
+    /// shim argument — <c>Each</c> maps each element through the nested <c>Record.From</c> and materializes an
+    /// <c>EquatableArray</c>; <c>One</c> is the nullable-aware <c>arg is null ? null : Record.From(arg)</c>.
+    /// </summary>
+    private static string RenderArgument(ProjectedField field, SymbolReferenceRenamer? renamer)
+    {
+        switch (field.Kind)
+        {
+            case ProjectionKind.Each:
+                {
+                    var arg = Rewrite(field.ProjectArgument!, renamer);
+                    return $"global::Synto.Generators.EquatableArrayExtensions.ToEquatableArray(global::System.Linq.Enumerable.Select({arg}, {field.NestedRecordName}.From))";
+                }
+
+            case ProjectionKind.One:
+                {
+                    var arg = Rewrite(field.ProjectArgument!, renamer);
+                    return $"{arg} is null ? null : {field.NestedRecordName}.From({arg})";
+                }
+
+            default:
+                return Rewrite(field.Rhs, renamer);
+        }
     }
+
+    private static string Rewrite(ExpressionSyntax expression, SymbolReferenceRenamer? renamer) =>
+        (renamer is null ? expression : (ExpressionSyntax)renamer.Visit(expression)!).ToString();
 }

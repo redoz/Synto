@@ -18,6 +18,14 @@ internal static class ModelTestHarness
     private static readonly MetadataReference NetStandardReference = MetadataReference.CreateFromFile(Assembly.Load("netstandard, Version=2.0.0.0").Location);
     private static readonly MetadataReference SystemRuntimeReference = MetadataReference.CreateFromFile(Assembly.Load("System.Runtime, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a").Location);
 
+    // The `Project` shim is authored under Synto.Core/Model/InjectedOnly (NOT compiled into the public
+    // Synto.Core surface): a real consumer only ever sees it as the internal source ModelSurfaceInjector
+    // injects into their generator compilation. So a spec that calls `Project.Each/One` cannot bind against the
+    // public Synto.Core reference alone — add the injected `Project` source as a sibling tree so `Project.Each`
+    // resolves in the test compilation exactly as it does after injection in a real build. Parsed once.
+    private static readonly Lazy<SyntaxTree> InjectedProjectTree = new(
+        static () => CSharpSyntaxTree.ParseText(InjectedSurfaceSource("class Project")));
+
     /// <summary>
     /// Builds a compilation over <paramref name="sources"/> referencing corlib + Roslyn + the public
     /// <c>Synto.Core</c> marker surface (so a consumer snippet binds <c>SyntoModel&lt;T&gt;</c> against the
@@ -30,7 +38,7 @@ internal static class ModelTestHarness
             var tree = CSharpSyntaxTree.ParseText(source);
             Assert.Empty(tree.GetDiagnostics());
             return tree;
-        });
+        }).Append(InjectedProjectTree.Value);
 
         return CSharpCompilation.Create("ModelTest",
             trees,
@@ -39,6 +47,9 @@ internal static class ModelTestHarness
                 CorlibReference,
                 NetStandardReference,
                 SystemRuntimeReference,
+                // System.Collections.Immutable — nested-model getters project over `Symbol.GetMembers()` etc.,
+                // whose return type is ImmutableArray<ISymbol>; a real generator project references it too.
+                MetadataReference.CreateFromFile(typeof(System.Collections.Immutable.ImmutableArray).Assembly.Location),
                 // Roslyn — a spec class projects over an ISymbol (e.g. SyntoModel<IPropertySymbol>), so the
                 // consumer snippet binds Microsoft.CodeAnalysis symbol types.
                 MetadataReference.CreateFromFile(typeof(Microsoft.CodeAnalysis.SyntaxNode).Assembly.Location),

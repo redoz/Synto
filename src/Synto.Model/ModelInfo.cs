@@ -16,6 +16,9 @@ namespace Synto.Generators.Model;
 /// </summary>
 internal sealed class ModelInfo
 {
+    private const string ProjectTypeName = "Synto.Model.Project";
+    private const string SyntoModelAttributeName = "Synto.Model.SyntoModelAttribute";
+
     // The source symbol type on the From parameter is fully qualified (global:: + namespaces + type params)
     // so the emitted From factory binds regardless of the consumer's usings.
     private static readonly SymbolDisplayFormat SymbolTypeFormat = new(
@@ -100,7 +103,22 @@ internal sealed class ModelInfo
             if (property.Modifiers.Any(SyntaxKind.StaticKeyword))
                 continue;
 
-            fields.Add(new ProjectedField(property.Type, property.Identifier.Text, arrow.Expression));
+            // A getter whose RHS binds a `Project.Each/One<TSpec>(…)` shim is a nested-model projection: its
+            // record field type is synthesized from the nested record name (Task 7) rather than copied from the
+            // getter's spec-collection type. A non-[SyntoModel] type argument reports SY1038 and the field is
+            // dropped (accumulate-and-continue).
+            switch (ResolveProjection(syntaxContext.SemanticModel, arrow.Expression, diagnostics,
+                out var kind, out var nestedRecordName, out var projectArgument))
+            {
+                case ProjectionResult.Dropped:
+                    continue;
+                case ProjectionResult.Resolved:
+                    fields.Add(new ProjectedField(property.Type, property.Identifier.Text, arrow.Expression, kind, nestedRecordName, projectArgument));
+                    break;
+                default:
+                    fields.Add(new ProjectedField(property.Type, property.Identifier.Text, arrow.Expression));
+                    break;
+            }
         }
 
         var containingNamespace = specSymbol.ContainingNamespace is { IsGlobalNamespace: false } ns
@@ -131,6 +149,93 @@ internal sealed class ModelInfo
 
         return null;
     }
+
+    /// <summary>
+    /// Classifies a getter RHS as a nested-model projection. Recognizes <c>Project.Each/One&lt;TSpec&gt;(arg)</c>
+    /// by the bound method symbol (against the injected <c>Synto.Model.Project</c> shim). When the type argument
+    /// is a <c>[SyntoModel]</c> spec class in the same compilation, resolves its record name and yields the shim
+    /// argument; when it is not, reports <c>SY1038</c> and returns <see cref="ProjectionResult.Dropped"/> so the
+    /// field is dropped. Anything else is <see cref="ProjectionResult.NotAProjection"/>.
+    /// </summary>
+    private static ProjectionResult ResolveProjection(
+        SemanticModel semanticModel,
+        ExpressionSyntax rhs,
+        List<DiagnosticInfo> diagnostics,
+        out ProjectionKind kind,
+        out string? nestedRecordName,
+        out ExpressionSyntax? projectArgument)
+    {
+        kind = ProjectionKind.None;
+        nestedRecordName = null;
+        projectArgument = null;
+
+        if (rhs is not InvocationExpressionSyntax invocation)
+            return ProjectionResult.NotAProjection;
+        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
+            return ProjectionResult.NotAProjection;
+        if (method.ContainingType?.ToDisplayString() != ProjectTypeName)
+            return ProjectionResult.NotAProjection;
+
+        var projectionKind = method.Name switch
+        {
+            "Each" => ProjectionKind.Each,
+            "One" => ProjectionKind.One,
+            _ => ProjectionKind.None,
+        };
+        if (projectionKind == ProjectionKind.None)
+            return ProjectionResult.NotAProjection;
+        if (method.TypeArguments.Length != 1 || invocation.ArgumentList.Arguments.Count != 1)
+            return ProjectionResult.NotAProjection;
+
+        var typeArgument = method.TypeArguments[0];
+        projectArgument = invocation.ArgumentList.Arguments[0].Expression;
+
+        var specAttr = typeArgument is INamedTypeSymbol named
+            ? named.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == SyntoModelAttributeName)
+            : null;
+        if (specAttr is null)
+        {
+            diagnostics.Add(ModelDiagnostics.ProjectElementNotSyntoModel(invocation.GetLocation(), typeArgument.ToDisplayString()));
+            return ProjectionResult.Dropped;
+        }
+
+        // The nested spec derives its own record name (Shape-strip / Name override). If it cannot, the nested
+        // spec reports its own SY1039 during its independent generation; drop the reference here rather than
+        // emit an unresolved projection.
+        var resolved = ResolveRecordName(specAttr, typeArgument.Name);
+        if (resolved is null)
+            return ProjectionResult.Dropped;
+
+        kind = projectionKind;
+        nestedRecordName = resolved;
+        return ProjectionResult.Resolved;
+    }
+}
+
+/// <summary>The nested-projection classification of a getter RHS (<c>Project.Each/One</c> vs. a plain getter).</summary>
+internal enum ProjectionKind
+{
+    /// <summary>A plain projection: the field type is copied verbatim from the getter's declared type.</summary>
+    None,
+
+    /// <summary><c>Project.Each&lt;TSpec&gt;(seq)</c> — the field becomes <c>EquatableArray&lt;Record&gt;</c>.</summary>
+    Each,
+
+    /// <summary><c>Project.One&lt;TSpec&gt;(sym)</c> — the field becomes a nullable <c>Record?</c>.</summary>
+    One,
+}
+
+/// <summary>The outcome of classifying a getter RHS as a possible nested-model projection.</summary>
+internal enum ProjectionResult
+{
+    /// <summary>Not a <c>Project.Each/One</c> shim call — treat as a plain getter.</summary>
+    NotAProjection,
+
+    /// <summary>A valid nested projection into a <c>[SyntoModel]</c> record.</summary>
+    Resolved,
+
+    /// <summary>A <c>Project</c> shim call whose element type is invalid (SY1038) — drop the field.</summary>
+    Dropped,
 }
 
 /// <summary>
@@ -140,14 +245,32 @@ internal sealed class ModelInfo
 /// </summary>
 internal sealed class ProjectedField
 {
-    public ProjectedField(TypeSyntax declaredType, string name, ExpressionSyntax rhs)
+    public ProjectedField(
+        TypeSyntax declaredType,
+        string name,
+        ExpressionSyntax rhs,
+        ProjectionKind kind = ProjectionKind.None,
+        string? nestedRecordName = null,
+        ExpressionSyntax? projectArgument = null)
     {
         DeclaredType = declaredType;
         Name = name;
         Rhs = rhs;
+        Kind = kind;
+        NestedRecordName = nestedRecordName;
+        ProjectArgument = projectArgument;
     }
 
     public TypeSyntax DeclaredType { get; }
     public string Name { get; }
     public ExpressionSyntax Rhs { get; }
+
+    /// <summary>Whether this field is a <c>Project.Each/One</c> nested-model projection (<see cref="ProjectionKind.None"/> for a plain getter).</summary>
+    public ProjectionKind Kind { get; }
+
+    /// <summary>For a <see cref="ProjectionKind.Each"/>/<see cref="ProjectionKind.One"/> field, the derived nested record name.</summary>
+    public string? NestedRecordName { get; }
+
+    /// <summary>For a nested-projection field, the single (Symbol-bound) argument expression of the <c>Project</c> shim call.</summary>
+    public ExpressionSyntax? ProjectArgument { get; }
 }

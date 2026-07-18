@@ -109,6 +109,72 @@ public class ModelDiagnosticsTests
         Assert.DoesNotContain("Symbol.", generated, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ProjectEach_RewritesToSelectFrom_AndSynthesizesEquatableArrayFieldType()
+    {
+        // A nested-model getter `IEnumerable<PropModelShape> Props => Project.Each<PropModelShape>(seq)` emits a
+        // record whose Props field is declared EquatableArray<PropModel> (the record collection type, synthesized
+        // from the spec type argument — NOT the getter's IEnumerable<PropModelShape>) with a RHS that projects the
+        // (Symbol-rebound) sequence through PropModel.From into an EquatableArray. Both records are generated.
+        var result = ModelTestHarness.Run(
+            """
+            using Synto.Model;
+            using System.Collections.Generic;
+            using System.Linq;
+            using Microsoft.CodeAnalysis;
+
+            [SyntoModel]
+            class PropModelShape : SyntoModel<IPropertySymbol>
+            {
+                string Name => Symbol.Name;
+            }
+
+            [SyntoModel]
+            class TypeModelShape : SyntoModel<INamedTypeSymbol>
+            {
+                IEnumerable<PropModelShape> Props => Project.Each<PropModelShape>(Symbol.GetMembers().OfType<IPropertySymbol>());
+            }
+            """);
+
+        Assert.Empty(result.Diagnostics);
+        Assert.Contains(result.GeneratedTrees, t => t.ToString().Contains("record PropModel", StringComparison.Ordinal));
+
+        var typeModel = Assert.Single(result.GeneratedTrees.Where(t => t.ToString().Contains("record TypeModel", StringComparison.Ordinal)));
+        var generated = typeModel.ToString();
+        // The record field carries the synthesized cache-safe collection type, not the spec-collection type.
+        Assert.Contains("global::Synto.Generators.EquatableArray<PropModel> Props", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("EquatableArray<PropModelShape>", generated, StringComparison.Ordinal);
+        // The RHS projects each element through the nested record's From and materializes an EquatableArray, with
+        // the Symbol root rebound to the `symbol` factory parameter (no bare `Symbol.` survives).
+        Assert.Contains("PropModel.From", generated, StringComparison.Ordinal);
+        Assert.Contains("ToEquatableArray", generated, StringComparison.Ordinal);
+        Assert.Contains("symbol.GetMembers()", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("Symbol.GetMembers()", generated, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProjectEach_ElementNotSyntoModel_ReportsSY1038_AndDropsField()
+    {
+        // Project.Each/One can only project into a [SyntoModel] spec class. A non-model type argument (here
+        // `string`) reports SY1038 and the offending field is dropped (accumulate-and-continue).
+        var result = ModelTestHarness.Run(
+            """
+            using Synto.Model;
+            using System.Collections.Generic;
+
+            [SyntoModel]
+            class TypeModelShape : SyntoModel<Microsoft.CodeAnalysis.INamedTypeSymbol>
+            {
+                IEnumerable<string> Bad => Project.Each<string>(new object[0]);
+            }
+            """);
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1038");
+        AssertHasRealSpan(diag);
+        var typeModel = Assert.Single(result.GeneratedTrees.Where(t => t.ToString().Contains("record TypeModel", StringComparison.Ordinal)));
+        Assert.DoesNotContain("Bad", typeModel.ToString(), StringComparison.Ordinal);
+    }
+
     private static void AssertHasRealSpan(Diagnostic diag)
     {
         Assert.NotEqual(Location.None, diag.Location);
