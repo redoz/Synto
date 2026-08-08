@@ -16,8 +16,8 @@ namespace Synto.Test.Templating;
 /// Synto types available to the generated factory are therefore exactly what the generators inject:
 /// <list type="bullet">
 /// <item>the <c>internal</c> marker surface (<c>TemplateAttribute</c>, <c>UnquoteAttribute</c>, <c>SpliceAttribute</c>,
-/// <c>Syntax&lt;T&gt;</c>, ...) from <see cref="SurfaceInjectionGenerator"/>, needed so the consumer
-/// template's <c>[Template]</c>/<c>[Unquote]</c>/<c>Syntax&lt;&gt;</c> usage binds; and</item>
+/// ...) from <see cref="SurfaceInjectionGenerator"/>, needed so the consumer
+/// template's <c>[Template]</c>/<c>[Unquote]</c> usage binds; and</item>
 /// <item>the file-local helper class(es) (<c>ToSyntax</c>/<c>ToTypeSyntax</c>/<c>OrNullLiteralExpression</c>)
 /// the scan-based injection appends into the generated factory file.</item>
 /// </list>
@@ -43,7 +43,6 @@ public class InjectedSurfaceCompletenessTest
     /// <item>multiple statements;</item>
     /// <item>an <c>[Unquote]</c> value parameter -> <c>value.ToSyntax()</c>;</item>
     /// <item>an <c>[Unquote]</c> type parameter -> <c>typeof(T).ToTypeSyntax()</c>;</item>
-    /// <item>a <c>Syntax&lt;T&gt;</c> parameter (spliced syntax);</item>
     /// <item>string interpolation;</item>
     /// <item>a <c>for</c> loop and a <c>foreach</c> loop;</item>
     /// <item>an object creation (<c>new List&lt;T&gt;()</c>);</item>
@@ -62,12 +61,12 @@ public class InjectedSurfaceCompletenessTest
         partial class Factory {}
 
         public class TestClass {
-            [Template(typeof(Factory))]
-            void KitchenSink<[Unquote] T>([Unquote] int count, Syntax<int> spliced) {
+            [Template<Factory>]
+            void KitchenSink<[Unquote] T>([Unquote] int count) {
                 List<T> list = new List<T>();
                 var span = (1..count);
                 for (int i = 0; i < count; i++) {
-                    Console.WriteLine($"item {i} of {count} -> {spliced}");
+                    Console.WriteLine($"item {list.Count}");
                 }
                 foreach (var item in list) {
                     Console.WriteLine(item);
@@ -83,7 +82,7 @@ public class InjectedSurfaceCompletenessTest
     /// <summary>
     /// A template declared inside a <b>namespace AND a nested class</b>, deliberately using both
     /// <c>[Unquote] T</c> (triggers <c>ToTypeSyntax</c>) and <c>[Unquote] int count</c> (triggers
-    /// <c>ToSyntax</c>), plus a <c>Syntax&lt;int&gt;</c> splice parameter. This exercises the
+    /// <c>ToSyntax</c>). This exercises the
     /// generator's namespaced/nested-class code path for placing the file-local helpers inside the
     /// enclosing namespace rather than at the global compilation-unit level.
     /// </summary>
@@ -99,11 +98,11 @@ public class InjectedSurfaceCompletenessTest
             {
                 public partial class Factory { }
 
-                [Template(typeof(Factory))]
-                static void Build<[Unquote] T>([Unquote] int count, Syntax<int> extra)
+                [Template<Factory>]
+                static void Build<[Unquote] T>([Unquote] int count)
                 {
                     List<T> list = new List<T>();
-                    Console.WriteLine($"count={count} extra={extra()}");
+                    Console.WriteLine($"count={count}");
                 }
             }
         }
@@ -119,11 +118,14 @@ public class InjectedSurfaceCompletenessTest
     /// <item>a live <c>foreach</c> that unrolls at factory time and emits the file-local <c>BuildList</c>
     /// collection helper;</item>
     /// <item>the built-in <c>Member</c> builder (member access over a <c>[Splice]</c> instance with a
-    /// live member name) and the built-in <c>TypeOf</c> builder (a <c>typeof(...)</c> from a constant name).</item>
+    /// live member name) and the <c>TypeOf</c> operator builder (a <c>typeof(...)</c> from a constant name).</item>
     /// </list>
-    /// Every piece must resolve against the injected surface alone — the internal markers/facades from
-    /// <see cref="SurfaceInjectionGenerator"/> (incl. the internal <c>SyntoBuilders.Member</c>/<c>TypeOf</c>) and
-    /// the scan-injected <c>file static</c> helpers (<c>BuildList</c>/<c>ToSyntax</c>) — with NO <c>Synto.Core</c>.
+    /// Every piece must resolve against the injected surface — the internal markers/facades from
+    /// <see cref="SurfaceInjectionGenerator"/> (incl. the internal <c>OperatorBuilders.TypeOf</c> and its
+    /// synthesized <c>Operators.TypeOf</c> facade) and the scan-injected <c>file static</c> helpers
+    /// (<c>BuildList</c>/<c>ToSyntax</c>) — with NO <c>Synto.Core</c>. <c>Member</c> and <c>TypeOf</c> are both
+    /// discovered structurally like any user <c>[SyntaxBuilder]</c>, so their synthesized facades also need
+    /// <see cref="SyntaxBuilderFacadeGenerator"/> in the driver (see the test method below).
     /// </summary>
     private const string StagedRichTemplate =
         """
@@ -131,21 +133,24 @@ public class InjectedSurfaceCompletenessTest
         using System.Collections.Generic;
         using Synto.Templating;
         using static Synto.Templating.Template;
+        using static Synto.Templating.SyntoBuilders;
+        using static Synto.Templating.Operators;
 
         partial class Factory {}
 
         public readonly record struct Col(int Ordinal, string Name);
 
         public class TestClass {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             object StagedKitchenSink([Splice] object row, int i, [Unquote] int bump) {
-                var columns = Parameter<IReadOnlyList<Col>>();   // live Parameter root -> factory parameter
+                var columns = Unquote<IReadOnlyList<Col>>();   // live Parameter root -> factory parameter
                 var offset = Unquote(bump + 1);                      // live local fed by the [Unquote] parameter
                 Console.WriteLine(offset);                        // offset live -> lifts to an int literal (island)
                 foreach (var c in columns)                        // live foreach -> unrolls -> BuildList run
                     if (i == c.Ordinal)                           // i quoted; c.Ordinal (loop var) -> int literal
                         return Member<object>(row, c.Name);       // Member builder -> row.<Name>
-                var t = TypeOf("System.Int32");                   // TypeOf builder -> typeof(System.Int32)
+                var t = TypeOf("System.Int32");                   // bare TypeOf -> Operators.TypeOf (structural
+                                                                   // operator [SyntaxBuilder]) -> typeof(System.Int32)
                 Console.WriteLine(t);
                 throw new System.IndexOutOfRangeException();      // quoted island, verbatim
             }
@@ -173,9 +178,9 @@ public class InjectedSurfaceCompletenessTest
         public readonly record struct Col(int Ordinal, string Name);
 
         public class TestClass {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             object RenamedRoot(int i) {
-                var cols = Parameter<IReadOnlyList<Col>>("columns");  // factory param `columns` != local `cols`
+                var cols = Unquote<IReadOnlyList<Col>>("columns");  // factory param `columns` != local `cols`
                 foreach (var c in cols)
                     if (i == c.Ordinal)
                         Console.WriteLine(cols.Count);                // live root by VALUE inside the island
@@ -188,7 +193,7 @@ public class InjectedSurfaceCompletenessTest
     public void RenamedStagedRoot_ReferencedByValueInRegion_Compiles()
     {
         var compilation = CSharpCompilation.Create("RenamedStagedRootInRegionTest",
-            [CSharpSyntaxTree.ParseText(RenamedRootInRegionTemplate)],
+            [CSharpSyntaxTree.ParseText(RenamedRootInRegionTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -205,13 +210,13 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.RenamedRoot"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.RenamedRoot", System.StringComparison.Ordinal));
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
@@ -220,7 +225,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a renamed live root referenced by value inside a region reported errors "
             + "(the island lift did not rename the live root to its factory parameter): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     /// <summary>
@@ -240,7 +245,7 @@ public class InjectedSurfaceCompletenessTest
         partial class Factory {}
 
         public class TestClass {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             void Build<[Splice] T>(T instance) {
                 System.Console.WriteLine(instance);
             }
@@ -251,7 +256,7 @@ public class InjectedSurfaceCompletenessTest
     public void SpliceGenericTypeArg_InTypePosition_Compiles()
     {
         var compilation = CSharpCompilation.Create("SpliceTypeArgCompileTest",
-            [CSharpSyntaxTree.ParseText(SpliceTypeArgTemplate)],
+            [CSharpSyntaxTree.ParseText(SpliceTypeArgTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -268,13 +273,13 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build", System.StringComparison.Ordinal));
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
@@ -283,7 +288,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a [Splice] generic type parameter used in type position reported errors "
             + "(the spliced type was not emitted as TypeSyntax): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     /// <summary>
@@ -302,7 +307,7 @@ public class InjectedSurfaceCompletenessTest
         partial class Factory {}
 
         public class TestClass {
-            [Template(typeof(Factory), Options = TemplateOption.Bare)]
+            [Template<Factory>(Extent = TemplateExtent.Bare)]
             static void Loop([Quote] int count) {
                 int ret = 0;
                 for (int i = 0; i < count; i++) ret++;
@@ -314,7 +319,7 @@ public class InjectedSurfaceCompletenessTest
     public void QuoteParam_InLoopCondition_KeepsRuntimeLoop_Compiles()
     {
         var compilation = CSharpCompilation.Create("QuoteLoopCompileTest",
-            [CSharpSyntaxTree.ParseText(QuoteLoopTemplate)],
+            [CSharpSyntaxTree.ParseText(QuoteLoopTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -331,14 +336,14 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Loop"));
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Loop", System.StringComparison.Ordinal));
         Assert.NotNull(factoryTree);
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
@@ -348,7 +353,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a [Quote] loop-bound parameter reported errors "
             + "([Quote] was not recognized -> `count` left as a free identifier / no factory parameter): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var factorySource = factoryTree.ToString();
 
@@ -376,7 +381,7 @@ public class InjectedSurfaceCompletenessTest
         partial class Factory {}
 
         public class TestClass {
-            [Template(typeof(Factory), Options = TemplateOption.Bare)]
+            [Template<Factory>(Extent = TemplateExtent.Bare)]
             static void Loop([Unquote] int count) {
                 int ret = 0;
                 var bound = Unquote(count);
@@ -390,7 +395,7 @@ public class InjectedSurfaceCompletenessTest
     public void QuoteCall_OverComputedBound_KeepsRuntimeLoop_Compiles()
     {
         var compilation = CSharpCompilation.Create("QuoteCallLoopCompileTest",
-            [CSharpSyntaxTree.ParseText(QuoteCallLoopTemplate)],
+            [CSharpSyntaxTree.ParseText(QuoteCallLoopTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -407,14 +412,14 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Loop"));
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Loop", System.StringComparison.Ordinal));
         Assert.NotNull(factoryTree);
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
@@ -424,7 +429,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of an inline Quote(computed-bound) loop reported errors "
             + "(Quote(...) was not recognized / not shielded -> the loop unrolled or `Quote` left unbound): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var factorySource = factoryTree.ToString();
 
@@ -455,11 +460,11 @@ public class InjectedSurfaceCompletenessTest
 
         public readonly record struct Col(int Ordinal, string Name);
 
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Accessors() {
-                var columns = Parameter<IReadOnlyList<Col>>();   // folds into the Factory signature
+                var columns = Unquote<IReadOnlyList<Col>>();   // folds into the Factory signature
                 foreach (var c in columns)                       // real factory-time loop (NOT unrolled)
                     yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
                         .AddModifiers(Token(PublicKeyword))
@@ -474,7 +479,7 @@ public class InjectedSurfaceCompletenessTest
     public void SpliceMemberGenerator_EmitsMemberPerColumn_Compiles()
     {
         var compilation = CSharpCompilation.Create("SpliceMemberGeneratorCompileTest",
-            [CSharpSyntaxTree.ParseText(SpliceMemberGeneratorTemplate)],
+            [CSharpSyntaxTree.ParseText(SpliceMemberGeneratorTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -491,14 +496,14 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Reader"));
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Reader", System.StringComparison.Ordinal));
         Assert.NotNull(factoryTree);
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
@@ -508,21 +513,54 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a [Splice] member generator reported errors "
             + "(the generator was not emitted / its members were not spliced): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var factorySource = factoryTree.ToString();
 
-        // The generator's Parameter<…>() folded into the factory signature ...
+        // The generator's Unquote<…>() folded into the factory signature ...
         Assert.Contains("columns", factorySource, StringComparison.Ordinal);
         // ... and its yielded members were spliced into the type's member list (the member-axis BuildList).
         Assert.Contains("BuildList<MemberDeclarationSyntax>", factorySource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The <c>[Constant]</c> builder-arg marker (the value-lift binding-time kind — the builder-arg counterpart
+    /// of <c>[Quote]</c>) must be part of the authoritative injected surface, exactly like <c>[Quoted]</c> and
+    /// <c>[TypeArg]</c>. This drives <see cref="SurfaceInjectionGenerator"/> alone and asserts an injected source
+    /// declares the <c>ConstantAttribute</c> type — if the Surface-folder glob did not pick the new marker up (or
+    /// the file is missing), the marker is absent from the consumer surface and every later recognition task fails
+    /// to bind the attribute by name.
+    /// </summary>
+    [Fact]
+    public void InjectedSurfaceIncludesConstantAttribute()
+    {
+        var compilation = CSharpCompilation.Create("ConstantAttributeInjectionTest",
+            syntaxTrees: [],
+            references:
+            [
+                CorlibReference,
+                NetStandardReference,
+                SystemRuntimeReference,
+            ],
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var driver = CSharpGeneratorDriver
+            .Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector())
+            .RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        var injected = driver.GetRunResult().GeneratedTrees
+            .Any(t => t.ToString().Contains("class ConstantAttribute", System.StringComparison.Ordinal));
+
+        Assert.True(injected,
+            "SurfaceInjectionGenerator did not inject a ConstantAttribute type — the [Constant] builder-arg "
+            + "marker is missing from the injected consumer surface.");
     }
 
     [Fact]
     public void InjectedSurfaceIsCompleteForStagedTemplate()
     {
         var compilation = CSharpCompilation.Create("InjectedSurfaceCompletenessStagedTest",
-            [CSharpSyntaxTree.ParseText(StagedRichTemplate)],
+            [CSharpSyntaxTree.ParseText(StagedRichTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -542,15 +580,20 @@ public class InjectedSurfaceCompletenessTest
             ],
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
+        // `Member` and `TypeOf` are both discovered structurally (like any user [SyntaxBuilder]), so their
+        // synthesized facades also need SyntaxBuilderFacadeGenerator in the driver — the injected surface alone
+        // is no longer enough for the ORIGINAL call sites to type-check (TypeOf now rides the structural
+        // operator path via the synthesized Operators.TypeOf facade, exactly like Member).
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
+            new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.StagedKitchenSink"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.StagedKitchenSink", System.StringComparison.Ordinal));
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
@@ -559,14 +602,14 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a STAGED template against ONLY the injected surface reported errors "
             + "(the injected staging surface — markers, SyntoBuilders, BuildList/ToSyntax helpers — is incomplete): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     [Fact]
     public void InjectedSurfaceIsCompleteForRichTemplate()
     {
         var compilation = CSharpCompilation.Create("InjectedSurfaceCompletenessTest",
-            [CSharpSyntaxTree.ParseText(RichTemplate)],
+            [CSharpSyntaxTree.ParseText(RichTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -595,7 +638,7 @@ public class InjectedSurfaceCompletenessTest
         // template binds against (post-init), TemplateFactorySourceGenerator emits the factory + the
         // scan-detected file-local helpers.
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
@@ -605,7 +648,7 @@ public class InjectedSurfaceCompletenessTest
 
         // The generator must actually have produced the factory (markers from post-init are added too, so
         // require strictly more than just the marker files: assert a Factory file specifically exists).
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.KitchenSink"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.KitchenSink", System.StringComparison.Ordinal));
 
         // Compile the POST-GENERATION output and assert there are NO error diagnostics. If the injected
         // surface were incomplete for anything the rich template emits, this is where it fails:
@@ -618,7 +661,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation against ONLY the injected surface reported errors (the injected "
             + "surface is incomplete for what the template emits): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     /// <summary>
@@ -635,7 +678,7 @@ public class InjectedSurfaceCompletenessTest
     public void InjectedSurfaceIsCompleteForNamespacedNestedTemplate()
     {
         var compilation = CSharpCompilation.Create("InjectedSurfaceCompletenessNamespacedTest",
-            [CSharpSyntaxTree.ParseText(NamespacedNestedTemplate)],
+            [CSharpSyntaxTree.ParseText(NamespacedNestedTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -664,7 +707,7 @@ public class InjectedSurfaceCompletenessTest
         // template binds against (post-init), TemplateFactorySourceGenerator emits the factory + the
         // scan-detected file-local helpers inside the namespace.
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
@@ -673,7 +716,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
         // The generator must actually have produced the namespaced factory file.
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build", System.StringComparison.Ordinal));
 
         // Compile the POST-GENERATION output and assert there are NO error diagnostics. If the
         // helpers were not placed inside the namespace (or were dropped entirely), the generated
@@ -686,7 +729,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation against ONLY the injected surface reported errors (the injected "
             + "surface is incomplete or misplaced for the namespaced/nested template): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     /// <summary>
@@ -710,11 +753,11 @@ public class InjectedSurfaceCompletenessTest
 
         public readonly record struct Col(int Ordinal, string Name);
 
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Shapes {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Nested() {
-                var columns = Parameter<IReadOnlyList<Col>>();
+                var columns = Unquote<IReadOnlyList<Col>>();
                 foreach (var c in columns)
                     yield return ClassDeclaration("Shape_" + c.Name).AddModifiers(Token(PublicKeyword));
             }
@@ -725,7 +768,7 @@ public class InjectedSurfaceCompletenessTest
     public void SpliceMemberGenerator_EmitsNestedType_Compiles()
     {
         var compilation = CSharpCompilation.Create("SpliceNestedTypeCompileTest",
-            [CSharpSyntaxTree.ParseText(SpliceNestedTypeTemplate)],
+            [CSharpSyntaxTree.ParseText(SpliceNestedTypeTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -742,14 +785,14 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Shapes"));
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Shapes", System.StringComparison.Ordinal));
         Assert.NotNull(factoryTree);
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
@@ -759,7 +802,7 @@ public class InjectedSurfaceCompletenessTest
         Assert.True(errors.Count == 0,
             "Post-generation compilation of a [Splice] member generator yielding a NESTED TYPE reported errors "
             + "(the emission assumes MethodDeclarationSyntax rather than the MemberDeclarationSyntax base): "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var factorySource = factoryTree.ToString();
 
@@ -787,12 +830,12 @@ public class InjectedSurfaceCompletenessTest
 
         public readonly record struct Col(int Ordinal, string Name);
 
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             public int First() => 0;
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Middle() {
-                var columns = Parameter<IReadOnlyList<Col>>();
+                var columns = Unquote<IReadOnlyList<Col>>();
                 foreach (var c in columns)
                     yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
                         .AddModifiers(Token(PublicKeyword))
@@ -808,7 +851,7 @@ public class InjectedSurfaceCompletenessTest
     public void SpliceMemberGenerator_PreservesDeclarationOrder_Compiles()
     {
         var compilation = CSharpCompilation.Create("SpliceOrderCompileTest",
-            [CSharpSyntaxTree.ParseText(SpliceOrderTemplate)],
+            [CSharpSyntaxTree.ParseText(SpliceOrderTemplate, cancellationToken: Xunit.TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -825,14 +868,14 @@ public class InjectedSurfaceCompletenessTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
-        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Reader"));
+        var factoryTree = output.SyntaxTrees.SingleOrDefault(t => t.FilePath.Contains("Factory.Reader", System.StringComparison.Ordinal));
         Assert.NotNull(factoryTree);
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
@@ -841,7 +884,7 @@ public class InjectedSurfaceCompletenessTest
 
         Assert.True(errors.Count == 0,
             "Post-generation compilation of an order-preserving [Splice] member generator reported errors: "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
 
         var factorySource = factoryTree.ToString();
 

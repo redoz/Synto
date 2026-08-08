@@ -217,7 +217,8 @@ public class MatchSnapshotTests
     [Fact]
     public Task Bare_FixedAfterVariable()
     {
-        // A fixed literal AFTER the variable element: the tail indexes at _o + _var (the _var-relative tail).
+        // A fixed literal AFTER the variable element (no end-anchor): the driver scans BOTH the run offset and
+        // the variable length so the trailing literal floats to its real position (#17 contains), not the end.
         return VerifyMatcher(
             """
             using Synto.Matching;

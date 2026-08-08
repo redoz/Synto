@@ -1,0 +1,79 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFramework>netstandard2.0</TargetFramework>
+	<RootNamespace>Synto.Generators</RootNamespace>
+	<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+  </PropertyGroup>
+
+  <PropertyGroup>
+	<!-- Opt in to the shared Synto analyzer-packaging logic in Directory.Build.targets.
+		 The consumer-facing surface (markers + the emitted helpers) is injected as internal
+		 source by SurfaceInjectionGenerator, so the runtime is NOT shipped as a consumer dependency;
+		 Synto.Core.dll is only needed by the generator at analysis time. -->
+	<IsSyntoGeneratorPackage>true</IsSyntoGeneratorPackage>
+
+	<!-- This generator references Synto.GenKit; surface GenKit.dll onto consumers' analyzer load path
+		 (see SyntoGetDependencyTargetPaths in Directory.Build.targets) so Roslyn can load the injector. -->
+	<SyntoBundlesGenKit>true</SyntoBundlesGenKit>
+
+	<!-- This generator also references Synto.Incremental (the cacheable trio + the lone trio
+		 injector). Surface Synto.Incremental.dll onto consumers' analyzer load path so its
+		 IncrementalSurfaceInjector runs (injecting the trio exactly once) and Roslyn can resolve it. -->
+	<SyntoBundlesIncremental>true</SyntoBundlesIncremental>
+
+	<!-- This umbrella references the Synto.Template feature DLL (its own marker surface + TemplateSurfaceInjector).
+		 Surface Synto.Template.dll onto consumers' analyzer load path so its TemplateSurfaceInjector runs
+		 (injecting the Template markers exactly once) and Roslyn can resolve it. -->
+	<SyntoBundlesTemplate>true</SyntoBundlesTemplate>
+
+	<!-- This umbrella references the Synto.Match feature DLL (its own marker surface + MatchSurfaceInjector).
+		 Surface Synto.Match.dll onto consumers' analyzer load path so its MatchSurfaceInjector runs
+		 (injecting the Match markers exactly once) and Roslyn can resolve it. -->
+	<SyntoBundlesMatch>true</SyntoBundlesMatch>
+
+	<!-- This umbrella references the Synto.Diagnostics feature DLL (the [Diagnostic] generator; its
+		 DiagnosticAttribute marker is delivered by RegisterPostInitializationOutput, not a SurfaceInjector).
+		 Surface Synto.Diagnostics.dll onto consumers' analyzer load path so its DiagnosticsGenerator runs
+		 and Roslyn can resolve it. -->
+	<SyntoBundlesDiagnostics>true</SyntoBundlesDiagnostics>
+
+	<!-- This umbrella references the Synto.Model feature DLL ([SyntoModel] symbol-to-model generator + its own
+		 ModelSurfaceInjector). Surface Synto.Model.dll onto consumers' analyzer load path so its SyntoModelGenerator
+		 + ModelSurfaceInjector run (injecting the model markers exactly once) and Roslyn can resolve it. -->
+	<SyntoBundlesModel>true</SyntoBundlesModel>
+
+	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
+	<PackageId>Synto</PackageId>
+	<PackageReadmeFile>Synto.NuGet.md</PackageReadmeFile>
+	<Description>Create Roslyn Syntax Trees from your C# code.</Description>
+  </PropertyGroup>
+
+  <!-- Expose generator-internal pipeline value types (DiagnosticInfo, EquatableArray<T>, LocationInfo,
+	   TemplateGenerationResult) and the test-only TemplateTrackingNames to the test project so it can
+	   unit-test equatability/cacheability, mirroring Synto.Diagnostics' InternalsVisibleTo to its test. -->
+  <ItemGroup>
+	<InternalsVisibleTo Include="Synto.Test" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<None Include="..\..\Synto.NuGet.md" Pack="true" Visible="false" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+	<!-- we do want a pacakge dependency on this for whoever consumes our package -->
+	<PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
+	<ProjectReference Include="..\Synto.Incremental\Synto.Incremental.csproj" />
+	<ProjectReference Include="..\Synto.Template\Synto.Template.csproj" />
+	<ProjectReference Include="..\Synto.Match\Synto.Match.csproj" />
+	<ProjectReference Include="..\Synto.Diagnostics\Synto.Diagnostics.csproj" />
+	<ProjectReference Include="..\Synto.Model\Synto.Model.csproj" />
+	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

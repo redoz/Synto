@@ -12,18 +12,6 @@ namespace Synto.Templating;
 internal static class Template
 {
     /// <summary>
-    /// Declares an <em>unquote</em> template parameter: a value supplied to the generated factory at
-    /// template-invocation time rather than quoted from the template body. In declaration position
-    /// (<c>var count = Parameter&lt;int&gt;();</c>) the bound variable name supplies the factory
-    /// parameter name; in any other (inline) position an explicit <paramref name="parameterName"/> is
-    /// required. Consuming the value lifts it into the generated syntax exactly like an
-    /// <c>[Unquote]</c> value.
-    /// </summary>
-    /// <typeparam name="T">The unquoted value's type; becomes the factory parameter's type.</typeparam>
-    /// <param name="parameterName">The factory parameter name; required in inline position.</param>
-    public static T Parameter<T>(string? parameterName = null) => default!;
-
-    /// <summary>
     /// Declares an <em>unquote</em> local: <c>var n = Unquote(expr);</c> runs <paramref name="value"/> at
     /// template-build time inside the generated factory (so <c>n</c> is a real runtime local), and any
     /// consumption of <c>n</c> is lifted into the produced syntax. This is the local-position counterpart
@@ -34,6 +22,26 @@ internal static class Template
     /// <typeparam name="T">The unquoted value's type; inferred as the local's type.</typeparam>
     /// <param name="value">The expression evaluated at factory-build time.</param>
     public static T Unquote<T>(T value) => value;
+
+    /// <summary>
+    /// Declares a caller-supplied <em>unquote</em> live root in the template body: a value supplied to the
+    /// generated factory at template-invocation time rather than quoted from the template body. In declaration
+    /// position (<c>var count = Unquote&lt;int&gt;();</c>) the bound variable name supplies the factory parameter
+    /// name; in any other (inline) position an explicit <paramref name="parameterName"/> is required. This is the
+    /// in-body counterpart to an <c>[Unquote]</c> parameter; consuming the value lifts it into the produced syntax
+    /// exactly like an <c>[Unquote]</c> value. Inert (<c>=&gt; default!</c>) so the template body type-checks; the
+    /// generator recognizes the call by its bound overload symbol and folds it to a factory parameter.
+    /// <para>
+    /// This overload shares the <c>Unquote</c> name with the value-source <see cref="Unquote{T}(T)"/> overload
+    /// above. The two are distinguished by their bound overload — this one takes a <c>string?</c>/no argument, the
+    /// other a value. When <c>T == string</c> a positional single-<c>string</c> call is genuinely ambiguous
+    /// (CS0121) and must be disambiguated by naming the argument: <c>Unquote&lt;string&gt;(parameterName: "x")</c>
+    /// for this parameter-source form, or <c>Unquote&lt;string&gt;(value: expr)</c> for the value-source form.
+    /// </para>
+    /// </summary>
+    /// <typeparam name="T">The unquoted value's type; becomes the factory parameter's type. Must be explicit (it cannot be inferred from the string/omitted argument).</typeparam>
+    /// <param name="parameterName">The factory parameter name; required in inline position, defaulted from the bound variable name in declaration position.</param>
+    public static T Unquote<T>(string? parameterName = null) => default!;
 
     /// <summary>
     /// Declares an inline <em>quote</em>: <c>Quote(value)</c> emits the quoted syntax of the factory-time
@@ -59,25 +67,4 @@ internal static class Template
     /// </summary>
     /// <param name="node">The pre-built expression syntax to splice verbatim.</param>
     public static Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax Splice(Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax node) => node;
-
-    /// <summary>
-    /// Built-in syntax-builder <em>facade</em>: in a <c>[Template]</c> body, <c>Member&lt;TValue&gt;(instance,
-    /// "Name")</c> emits a member access <c>instance.Name</c> into the produced syntax (an identifier member
-    /// access, not the string literal <c>"Name"</c>). Inert (<c>=&gt; default!</c>): the generator recognizes
-    /// the call by binding and rewrites it at factory-build time to the built-in <c>Member</c> builder. The
-    /// hand-authored counterpart to the user <c>[SyntaxBuilder]</c> synthesis path.
-    /// </summary>
-    /// <typeparam name="TValue">The carrier-world type of the accessed member (carrier type-check only).</typeparam>
-    /// <param name="instance">The instance whose member is accessed (an output-world syntax island).</param>
-    /// <param name="name">The member name (a factory-time value).</param>
-    public static TValue Member<TValue>(object instance, string name) => default!;
-
-    /// <summary>
-    /// Built-in syntax-builder <em>facade</em>: in a <c>[Template]</c> body, <c>TypeOf("Name")</c> emits the
-    /// type reference <c>Name</c> (a <c>TypeSyntax</c>) into the produced syntax. Inert (<c>=&gt; default!</c>):
-    /// the generator recognizes the call by binding and rewrites it at factory-build time to the built-in
-    /// <c>TypeOf</c> builder.
-    /// </summary>
-    /// <param name="name">The type name (a factory-time value).</param>
-    public static System.Type TypeOf(string name) => default!;
 }

@@ -72,9 +72,9 @@ public class StagedParameterTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
-                    var count = Parameter<int>();   // -> factory param `int count`; used as a value below
+                    var count = Unquote<int>();   // -> factory param `int count`; used as a value below
                     System.Console.WriteLine(count);
                 }
             }
@@ -91,8 +91,8 @@ public class StagedParameterTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
-                void Build() => System.Console.WriteLine(Parameter<int>("fieldCount"));
+                [Template<Factory>]
+                void Build() => System.Console.WriteLine(Unquote<int>("fieldCount"));
             }
             """);
     }
@@ -107,8 +107,8 @@ public class StagedParameterTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
-                void Build() => System.Console.WriteLine(Parameter<int>());
+                [Template<Factory>]
+                void Build() => System.Console.WriteLine(Unquote<int>());
             }
             """);
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1010"); // missing-parameter-name (Task 0 §8)
@@ -125,10 +125,10 @@ public class StagedParameterTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
-                    System.Console.WriteLine(Parameter<int>("dup"));
-                    System.Console.WriteLine(Parameter<int>("dup"));
+                    System.Console.WriteLine(Unquote<int>("dup"));
+                    System.Console.WriteLine(Unquote<int>("dup"));
                 }
             }
             """);
@@ -146,10 +146,10 @@ public class StagedParameterTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
-                    var a = Parameter<int>("x");
-                    var b = Parameter<string>("x");
+                    var a = Unquote<int>("x");
+                    var b = Unquote<string>("x");
                     System.Console.WriteLine($"{a}{b}");
                 }
             }

@@ -60,6 +60,31 @@ internal static class GeneratorHarness
     }
 
     /// <summary>
+    /// Runs <see cref="ObjectReaderGenerator"/> over <paramref name="source"/>, folds the generated trees back
+    /// into the compilation, and returns the RESULT compilation's diagnostics. The reference closure is
+    /// TRUSTED_PLATFORM_ASSEMBLIES only — no implicit/global usings — so this models a consumer with
+    /// <c>ImplicitUsings</c> disabled (the compiler default): the generated ObjectReader must be self-contained
+    /// (fully qualified or carrying its own using directives) or it fails here with CS0246. This is the compile
+    /// gate the snapshot-only path lacked.
+    /// </summary>
+    public static ImmutableArray<Diagnostic> Compile(string source)
+    {
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "ObjectReaderSnapshot",
+            syntaxTrees: new[] { CSharpSyntaxTree.ParseText(source, ParseOptions, path: "Source.cs") },
+            references: References,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new ObjectReaderGenerator().AsSourceGenerator() },
+            additionalTexts: null,
+            parseOptions: ParseOptions);
+
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        return output.GetDiagnostics();
+    }
+
+    /// <summary>
     /// Runs <see cref="ObjectReaderGenerator"/> over <paramref name="source"/> with incremental step tracking
     /// enabled, then re-runs the same driver after adding one UNRELATED syntax tree, and returns the second
     /// run's single generator result. A cacheability guard (C-5): because the transform flows only an equatable

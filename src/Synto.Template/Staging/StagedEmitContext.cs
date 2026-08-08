@@ -1,0 +1,58 @@
+using System.Collections.Generic;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Templating.BindingTime;
+using Synto.Generators.Templating.Builders;
+
+namespace Synto.Generators.Templating.Staging;
+
+/// <summary>
+/// Transform-local scratch carrier for the staged-region codegen: bundles the inputs that stay constant across a
+/// single <see cref="StagedRegionEmitter.Emit"/> call (semantic model, classifier partition, computed live set,
+/// root renamer, base lift map, string-staged roots, accumulating emission) plus the per-scaffold run identifier.
+/// Replaces the 8-argument thread-through through the scaffold builders. Never equatable and never captured into
+/// pipeline state — created and discarded entirely inside the generator transform.
+/// </summary>
+internal sealed class StagedEmitContext
+{
+    public StagedEmitContext(
+        SemanticModel semanticModel,
+        BindingTimePartition partition,
+        HashSet<ISymbol> stagedSet,
+        RootRenameRewriter renamer,
+        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> baseReplacements,
+        IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> stringStagedRoots,
+        IReadOnlyDictionary<SyntaxNode, BuilderCall> builderCalls,
+        IReadOnlyDictionary<SyntaxNode, NameSyntax> qualifications,
+        StagedRegionEmission emission)
+    {
+        SemanticModel = semanticModel;
+        Partition = partition;
+        StagedSet = stagedSet;
+        Renamer = renamer;
+        BaseReplacements = baseReplacements;
+        StringStagedRoots = stringStagedRoots;
+        BuilderCalls = builderCalls;
+        Qualifications = qualifications;
+        Emission = emission;
+    }
+
+    public SemanticModel SemanticModel { get; }
+    public BindingTimePartition Partition { get; }
+    public HashSet<ISymbol> StagedSet { get; }
+    public RootRenameRewriter Renamer { get; }
+    public IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> BaseReplacements { get; }
+    public IReadOnlyDictionary<SyntaxNode, ExpressionSyntax> StringStagedRoots { get; }
+
+    /// <summary>Builder-call channel so island quoters inside a live region also expand facade calls (BuilderStep).</summary>
+    public IReadOnlyDictionary<SyntaxNode, BuilderCall> BuilderCalls { get; }
+
+    /// <summary>Type-qualification channel so island / fixed-sibling quoters inside a live region emit their
+    /// type/namespace names global::-rooted too (QualifyStep) — otherwise unrolled output names stay bare (CS0246).</summary>
+    public IReadOnlyDictionary<SyntaxNode, NameSyntax> Qualifications { get; }
+    public StagedRegionEmission Emission { get; }
+
+    /// <summary>The current scaffold's run identifier (e.g. <c>__run_0</c>); reset per region by the scaffold builder.</summary>
+    public SyntaxToken RunIdentifier { get; set; }
+}

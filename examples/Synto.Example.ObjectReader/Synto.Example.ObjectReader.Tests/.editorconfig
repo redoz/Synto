@@ -1,0 +1,5 @@
+# Test method names use the xUnit `Method_Scenario_Expectation` convention (underscores carry the
+# scenario), which CA1707 flags. Suppress it for this test project — mirroring test/Synto.Test — the
+# underscores are intentional readability, not an API-naming concern.
+[*.cs]
+dotnet_diagnostic.CA1707.severity = none

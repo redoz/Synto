@@ -7,6 +7,19 @@
     <IsTestProject>true</IsTestProject>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <InterceptorsNamespaces>$(InterceptorsNamespaces);Synto.Example.ObjectReader.Generated</InterceptorsNamespaces>
+    <!-- CS0436 is topology-induced and benign: this Tests project self-generates an internal
+         InterceptsLocationAttribute AND consumes the identical internal attribute from the referenced Demo
+         (exposed via a REQUIRED InternalsVisibleTo, since Tests drives Demo.Person/Demo.Program internals).
+         Both definitions are byte-identical, so the compiler simply picks one; the IVT cannot be removed
+         without breaking the smoke test, so the collision is unavoidable. Suppress the duplicate-type warning. -->
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
+    <!-- SOR0002 is deliberately triggered by the runtime-fallback test (non-constant member list) in
+         ObjectReaderApiTests.cs. The ObjectReader generator reports it off the GeneratorDriver, which bypasses
+         the compiler's #pragma / editorconfig-severity / [SuppressMessage] filtering (all three are verified
+         no-ops for it), so the only working build-time suppression is compiler-level NoWarn. No other file in
+         this project's compilation emits SOR0002 (the diagnostics tests use an in-memory GeneratorHarness), so
+         this project-scoped suppression masks nothing else. -->
+    <NoWarn>$(NoWarn);SOR0002</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3.mtp-v2" />

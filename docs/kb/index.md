@@ -21,15 +21,15 @@ New here? Read [conventions](/conventions.md) (the type registry) and the
 
 # Projects
 
-* [Synto (runtime)](/projects/synto-runtime.md) - consumer surface + quoter machinery.
-* [Synto.SourceGenerator](/projects/synto-sourcegenerator.md) - the primary generators (templates, matching, builders).
+* [Synto.Core (runtime)](/projects/synto-runtime.md) - consumer surface + quoter machinery.
+* [Synto.Generators](/projects/synto-sourcegenerator.md) - the primary generators (templates, matching, builders).
 * [Synto.Bootstrap](/projects/synto-bootstrap.md) - build-time generator of the runtime quoter.
 * [Synto.Diagnostics](/projects/synto-diagnostics.md) - `[Diagnostic]` descriptor generator.
 
 # Subsystems
 
 * [Quoting](/subsystems/quoting.md) - turn a syntax tree into the code that rebuilds it.
-* [Templating](/subsystems/templating.md) - `[Template]` → factory, the staged-binding pipeline.
+* [Templating](/subsystems/templating.md) - `[Template<T>]`/`[Template]` → factory, the staged-binding pipeline + parent-driven sub-templates.
 * [Matching](/subsystems/matching.md) - pattern-match / capture / replace over syntax.
 * [Decorations](/subsystems/decorations.md) - post-quote declaration markers (Identifier/Visibility/Sealed/…).
 

@@ -46,7 +46,7 @@ jobs:
 
     - uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '10'
+        global-json-file: global.json
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL

@@ -7,6 +7,11 @@
     <InterceptorsNamespaces>$(InterceptorsNamespaces);Synto.Example.ObjectReader.Generated</InterceptorsNamespaces>
   </PropertyGroup>
   <ItemGroup>
+    <!-- The Tests project drives Program.SampleData()/Person and hosts its own generated reader for the
+         now-internal Person, so the test assembly (and its generated code) needs to see these internals. -->
+    <InternalsVisibleTo Include="Synto.Example.ObjectReader.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Synto.Example.ObjectReader.Api\Synto.Example.ObjectReader.Api.csproj" />
     <ProjectReference Include="..\Synto.Example.ObjectReader.Generator\Synto.Example.ObjectReader.Generator.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

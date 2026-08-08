@@ -37,7 +37,7 @@ public class DecorationTests
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver
-            .Create(new SurfaceInjectionGenerator())
+            .Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector())
             .RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult();
@@ -51,34 +51,9 @@ public class DecorationTests
         Assert.Contains("internal sealed class InheritsAttribute<TBase>", allGeneratedSource, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Quoter_FoldsPostQuoteHook_OntoNodeQuote()
-    {
-        var tree = CSharpSyntaxTree.ParseText("class Foo {}");
-        var compilation = CSharpCompilation.Create("c",
-            new[] { tree },
-            references:
-            [
-                CorlibReference,
-                NetStandardReference,
-                SystemRuntimeReference,
-            ],
-            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-        var model = compilation.GetSemanticModel(tree);
-        var node = tree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().First();
-
-        var hooks = new Dictionary<SyntaxNode, ImmutableArray<AppliedDecoration>>
-        {
-            [node] = ImmutableArray.Create(new AppliedDecoration(
-                "ApplySealedAttribute", ImmutableArray<ExpressionSyntax>.Empty)),
-        };
-        var quoter = new TemplateSyntaxQuoter(model,
-            new Dictionary<SyntaxNode, ExpressionSyntax>(), new HashSet<SyntaxNode>(),
-            includeTrivia: false, postQuoteHooks: hooks);
-
-        var expr = quoter.Visit(node);
-        Assert.Contains("ApplySealedAttribute()", expr!.ToString());
-    }
+    // Post-quote hook folding (the decoration feature's quoter branch) is covered at the step level by
+    // QuoteMiddlewareTest.Decoration_WrapsBaseQuote_InChainedInvocation, exercising DecorateStep dispatched by
+    // PerNodePipelineQuoter.
 
     // ----- Task 4: decoration round-trip through the factory generator -------------------------------
     // A carrier marked with each decoration marker runs through TemplateFactorySourceGenerator; the
@@ -117,7 +92,9 @@ public class DecorationTests
 
         var result = _factoryDriver.RunGenerators(compilation);
         var runResult = result.GetRunResult();
-        Assert.Empty(runResult.Diagnostics);
+        // SY1035 "live template code" is an Info highlight, not an error — narrow to Error so live templates
+        // (which now legitimately surface SY1035) still assert no error diagnostics (plan R2).
+        Assert.Empty(runResult.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
         return runResult.Results
             .SelectMany(r => r.GeneratedSources)
@@ -140,7 +117,9 @@ public class DecorationTests
 
         var result = _factoryDriver.RunGenerators(compilation);
         var runResult = result.GetRunResult();
-        Assert.Empty(runResult.Diagnostics);
+        // SY1035 "live template code" is an Info highlight, not an error — narrow to Error so live templates
+        // (which now legitimately surface SY1035) still assert no error diagnostics (plan R2).
+        Assert.Empty(runResult.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
         return runResult.Results
             .SelectMany(r => r.GeneratedSources)
@@ -154,14 +133,14 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Identifier]
                 class Shell { public Shell() {} }
             }
             """;
         var generated = RunFactoryAndGetSource(src);
-        Assert.Contains("ApplyIdentifierAttribute(identifier)", generated);
-        Assert.Contains("string identifier", generated); // injected factory parameter
+        Assert.Contains("ApplyIdentifierAttribute(identifier)", generated, System.StringComparison.Ordinal);
+        Assert.Contains("string identifier", generated, System.StringComparison.Ordinal); // injected factory parameter
     }
 
     [Fact]
@@ -171,13 +150,13 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Sealed]
                 class Shell { public Shell() {} }
             }
             """;
         var generated = RunFactoryAndGetSource(src);
-        Assert.Contains(".ApplySealedAttribute()", generated);
+        Assert.Contains(".ApplySealedAttribute()", generated, System.StringComparison.Ordinal);
     }
 
     [Fact]
@@ -187,13 +166,13 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Visibility(Access.File)]
                 class Shell { public Shell() {} }
             }
             """;
         var generated = RunFactoryAndGetSource(src);
-        Assert.Contains("ApplyVisibilityAttribute(global::Synto.Templating.Access.File)", generated);
+        Assert.Contains("ApplyVisibilityAttribute(global::Synto.Templating.Access.File)", generated, System.StringComparison.Ordinal);
     }
 
     [Fact]
@@ -203,13 +182,13 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Implements<global::System.IDisposable>]
                 class Shell { public Shell() {} }
             }
             """;
         var generated = RunFactoryAndGetSource(src);
-        Assert.Contains("ApplyImplementsAttribute(\"global::System.IDisposable\")", generated);
+        Assert.Contains("ApplyImplementsAttribute(\"global::System.IDisposable\")", generated, System.StringComparison.Ordinal);
     }
 
     [Fact]
@@ -219,7 +198,7 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Inherits<global::System.Exception>]
                 [Implements<global::System.IDisposable>]
                 class Shell { public Shell() {} }
@@ -242,7 +221,7 @@ public class DecorationTests
             using Synto.Templating;
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Identifier]
                 [Visibility(Access.Internal)]
                 [Sealed]
@@ -253,12 +232,12 @@ public class DecorationTests
             """;
         var generated = RunFactoryAndGetSource(src);
 
-        Assert.Contains("ApplyIdentifierAttribute(identifier)", generated);
-        Assert.Contains("ApplyVisibilityAttribute(global::Synto.Templating.Access.Internal)", generated);
-        Assert.Contains(".ApplySealedAttribute()", generated);
-        Assert.Contains("ApplyInheritsAttribute(\"global::System.Exception\")", generated);
-        Assert.Contains("ApplyImplementsAttribute(\"global::System.IDisposable\")", generated);
-        Assert.Contains("string identifier", generated);
+        Assert.Contains("ApplyIdentifierAttribute(identifier)", generated, System.StringComparison.Ordinal);
+        Assert.Contains("ApplyVisibilityAttribute(global::Synto.Templating.Access.Internal)", generated, System.StringComparison.Ordinal);
+        Assert.Contains(".ApplySealedAttribute()", generated, System.StringComparison.Ordinal);
+        Assert.Contains("ApplyInheritsAttribute(\"global::System.Exception\")", generated, System.StringComparison.Ordinal);
+        Assert.Contains("ApplyImplementsAttribute(\"global::System.IDisposable\")", generated, System.StringComparison.Ordinal);
+        Assert.Contains("string identifier", generated, System.StringComparison.Ordinal);
     }
 
     // ----- Task 6: scope isolation + user-defined extensibility proof ----------------------------------
@@ -273,24 +252,27 @@ public class DecorationTests
     public void DecorationOnNestedChild_DoesNotLeakToParentFactory()
     {
         // Carrier Reader has [Sealed] and a field (so the parent's quoted output is non-empty).
-        // A nested child method Impl has [Template] + [Visibility(Access.Public)] — it is a foreign child,
-        // trimmed from the parent's quoted output AND never visited by the parent's walker.
-        // If TemplateScopedWalker correctly skips the child, the parent factory contains ApplySealedAttribute
+        // A nested child method Impl has bare [Template] + [Visibility(Access.Public)] — it is a foreign child,
+        // trimmed from the parent's quoted output AND never visited by the parent's walker. As a bare [Template]
+        // it is now a parent-driven sub-template folded into the parent's SINGLE document (an internal static
+        // member), so its own [Visibility(Access.Public)] decoration legitimately emits ApplyVisibilityAttribute
+        // inside the CHILD sub-template's region of that document.
+        // If TemplateScopedWalker correctly skips the child, the parent factory METHOD contains ApplySealedAttribute
         // (from its own [Sealed]) but NOT ApplyVisibilityAttribute (which belongs to the child only).
         var src = """
             using Synto.Templating;
             using static Synto.Templating.Template;
             partial class Factory {}
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             [Sealed]
             public class Reader
             {
                 public string Name { get; } = "";
-                [Template(typeof(Factory))]
+                [Template]
                 [Visibility(Access.Public)]
                 public void Impl()
                 {
-                    var name = Parameter<string>();
+                    var name = Unquote<string>();
                     _ = name;
                 }
             }
@@ -298,16 +280,31 @@ public class DecorationTests
 
         var sources = RunFactoryAndGetSources(src);
 
-        // The parent factory (Reader) is generated.
+        // The parent factory (Reader) is generated. The bare-[Template] child folds into this SAME document as a
+        // private/internal sub-template, so scope the leak assertions to the parent factory METHOD region only —
+        // the public parent method up to the first `internal static` sub-template that follows it.
         Assert.Contains("Factory.Reader.g.cs", sources.Keys);
-        var parentFactory = sources["Factory.Reader.g.cs"];
+        var document = sources["Factory.Reader.g.cs"];
+        var parentFactory = ParentFactoryMethodRegion(document);
 
         // The parent factory carries [Sealed]'s own ApplySealedAttribute (proof the parent is processed).
         Assert.Contains("ApplySealedAttribute", parentFactory, StringComparison.Ordinal);
 
-        // The child's [Visibility(Access.Public)] decoration must NOT appear in the parent factory.
-        // It belongs exclusively to the child's own factory (Factory.TypedGetter.g.cs).
+        // The child's [Visibility(Access.Public)] decoration must NOT appear in the parent factory method.
+        // It belongs exclusively to the child sub-template's own region of the shared document.
         Assert.DoesNotContain("ApplyVisibilityAttribute", parentFactory, StringComparison.Ordinal);
+    }
+
+    // Returns the text of the public parent factory method (from `public static` up to the first `internal static`
+    // sub-template that follows it) so leak assertions target the parent's own body, not a folded-in child.
+    private static string ParentFactoryMethodRegion(string document)
+    {
+        var start = document.IndexOf("public static", StringComparison.Ordinal);
+        if (start < 0)
+            return document;
+
+        var subTemplateStart = document.IndexOf("internal static", start, StringComparison.Ordinal);
+        return subTemplateStart < 0 ? document.Substring(start) : document.Substring(start, subTemplateStart - start);
     }
 
     /// <summary>
@@ -330,7 +327,7 @@ public class DecorationTests
             }
             partial class Factory {}
             public class Holder {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 [Foo("hi")]
                 class Shell { public Shell() {} }
             }
@@ -339,6 +336,54 @@ public class DecorationTests
         var generated = RunFactoryAndGetSource(src);
 
         // The user-defined hook must be emitted with the constructor argument as a string literal.
-        Assert.Contains("ApplyFooAttribute(\"hi\")", generated);
+        Assert.Contains("ApplyFooAttribute(\"hi\")", generated, System.StringComparison.Ordinal);
+    }
+
+    // ----- Task 20 (#23): executed end-to-end decoration proof --------------------------------------
+    // The other decoration facts only assert the generated factory TEXT. This one compiles the generated
+    // factory, Assembly.Load()s it, invokes it, and renders the returned declaration — proving at the
+    // consumer-visible layer that [Visibility(Public)] + [Sealed] on a `partial class` yield a LEGAL modifier
+    // order `public sealed partial class` (the Task 6 / #6 fix; appending `sealed` would be CS0267).
+    [Fact]
+    public void DecoratedPartial_Executed_RendersPublicSealedPartial()
+    {
+        var src = """
+            using Synto.Templating;
+            partial class Factory {}
+            public class Holder {
+                [Template<Factory>]
+                [Visibility(Access.Public)]
+                [Sealed]
+                partial class Shell { public Shell() {} }
+            }
+            """;
+
+        var compilation = _factoryBaseCompilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(src, cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        Assert.Empty(compilation.GetDiagnostics(Xunit.TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        // Only TemplateFactorySourceGenerator: the [Sealed]/[Visibility] markers and the Apply* extension
+        // methods resolve against the referenced public Synto.Core surface (running SurfaceInjectionGenerator
+        // too would inject internal marker twins and make `[Sealed]` ambiguous).
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var compileErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(compileErrors.Count == 0,
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        using var peStream = new System.IO.MemoryStream();
+        var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        var assembly = Assembly.Load(peStream.ToArray());
+        var shellFactory = assembly.GetType("Factory")!.GetMethod("Shell")!;
+        var built = shellFactory.Invoke(null, null);
+
+        var node = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.SyntaxNode>(built!);
+        var rendered = node.NormalizeWhitespace().ToString();
+        Assert.Contains("public sealed partial class", rendered, StringComparison.Ordinal);
     }
 }

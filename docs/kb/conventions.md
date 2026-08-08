@@ -72,5 +72,5 @@ prose walls:
 - Cross-links use **bundle-relative** form (`/subsystems/templating.md`), per
   OKF §5.1 — stable under moves.
 - `resource` and inline `path:line` references are **repo-root-relative**
-  (root = `C:\dev\Synto`), e.g. `src/Synto.SourceGenerator/Templating`.
+  (root = `C:\dev\Synto`), e.g. `src/Synto.Generators/Templating`.
 - Broken links are tolerated (OKF §5.3) — they mark not-yet-written concepts.

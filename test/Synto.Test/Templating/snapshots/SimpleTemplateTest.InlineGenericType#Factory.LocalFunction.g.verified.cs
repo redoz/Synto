@@ -36,12 +36,23 @@ partial class Factory
                                    Token(None), 
                                    TokenList(), 
                                    VariableDeclaration(
-                                       GenericName(
-                                           Identifier("List"), 
-                                           TypeArgumentList(
-                                               Token(LessThanToken), 
-                                               SeparatedList<TypeSyntax>(new SyntaxNodeOrToken[] { syntaxForTypeParam_T }), 
-                                               Token(GreaterThanToken))), 
+                                       QualifiedName(
+                                           QualifiedName(
+                                               QualifiedName(
+                                                   AliasQualifiedName(
+                                                       IdentifierName("global"), 
+                                                       Token(ColonColonToken), 
+                                                       IdentifierName("System")), 
+                                                   Token(DotToken), 
+                                                   IdentifierName("Collections")), 
+                                               Token(DotToken), 
+                                               IdentifierName("Generic")), 
+                                           GenericName(
+                                               Identifier("List"), 
+                                               TypeArgumentList(
+                                                   Token(LessThanToken), 
+                                                   SeparatedList<TypeSyntax>(new SyntaxNodeOrToken[] { syntaxForTypeParam_T }), 
+                                                   Token(GreaterThanToken)))), 
                                        SeparatedList<VariableDeclaratorSyntax>(
                                            new SyntaxNodeOrToken[] { 
                                                VariableDeclarator(

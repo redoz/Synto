@@ -27,7 +27,7 @@ public partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax> 
     }
 
     [Fact]
-    public void Generator_IsIncremental_OnUnrelatedEdit()
+    public void GeneratorIsIncrementalOnUnrelatedEdit()
     {
         // Cacheability guard: with the pipeline carrying only the equatable QuoterGenerationResult (and no
         // captured Compilation/SemanticModel/SyntaxNode), an unrelated edit must leave every tracked step
@@ -39,13 +39,13 @@ public partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<ExpressionSyntax> 
             generators: new[] { new CSharpSyntaxQuoterGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         // An unrelated edit in a separate tree: the CSharpSyntaxQuoter tree is byte-identical, so the
         // generated result must come from cache.
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 

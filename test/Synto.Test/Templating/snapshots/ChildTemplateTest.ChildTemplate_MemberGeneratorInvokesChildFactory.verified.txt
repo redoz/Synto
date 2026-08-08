@@ -1,0 +1,60 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: : (25,26)-(25,66),
+      Message: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SY1035,
+        Title: Live template code,
+        MessageFormat: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+        Category: Synto.Staging,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: : (26,21)-(26,30),
+      Message: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SY1035,
+        Title: Live template code,
+        MessageFormat: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+        Category: Synto.Staging,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: : (27,48)-(27,54),
+      Message: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SY1035,
+        Title: Live template code,
+        MessageFormat: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+        Category: Synto.Staging,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: : (28,74)-(28,83),
+      Message: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+      Severity: Info,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: SY1035,
+        Title: Live template code,
+        MessageFormat: This template fragment is live: it runs at factory time (build-time) rather than being emitted as output,
+        Category: Synto.Staging,
+        DefaultSeverity: Info,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

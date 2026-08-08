@@ -35,7 +35,7 @@ public class RuntimeConverterTest
         MetadataReference.CreateFromFile(SyntoCoreAssembly.Location),
     ];
 
-    private static Compilation CompilationWithSource(string source)
+    private static CSharpCompilation CompilationWithSource(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
         Assert.Empty(syntaxTree.GetDiagnostics());
@@ -78,7 +78,7 @@ public class RuntimeConverterTest
         }
 
         public class TestClass {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             void Build([Unquote] Color color, [Unquote] int count) {
                 Console.WriteLine(color);
                 Console.WriteLine(count);
@@ -96,7 +96,7 @@ public class RuntimeConverterTest
 
         // The discovered converter is called directly by its fully-qualified name (no file-local copy).
         var generated = driver.GetRunResult().GeneratedTrees
-            .Single(t => t.FilePath.Contains("Factory.Build"))
+            .Single(t => t.FilePath.Contains("Factory.Build", StringComparison.Ordinal))
             .ToString();
         Assert.Contains("global::ColorConverter.ToSyntax(color)", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("class ColorConverter", generated, StringComparison.Ordinal);
@@ -136,7 +136,7 @@ public class RuntimeConverterTest
         }
 
         public class TestClass {
-            [Template(typeof(Factory))]
+            [Template<Factory>]
             void Build([Quote] Color color) {
                 Console.WriteLine(color);
             }
@@ -152,7 +152,7 @@ public class RuntimeConverterTest
             .RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         var generated = driver.GetRunResult().GeneratedTrees
-            .Single(t => t.FilePath.Contains("Factory.Build"))
+            .Single(t => t.FilePath.Contains("Factory.Build", StringComparison.Ordinal))
             .ToString();
 
         // The quoted custom-type value is lifted via the discovered converter (called fully-qualified), NOT as a
@@ -176,7 +176,7 @@ public class RuntimeConverterTest
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics, TestContext.Current.CancellationToken);
 
         Assert.Empty(generatorDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build"));
+        Assert.Contains(output.SyntaxTrees, t => t.FilePath.Contains("Factory.Build", StringComparison.Ordinal));
 
         var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
@@ -184,7 +184,7 @@ public class RuntimeConverterTest
 
         Assert.DoesNotContain(errors, d => d.Id == "CS0121");
         Assert.True(errors.Count == 0,
-            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class RuntimeConverterTest
             public readonly struct Color { public int Argb { get; init; } }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Unquote] Color color) {
                     Console.WriteLine(color);
                 }
@@ -243,7 +243,7 @@ public class RuntimeConverterTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Unquote] Color color) {
                     Console.WriteLine(color);
                 }
@@ -252,6 +252,124 @@ public class RuntimeConverterTest
 
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1009");
         AssertHasRealSpan(diag);
+    }
+
+    // Task 5: a [Constant] builder argument reuses the SAME ValueLift, so a concrete non-built-in, non-enum value
+    // (a custom struct) with NO [Runtime] converter reports SY1008 at the argument location — identical policy to
+    // the [Quote]/[Unquote] cases, no new diagnostic.
+    [Fact]
+    public void ConstantArgWithNoRuntimeConverter_ReportsSY1008()
+    {
+        var diagnostics = RunTemplateGeneratorDiagnostics(
+            """
+            using System;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using Synto.Templating;
+
+            partial class Factory {}
+
+            public readonly struct Color { public int Argb { get; init; } }
+
+            static partial class B {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Lit([Constant] ExpressionSyntax label) => label;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build(Color color) {
+                    Console.WriteLine(B.Lit(color));
+                }
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1008");
+        AssertHasRealSpan(diag);
+    }
+
+    // Task 5: a [Constant] argument of a custom struct with MORE THAN ONE [Runtime] converter is ambiguous and
+    // reports SY1009 (again the shared ValueLift policy).
+    [Fact]
+    public void ConstantArgWithAmbiguousRuntimeConverters_ReportsSY1009()
+    {
+        var diagnostics = RunTemplateGeneratorDiagnostics(
+            """
+            using System;
+            using Microsoft.CodeAnalysis;
+            using Microsoft.CodeAnalysis.CSharp;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using Synto.Templating;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+
+            partial class Factory {}
+
+            public readonly struct Color { public int Argb { get; init; } }
+
+            [Runtime]
+            public static class ConvA {
+                public static ExpressionSyntax ToSyntax(this Color color) => IdentifierName("a");
+            }
+
+            [Runtime]
+            public static class ConvB {
+                public static ExpressionSyntax ToSyntax(this Color color) => IdentifierName("b");
+            }
+
+            static partial class B {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Lit([Constant] ExpressionSyntax label) => label;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build(Color color) {
+                    Console.WriteLine(B.Lit(color));
+                }
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1009");
+        AssertHasRealSpan(diag);
+    }
+
+    [Fact]
+    public void QuoteEnumType_LiftsViaToSyntax_NoSY1008()
+    {
+        // Batteries-included value-lift (plan Task 3): an enum is NOT a built-in literal type, but the lift now
+        // accepts TypeKind.Enum on the `.ToSyntax()` path (binding to the generic ToSyntax<T> -> enum branch at
+        // runtime) rather than routing to the [Runtime] converter path — so an enum needs NO converter and does
+        // NOT report SY1008. This exercises the least-ceremony lift site ([Quote] value parameter).
+        const string source =
+            """
+            using System;
+            using Synto.Templating;
+
+            partial class Factory {}
+
+            public enum Hue { Red, Green, Blue }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Quote] Hue hue) {
+                    Console.WriteLine(hue);
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator())
+            .RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        var runResult = driver.GetRunResult();
+
+        // No SY1008: an enum is value-liftable through ToSyntax, not a "missing runtime converter".
+        Assert.DoesNotContain(runResult.Diagnostics, d => d.Id == "SY1008");
+
+        // The lift emits `hue.ToSyntax()` (which binds to the generic ToSyntax<T> -> enum branch).
+        var generated = runResult.GeneratedTrees
+            .Single(t => t.FilePath.Contains("Factory.Build", StringComparison.Ordinal))
+            .ToString();
+        Assert.Contains("hue.ToSyntax()", generated, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -270,14 +388,14 @@ public class RuntimeConverterTest
         driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: TestContext.Current.CancellationToken));
         driver = driver.RunGenerators(modified, TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 
     private static void AssertHasRealSpan(Diagnostic diag)
@@ -292,5 +410,20 @@ public class RuntimeConverterTest
         var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
         var result = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
         return result.GetRunResult().Diagnostics;
+    }
+
+    // Like RunAndGetDiagnostics, but does NOT assert the carrier compiles pre-generation: a [Constant] BUILDER call
+    // (e.g. B.Lit(color)) does not type-check until the synthesized facade exists (the builder param is
+    // ExpressionSyntax, the facade value param is object), yet the value-lift diagnostic (SY1008/SY1009) is produced
+    // by the template generator's structural discovery regardless — the semantic model still resolves the argument's
+    // own type.
+    private static ImmutableArray<Diagnostic> RunTemplateGeneratorDiagnostics(string source)
+    {
+        var compilation = CSharpCompilation.Create("Test",
+            [CSharpSyntaxTree.ParseText(source)],
+            References,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        return driver.RunGenerators(compilation, TestContext.Current.CancellationToken).GetRunResult().Diagnostics;
     }
 }

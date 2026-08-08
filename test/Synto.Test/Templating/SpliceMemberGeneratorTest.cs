@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Linq;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -42,7 +43,7 @@ public class SpliceMemberGeneratorTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
             new TemplateFactorySourceGenerator());
 
         driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
@@ -57,7 +58,7 @@ public class SpliceMemberGeneratorTest
         using static Synto.Templating.Template;
         using Microsoft.CodeAnalysis.CSharp.Syntax;
         partial class Factory {}
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice]                                                   // instance -> SY1019
             IEnumerable<MemberDeclarationSyntax> Gen() { yield break; }
@@ -69,7 +70,7 @@ public class SpliceMemberGeneratorTest
         using Synto.Templating;
         using static Synto.Templating.Template;
         partial class Factory {}
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice] static int Gen() => 0;                            // bad return -> SY1020
         }
@@ -82,7 +83,7 @@ public class SpliceMemberGeneratorTest
         using static Synto.Templating.Template;
         using Microsoft.CodeAnalysis.CSharp.Syntax;
         partial class Factory {}
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice] static IEnumerable<MemberDeclarationSyntax> Gen(int x) { yield break; }  // params -> SY1021
         }
@@ -109,6 +110,106 @@ public class SpliceMemberGeneratorTest
         Assert.Single(diagnostics, d => d.Id == "SY1021");
     }
 
+    // --- #9 characterization: non-foldable Unquote<T>() shapes inside a [Splice] member generator body are
+    // caught by the unquote-axis StagedParameterFinder and reported as a located, fatal SY1010 BEFORE the
+    // splice-member emitter ever runs, so no factory is produced. This pins that the "residue reaches the
+    // emitter verbatim" leak scenario (#9) is unreachable: the shape is diagnosed, never silent. If these
+    // facts ever regress (SY1010 stops firing / a factory appears), a splice-specific diagnostic is warranted.
+
+    // Inline zero-arg Unquote<int>() with no enclosing variable declaration and no explicit name.
+    private const string InlineZeroArgParameterGenerator =
+        """
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+        partial class Factory {}
+        [Template<Factory>]
+        public class Reader {
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Gen() {
+                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + Unquote<int>()))
+                    .WithSemicolonToken(Token(SemicolonToken));
+            }
+        }
+        """;
+
+    // Compound initializer: Unquote<int>() is not the sole initializer, so no name can be folded from it.
+    private const string CompoundInitializerParameterGenerator =
+        """
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+        partial class Factory {}
+        [Template<Factory>]
+        public class Reader {
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Gen() {
+                int n = Unquote<int>() + 1;
+                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + n))
+                    .WithSemicolonToken(Token(SemicolonToken));
+            }
+        }
+        """;
+
+    // Non-constant name argument: a non-const local is not a foldable constant-string parameter name.
+    private const string NonConstantNameParameterGenerator =
+        """
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+        partial class Factory {}
+        [Template<Factory>]
+        public class Reader {
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Gen() {
+                string nm = "col";
+                yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + Unquote<int>(nm)))
+                    .WithSemicolonToken(Token(SemicolonToken));
+            }
+        }
+        """;
+
+    private static (ImmutableArray<Diagnostic> Diagnostics, int FactoryTreeCount) RunFactoryOnly(string source)
+    {
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var runResult = driver.RunGenerators(compilation, TestContext.Current.CancellationToken).GetRunResult();
+        return (runResult.Diagnostics, runResult.GeneratedTrees.Length);
+    }
+
+    [Fact]
+    public void InlineZeroArgParameterInSplice_ReportsSY1010_AndEmitsNoFactory()
+    {
+        var (diagnostics, factoryTreeCount) = RunFactoryOnly(InlineZeroArgParameterGenerator);
+        Assert.Single(diagnostics, d => d.Id == "SY1010" && d.Location != Location.None);
+        Assert.Equal(0, factoryTreeCount);
+    }
+
+    [Fact]
+    public void CompoundInitializerParameterInSplice_ReportsSY1010_AndEmitsNoFactory()
+    {
+        var (diagnostics, factoryTreeCount) = RunFactoryOnly(CompoundInitializerParameterGenerator);
+        Assert.Single(diagnostics, d => d.Id == "SY1010" && d.Location != Location.None);
+        Assert.Equal(0, factoryTreeCount);
+    }
+
+    [Fact]
+    public void NonConstantNameParameterInSplice_ReportsSY1010_AndEmitsNoFactory()
+    {
+        var (diagnostics, factoryTreeCount) = RunFactoryOnly(NonConstantNameParameterGenerator);
+        Assert.Single(diagnostics, d => d.Id == "SY1010" && d.Location != Location.None);
+        Assert.Equal(0, factoryTreeCount);
+    }
+
     private const string MemberPerColumnTemplate =
         """
         using System;
@@ -123,11 +224,11 @@ public class SpliceMemberGeneratorTest
 
         public readonly record struct Col(int Ordinal, string Name);
 
-        [Template(typeof(Factory))]
+        [Template<Factory>]
         public class Reader {
             [Splice]
             static IEnumerable<MemberDeclarationSyntax> Accessors() {
-                var columns = Parameter<IReadOnlyList<Col>>();
+                var columns = Unquote<IReadOnlyList<Col>>();
                 foreach (var c in columns)
                     yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
                         .AddModifiers(Token(PublicKeyword))
@@ -138,7 +239,61 @@ public class SpliceMemberGeneratorTest
         }
         """;
 
-    private static Compilation CompilationWithSource(string source)
+    // #24 regression (list-seam dispatch keyed on (owner, element type)): a [Splice] member generator's owner
+    // type declaration exposes BOTH a (non-empty) AttributeLists list and a Members list keyed on the same
+    // owner node. The central element-type guard must route ONLY the member list through MemberSegmentStep; the
+    // sibling attribute list must fall through to base quoting. This carrier keeps a surviving user attribute
+    // ([System.Obsolete]) so the attribute list is non-empty and actually reaches the owner's step set — pinning
+    // that deleting the per-step self-guards keeps the sibling list correct.
+    private const string SpliceCarrierWithSurvivingAttributeTemplate =
+        """
+        using System;
+        using System.Collections.Generic;
+        using Synto.Templating;
+        using static Synto.Templating.Template;
+        using Microsoft.CodeAnalysis.CSharp.Syntax;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+        using static Microsoft.CodeAnalysis.CSharp.SyntaxKind;
+
+        partial class Factory {}
+
+        public readonly record struct Col(int Ordinal, string Name);
+
+        [Obsolete]
+        [Template<Factory>]
+        public class Reader {
+            [Splice]
+            static IEnumerable<MemberDeclarationSyntax> Accessors() {
+                var columns = Unquote<IReadOnlyList<Col>>();
+                foreach (var c in columns)
+                    yield return MethodDeclaration(PredefinedType(Token(IntKeyword)), Identifier("Get" + c.Name))
+                        .AddModifiers(Token(PublicKeyword))
+                        .WithExpressionBody(ArrowExpressionClause(
+                            LiteralExpression(NumericLiteralExpression, Literal(c.Ordinal))))
+                        .WithSemicolonToken(Token(SemicolonToken));
+            }
+        }
+        """;
+
+    [Fact]
+    public void SpliceMemberList_DispatchesWhileSiblingAttributeListFallsThrough()
+    {
+        var compilation = CompilationWithSource(SpliceCarrierWithSurvivingAttributeTemplate);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var runResult = driver.RunGenerators(compilation, TestContext.Current.CancellationToken).GetRunResult();
+
+        Assert.Empty(runResult.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var generated = Assert.Single(runResult.GeneratedTrees).ToString();
+
+        // Member list still routes through the segment step.
+        Assert.Contains("BuildList<MemberDeclarationSyntax>", generated, StringComparison.Ordinal);
+        // The sibling (non-empty) attribute list fell through to base quoting, NOT the segment step — the
+        // surviving [Obsolete] attribute is quoted as an AttributeList, never wrapped in a BuildList run.
+        Assert.Contains("Obsolete", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildList<AttributeListSyntax>", generated, StringComparison.Ordinal);
+    }
+
+    private static CSharpCompilation CompilationWithSource(string source)
     {
         // The snapshot / cacheability runs reference the public Synto.Core surface (so the markers + Template
         // facade bind) and run ONLY TemplateFactorySourceGenerator, so the snapshot captures just the factory
@@ -185,13 +340,13 @@ public class SpliceMemberGeneratorTest
         driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: TestContext.Current.CancellationToken));
         driver = driver.RunGenerators(modified, TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 }

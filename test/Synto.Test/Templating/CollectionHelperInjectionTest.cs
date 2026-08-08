@@ -58,7 +58,7 @@ public class CollectionHelperInjectionTest
         var source = usings + "\n" + declaration + "\n" + caller;
 
         var compilation = CSharpCompilation.Create("CollectionHelperInjectionTest",
-            [CSharpSyntaxTree.ParseText(source)],
+            [CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.Current.CancellationToken)],
             references:
             [
                 CorlibReference,
@@ -77,6 +77,6 @@ public class CollectionHelperInjectionTest
 
         Assert.True(errors.Count == 0,
             "The injected collection helper did not compile against only the injected surface: "
-            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 }

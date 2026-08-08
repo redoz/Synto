@@ -14,8 +14,10 @@ namespace Synto.Test.Match;
 /// </summary>
 public partial class ForMatchTests
 {
+    private static readonly string[] ConsumerTrackingSteps = { "consumer" };
+
     // Shared matcher target — the generator emits {Pattern}/{Pattern}CouldMatch/{Pattern}Pattern into it.
-    private partial class M { }
+    private sealed partial class M { }
 
     // The shared `<a> + <b>` pattern, authored once so M.Sum / M.SumCouldMatch / M.SumPattern are available
     // class-wide. It is a phantom matcher (never invoked); the generator recognizes it structurally.
@@ -129,7 +131,7 @@ public partial class ForMatchTests
             "namespace Other { internal sealed class Unrelated { } }");
 
         var result = second.Results.Single();
-        CacheabilityAssert.AllStepsCachedOrUnchanged(result, new[] { "consumer" });
+        CacheabilityAssert.AllStepsCachedOrUnchanged(result, ConsumerTrackingSteps);
     }
 
     /// <summary>Consumer generator that hooks the PROJECTING <c>ForMatch</c> overload, projecting to an equatable string.</summary>

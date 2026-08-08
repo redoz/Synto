@@ -78,7 +78,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Synto.SourceGenerator\Synto.SourceGenerator.csproj" OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="True" />
+    <!--
+      The generator is referenced BOTH as an analyzer (its SurfaceInjectionGenerator injects an INTERNAL
+      source copy of EquatableArray/DiagnosticInfo/LocationInfo under `namespace Synto.Generators` into
+      this compilation) AND as a metadata reference (ReferenceOutputAssembly=True + IVT) so tests can
+      exercise the SHIPPED pipeline value types. Since Task 2 authors those three types directly at
+      `namespace Synto.Generators`, the injected source copy and the metadata copy now share a
+      fully-qualified name — an unavoidable CS0436 (source vs metadata) if both sit in the default scope.
+      Aliasing the metadata reference as `SyntoGenerators` takes it OUT of the default/global scope, so
+      the injected internal copies are the only `Synto.Generators.*` in global scope (no CS0436), and the
+      SHIPPED metadata types are reached through the alias — re-exposed globally in GeneratorAliasUsings.cs
+      so PipelineEquatabilityTests binds the compiled copy explicitly. No CS0436 suppression / NoWarn. -->
+    <ProjectReference Include="..\..\src\Synto.Generators\Synto.Generators.csproj" OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="True" Aliases="SyntoGenerators" />
     <!-- SurfaceInjectionGenerator injects an INTERNAL copy of the Synto surface into this compilation,
          and the injected helpers are extension methods. SimpleTemplateTest/DiagnosticsGeneratorTest
          also need the PUBLIC Synto.Core assembly as a referenceable marker for their in-memory
@@ -86,11 +97,39 @@
          scope; otherwise every emitted helper call would be an unsuppressable CS0121 ambiguity between
          the imported public copy and the injected internal copy. Reach the public assembly via
          `extern alias SyntoCore;` (see SyntoCoreAssembly.cs). -->
-    <ProjectReference Include="..\..\src\Synto\Synto.csproj" Aliases="SyntoCore" />
+    <ProjectReference Include="..\..\src\Synto.Core\Synto.Core.csproj" Aliases="SyntoCore" />
+    <!-- The dep-free helpers (SyntaxFormatter / UsingDirectiveSet) moved from Synto.Core to Synto.GenKit.
+         Alias it the same way Core is aliased so its internal helper types stay out of the default scope. -->
+    <ProjectReference Include="..\..\src\Synto.GenKit\Synto.GenKit.csproj" Aliases="SyntoGenKit" />
+    <!-- The cacheable trio (EquatableArray/DiagnosticInfo/LocationInfo) and the lone IncrementalSurfaceInjector
+         moved from Synto.Generators into Synto.Incremental (Task 4). Reference it through an extern alias
+         (SyntoIncremental) for the SAME reason Synto.Generators is aliased: the trio is ALSO injected as an
+         internal source copy into this compilation, so aliasing keeps the metadata copy out of the default
+         scope (no CS0436). Its IncrementalSurfaceInjector is surfaced separately onto the analyzer load path
+         by Synto.Generators' SyntoBundlesIncremental hook. -->
+    <ProjectReference Include="..\..\src\Synto.Incremental\Synto.Incremental.csproj" Aliases="SyntoIncremental" />
+    <!-- The Template feature generator internals (Synto.Generators.Templating.* + Synto.Generators.Symbols)
+         moved from Synto.Generators into Synto.Template (Task 7). Reference it through an extern alias
+         (SyntoTemplate) so the SHIPPED metadata types are reached via the alias (re-exposed globally in
+         GeneratorAliasUsings.cs), keeping them out of the default scope. Its TemplateSurfaceInjector is
+         surfaced onto the analyzer load path by Synto.Generators' SyntoBundlesTemplate hook. -->
+    <ProjectReference Include="..\..\src\Synto.Template\Synto.Template.csproj" Aliases="SyntoTemplate" />
+    <!-- The Match feature generator internals (Synto.Generators.Matching.*) moved from Synto.Generators into
+         Synto.Match (Task 8). Reference it through an extern alias (SyntoMatch) so the SHIPPED metadata types
+         are reached via the alias (re-exposed globally in GeneratorAliasUsings.cs), keeping them out of the
+         default scope. Its MatchSurfaceInjector is surfaced onto the analyzer load path by Synto.Generators'
+         SyntoBundlesMatch hook. -->
+    <ProjectReference Include="..\..\src\Synto.Match\Synto.Match.csproj" Aliases="SyntoMatch" />
+    <!-- The Model feature generator internals (Synto.Generators.Model.*) live in Synto.Model.dll. Reference it
+         through an extern alias (SyntoModel) so its internal types (incl. ModelSurfaceInjector) are reached via
+         the alias, keeping them out of the default scope. Its ModelSurfaceInjector is instantiated directly in
+         the Model surface tests. -->
+    <ProjectReference Include="..\..\src\Synto.Model\Synto.Model.csproj" Aliases="SyntoModel" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Match\" />
+    <Folder Include="Model\" />
   </ItemGroup>
 
 </Project>

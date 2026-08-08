@@ -13,9 +13,8 @@ partial class M
     {
         if (node is not BlockSyntax _blk)
             return null;
-        RunThenReturnMatch? _TryAt(int _o)
+        RunThenReturnMatch? _TryAt(int _o, int _var)
         {
-            int _var = _blk.Statements.Count - _o - 0 - 1;
             SyntaxList<StatementSyntax> cap_body = new SyntaxList<StatementSyntax>(_blk.Statements.Skip(_o).Take(_var));
             if (_blk.Statements[_o + _var] is not ReturnStatementSyntax _t0)
                 return null;
@@ -37,10 +36,13 @@ partial class M
         }
 
         for (int _o = 0; _o <= _blk.Statements.Count - 1; _o++)
-        {
-            if (_TryAt(_o)is { } _m)
-                return _m;
-        }
+            for (int _var = _blk.Statements.Count - _o - 1; _var >= 0; _var--)
+            {
+                if (_TryAt(
+                          _o, 
+                          _var)is { } _m)
+                    return _m;
+            }
 
         return null;
     }

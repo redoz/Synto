@@ -24,7 +24,7 @@ public partial class MatchRoundTripTests
     // The shared matcher target. The generator emits the matcher method + its nested result record into this
     // partial as M.{Pattern}(SyntaxNode) -> {Pattern}Match?. NON-static: a static type cannot be a generic
     // type argument (CS0718), and [Match<M>] takes M as a type argument.
-    private partial class M { }
+    private sealed partial class M { }
 
     [Fact]
     public void LiteralOne_MatchesOne_RejectsTwo()
@@ -110,6 +110,23 @@ public partial class MatchRoundTripTests
     }
 
     [Fact]
+    public void ReusedStatementCapture_CollapsesToOneMember_AndRequiresEquivalence()
+    {
+        // Two `only.One()` hole sites reuse ONE statement capture. A fixed reuse-temp name would re-declare
+        // cap_only (CS0128) and duplicate the record member; the reuse branch narrows a unique temp and requires
+        // structural equivalence with the first site, adding no second member.
+        [Match<M>(MatchOption.Bare)]
+        static void TwinStmt([Capture] Stmt only)
+        { only.One(); only.One(); }
+
+        var m = M.TwinStmt(ParseStatement("{ A(); A(); }"));
+        Assert.NotNull(m);
+        MatchTestHarness.AssertCapture("A();", m!.Only);   // single member, first-site value
+
+        Assert.Null(M.TwinStmt(ParseStatement("{ A(); B(); }")));   // the two sites differ structurally
+    }
+
+    [Fact]
     public void StatementSingle_FindsLeftmostReturn_InABlock()
     {
         // A block body with one core statement -> statement-Single: root on the candidate block, scan its
@@ -187,7 +204,7 @@ public partial class MatchRoundTripTests
 
         var none = M.GuardThenRest(ParseStatement("{ if (ok) Go(); }"));
         Assert.NotNull(none);
-        Assert.Equal(0, none!.Rest.Count);   // All = 0+
+        Assert.Empty(none!.Rest);   // All = 0+
     }
 
     [Fact]
@@ -233,7 +250,7 @@ public partial class MatchRoundTripTests
 
         var m = M.GuardThenSome(ParseStatement("{ if (ok) Go(); A(); }"));
         Assert.NotNull(m);
-        Assert.Equal(1, m!.Body.Count);
+        Assert.Single(m!.Body);
 
         Assert.Null(M.GuardThenSome(ParseStatement("{ if (ok) Go(); }")));   // Some needs >= 1
     }
@@ -313,7 +330,7 @@ public partial class MatchRoundTripTests
 
         var one = M.FirstThenRest(ParseMemberDeclaration("void F() { A(); }")!);
         Assert.NotNull(one);
-        Assert.Equal(0, one!.Rest.Count);
+        Assert.Empty(one!.Rest);
 
         var three = M.FirstThenRest(ParseMemberDeclaration("void F() { A(); B(); C(); }")!);
         Assert.NotNull(three);
@@ -348,5 +365,43 @@ public partial class MatchRoundTripTests
         Assert.Equal(2, m!.Rest.Count);
 
         Assert.Null(M.RunThenReturnAnchored(ParseStatement("{ A(); return; B(); }")));   // return not last
+    }
+
+    [Fact]
+    public void Bare_VariableBetweenFixed_ScansContainedRun()
+    {
+        // No anchors + a fixed element on BOTH flanks of the variable: the run `if(lead){} <mid> if(trail){}`
+        // must be found wherever it sits — the trailing `if(trail){}` is NOT pinned to the block's last
+        // statement (#17 "contains"). A block whose trailing `if` is followed by extra statements still matches
+        // (the extra tail is uncovered slack). The fixed flanks are `if` literals so the wrong split (tail pinned
+        // to the last statement) genuinely fails to match instead of a capture silently absorbing it.
+        [Match<M>(MatchOption.Bare)]
+        static void MiddleRun([Capture] bool lead, [Capture] Stmt mid, [Capture] bool trail)
+        { if (lead) { } mid.Some(); if (trail) { } }
+
+        var m = M.MiddleRun(ParseStatement("{ if (p) { } X(); if (q) { } Y(); }"));
+        Assert.NotNull(m);
+        Assert.Single(m!.Mid);              // mid = [X()] — the trailing `if` floats to index 2, not the last
+        MatchTestHarness.AssertCapture("X();", m.Mid[0]);
+
+        Assert.Null(M.MiddleRun(ParseStatement("{ if (p) { } X(); Y(); }")));   // no trailing `if` after lead+one
+    }
+
+    [Fact]
+    public void Anchor_End_FixedLeadBeforeVariable_FloatsToOffset()
+    {
+        // anchorEnd + a fixed lead BEFORE the variable: the lead `if(head){}` must float to its real offset (it
+        // is NOT pinned to the block start), the variable absorbs the middle, and the anchored `if(tail){}` is
+        // the block's last statement (#17 anchorEnd-only lead float).
+        [Match<M>(MatchOption.Bare)]
+        static void LeadThenRunAnchored([Capture] bool head, [Capture] Stmt mid, [Capture] bool tail)
+        { if (head) { } mid.Some(); if (tail) { } Synto.Matching.Block.End(); }
+
+        var m = M.LeadThenRunAnchored(ParseStatement("{ Z(); if (p) { } M(); if (q) { } }"));
+        Assert.NotNull(m);
+        Assert.Single(m!.Mid);              // lead `if` floated to index 1; mid = [M()]
+        MatchTestHarness.AssertCapture("M();", m.Mid[0]);
+
+        Assert.Null(M.LeadThenRunAnchored(ParseStatement("{ Z(); if (p) { } M(); if (q) { } W(); }")));   // tail `if` not last
     }
 }

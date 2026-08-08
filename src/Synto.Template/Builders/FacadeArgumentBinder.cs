@@ -1,0 +1,123 @@
+using System.Collections.Generic;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Synto.Generators.Templating.Diagnostics;
+using Synto.Generators.Templating.Lifting;
+
+namespace Synto.Generators.Templating.Builders;
+
+/// <summary>
+/// Binds a recognized user <c>[SyntaxBuilder]</c> facade call to its factory-time builder invocation: walks the
+/// builder's <see cref="FacadeShape"/> and pairs each parameter with the call's value/type argument (reusing the
+/// shape's <c>FreshReturnTypeParam</c> cursor to skip the synthesized leading <c>TResult</c> type-arg). Records
+/// SY1015/SY1016/SY1017 binding diagnostics. Runs inside the generator transform; nothing captured into pipeline
+/// state.
+/// </summary>
+internal static class FacadeArgumentBinder
+{
+    public static BuilderCall? Bind(SemanticModel semanticModel, InvocationExpressionSyntax invocation, IMethodSymbol builder, ValueLift valueLift, List<DiagnosticInfo> diagnostics)
+    {
+        var shape = FacadeShape.Derive(builder, out var annotationError, out var returnShapeError);
+        if (returnShapeError is not null)
+        {
+            diagnostics.Add(TemplateDiagnostics.BuilderBadReturnShape(invocation.GetLocation(), builder.Name, returnShapeError));
+            return null;
+        }
+        if (annotationError is not null)
+        {
+            diagnostics.Add(TemplateDiagnostics.FacadeSynthesisError(invocation.GetLocation(), builder.Name, annotationError));
+            return null;
+        }
+
+        // Facade type arguments (e.g. `int` in `Cast<int>(x)`) and value arguments (e.g. `x`).
+        var typeArgs = GetTypeArguments(invocation);
+        var valueArgs = invocation.ArgumentList.Arguments;
+
+        var bindings = new List<BuilderArgBinding>();
+        int typeArgCursor = shape!.FreshReturnTypeParam ? 1 : 0; // skip the leading TResult facade type-arg
+        int valueCursor = 0;
+
+        foreach (var p in shape.Parameters)
+        {
+            switch (p.Kind)
+            {
+                case BuilderArgKind.QuotedTypeArg:
+                    if (typeArgCursor >= typeArgs.Count)
+                    {
+                        diagnostics.Add(TemplateDiagnostics.BuilderArgBindingMismatch(invocation.GetLocation(), p.ParameterName, "missing type argument"));
+                        return null;
+                    }
+                    bindings.Add(new BuilderArgBinding(BuilderArgKind.QuotedTypeArg, p.ParameterName, null, typeArgs[typeArgCursor]));
+                    typeArgCursor++;
+                    break;
+
+                case BuilderArgKind.Constant:
+                    // A [Constant] value argument is lifted at the binding seam via the SHARED value-lift: its own
+                    // expression type (int for `c.Ordinal`, an enum for `SampleEnum.Red`, independent of the object
+                    // facade param) decides the lift. The already-lifted node is carried on the binding so
+                    // BuilderStep splices it verbatim.
+                    if (valueCursor >= valueArgs.Count)
+                    {
+                        diagnostics.Add(TemplateDiagnostics.BuilderArgBindingMismatch(invocation.GetLocation(), p.ParameterName, "missing argument"));
+                        return null;
+                    }
+                    var constArgExpr = valueArgs[valueCursor].Expression;
+                    valueCursor++;
+
+                    var constValueType = semanticModel.GetTypeInfo(constArgExpr).Type;
+                    if (constValueType is null)
+                    {
+                        diagnostics.Add(TemplateDiagnostics.BuilderArgBindingMismatch(invocation.GetLocation(), p.ParameterName, "could not resolve the constant argument's type"));
+                        return null;
+                    }
+
+                    if (!valueLift.TryEmitValueLift(constValueType, constArgExpr, constArgExpr.GetLocation(), out var liftedConstant, out var liftDiagnostic))
+                    {
+                        if (liftDiagnostic is not null)
+                            diagnostics.Add(liftDiagnostic.Value);
+                        return null;
+                    }
+
+                    bindings.Add(new BuilderArgBinding(BuilderArgKind.Constant, p.ParameterName, liftedConstant, null));
+                    break;
+
+                default:
+                    if (p.IsParams)
+                    {
+                        // A `params` collection binds the call's ENTIRE trailing argument run — one binding each,
+                        // so BuilderStep emits them expanded (`Switch(gov, a, b)`); the single-argument projection
+                        // form (`Switch(gov, cols.Select(...))`) naturally binds its one IEnumerable expression.
+                        // Zero trailing arguments is legal (an empty list).
+                        while (valueCursor < valueArgs.Count)
+                        {
+                            bindings.Add(new BuilderArgBinding(p.Kind, p.ParameterName, valueArgs[valueCursor].Expression, null));
+                            valueCursor++;
+                        }
+                        break;
+                    }
+
+                    if (valueCursor >= valueArgs.Count)
+                    {
+                        diagnostics.Add(TemplateDiagnostics.BuilderArgBindingMismatch(invocation.GetLocation(), p.ParameterName, "missing argument"));
+                        return null;
+                    }
+                    bindings.Add(new BuilderArgBinding(p.Kind, p.ParameterName, valueArgs[valueCursor].Expression, null));
+                    valueCursor++;
+                    break;
+            }
+        }
+
+        string builderType = builder.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        return new BuilderCall(invocation, builderType, builder.Name, bindings, shape.ReturnsStatement);
+    }
+
+    private static SeparatedSyntaxList<TypeSyntax> GetTypeArguments(InvocationExpressionSyntax invocation)
+    {
+        return invocation.Expression switch
+        {
+            GenericNameSyntax g => g.TypeArgumentList.Arguments,
+            MemberAccessExpressionSyntax { Name: GenericNameSyntax g } => g.TypeArgumentList.Arguments,
+            _ => default,
+        };
+    }
+}

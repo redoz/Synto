@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>Synto.GenKit</RootNamespace>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <!-- Bundled into the Synto package by the umbrella; not itself a package. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The dep-free helpers (UsingDirectiveSet / SyntaxFormatter / GeneratedSourceFilenameExtensions /
+         NameAllocator) are internal; the generator projects that call them need visibility. -->
+    <InternalsVisibleTo Include="Synto.Generators" />
+    <InternalsVisibleTo Include="Synto.Template" />
+    <InternalsVisibleTo Include="Synto.Match" />
+    <InternalsVisibleTo Include="Synto.Model" />
+    <InternalsVisibleTo Include="Synto.Diagnostics" />
+    <InternalsVisibleTo Include="Synto.Test" />
+  </ItemGroup>
+
+</Project>

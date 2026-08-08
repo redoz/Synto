@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using Synto.Formatting;
+using Synto.Generators;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Synto.Diagnostics;
@@ -22,7 +23,7 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
         context.RegisterPostInitializationOutput(InjectAttribute);
 
         // All semantic work happens inside the transform, which flows out an equatable
-        // DiagnosticGenerationResult (generated text + serializable diagnostic data). The SemanticModel /
+        // GenerationResult (generated text + serializable diagnostic data). The SemanticModel /
         // symbols / syntax nodes never enter cached pipeline state, so the generator stays incremental and
         // does not root the compilation in memory across edits. (Note: there is no .Combine(Compilation)
         // here — combining the CompilationProvider would re-root the compilation and defeat caching.)
@@ -37,13 +38,15 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
         // RegisterSourceOutput (not RegisterImplementationSourceOutput): the implementation-only variant is
         // excluded from design-time / IntelliSense builds, so a consumer's partial declaration would get no
         // implementing half in the editor (a live CS8795). The normal variant participates in design-time.
-        context.RegisterSourceOutput(results, static (context, result) => Emit(context, result!.Value));
+        context.RegisterSourceOutput(results, static (context, result) => context.Emit(result!.Value));
     }
 
     private void InjectAttribute(IncrementalGeneratorPostInitializationContext context)
     {
-        context.AddSource(
-            "Synto.Diagnostics.DiagnosticsAttribute.g.cs",
+        // Normalize line endings so the injected source is checkout-independent: the raw-string literal below
+        // inherits this file's checkout EOLs (CRLF on a Windows checkout, LF on CI), which otherwise makes the
+        // emitted DiagnosticsAttribute text — and any snapshot of it — flap between CRLF and LF.
+        const string source =
             """
             #nullable enable
             using System;
@@ -75,11 +78,14 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
                 public string? HelpLinkUri { get; } = helpLinkUri;
                 public IReadOnlyList<string> CustomTags { get; } = customTags;
             }
-            """
-            );
+            """;
+
+        context.AddSource(
+            "Synto.Diagnostics.DiagnosticsAttribute.g.cs",
+            source.Replace("\r\n", "\n"));
     }
 
-    private static DiagnosticGenerationResult? GenerateDiagnostic(GeneratorAttributeSyntaxContext syntaxContext, CancellationToken cancellationToken)
+    private static GenerationResult? GenerateDiagnostic(GeneratorAttributeSyntaxContext syntaxContext, CancellationToken cancellationToken)
     {
         var targetInfo = TargetInfo.Create(syntaxContext, cancellationToken);
         if (targetInfo is null)
@@ -106,16 +112,7 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
             diagnostics.Add(Diagnostics.InternalError(ex));
         }
 
-        return new DiagnosticGenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
-    }
-
-    private static void Emit(SourceProductionContext context, DiagnosticGenerationResult result)
-    {
-        foreach (var diagnostic in result.Diagnostics)
-            context.ReportDiagnostic(diagnostic.ToDiagnostic());
-
-        if (result.FileName is not null && result.Source is not null)
-            context.AddSource(result.FileName, SourceText.From(result.Source, Encoding.UTF8));
+        return new GenerationResult(fileName, source, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
     private static bool ValidateTarget(List<DiagnosticInfo> diagnostics, TargetInfo targetInfo)
@@ -189,6 +186,19 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
 
         Debug.Assert(parentSymbol is not null);
 
+        // Route body emission through the return-type strategy seam so the live and cacheable return shapes
+        // are peers. A return type that maps to no strategy is a usage error: report a precise, located
+        // SDG1004 and emit no source (accumulate-and-continue — never throw).
+        var strategy = DiagnosticEmitStrategy.ForReturnType(methodSymbol!.ReturnType, semanticModel.Compilation);
+        if (strategy is null)
+        {
+            diagnostics.Add(Diagnostics.UnsupportedReturnType(
+                LocationInfo.CreateFrom(targetMethod.ReturnType.GetLocation()),
+                methodSymbol.Name,
+                methodSymbol.ReturnType.ToDisplayString()));
+            return null;
+        }
+
         UsingDirectiveSet additionalUsings = new UsingDirectiveSet([]);
 
 
@@ -257,12 +267,9 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
 
         ExpressionSyntax? locationExpr = null;
         ExpressionSyntax? severityExpr = null;
-        ExpressionSyntax additionalLocationsExpr = LiteralExpression(SyntaxKind.NullLiteralExpression);
-        ExpressionSyntax propertiesExpr = LiteralExpression(SyntaxKind.NullLiteralExpression);
 
         List<ExpressionSyntax> messageArgExprs = [];
 
-        var locationTypeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(Location).FullName!);
         var diagnosticSeverityTypeSymbol = semanticModel.Compilation.GetTypeByMetadataName(typeof(DiagnosticSeverity).FullName!);
 
         foreach (ParameterSyntax parameter in targetMethod.ParameterList.Parameters)
@@ -270,50 +277,59 @@ public sealed class DiagnosticsGenerator : IIncrementalGenerator
             var paramSymbol = semanticModel.GetDeclaredSymbol(parameter, cancellationToken);
             Debug.Assert(paramSymbol is not null);
 
-            if (SymbolEqualityComparer.Default.Equals(paramSymbol!.Type, locationTypeSymbol))
+            if (strategy.IsLocationParameter(paramSymbol!, semanticModel.Compilation))
             {
                 locationExpr = IdentifierName(parameter.Identifier);
             }
             else if (SymbolEqualityComparer.Default.Equals(paramSymbol!.Type, diagnosticSeverityTypeSymbol))
             {
                 severityExpr = IdentifierName(parameter.Identifier);
+
+                if (strategy.ValidateParameter(paramSymbol!, ParameterRole.Severity, semanticModel.Compilation,
+                        LocationInfo.CreateFrom(parameter.GetLocation())) is { } severityDiagnostic)
+                {
+                    diagnostics.Add(severityDiagnostic);
+                }
             }
             else
             {
                 messageArgExprs.Add(IdentifierName(parameter.Identifier));
+
+                if (strategy.ValidateParameter(paramSymbol!, ParameterRole.MessageArg, semanticModel.Compilation,
+                        LocationInfo.CreateFrom(parameter.GetLocation())) is { } messageArgDiagnostic)
+                {
+                    diagnostics.Add(messageArgDiagnostic);
+                }
             }
         }
 
-        locationExpr ??= LiteralExpression(SyntaxKind.NullLiteralExpression);
-        severityExpr ??= LiteralExpression(SyntaxKind.NullLiteralExpression);
+        // SDG1005 (accumulate-and-continue, mirroring SDG1004): a cacheable factory with an unsupported
+        // severity or non-string message-arg parameter emits no source.
+        if (diagnostics.Any(d => d.Descriptor.Id == "SDG1005"))
+            return null;
 
         members.Add(targetMethod
             .WithSemicolonToken(Token(SyntaxKind.None))
             .WithAttributeLists([]) // clear the attribute
             .WithBody(
                 Block(
-                    ReturnStatement(
-                        InvocationExpression(
-                            MemberAccessExpression(
-                                SyntaxKind.SimpleMemberAccessExpression,
-                                additionalUsings.GetTypeName(
-                                    ParseName(typeof(Diagnostic).FullName!)
-                                ),
-                                IdentifierName("Create")),
-                            ArgumentList(
-                                SeparatedList([
-                                    Argument(IdentifierName(descriptorName)),
-                                    Argument(locationExpr),
-                                    Argument(severityExpr),
-                                    Argument(additionalLocationsExpr),
-                                    Argument(propertiesExpr),
-                                    .. messageArgExprs.Select(Argument)
-                                ]))))
-                )));
+                    strategy.BuildReturn(
+                        IdentifierName(descriptorName),
+                        locationExpr,
+                        severityExpr,
+                        messageArgExprs,
+                        additionalUsings))));
 
 
-        // clone the parent but with the new member
-        var classDecl = parent.WithMembers(List(members));
+        // Rebuild a clean partial shell (mirroring MatchComposer) rather than cloning the user's declaration.
+        // Cloning kept the parent's AttributeLists (an AllowMultiple=false attribute duplicates -> CS0579),
+        // BaseList, and C# 12 primary-constructor ParameterList (a duplicate primary ctor). Keep only the
+        // identifier, modifiers, and type parameters/constraints (the latter also carries generic containers).
+        var classDecl = ClassDeclaration(parent.Identifier)
+            .WithModifiers(parent.Modifiers)
+            .WithTypeParameterList(parent.TypeParameterList)
+            .WithConstraintClauses(parent.ConstraintClauses)
+            .WithMembers(List(members));
 
         var targetSyntax = classDecl.WithAncestryFrom(parentSymbol!);
 

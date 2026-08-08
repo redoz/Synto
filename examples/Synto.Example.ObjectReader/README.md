@@ -20,10 +20,10 @@ This is a deliberate **dog-food**: build a real, semi-complex generator *with Sy
 The generator (`Synto.Example.ObjectReader.Generator`) consumes Synto purely as analyzers — no `Synto.Core`
 runtime dependency — and exercises three Synto surfaces:
 
-- **Synto Templating (`[Template]` / `[Inline]`).** The invariant `IDataReader` skeleton (the enumerator field +
+- **Synto Templating (`[Template]` / `[Splice]`).** The invariant `IDataReader` skeleton (the enumerator field +
   constructor, `GetValues`/`IsDBNull`/indexers, the typed getters, `Read`/`Close`/`Dispose`, the unsupported
   members, helpers) is authored once as real C# in `ReaderTemplate.cs` and quoted by a single
-  `[Template(typeof(Factory))]` class. The element type flows in as a syntax hole via `[Inline(AsSyntax = true)] T`.
+  `[Template<Factory>]` class. The element type flows in as a syntax hole via `[Splice] T`.
   The five **list-driven** members (`FieldCount` + the four switches) cannot be a fixed template — they are raw
   `SyntaxFactory`, swapped in over the templated skeleton (see the friction log).
 - **`Synto.Diagnostics` (`[Diagnostic]`).** `SOR0001` (member not found, skipped), `SOR0002` (members not

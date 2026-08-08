@@ -6,11 +6,12 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace Synto.Test.Templating;
 
 /// <summary>
-/// Exercises the generic syntax-builder mechanism (plan Task 3): the built-in <c>Member</c>/<c>TypeOf</c>
-/// facades (hand-authored on <c>Template</c>, recognized by binding) and user <c>[SyntaxBuilder]</c> methods
-/// (facade synthesized, recognized structurally). A recognized facade call is rewritten to a fully-qualified
-/// static invocation of the paired builder over processed arguments: a <c>[Quoted]</c> parameter receives the
-/// quote of the call argument, an unmarked parameter the live value verbatim.
+/// Exercises the generic syntax-builder mechanism (plan Task 3): <c>[SyntaxBuilder]</c> methods — including
+/// the built-in <c>Member</c> builder and the operator builders (<c>TypeOf</c> on <c>OperatorBuilders</c>) —
+/// are all discovered exactly like a user builder (facade synthesized, recognized structurally; nothing is
+/// bind-recognized by a hardcoded name). A recognized facade call is rewritten to a fully-qualified static
+/// invocation of the paired builder over processed arguments: a <c>[Quoted]</c> parameter receives the quote
+/// of the call argument, an unmarked parameter the live value verbatim.
 /// </summary>
 public class SyntaxBuilderTest
 {
@@ -35,7 +36,7 @@ public class SyntaxBuilderTest
         MetadataReference.CreateFromFile(SyntoCoreAssembly.Location),
     ];
 
-    private static Compilation CompilationWithSource(string source) =>
+    private static CSharpCompilation CompilationWithSource(string source) =>
         CSharpCompilation.Create("Test",
             [CSharpSyntaxTree.ParseText(source)],
             references: References,
@@ -80,7 +81,30 @@ public class SyntaxBuilderTest
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .ToList();
         Assert.True(errors.Count == 0,
-            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
+    /// <summary>
+    /// Snapshot the factory for a template that calls the built-in <c>Member</c> builder. <c>Member</c> now
+    /// rides the SAME structural discovery as a user <c>[SyntaxBuilder]</c> (plan Task 1): the authoring call
+    /// is genuinely UNBOUND (no <c>Template.Member</c> facade), and structural discovery needs the injected
+    /// <c>SyntoBuilders</c>' <c>[SyntaxBuilder]</c> declaration present in the analyzed compilation — supplied
+    /// by <see cref="SurfaceInjectionGenerator"/>'s post-initialization output, exactly as a real consumer's
+    /// paired generators see it (mirrors <c>SwitchBuilderTest</c>'s discovery setup for the other built-in-
+    /// surface builders). Injecting into the COMPILATION first (rather than adding the generator alongside
+    /// <see cref="TemplateFactorySourceGenerator"/> in one driver) keeps the snapshotted result scoped to just
+    /// the factory output — no injected-marker noise — so the existing Factory.*.g snapshot stays put.
+    /// </summary>
+    private async Task VerifyBuiltInBuilderTemplate(string source)
+    {
+        var compilation = CompilationWithSource(source);
+
+        var injectDriver = CSharpGeneratorDriver.Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector());
+        injectDriver.RunGeneratorsAndUpdateCompilation(compilation, out var injectedCompilation, out _, TestContext.Current.CancellationToken);
+
+        var result = _driver.RunGenerators(injectedCompilation);
+        var ret = await Verify(result).UseDirectory("snapshots");
+        Assert.NotEmpty(ret.Files);
     }
 
     private ImmutableArray<Diagnostic> RunAndGetDiagnostics(string source)
@@ -90,23 +114,39 @@ public class SyntaxBuilderTest
         return result.GetRunResult().Diagnostics;
     }
 
+    /// <summary>
+    /// Same as <see cref="RunAndGetDiagnostics"/>, but injects the surface (<c>SyntoBuilders</c> + markers)
+    /// into the compilation first, so a call to the built-in <c>Member</c> builder is discovered structurally
+    /// (see <see cref="VerifyBuiltInBuilderTemplate"/>).
+    /// </summary>
+    private ImmutableArray<Diagnostic> RunAndGetDiagnosticsWithInjectedSurface(string source)
+    {
+        var compilation = CompilationWithSource(source);
+        var injectDriver = CSharpGeneratorDriver.Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector());
+        injectDriver.RunGeneratorsAndUpdateCompilation(compilation, out var injectedCompilation, out _, TestContext.Current.CancellationToken);
+        var result = _driver.RunGenerators(injectedCompilation);
+        return result.GetRunResult().Diagnostics;
+    }
+
     private static void AssertHasRealSpan(Diagnostic diag)
     {
         Assert.NotEqual(Location.None, diag.Location);
         Assert.False(diag.Location.SourceSpan.IsEmpty);
     }
 
-    // Built-in identifier builder with a CONSTANT name -> member access in output.
+    // Built-in identifier builder with a CONSTANT name -> member access in output. `Member` is discovered
+    // structurally (like any user [SyntaxBuilder]): the call is genuinely UNBOUND pre-generation (no
+    // Template.Member facade), so this uses VerifyBuiltInBuilderTemplate rather than VerifyTemplate.
     [Fact]
     public async Task Member_WithConstantName_EmitsMemberAccess()
     {
-        await VerifyTemplate(
+        await VerifyBuiltInBuilderTemplate(
             """
             using Synto.Templating;
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build<[Splice] T>(T instance) {
                     var x = Member<object>(instance, "Name");   // -> instance.Name in OUTPUT (identifier, not "Name")
                     System.Console.WriteLine(x);
@@ -127,7 +167,7 @@ public class SyntaxBuilderTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] ExpressionSyntax node) {
                     System.Console.WriteLine(Splice(node));   // -> Console.WriteLine(node) in OUTPUT
                 }
@@ -149,16 +189,141 @@ public class SyntaxBuilderTest
             // builder (factory-time); Synto synthesizes the inert facade `T Cast<T>(object x)`.
             static partial class MyBuilders {
                 [SyntaxBuilder]
-                public static ExpressionSyntax Cast([Quoted(AsTypeArg = true), ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => CastExpression(t, x);
+                public static ExpressionSyntax Cast([TypeArg, ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => CastExpression(t, x);
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) {
                     System.Console.WriteLine(MyBuilders.Cast<int>(x));
                 }
             }
             """);
+    }
+
+    // [TypeArg] surfaces a facade generic type parameter; Name decouples the facade type-param name from the
+    // builder parameter name. Proven by post-generation compile: the synthesized `TResult Cast<TResult>(object x)`
+    // resolves the consumer's `Cast<int>(x)`. Compile-only (no snapshot).
+    [Fact]
+    public void TypeArg_WithName_SynthesizesGenericFacadeThatCompiles()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Cast([TypeArg(Name = "TResult"), ReturnType] TypeSyntax targetType, [Quoted] ExpressionSyntax x)
+                    => CastExpression(targetType, x);
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) {
+                    System.Console.WriteLine(MyBuilders.Cast<int>(x));
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
+    // [TypeArg(Constraint = ...)] emits a `where T : Constraint` clause on the facade, so a consumer type
+    // argument that violates it is a compile error (CS0311). This proves the constraint is emitted, not ignored.
+    [Fact]
+    public void TypeArg_Constraint_RejectsViolatingTypeArgument()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Cast([TypeArg(Name = "T", Constraint = typeof(System.IComparable)), ReturnType] TypeSyntax targetType, [Quoted] ExpressionSyntax x)
+                    => CastExpression(targetType, x);
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) {
+                    System.Console.WriteLine(MyBuilders.Cast<object>(x)); // object does NOT satisfy `where T : IComparable`
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.Contains(errors, d => d.Id == "CS0311");
+    }
+
+    // A consumer type argument that SATISFIES the [TypeArg] constraint still compiles cleanly.
+    [Fact]
+    public void TypeArg_Constraint_AcceptsSatisfyingTypeArgument()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Cast([TypeArg(Name = "T", Constraint = typeof(System.IComparable)), ReturnType] TypeSyntax targetType, [Quoted] ExpressionSyntax x)
+                    => CastExpression(targetType, x);
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) {
+                    System.Console.WriteLine(MyBuilders.Cast<string>(x)); // string satisfies `where T : IComparable`
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
     }
 
     // META: an UNMARKED ExpressionSyntax builder parameter receives a LIVE ExpressionSyntax passed through
@@ -180,10 +345,66 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
-                    var node = Parameter<ExpressionSyntax>("node");
+                    var node = Unquote<ExpressionSyntax>("node");
                     System.Console.WriteLine(MetaBuilders.Splice(node));
+                }
+            }
+            """);
+    }
+
+    // BUG #1 (Scope-C Stage 2): a Template.Splice(node) call INSIDE a [Quoted] builder argument must INJECT
+    // `node` (the quote of `Splice(node)` is the live node), yielding `Wrap(node)`. Today the plan-time island
+    // sub-quoter is built before splice-call replacements are registered, so it quotes the `Splice(...)`
+    // invocation raw. Re-entry over the full plan fixes this.
+    [Fact]
+    public async Task SpliceInsideQuotedBuilderArg_InjectsSplicedNode()
+    {
+        await VerifyBuilderTemplate(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] ExpressionSyntax node) {
+                    System.Console.WriteLine(MyBuilders.Wrap(Splice(node)));   // -> Wrap(node) in OUTPUT
+                }
+            }
+            """);
+    }
+
+    // BUG #2 (Scope-C Stage 2): a nested builder call `A(B(x))` must EXPAND the inner builder — the inner
+    // `[Quoted]` island is itself a builder call and should become a real builder invocation, yielding
+    // `Wrap(Wrap(x))`. Today the plan-time island sub-quoter cannot see the sibling builder replacements
+    // (added during/after its construction), so it quotes the inner call raw. Re-entry fixes this.
+    [Fact]
+    public async Task NestedBuilderCalls_ExpandInnerBuilder()
+    {
+        await VerifyBuilderTemplate(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] ExpressionSyntax x) {
+                    System.Console.WriteLine(MyBuilders.Wrap(MyBuilders.Wrap(x)));   // -> Wrap(Wrap(x)) in OUTPUT
                 }
             }
             """);
@@ -200,13 +421,13 @@ public class SyntaxBuilderTest
             partial class Factory {}
 
             static partial class Bad {
-                // [ReturnType] without [Quoted(AsTypeArg = true)] -> facade-synthesis error.
+                // [ReturnType] without [TypeArg] -> facade-synthesis error.
                 [SyntaxBuilder]
                 public static ExpressionSyntax Foo([ReturnType] ExpressionSyntax x) => x;
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Bad.Foo(x));
             }
             """);
@@ -226,11 +447,11 @@ public class SyntaxBuilderTest
 
             static partial class Builders {
                 [SyntaxBuilder]
-                public static ExpressionSyntax Cast([Quoted(AsTypeArg = true), ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => x;
+                public static ExpressionSyntax Cast([TypeArg, ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => x;
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Builders.Cast(x)); // no <int> type arg
             }
             """);
@@ -255,7 +476,7 @@ public class SyntaxBuilderTest
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Bad.Nope(x));
             }
             """);
@@ -274,15 +495,16 @@ public class SyntaxBuilderTest
             partial class Factory {}
 
             static partial class Builders {
-                // two builders with the SAME facade name `Wrap` -> ambiguous once a call matches.
+                // two builders with the SAME facade name `Wrap`, same arity, differing binding shapes, both
+                // object-facing (one [Quoted], one [Constant]) -> a call cannot distinguish them -> SY1018.
                 [SyntaxBuilder]
                 public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
                 [SyntaxBuilder]
-                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x, [Quoted] ExpressionSyntax y) => x;
+                public static ExpressionSyntax Wrap([Constant] Microsoft.CodeAnalysis.SyntaxNode x) => (ExpressionSyntax)x;
             }
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object x) => System.Console.WriteLine(Builders.Wrap(x));
             }
             """);
@@ -290,9 +512,179 @@ public class SyntaxBuilderTest
         AssertHasRealSpan(diag);
     }
 
+    // Overload resolution (Task 2 widening): two same-name overloads with DIFFERENT binding shapes — staged
+    // `Pick(ExpressionSyntax, …)` and constant `Pick([Constant] SyntaxNode, …)`. Before the widening they trip
+    // SY1018 (ShareBindingShape rejects the differing kinds); after, the finder resolves each call by argument
+    // type — an int argument binds the constant overload (lifted via ToSyntax), an ExpressionSyntax argument the
+    // staged overload (passed verbatim).
+    //
+    // The `Pick(7, Picks.Wrap(v))` call is the guard for the resolver's object-facing rule (spec
+    // `2026-07-11-builder-overload-resolution-design.md` §4): its second argument is a NESTED facade call
+    // (`Wrap`), which is UNBOUND in the analyzed compilation (a synthesized facade, not present) — so
+    // `GetTypeInfo(...).Type` on it is null/error. A resolver that type-checked EVERY argument would reject both
+    // `Pick` candidates at that `[Quoted]` slot and spuriously report SY1018. Because the two overloads differ
+    // only at the object-facing value param, the int/first-arg alone must decide. This mirrors the real dog-food
+    // call `Arm(c.Ordinal, Member<TRet>(...))` — do NOT drop this call; it is the case the naive resolver fails.
+    [Fact]
+    public void NonSharedShapeOverloads_ResolvedByArgumentType_NoSY1018()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis;
+            using Microsoft.CodeAnalysis.CSharp;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class Picks {
+                [SyntaxBuilder]
+                public static SwitchExpressionArmSyntax Pick(ExpressionSyntax pattern, [Quoted] ExpressionSyntax v)
+                    => SwitchExpressionArm(ConstantPattern(pattern), v);
+                [SyntaxBuilder]
+                public static SwitchExpressionArmSyntax Pick([Constant] SyntaxNode label, [Quoted] ExpressionSyntax v)
+                    => SwitchExpressionArm(ConstantPattern((ExpressionSyntax)label), v);
+                // A nested [Quoted]-island builder returning ExpressionSyntax — its bare facade call is unbound in
+                // the analyzed compilation, so it stresses the object-facing rule when used as a `[Quoted]` argument.
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax inner) => inner;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object v) {
+                    var a = Picks.Pick(42, v);                                             // int -> constant overload
+                    var b = Picks.Pick(LiteralExpression(SyntaxKind.NullLiteralExpression), v); // ExpressionSyntax -> staged
+                    var c = Picks.Pick(7, Picks.Wrap(v));                                  // nested UNBOUND facade as [Quoted] arg -> constant overload, no SY1018
+                    System.Console.WriteLine(a);
+                    System.Console.WriteLine(b);
+                    System.Console.WriteLine(c);
+                }
+            }
+            """;
+
+        var diagnostics = RunAndGetDiagnostics(source);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SY1018");
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        // The int-arg calls resolved to the CONSTANT overload (their arguments are lifted via ToSyntax); the
+        // ExpressionSyntax-arg call resolved to the STAGED overload (its argument is passed verbatim, not lifted).
+        var generated = RunAndGetGeneratedText(source);
+        Assert.Contains("42.ToSyntax()", generated, StringComparison.Ordinal);
+        Assert.Contains("7.ToSyntax()", generated, StringComparison.Ordinal); // nested-facade arg did not block resolution
+    }
+
+    // Widening must NOT swallow genuine ambiguity: two non-shared-shape overloads BOTH applicable to the same
+    // argument with no most-specific winner still report SY1018 (spec §6). Both `Two` overloads are object-facing
+    // (one [Quoted], one [Constant]) so a `null` argument ties them.
+    [Fact]
+    public void NonSharedShapeOverloads_TrulyAmbiguous_StillReportsSY1018()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Amb {
+                // Both faces `object` (one [Quoted], one [Constant]) -> a `null` argument -> equal object-param
+                // counts -> tied -> SY1018.
+                [SyntaxBuilder]
+                public static ExpressionSyntax Two([Quoted] ExpressionSyntax x) => x;
+                [SyntaxBuilder]
+                public static ExpressionSyntax Two([Constant] SyntaxNode x) => (ExpressionSyntax)x;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build() => System.Console.WriteLine(Amb.Two(null));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1018");
+        AssertHasRealSpan(diag);
+    }
+
+    // Task 3 (spec §2.2): ordinal Arm overload — `Arm(c.Ordinal, value)` lifts the factory-time ordinal into a
+    // constant literal pattern (via ToSyntax) and pairs it with a quoted value island — no hand-built
+    // ConstantPattern(Literal(...)). Resolves the new constant Arm overload against the existing staged
+    // Arm(ExpressionSyntax, …) via Task 2's argument-directed resolver (int arg → constant overload, no SY1018).
+    [Fact]
+    public void OrdinalArm_LiftsOrdinal_AndCompiles()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using static Synto.Templating.SyntoBuilders;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                object Build([Splice] object obj) => Switch<object>(obj, Arm(2, Member<object>(obj, "X")));
+            }
+            """;
+
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(source);
+        Assert.Contains("SyntoBuilders.Arm", generated, StringComparison.Ordinal);
+        Assert.Contains("2.ToSyntax()", generated, StringComparison.Ordinal); // ordinal lifted, not hand-built
+
+        // Post-gen compiles clean (two Arm overloads coexist, no SY1018).
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
+    // Task 3 regression (spec §4): the EXISTING staged Arm(<built pattern>, value) overload still binds — an
+    // ExpressionSyntax first argument resolves the staged overload (more specific than the ordinal's `object`
+    // facade param) and is passed verbatim (never lifted via ToSyntax).
+    [Fact]
+    public void StagedArm_PrebuiltPattern_StillBinds()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            using static Synto.Templating.SyntoBuilders;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                object Build([Splice] object obj) => Switch<object>(obj,
+                    Arm(LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(2)), Member<object>(obj, "X")));
+            }
+            """;
+
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(source);
+        Assert.Contains("SyntoBuilders.Arm", generated, StringComparison.Ordinal);
+        // pre-built pattern passed verbatim — NOT lifted through ToSyntax (that path is the ordinal overload).
+        Assert.DoesNotContain("Literal(2).ToSyntax()", generated, StringComparison.Ordinal);
+
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
     // Zero-collision: the built-in Member builder is injected internal and called fully-qualified, so the
     // generated output compiles alongside the PUBLIC Synto.Core in the default scope with no CS0121 ambiguity
     // and no Synto.Core runtime dependency (the injected SyntoBuilders is the consumer's own internal copy).
+    // Member now discovers/synthesizes like a user [SyntaxBuilder], so SyntaxBuilderFacadeGenerator must also
+    // run to supply the inert facade the ORIGINAL (pre-rewrite) template body type-checks against.
     [Fact]
     public void BuiltInBuilderOutput_CompilesAlongsidePublicSyntoCore()
     {
@@ -300,9 +692,10 @@ public class SyntaxBuilderTest
             """
             using Synto.Templating;
             using static Synto.Templating.Template;
+            using static Synto.Templating.SyntoBuilders;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build([Splice] object instance) {
                     var x = Member<object>(instance, "Name");
                     System.Console.WriteLine(x);
@@ -312,9 +705,13 @@ public class SyntaxBuilderTest
 
         var compilation = CompilationWithSource(source);
 
-        // Run BOTH generators so the injected internal SyntoBuilders (and markers) are present.
+        // Run all three generators: SurfaceInjection supplies the injected internal SyntoBuilders (and
+        // markers) that structural discovery needs, SyntaxBuilderFacadeGenerator synthesizes the inert
+        // `Member` facade the ORIGINAL template body type-checks against, and TemplateFactorySourceGenerator
+        // rewrites the recognized call to the fully-qualified builder invocation.
         var driver = CSharpGeneratorDriver.Create(
-            new SurfaceInjectionGenerator(),
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
+            new SyntaxBuilderFacadeGenerator(),
             new TemplateFactorySourceGenerator());
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
 
@@ -326,6 +723,889 @@ public class SyntaxBuilderTest
 
         Assert.DoesNotContain(errors, d => d.Id == "CS0121");
         Assert.True(errors.Count == 0,
-            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage())));
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
+    // Task 2: the injected operator surface exists and its inert value facade synthesizes. A carrier that
+    // imports `using static …Operators` and writes `System.Type t = TypeOf("System.Int32");` type-checks
+    // against the synthesized `Operators.TypeOf(string) : System.Type`, and the factory rewrites the call to
+    // the fully-qualified `OperatorBuilders.TypeOf(...)`. Uses the three-generator driver like
+    // BuiltInBuilderOutput_CompilesAlongsidePublicSyntoCore.
+    [Fact]
+    public void OperatorSurface_TypeOf_Synthesizes_And_Compiles()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                System.Type Build(int i) => TypeOf("System.Int32");
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var errors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        Assert.True(errors.Count == 0,
+            "Post-generation compilation reported errors: " + string.Join("; ", errors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+    }
+
+    // Task 3 (spec §5): TypeOf rides the structural [SyntaxBuilder] path — recognized because
+    // OperatorBuilders.TypeOf is a registered builder, NOT because the finder hardcodes the name "TypeOf".
+    // The rewritten factory calls the fully-qualified OperatorBuilders.TypeOf; the deleted SyntoBuilders.TypeOf
+    // never appears. Regression pin (may already pass after Task 2's builder registration).
+    [Fact]
+    public void TypeOf_RecognizedStructurally_NotByHardcodedName()
+    {
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                System.Type Build(int i) => TypeOf("System.Int32");
+            }
+            """);
+
+        // Rewritten to the structural builder target (OperatorBuilders), not the deleted SyntoBuilders.TypeOf.
+        Assert.Contains("OperatorBuilders.TypeOf", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("SyntoBuilders.TypeOf", generated, StringComparison.Ordinal);
+    }
+
+    // Task 3: source guard that the hardwired by-name arm is physically gone from FacadeCallFinder — no
+    // `TryBuiltIn` / `IsBuiltInFacadeName` members remain (they only existed to bind-recognize Template.TypeOf).
+    // Red-first: fails until the arm is deleted.
+    [Fact]
+    public void FacadeCallFinder_HasNoHardcodedBuiltInArm()
+    {
+        var t = typeof(TemplateFactorySourceGenerator).Assembly
+            .GetType("Synto.Generators.Templating.Builders.FacadeCallFinder", throwOnError: true)!;
+        var names = t.GetMethods(BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
+            .Select(m => m.Name).ToList();
+        Assert.DoesNotContain("TryBuiltIn", names);
+        Assert.DoesNotContain("IsBuiltInFacadeName", names);
+    }
+
+    // Task 4 (spec §2/§5): NameOf is a SECOND operator builder, proving the mechanism generalizes beyond
+    // TypeOf. NameOf("Foo.Bar") emits `nameof(Foo.Bar)` in output, and the value facade returns `string`.
+    [Fact]
+    public void NameOf_EmitsNameofExpression()
+    {
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                string Build() => NameOf("Foo.Bar");
+            }
+            """);
+
+        // The factory rewrites the call to the fully-qualified builder ...
+        Assert.Contains("OperatorBuilders.NameOf", generated, StringComparison.Ordinal);
+    }
+
+    // Task 4: executed end-to-end proof (modeled on UserBuilder_Executed_QuotedArgumentReachesBuilder) that
+    // NameOf actually RUNS at factory time and produces `nameof(Foo.Bar)` — the rewrite-target assertion above
+    // only pins the call rewrite, not the rendered output.
+    [Fact]
+    public void NameOf_Executed_EmitsNameofExpression()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+
+            partial class Factory {}
+
+            [Template<Factory>]
+            public class Reader {
+                public string Build() => NameOf("Foo.Bar");
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var compileErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(compileErrors.Count == 0,
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        using var peStream = new System.IO.MemoryStream();
+        var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        var assembly = Assembly.Load(peStream.ToArray());
+        var readerFactory = assembly.GetType("Factory")!.GetMethod("Reader")!;
+        var built = readerFactory.Invoke(null, null);
+
+        var node = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.SyntaxNode>(built!);
+        var rendered = node.NormalizeWhitespace().ToString();
+        Assert.Contains("nameof(Foo.Bar)", rendered, System.StringComparison.Ordinal);
+    }
+
+    // Task 5 (spec §2/§5): SizeOf is the THIRD operator builder, completing the closed family (typeof/nameof/
+    // sizeof). SizeOf("int") emits `sizeof(int)` in output, and the value facade returns `int`.
+    [Fact]
+    public void SizeOf_EmitsSizeofExpression()
+    {
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                int Build() => SizeOf("int");
+            }
+            """);
+
+        // The factory rewrites the call to the fully-qualified builder ...
+        Assert.Contains("OperatorBuilders.SizeOf", generated, StringComparison.Ordinal);
+    }
+
+    // Task 5: executed end-to-end proof (modeled on NameOf_Executed_EmitsNameofExpression) that SizeOf actually
+    // RUNS at factory time and produces `sizeof(int)` — the rewrite-target assertion above only pins the call
+    // rewrite, not the rendered output.
+    [Fact]
+    public void SizeOf_Executed_EmitsSizeofExpression()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+
+            partial class Factory {}
+
+            [Template<Factory>]
+            public class Reader {
+                public int Build() => SizeOf("int");
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var compileErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(compileErrors.Count == 0,
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        using var peStream = new System.IO.MemoryStream();
+        var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        var assembly = Assembly.Load(peStream.ToArray());
+        var readerFactory = assembly.GetType("Factory")!.GetMethod("Reader")!;
+        var built = readerFactory.Invoke(null, null);
+
+        var node = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.SyntaxNode>(built!);
+        var rendered = node.NormalizeWhitespace().ToString();
+        Assert.Contains("sizeof(int)", rendered, System.StringComparison.Ordinal);
+    }
+
+    // Task 1 (spec §2.1): Coalesce is a fixed-ExpressionSyntax-facade `??` builder. A bare, type-argument-free
+    // `Coalesce(left, right)` is rewritten to the fully-qualified `OperatorBuilders.Coalesce`, and its [Quoted]
+    // operand islands expand nested builders via re-entry — a nested `Member(...)` becomes `SyntoBuilders.Member`.
+    [Fact]
+    public void Coalesce_RewritesToBuilder_AndExpandsNestedMember()
+    {
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            using static Synto.Templating.SyntoBuilders;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                object Build([Splice] object obj) =>
+                    Coalesce(Member<object>(obj, "X"), Throw<object>(Member<object>(obj, "Err")));
+            }
+            """);
+
+        // Fixed-ExpressionSyntax facade: rewritten to the fully-qualified builder (no call-site type argument).
+        Assert.Contains("OperatorBuilders.Coalesce", generated, StringComparison.Ordinal);
+        // The [Quoted] operand islands expand nested builders (Member / Throw) via re-entry.
+        Assert.Contains("SyntoBuilders.Member", generated, StringComparison.Ordinal);
+        Assert.Contains("SyntoBuilders.Throw", generated, StringComparison.Ordinal);
+    }
+
+    // Task 1: executed end-to-end proof (modeled on NameOf_Executed_EmitsNameofExpression) that a BARE
+    // `Coalesce(...)` (no type argument) type-checks against the ExpressionSyntax facade, the post-gen output
+    // compiles clean, and the factory renders `obj.X ?? throw obj.Err` — proving both `??` emission and the
+    // nested Member/Throw re-entry.
+    [Fact]
+    public void Coalesce_Executed_EmitsCoalesceWithThrow()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Operators;
+            using static Synto.Templating.SyntoBuilders;
+
+            partial class Factory {}
+
+            [Template<Factory>]
+            public class Reader {
+                public object Build([Splice] object obj) =>
+                    Coalesce(Member<object>(obj, "X"), Throw<object>(Member<object>(obj, "Err")));
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new MatchSurfaceInjector(), new TemplateSurfaceInjector(),
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var compileErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(compileErrors.Count == 0,
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        using var peStream = new System.IO.MemoryStream();
+        var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        var assembly = Assembly.Load(peStream.ToArray());
+        var readerFactory = assembly.GetType("Factory")!.GetMethod("Reader")!;
+        var obj = Microsoft.CodeAnalysis.CSharp.SyntaxFactory.IdentifierName("row");
+        var built = readerFactory.Invoke(null, new object?[] { obj });
+
+        var node = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.SyntaxNode>(built!);
+        var rendered = node.NormalizeWhitespace().ToString();
+        Assert.Contains("?? throw", rendered, System.StringComparison.Ordinal);
+        Assert.Contains(".X", rendered, System.StringComparison.Ordinal);
+    }
+
+    // #1: a call whose simple name COLLIDES with a registered builder but which BINDS to a real, unrelated
+    // user method must NOT be hijacked as a builder facade — it is quoted verbatim. Today the finder matches by
+    // simple name alone and mis-binds `settings.Wrap()` (0 args) to the 1-param builder, emitting SY1016.
+    [Fact]
+    public void BoundUserMethodCollidingWithBuilderName_NotHijacked_NoDiagnostics()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Builders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class Settings {
+                public int Wrap() => 0; // real method, same simple name as the builder facade
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build() {
+                    var settings = new Settings();
+                    System.Console.WriteLine(settings.Wrap()); // binds to Settings.Wrap -> quote verbatim
+                }
+            }
+            """);
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+    }
+
+    // #7: named arguments on the built-in Member builder call are reported SY1029, not silently mispaired
+    // (v1 policy: diagnose, do not reorder). Member is discovered structurally, so this fires from the
+    // structural branch (FacadeCallFinder:104), not the (deleted) built-in-binding branch.
+    [Fact]
+    public void NamedArgumentsOnMemberFacade_ReportsSY1029()
+    {
+        var diagnostics = RunAndGetDiagnosticsWithInjectedSurface(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object instance) {
+                    var x = Member<object>(instance: instance, name: "Foo");
+                }
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1029");
+        AssertHasRealSpan(diag);
+    }
+
+    // Runs ONLY the facade-synthesis generator and returns its diagnostics — declaration-site misuse (SY1031)
+    // is reported by that generator's own pipeline, independent of any template call.
+    private static ImmutableArray<Diagnostic> RunFacadeGeneratorDiagnostics(string source)
+    {
+        var compilation = CSharpCompilation.Create("Test",
+            [CSharpSyntaxTree.ParseText(source)],
+            references: References,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var driver = CSharpGeneratorDriver.Create(new SyntaxBuilderFacadeGenerator());
+        return driver.RunGenerators(compilation).GetRunResult().Diagnostics;
+    }
+
+    // #10 (a): [TypeArg] and [Quoted] on one parameter is documented-forbidden -> SY1015 (annotation error).
+    [Fact]
+    public void CombinedTypeArgAndQuotedMarkers_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Combo([TypeArg, Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Combo(x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
+    // #10 (b): two facade type-parameters resolve to the same name -> SY1015 (annotation error), no CS0692.
+    [Fact]
+    public void DuplicateFacadeTypeParameterName_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Two([TypeArg(Name = "T")] TypeSyntax a, [TypeArg(Name = "T")] TypeSyntax b) => a;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Two(x, x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
+    // #10 (c): [Quoted] params is not a sound facade shape (params object) -> SY1015, never a silent shape change.
+    [Fact]
+    public void QuotedParams_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Many([Quoted] params ExpressionSyntax[] xs) => xs[0];
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Many(x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
+    // #10: a private [SyntaxBuilder] would fail CS0122 in the generated facade -> reported SY1031 at the declaration.
+    [Fact]
+    public void PrivateBuilder_ReportsSY1031()
+    {
+        var diagnostics = RunFacadeGeneratorDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+            static partial class Holder {
+                [SyntaxBuilder]
+                private static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1031");
+        AssertHasRealSpan(diag);
+    }
+
+    // #10: a non-partial container cannot be reopened for the facade (CS0260) -> reported SY1031.
+    [Fact]
+    public void NonPartialContainer_ReportsSY1031()
+    {
+        var diagnostics = RunFacadeGeneratorDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+            static class Holder {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1031");
+        AssertHasRealSpan(diag);
+    }
+
+    // #10: an interface container cannot host the reopened facade class (CS0261) -> reported SY1031.
+    [Fact]
+    public void InterfaceContainer_ReportsSY1031()
+    {
+        var diagnostics = RunFacadeGeneratorDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+            partial interface IHolder {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1031");
+        AssertHasRealSpan(diag);
+    }
+
+    // #7: named arguments on a user [SyntaxBuilder] facade call are reported SY1029.
+    [Fact]
+    public void NamedArgumentsOnUserFacade_ReportsSY1029()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Builders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) => System.Console.WriteLine(Builders.Wrap(x: x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1029");
+        AssertHasRealSpan(diag);
+    }
+
+    /// <summary>
+    /// Same as <see cref="RunAndGetGeneratedText"/>, but injects the surface (<c>SyntoBuilders</c> + markers)
+    /// into the compilation first, so a call to the built-in <c>Member</c> builder is discovered structurally
+    /// (see <see cref="VerifyBuiltInBuilderTemplate"/>).
+    /// </summary>
+    private static string RunAndGetGeneratedTextWithInjectedSurface(string source)
+    {
+        var compilation = CompilationWithSource(source);
+        var injectDriver = CSharpGeneratorDriver.Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector());
+        injectDriver.RunGeneratorsAndUpdateCompilation(compilation, out var injectedCompilation, out _, TestContext.Current.CancellationToken);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var runResult = driver.RunGenerators(injectedCompilation).GetRunResult();
+        return string.Concat(runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .Select(s => s.SourceText.ToString()));
+    }
+
+    private static string RunAndGetGeneratedText(string source)
+    {
+        var compilation = CompilationWithSource(source);
+        var driver = CSharpGeneratorDriver.Create(new TemplateFactorySourceGenerator());
+        var runResult = driver.RunGenerators(compilation).GetRunResult();
+        return string.Concat(runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .Select(s => s.SourceText.ToString()));
+    }
+
+    /// <summary>Runs ONLY the facade-synthesis generator and returns the concatenated synthesized facade source.</summary>
+    private static string RunFacadeGeneratorSource(string source)
+    {
+        var compilation = CSharpCompilation.Create("Test",
+            [CSharpSyntaxTree.ParseText(source)],
+            references: References,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var driver = CSharpGeneratorDriver.Create(new SyntaxBuilderFacadeGenerator());
+        var runResult = driver.RunGenerators(compilation).GetRunResult();
+        return string.Concat(runResult.Results
+            .SelectMany(r => r.GeneratedSources)
+            .Select(s => s.SourceText.ToString()));
+    }
+
+    // [Constant] value-axis kind: the marked builder parameter (which RECEIVES the lifted ExpressionSyntax) surfaces
+    // on the synthesized facade as an `object`-typed VALUE parameter — the author passes a factory-time value, not a
+    // hand-built syntax node. A [Constant]-bearing builder is NOT its own facade (a facade IS synthesized, exactly as
+    // for [Quoted]). Before recognition, [Constant] falls through to Staged and the facade param is typed as the
+    // builder param type (ExpressionSyntax), so this fails until FacadeShape recognizes [Constant].
+    [Fact]
+    public void ConstantParam_SynthesizesObjectTypedFacadeValueParam()
+    {
+        var facadeSource = RunFacadeGeneratorSource(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Lit([Constant] ExpressionSyntax label) => label;
+            }
+            """);
+
+        // A facade WAS synthesized for the [Constant]-bearing builder (not its-own-facade) ...
+        Assert.Contains("Lit", facadeSource, StringComparison.Ordinal);
+        // ... exposing the [Constant] parameter as an `object`-typed value parameter, NOT the builder param type.
+        Assert.Contains("object label", facadeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExpressionSyntax label", facadeSource, StringComparison.Ordinal);
+    }
+
+    // Task 4: a [Constant] builder argument is LIFTED at the binding seam via the shared value-lift — the factory
+    // passes `(<value>).ToSyntax()` for each argument (an int literal, a string, a bool, an enum — the enum rides
+    // the same `.ToSyntax()` shape — and an inlined generic type parameter), and the ToSyntax helper is injected.
+    [Fact]
+    public void ConstantArgs_LiftedViaToSyntaxAtBindingSeam()
+    {
+        var generated = RunAndGetGeneratedText(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            public enum Hue { Red, Green, Blue }
+
+            static partial class B {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Lit([Constant] ExpressionSyntax label) => label;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build<T>() {
+                    System.Console.WriteLine(B.Lit(42));
+                    System.Console.WriteLine(B.Lit("hi"));
+                    System.Console.WriteLine(B.Lit(true));
+                    System.Console.WriteLine(B.Lit(Hue.Red));
+                    System.Console.WriteLine(B.Lit(default(T)));
+                }
+            }
+            """);
+
+        // Each [Constant] argument is lifted to `<value>.ToSyntax()` in the factory (verbatim value, not a raw node).
+        Assert.Contains("42.ToSyntax()", generated, StringComparison.Ordinal);
+        Assert.Contains("\"hi\".ToSyntax()", generated, StringComparison.Ordinal);
+        Assert.Contains("true.ToSyntax()", generated, StringComparison.Ordinal);
+        Assert.Contains("Hue.Red.ToSyntax()", generated, StringComparison.Ordinal);
+        Assert.Contains("default(T).ToSyntax()", generated, StringComparison.Ordinal);
+        // The file-local ToSyntax helper is injected (its `.ToSyntax()` calls now appear in the factory).
+        Assert.Contains("ToSyntax", generated, StringComparison.Ordinal);
+    }
+
+    // Guard: [Constant] and [Quoted] on one parameter are mutually-exclusive value-axis kinds -> SY1015.
+    [Fact]
+    public void CombinedConstantAndQuotedMarkers_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Combo([Constant, Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Combo(x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
+    // Guard: [Constant] and [TypeArg] are on different axes (value vs type) and must never combine -> SY1015.
+    [Fact]
+    public void CombinedConstantAndTypeArgMarkers_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Combo([Constant, TypeArg] TypeSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Combo<int>());
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
+    // Guard: [Constant] params is not a sound facade shape (params object) -> SY1015, mirroring [Quoted] params.
+    [Fact]
+    public void ConstantParams_ReportsSY1015()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Bad {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Many([Constant] params ExpressionSyntax[] xs) => xs[0];
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) => System.Console.WriteLine(Bad.Many(x));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1015");
+        AssertHasRealSpan(diag);
+    }
+
+    // #12a: a carrier `using` whose namespace merely STARTS WITH "Synto" (e.g. `SyntoX.Helpers`) is a legitimate
+    // third-party namespace and must transplant normally — the Synto-surface exclusion is exact-or-dotted-prefix
+    // (`== "Synto"` or `StartsWith("Synto.")`), not a bare `StartsWith("Synto")`. A built-in facade call (Member,
+    // whose `name` argument is a STAGED binding) triggers the carrier-usings transplant.
+    [Fact]
+    public void CarrierUsing_SyntoPrefixedButNotSyntoNamespace_IsTransplanted()
+    {
+        var generated = RunAndGetGeneratedTextWithInjectedSurface(
+            """
+            using Synto.Templating;
+            using static Synto.Templating.Template;
+            using SyntoX.Helpers;
+            partial class Factory {}
+
+            namespace SyntoX.Helpers { public static class H {} }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build<[Splice] T>(T instance) {
+                    var x = Member<object>(instance, "Foo");
+                    System.Console.WriteLine(x);
+                }
+            }
+            """);
+
+        Assert.Contains("SyntoX.Helpers", generated, System.StringComparison.Ordinal);
+    }
+
+    // #12b: a builder call whose arguments are PURELY quoted (no staged/verbatim binding) does NOT drag the
+    // carrier's usings into the factory — the transplant trigger is gated on a builder call carrying at least one
+    // staged argument binding. `Wrap([Quoted] ExpressionSyntax x)` has only a quoted arg, so `using System.Linq;`
+    // on the carrier is not transplanted.
+    [Fact]
+    public void QuotedOnlyBuilderCall_DoesNotTransplantCarrierUsings()
+    {
+        var generated = RunAndGetGeneratedText(
+            """
+            using System.Linq;
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            partial class Factory {}
+
+            static partial class Builders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Wrap([Quoted] ExpressionSyntax x) => x;
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) => System.Console.WriteLine(Builders.Wrap(x));
+            }
+            """);
+
+        Assert.DoesNotContain("using System.Linq;", generated, System.StringComparison.Ordinal);
+    }
+
+    // Cacheability guard (#22): the facade generator's pipeline carries only the equatable
+    // FacadeGenerationResult (no captured Compilation/SemanticModel/SyntaxNode), so an unrelated edit must
+    // leave EVERY tracked step Cached/Unchanged. Fails first because the pipeline steps are untracked; passes
+    // once WithTrackingName is wired. Iterating ALL steps closes the upstream blind spot a terminal-only guard
+    // has (a future Combine/symbol capture would re-run here and fail).
+    [Fact]
+    public void FacadeGenerator_IsIncremental_OnUnrelatedEdit()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Cast([TypeArg, ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => CastExpression(t, x);
+            }
+
+            public class TestClass {
+                [Template<Factory>]
+                void Build([Splice] object x) {
+                    System.Console.WriteLine(MyBuilders.Cast<int>(x));
+                }
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: new[] { new SyntaxBuilderFacadeGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
+
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
+
+        var modified = compilation.AddSyntaxTrees(
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
+
+        var result = driver.GetRunResult().Results.Single();
+
+        CacheabilityAssert.AllStepsCachedOrUnchanged(
+            result,
+            new[] { BuilderTrackingNames.Transform, BuilderTrackingNames.Result });
+    }
+
+    // Task 20 (#23): executed end-to-end proof that a user [SyntaxBuilder]'s [Quoted] parameter receives the
+    // QUOTE of the call argument at factory run time. The other builder facts only post-gen-COMPILE; this one
+    // emits the generated assembly, Assembly.Load()s it, invokes the factory, and renders the returned node —
+    // the builder must have run and produced `(int)42` from the quoted literal.
+    [Fact]
+    public void UserBuilder_Executed_QuotedArgumentReachesBuilder()
+    {
+        const string source =
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+            partial class Factory {}
+
+            static partial class MyBuilders {
+                [SyntaxBuilder]
+                public static ExpressionSyntax Cast([TypeArg, ReturnType] TypeSyntax t, [Quoted] ExpressionSyntax x) => CastExpression(t, x);
+            }
+
+            [Template<Factory>]
+            public class Reader {
+                public int Build() => MyBuilders.Cast<int>(42);
+            }
+            """;
+
+        var compilation = CompilationWithSource(source);
+
+        var fullDriver = CSharpGeneratorDriver.Create(
+            new SyntaxBuilderFacadeGenerator(),
+            new TemplateFactorySourceGenerator());
+        fullDriver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var genDiagnostics, TestContext.Current.CancellationToken);
+
+        Assert.Empty(genDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var compileErrors = output.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+        Assert.True(compileErrors.Count == 0,
+            "Generated output did not compile: " + string.Join("; ", compileErrors.Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        using var peStream = new System.IO.MemoryStream();
+        var emit = output.Emit(peStream, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(emit.Success, "Emit failed: " + string.Join("; ", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Id + " " + d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))));
+
+        var assembly = Assembly.Load(peStream.ToArray());
+        var readerFactory = assembly.GetType("Factory")!.GetMethod("Reader")!;
+        var built = readerFactory.Invoke(null, null);
+
+        var node = Assert.IsAssignableFrom<Microsoft.CodeAnalysis.SyntaxNode>(built!);
+        var rendered = node.NormalizeWhitespace().ToString();
+        Assert.Contains("(int)42", rendered, System.StringComparison.Ordinal);
+    }
+
+    // Operator-facade mechanism (spec §3.2/§3.3): [SyntaxBuilder(Returns=…, Facade=…)] synthesizes a
+    // FIXED-return value facade into a DIFFERENT host type than the builder — a same-signature twin in the
+    // builder's own type would be CS0111. An ExpressionSyntax builder `T` synthesizes a
+    // `System.Type`-returning facade emitted into `Values`, NOT into `Ops`.
+    [Fact]
+    public void FixedReturnFacade_SynthesizedIntoFacadeHost()
+    {
+        var facadeSource = RunFacadeGeneratorSource(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+
+            static partial class Ops {
+                [SyntaxBuilder(Returns = typeof(System.Type), Facade = typeof(Values))]
+                public static ExpressionSyntax T(string name) => TypeOfExpression(ParseTypeName(name));
+            }
+
+            static partial class Values {}
+            """);
+
+        // facade returns FIXED System.Type (no fresh TResult) ...
+        Assert.Contains("System.Type T(string name)", facadeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("TResult", facadeSource, StringComparison.Ordinal);
+        // ... emitted into the Facade host `Values`, not the builder's own `Ops`.
+        Assert.Contains("partial class Values", facadeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("partial class Ops", facadeSource, StringComparison.Ordinal);
+    }
+
+    // spec §3.3: Returns set without Facade is a declaration-site error — a fixed-return facade placed in the
+    // builder's OWN type would be CS0111. The generator diagnoses it (SY1031) instead of emitting broken source.
+    [Fact]
+    public void FixedReturnWithoutFacade_ReportsSY1031()
+    {
+        var diagnostics = RunFacadeGeneratorDiagnostics(
+            """
+            using Synto.Templating;
+            using Microsoft.CodeAnalysis.CSharp.Syntax;
+            using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+
+            static partial class Ops {
+                [SyntaxBuilder(Returns = typeof(System.Type))] // no Facade -> error
+                public static ExpressionSyntax T(string name) => TypeOfExpression(ParseTypeName(name));
+            }
+            """);
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1031");
+        AssertHasRealSpan(diag);
     }
 }

@@ -22,9 +22,10 @@ evaluation skills reference these principles.
 
 ## Boundaries
 
-- **The consumer-facing surface is minimal and closed.** Only the five markers
-  (`TemplateAttribute`, `InlineAttribute`, `RuntimeAttribute`, `TemplateOption`,
-  `Syntax`/`Syntax<T>`) and the three emitted helpers (`ToSyntax`, `ToTypeSyntax`,
+- **The consumer-facing surface is minimal and closed.** Only the core markers
+  (`TemplateAttribute`, `QuoteAttribute`/`UnquoteAttribute`/`SpliceAttribute`,
+  `RuntimeAttribute`, `TemplateOption`) and the three emitted
+  helpers (`ToSyntax`, `ToTypeSyntax`,
   `OrNullLiteralExpression`) are allowed to reach consumer code. Everything else
   (`CSharpSyntaxQuoter`, `SyntaxFormatter`, `UsingDirectiveSet`, `SymbolExtensions`, the
   list extensions) is **generator-internal** and must have zero occurrences in consumer output.

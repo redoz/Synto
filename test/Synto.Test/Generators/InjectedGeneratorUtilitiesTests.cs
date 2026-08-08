@@ -15,10 +15,10 @@ public class InjectedGeneratorUtilitiesTests
     public void InjectedCacheabilityTypes_LandInSyntoGeneratorsNamespace() // C-1 shift fired, scoped
     {
         var equatableArray = MatchTestHarness.InjectedSurfaceSource("struct EquatableArray");
-        Assert.Contains("namespace Synto.Generators", equatableArray);
+        Assert.Contains("namespace Synto.Generators", equatableArray, System.StringComparison.Ordinal);
 
         var diagnostics = MatchTestHarness.InjectedSurfaceSource("record struct DiagnosticInfo");
-        Assert.Contains("namespace Synto.Generators", diagnostics);
+        Assert.Contains("namespace Synto.Generators", diagnostics, System.StringComparison.Ordinal);
     }
 
     [Fact]
@@ -29,11 +29,18 @@ public class InjectedGeneratorUtilitiesTests
     }
 
     [Fact]
+    public void InjectedDiagnosticBag_CompilesOn_NetStandard20() // C-2 extension: DiagnosticBag + Drain
+    {
+        var diagnostics = MatchTestHarness.CompileInjectedDiagnosticBagOnNetStandard20();
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Fact]
     public void InjectedInterceptorsHelper_DefinesTheCanonicalAttribute() // C-4
     {
         var source = MatchTestHarness.InjectedSurfaceSource("class Interceptors");
-        Assert.Contains("namespace System.Runtime.CompilerServices", source);
-        Assert.Contains("class InterceptsLocationAttribute", source);
-        Assert.Contains("InterceptsLocationAttribute(int version, string data)", source);
+        Assert.Contains("namespace System.Runtime.CompilerServices", source, System.StringComparison.Ordinal);
+        Assert.Contains("class InterceptsLocationAttribute", source, System.StringComparison.Ordinal);
+        Assert.Contains("InterceptsLocationAttribute(int version, string data)", source, System.StringComparison.Ordinal);
     }
 }

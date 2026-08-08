@@ -20,10 +20,10 @@ public class ObjectReaderDiagnosticsTests
 
         var sor0001 = Assert.Single(diagnostics, d => d.Id == "SOR0001");
         Assert.Equal(DiagnosticSeverity.Warning, sor0001.Severity);
-        Assert.Contains("Nope", sor0001.GetMessage());
-        Assert.DoesNotContain("\"Nope\"", generated); // bad column skipped (C-2)
-        Assert.Contains("\"Name\"", generated);
-        Assert.Contains("\"Age\"", generated);
+        Assert.Contains("Nope", sor0001.GetMessage(System.Globalization.CultureInfo.InvariantCulture), System.StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Nope\"", generated, System.StringComparison.Ordinal); // bad column skipped (C-2)
+        Assert.Contains("\"Name\"", generated, System.StringComparison.Ordinal);
+        Assert.Contains("\"Age\"", generated, System.StringComparison.Ordinal);
     }
 
     [Fact]
@@ -40,6 +40,6 @@ public class ObjectReaderDiagnosticsTests
         (var diagnostics, var generated) = GeneratorHarness.Run(source);
 
         Assert.Contains(diagnostics, d => d.Id == "SOR0002");
-        Assert.DoesNotContain("InterceptsLocation", generated); // not intercepted
+        Assert.DoesNotContain("InterceptsLocation", generated, System.StringComparison.Ordinal); // not intercepted
     }
 }

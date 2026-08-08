@@ -1,3 +1,4 @@
+extern alias SyntoIncremental;
 using System.Collections.Immutable;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
@@ -82,7 +83,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Single)]
+                    [Template<Factory>(Extent = TemplateExtent.Single)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -104,7 +105,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                    [Template<Factory>(Extent = TemplateExtent.Bare)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -126,7 +127,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.None)]
+                    [Template<Factory>(Extent = TemplateExtent.Carrier)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -148,7 +149,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Single)]
+                    [Template<Factory>(Extent = TemplateExtent.Single)]
                     static void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -170,7 +171,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                    [Template<Factory>(Extent = TemplateExtent.Bare)]
                     static void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -192,7 +193,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.None)]
+                    [Template<Factory>(Extent = TemplateExtent.Carrier)]
                     static void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -215,7 +216,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Single)]
+                    [Template<Factory>(Extent = TemplateExtent.Single)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                         Console.WriteLine("Hello world");
@@ -237,7 +238,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory), Options = TemplateOption.Single)]
+                [Template<Factory>(Extent = TemplateExtent.Single)]
                 void LocalFunction() {
                     Console.WriteLine("Hello world");
                 }
@@ -257,7 +258,7 @@ public class SimpleTemplateTest
 
             partial class Factory {}
 
-            [TemplateAttribute(typeof(Factory))]
+            [Template<Factory>]
             public class TestClass {
                 void LocalFunction() {
                     Console.WriteLine("Hello world");
@@ -280,7 +281,7 @@ public class SimpleTemplateTest
 
 
             public class TestClass {
-               [Template(typeof(Factory))]
+               [Template<Factory>]
                 void LocalFunction<T>([Unquote]T value) {
                     Console.WriteLine($"Hello world {value}");
                 }
@@ -301,7 +302,7 @@ public class SimpleTemplateTest
 
 
             public class TestClass {
-               [Template(typeof(Factory))]
+               [Template<Factory>]
                 void LocalFunction<T>([Splice]T value) {
                     Console.WriteLine($"Hello world {value}");
                 }
@@ -323,7 +324,7 @@ public class SimpleTemplateTest
 
 
             public class TestClass {
-               [Template(typeof(Factory))]
+               [Template<Factory>]
                 void LocalFunction<[Unquote]T>() {
                     List<T> list = new();
                 }
@@ -344,7 +345,7 @@ public class SimpleTemplateTest
 
 
             public class TestClass {
-               [Template(typeof(Factory))]
+               [Template<Factory>]
                 void LocalFunction<[Splice]T>(T value) {
                     Console.WriteLine($"Hello world {value}");
                 }
@@ -353,27 +354,6 @@ public class SimpleTemplateTest
         );
     }
 
-
-    [Fact]
-    public async Task WithSyntaxOfString()
-    {
-        await VerifyTemplate(
-            """
-            using System;
-            using Synto.Templating;
-
-            partial class Factory {}
-
-
-            public class TestClass {
-               [Template(typeof(Factory))]
-                void LocalFunction(Syntax<string> value) {
-                    Console.WriteLine($"Hello world" + value());
-                }
-            }
-            """
-        );
-    }
 
     [Fact]
     public async Task ClassAsBareMultiMember()
@@ -389,7 +369,7 @@ public class SimpleTemplateTest
 
             partial class Factory {}
 
-            [Template(typeof(Factory), Options = TemplateOption.Bare)]
+            [Template<Factory>(Extent = TemplateExtent.Bare)]
             public class TestClass {
                 void First() {
                     Console.WriteLine("first");
@@ -418,7 +398,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void LocalFunction([Quote] int count) {
                     Console.WriteLine($"Hello world {count}");
                 }
@@ -432,7 +412,7 @@ public class SimpleTemplateTest
     {
         // Capability 2 (count-fold): a scalar member-access on a staged-root parameter whose RESULT type is a
         // built-in literal type (`xs.Count` -> int) folds to a factory-time literal lift `(xs.Count).ToSyntax()`
-        // — NO separate Parameter<int>() is needed, and the bare receiver reference (`xs`) must NOT be separately
+        // — NO separate Unquote<int>() is needed, and the bare receiver reference (`xs`) must NOT be separately
         // depth-zero lifted (which would emit a broken `xs.ToSyntax()` on the non-literal list type).
         const string source =
             """
@@ -443,18 +423,18 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 int N() {
-                    var xs = Parameter<IReadOnlyList<int>>();
+                    var xs = Unquote<IReadOnlyList<int>>();
                     return xs.Count;
                 }
             }
             """;
 
         var compilation = CompilationWithSource(source);
-        Assert.Empty(compilation.GetDiagnostics().Where(diag => diag.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(compilation.GetDiagnostics(Xunit.TestContext.Current.CancellationToken).Where(diag => diag.Severity == DiagnosticSeverity.Error));
 
-        var result = _driver.RunGenerators(compilation);
+        var result = _driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
         var runResult = result.GetRunResult();
         Assert.Empty(runResult.Diagnostics);
 
@@ -471,7 +451,7 @@ public class SimpleTemplateTest
         // the non-literal list type, which would otherwise throw at the author's runtime).
         Assert.DoesNotContain("xs.ToSyntax()", factory, StringComparison.Ordinal);
 
-        // No scalar Parameter<int>()-sourced parameter: the single factory parameter is the staged list `xs`
+        // No scalar Unquote<int>()-sourced parameter: the single factory parameter is the staged list `xs`
         // (whose type happens to contain `int`), so the signature carries exactly one parameter (no comma).
         var signature = factory.Split('\n').Single(line => line.Contains(" N(", StringComparison.Ordinal));
         Assert.Contains("xs", signature, StringComparison.Ordinal);
@@ -493,7 +473,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                [Template<Factory>(Extent = TemplateExtent.Bare)]
                 static void Loop([Quote] int count) {
                     int ret = 0;
                     for (int i = 0; i < count; i++) ret++;
@@ -507,17 +487,17 @@ public class SimpleTemplateTest
             generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 
     [Fact]
@@ -536,7 +516,7 @@ public class SimpleTemplateTest
             partial class Factory {}
 
             public class TestClass {
-                [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                [Template<Factory>(Extent = TemplateExtent.Bare)]
                 static void Loop([Unquote] int count) {
                     int ret = 0;
                     var bound = Unquote(count);
@@ -552,17 +532,17 @@ public class SimpleTemplateTest
             generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 
     // ----- diagnostics / error paths (T2) -----------------------------------------------------------
@@ -581,7 +561,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory))]
+                    [Template<Factory>]
                     void LocalFunction() {
                         Console.WriteLine("hi");
                     }
@@ -605,7 +585,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory))]
+                    [Template<Factory>]
                     void LocalFunction() {
                         Console.WriteLine("hi");
                     }
@@ -633,7 +613,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Outer.Factory))]
+                    [Template<Outer.Factory>]
                     void LocalFunction() {
                         Console.WriteLine("hi");
                     }
@@ -643,6 +623,41 @@ public class SimpleTemplateTest
 
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1004");
         AssertHasRealSpan(diag);
+    }
+
+    // NOTE: #15 open-generic-target coverage (GenericTarget_RendersGenericPartial_NoArityZeroTwin) was dropped in
+    // Phase 1. It relied on [Template(typeof(Factory<>))] to name an OPEN generic target; the ctor form is now gone
+    // and the generic form cannot express an unbound generic (CS7003: unbound generic name is illegal as a type
+    // argument). The target is therefore inexpressible through the new surface, so the path is unreachable.
+
+    [Fact]
+    public void TargetAncestorUnsupportedKindReportsSY1032()
+    {
+        // #15: a [Template] target nested in a partial STRUCT can't be honored by the ancestry rebuild
+        // (WithAncestryFrom hard-casts each ancestor to ClassDeclarationSyntax). The validator must reject it
+        // up-front with a located SY1032 rather than let the cast throw an opaque SY0000.
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using System;
+            using Synto.Templating;
+
+            partial struct Outer {
+                public partial class Factory {}
+            }
+
+            public class TestClass {
+                public void TestMethod() {
+                    [Template<Outer.Factory>]
+                    void LocalFunction() {
+                        Console.WriteLine("hi");
+                    }
+                }
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1032");
+        AssertHasRealSpan(diag);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SY0000");
     }
 
     [Fact]
@@ -657,7 +672,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Bare)]
+                    [Template<Factory>(Extent = TemplateExtent.Bare)]
                     void LocalFunction() {
                     }
                 }
@@ -669,9 +684,13 @@ public class SimpleTemplateTest
     }
 
     [Fact]
-    public void MultipleMembersAsSingleReportsSY1007()
+    public void BodylessBareTemplateReportsSY1005()
     {
-        // TemplateOption.Single (== Single|Bare) on a class with >1 member hits MultipleMembersNotAllowed.
+        // A Bare template on a bodyless method (partial-definition/extern — no block body, no expression
+        // body) previously hit neither quoting branch: Expression and Error both stayed null, TryQuote
+        // returned false with error == null, and the caller reported nothing — silent no-output. The
+        // tightened contract (TryQuote false => error != null) surfaces the both-null fall-through as the
+        // SY1005 "Source can not be empty when Bare is specified" family diagnostic, exactly one, located.
         var diagnostics = RunAndGetDiagnostics(
             """
             using System;
@@ -679,7 +698,28 @@ public class SimpleTemplateTest
 
             partial class Factory {}
 
-            [Template(typeof(Factory), Options = TemplateOption.Single)]
+            public partial class TestClass {
+                [Template<Factory>(Extent = TemplateExtent.Bare)]
+                partial void BodylessMethod();
+            }
+            """);
+
+        var diag = Assert.Single(diagnostics, d => d.Id == "SY1005");
+        AssertHasRealSpan(diag);
+    }
+
+    [Fact]
+    public void MultipleMembersAsSingleReportsSY1007()
+    {
+        // TemplateExtent.Single on a class with >1 member hits MultipleMembersNotAllowed.
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using System;
+            using Synto.Templating;
+
+            partial class Factory {}
+
+            [Template<Factory>(Extent = TemplateExtent.Single)]
             public class TestClass {
                 void First() {
                     Console.WriteLine("first");
@@ -706,12 +746,15 @@ public class SimpleTemplateTest
         // message.
         var ex = new InvalidOperationException("boom");
 
-        var diag = Diagnostics.InternalError(ex).ToDiagnostic();
+        // Qualify via the SyntoIncremental alias: Task 10 surfaces the Synto.Diagnostics feature DLL onto this
+        // project's references, whose `Synto.Diagnostics` namespace would otherwise shadow this SY0000 helper
+        // (Synto.Generators.Diagnostics, authored in Synto.Incremental).
+        var diag = SyntoIncremental::Synto.Generators.Incremental.Diagnostics.InternalError(ex).ToDiagnostic();
 
         Assert.Equal("SY0000", diag.Id);
         Assert.Equal(Location.None, diag.Location); // internal errors are not tied to a source location
-        Assert.Contains("boom", diag.GetMessage(), StringComparison.Ordinal);
-        Assert.Contains(nameof(InvalidOperationException), diag.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("boom", diag.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains(nameof(InvalidOperationException), diag.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     // ----- incremental caching (T1) ----------------------------------------------------------------
@@ -732,7 +775,7 @@ public class SimpleTemplateTest
 
             public class TestClass {
                 public void TestMethod() {
-                    [Template(typeof(Factory), Options = TemplateOption.Single)]
+                    [Template<Factory>(Extent = TemplateExtent.Single)]
                     void LocalFunction() {
                         Console.WriteLine("Hello world");
                     }
@@ -746,19 +789,19 @@ public class SimpleTemplateTest
             generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         // An unrelated edit in a separate tree: the [Template] tree is byte-identical, so its pipeline
         // results must come from cache.
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 
     [Fact]
@@ -780,9 +823,9 @@ public class SimpleTemplateTest
             public readonly record struct Col(int Ordinal, string Name);
 
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 object GetMember<[Splice] TRow>(TRow row, int i) {
-                    var columns = Parameter<IReadOnlyList<Col>>();
+                    var columns = Unquote<IReadOnlyList<Col>>();
                     foreach (var c in columns)            // live foreach -> unrolls in the factory
                         if (i == c.Ordinal)               // c.Ordinal -> int literal
                             return Member<object>(row, c.Name); // Member builder -> row.<Name>
@@ -797,17 +840,17 @@ public class SimpleTemplateTest
             generators: new[] { new TemplateFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
         CacheabilityAssert.AllStepsCachedOrUnchanged(
             result,
-            new[] { TemplateTrackingNames.Transform, TemplateTrackingNames.Result });
+            new[] { TemplateTrackingNames.GenericTransform, TemplateTrackingNames.GenericResult });
     }
 
     private static void AssertHasRealSpan(Diagnostic diag)

@@ -1,0 +1,68 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageId>Synto.Core</PackageId>
+
+    <!-- The Synto runtime/toolkit library: the syntax helpers + template markers used at runtime
+         or referenced directly. Published standalone as a first-class package. -->
+    <Description>Synto runtime/toolkit library: the syntax helpers and template markers used at runtime or referenced directly.</Description>
+
+    <!-- Shared package metadata. src/Synto does NOT set IsSyntoGeneratorPackage, so it does not
+         inherit the shared metadata block in Directory.Build.targets (that block is analyzer-specific).
+         Mirror the truly-shared bits here so Synto.Core gets consistent metadata. -->
+    <PackageProjectUrl>https://github.com/redoz/Synto</PackageProjectUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageTags>Roslyn;Syntax</PackageTags>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\</PackageOutputPath>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+
+    <!-- Pack on Release build (mirrors the generator packages in Directory.Build.targets) so the
+         CI publish workflow's `dotnet build -c Release` step produces Synto.Core.nupkg alongside
+         the generator packages. `dotnet pack` still works on demand in any configuration. -->
+    <GeneratePackageOnBuild Condition="'$(Configuration)' == 'Release'">true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+
+  <!-- The ForMatch helper surface (Matched<T> / MatchPattern<T> / SyntoMatchProviderExtensions) is
+       authored here but NOT part of Synto.Core: it references the incremental-generator pipeline types
+       (SyntaxValueProvider / IncrementalValuesProvider) and is injected as internal source into the
+       consumer's GENERATOR project by SurfaceInjectionGenerator (see the Synto.Runtime.ForMatchHelpers.cs
+       EmbeddedResource in Synto.Generators.csproj). It must never be <Compile>d into Synto.Core. -->
+  <ItemGroup>
+    <!-- The InjectedOnly/ role folders hold source that is injected as internal source into the consumer's
+         GENERATOR project by SurfaceInjectionGenerator (embedded under Synto.Runtime.* by the generator's
+         Include="..\Synto.Core\**\InjectedOnly\*.cs" glob) but must NEVER be <Compile>d into Synto.Core — e.g. the
+         ForMatch helper surface, the match-driven Replace rewriter, the interceptor-attribute author helper,
+         and the built-in SyntoBuilders (whose injected internal copy is the only one, so no CS0121 collision
+         with a public Synto.Core copy). This mirror glob keeps them out of the Synto.Core compile. -->
+    <Compile Remove="**\InjectedOnly\*.cs" />
+  </ItemGroup>
+
+  <!-- Both shipped generators consume Synto.Core's generator-internal machinery (CSharpSyntaxQuoter,
+       SyntaxFormatter, UsingDirectiveSet, the *Extensions helpers) as compiled API at analysis time.
+       Those types are internal (only the 5 markers + 3 emitted helpers are public surface), so expose
+       them to the two generator assemblies. Synto.Bootstrap does NOT need this: it <Compile Link>s the
+       source files it uses into its own assembly rather than referencing Synto.Core.dll. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Synto.Generators" />
+    <InternalsVisibleTo Include="Synto.Template" />
+    <InternalsVisibleTo Include="Synto.Match" />
+    <InternalsVisibleTo Include="Synto.Diagnostics" />
+    <InternalsVisibleTo Include="Synto.Test" />
+  </ItemGroup>
+
+  <!-- Pack the repo LICENSE into the nupkg root (mirrors the generator packages). -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\..\LICENSE" Pack="true" Visible="false" PackagePath="\" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\Synto.Bootstrap\Synto.Bootstrap.csproj" OutputItemType="Analyzer" PrivateAssets="all" ReferenceOutputAssembly="False" />
+  </ItemGroup>
+</Project>

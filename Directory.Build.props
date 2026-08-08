@@ -17,6 +17,13 @@
     <AnalysisMode>All</AnalysisMode>
   </PropertyGroup>
 
+  <!-- Warnings-as-errors, solution-wide. The entire warning backlog was cleared (0 warnings on a
+       Release build of Synto.slnx), so every project now enforces warning-free builds and can never
+       silently regress. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
   <PropertyGroup>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>      
   </PropertyGroup>

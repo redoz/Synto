@@ -5,7 +5,9 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace Synto.Test;
 
 /// <summary>
-/// Proves the consumer-facing surface injected by <see cref="SurfaceInjectionGenerator"/> cannot
+/// Proves the consumer-facing surface injected by the feature injectors
+/// (<see cref="TemplateSurfaceInjector"/>, <see cref="MatchSurfaceInjector"/>) and
+/// <see cref="IncrementalSurfaceInjector"/> cannot
 /// silently drift: it snapshots every injected (post-initialization) source. Because the surface is
 /// embedded from <c>src\Synto</c> and rewritten to internal at injection time, any change to the
 /// authored surface shows up here.
@@ -30,7 +32,12 @@ public class SurfaceInjectionTest
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var driver = CSharpGeneratorDriver
-            .Create(new SurfaceInjectionGenerator())
+            // Run all surface injectors: MatchSurfaceInjector (the Match markers, embedded in Synto.Match.dll),
+            // TemplateSurfaceInjector (the Template markers, embedded in Synto.Template.dll) and
+            // IncrementalSurfaceInjector (the cacheable trio, embedded in Synto.Incremental.dll). They inject
+            // DISJOINT resource sets, so the combined injected surface is byte-identical to the pre-split
+            // single-assembly surface.
+            .Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector(), new IncrementalSurfaceInjector())
             .RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         return Verify(driver).UseDirectory("snapshots");

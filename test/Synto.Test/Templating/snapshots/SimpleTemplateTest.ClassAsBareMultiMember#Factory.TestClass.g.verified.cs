@@ -34,7 +34,12 @@ partial class Factory
                                            InvocationExpression(
                                                MemberAccessExpression(
                                                    SimpleMemberAccessExpression, 
-                                                   IdentifierName("Console"), 
+                                                   QualifiedName(
+                                                       AliasQualifiedName(
+                                                           IdentifierName("global"), 
+                                                           Token(ColonColonToken), 
+                                                           IdentifierName("System")), 
+                                                       IdentifierName("Console")), 
                                                    Token(DotToken), 
                                                    IdentifierName("WriteLine")), 
                                                ArgumentList(
@@ -76,7 +81,12 @@ partial class Factory
                                            InvocationExpression(
                                                MemberAccessExpression(
                                                    SimpleMemberAccessExpression, 
-                                                   IdentifierName("Console"), 
+                                                   QualifiedName(
+                                                       AliasQualifiedName(
+                                                           IdentifierName("global"), 
+                                                           Token(ColonColonToken), 
+                                                           IdentifierName("System")), 
+                                                       IdentifierName("Console")), 
                                                    Token(DotToken), 
                                                    IdentifierName("WriteLine")), 
                                                ArgumentList(

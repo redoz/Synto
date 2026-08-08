@@ -1,3 +1,4 @@
+extern alias SyntoIncremental;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -103,6 +104,58 @@ public class MatchDiagnosticsTests
     }
 
     [Fact]
+    public void TargetAncestorUnsupportedKind_ReportsSY1032()
+    {
+        // #15 (matching sibling): M is a partial class nested in a partial STRUCT. WithAncestryFrom hard-casts
+        // each ancestor to ClassDeclarationSyntax, so ValidateTarget must reject the struct ancestor up-front
+        // with a located SY1032 rather than let the cast throw an opaque SY0000.
+        var result = MatchTestHarness.Run(
+            """
+            using Synto.Matching;
+
+            partial struct Outer
+            {
+                public partial class M { }
+            }
+
+            public class Consumer
+            {
+                [Match<Outer.M>(MatchOption.Single)]
+                static object One() => 1;
+            }
+            """);
+
+        var diag = Assert.Single(result.Diagnostics, d => d.Id == "SY1032");
+        AssertHasRealSpan(diag);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "SY0000");
+    }
+
+    [Fact]
+    public void GenericTarget_RendersGenericPartial_NoArityZeroTwin()
+    {
+        // #15 (matching sibling): a [Match] target on a generic containing class must land the matcher on the
+        // generic `M<T>` — the rebuilt partial + its ancestry carry the TypeParameterList, so no arity-0 twin.
+        var result = MatchTestHarness.Run(
+            """
+            using Synto.Matching;
+
+            partial class M<T> { }
+
+            public class Consumer
+            {
+                [Match<M<int>>(MatchOption.Single)]
+                static object One() => 1;
+            }
+            """);
+
+        Assert.Empty(result.Diagnostics);
+
+        var matcher = Assert.Single(
+            result.GeneratedTrees.Where(t => t.ToString().Contains("class M", StringComparison.Ordinal)));
+        Assert.Contains("class M<T>", matcher.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WellFormedMatch_ReadsTypeArg_PassesValidation()
     {
         // The type arg is read off AttributeClass.TypeArguments[0]; a well-formed partial-class target
@@ -177,13 +230,13 @@ public class MatchDiagnosticsTests
             generators: new[] { new MatchFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         // An unrelated edit in a separate tree: the [Match] tree is byte-identical, so its pipeline results
         // must come from cache.
         var modified = compilation.AddSyntaxTrees(
-            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }"));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText("namespace Other { internal sealed class Unrelated { } }", cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
@@ -237,12 +290,12 @@ public class MatchDiagnosticsTests
             generators: new[] { new MatchFactorySourceGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(default, trackIncrementalGeneratorSteps: true));
 
-        driver = driver.RunGenerators(compilation);
+        driver = driver.RunGenerators(compilation, Xunit.TestContext.Current.CancellationToken);
 
         var modified = compilation.ReplaceSyntaxTree(
             compilation.SyntaxTrees.Single(),
-            CSharpSyntaxTree.ParseText(after));
-        driver = driver.RunGenerators(modified);
+            CSharpSyntaxTree.ParseText(after, cancellationToken: Xunit.TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(modified, Xunit.TestContext.Current.CancellationToken);
 
         var result = driver.GetRunResult().Results.Single();
 
@@ -409,7 +462,10 @@ public class MatchDiagnosticsTests
         // carrying the exception text (the generator's try/catch never throws).
         var exception = new InvalidOperationException("boom-marker-7f3a");
 
-        var diagnostic = Synto.Diagnostics.InternalError(exception).ToDiagnostic();
+        // Qualify via the SyntoIncremental alias: Task 10 surfaces the Synto.Diagnostics feature DLL onto this
+        // project's references, whose `Synto.Diagnostics` namespace would otherwise shadow this SY0000 helper
+        // (Synto.Generators.Diagnostics, authored in Synto.Incremental).
+        var diagnostic = SyntoIncremental::Synto.Generators.Incremental.Diagnostics.InternalError(exception).ToDiagnostic();
 
         Assert.Equal("SY0000", diagnostic.Id);
         Assert.Equal(Location.None, diagnostic.Location);
@@ -432,7 +488,7 @@ public class MatchDiagnosticsTests
         var directory = AppContext.BaseDirectory;
         while (directory is not null)
         {
-            var candidate = Path.Combine(directory, "src", "Synto.SourceGenerator", "AnalyzerReleases.Unshipped.md");
+            var candidate = Path.Combine(directory, "src", "Synto.Match", "AnalyzerReleases.Unshipped.md");
             if (File.Exists(candidate))
                 return candidate;
             directory = Path.GetDirectoryName(directory);

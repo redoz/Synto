@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -13,9 +14,9 @@ namespace Synto.Bootstrap;
 
 // SYNC NOTE (see .claude/rules/maintainability.md M4): this is the BOOTSTRAP quoter
 // — the quoter the self-host generator (CSharpSyntaxQuoterGenerator) uses to quote
-// the runtime quoter and emit src/Synto/CSharpSyntaxQuoter.Generated.cs. Its
+// the runtime quoter and emit src/Synto.Core/CSharpSyntaxQuoter.Generated.cs. Its
 // per-node-kind quoting logic must stay in sync with the runtime quoter at
-// src/Synto/CSharpSyntaxQuoter.cs: a SyntaxKind the runtime quoter handles but this
+// src/Synto.Core/CSharpSyntaxQuoter.cs: a SyntaxKind the runtime quoter handles but this
 // copy cannot quote means the self-host can't reproduce it. Intentionally a separate
 // copy (this lives in namespace Synto.Bootstrap and is the generator's own tool),
 // not a linked file; only the Synto.Bootstrap.Test snapshot guards the divergence.
@@ -120,6 +121,7 @@ internal sealed partial class CSharpSyntaxQuoter : CSharpSyntaxVisitor<Expressio
         return IdentifierName(kind.ToString());
     }
 
+    [SuppressMessage("Maintainability", "CA1508:Avoid dead conditional code", Justification = "False positive: SyntaxToken.Value is object? (nullable); the null-guard is required because removing it trips CS8602 (verified). The two analyzers are mutually exclusive at this site.")]
     public ExpressionSyntax Visit(SyntaxToken token)
     {
         static bool TokenKindHasText(SyntaxKind kind) => SyntaxFacts.GetText(kind).Length != 0;

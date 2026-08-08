@@ -56,10 +56,26 @@ public class ObjectReaderBehaviorTests
     }
 
     [Fact]
+    public void NullableRefGetter_ReturnsValueWhenPresent_ThrowsWhenNull() // ADO.NET-correct null semantics (CS8603 fix)
+    {
+        using IDataReader reader = ObjectReader.Create(Sample(), "Name", "Age", "Nickname");
+
+        Assert.True(reader.Read());                                // Ada — Nickname "Countess"
+        Assert.Equal("Countess", reader.GetString(2));            // present nullable ref → the bound non-null value
+        Assert.Equal("Ada", reader.GetString(0));                // non-nullable ref column still reads plainly
+
+        Assert.True(reader.Read());                                // Alan — Nickname null
+        // A null column throws InvalidCastException ("call IsDBNull first") instead of returning null from the
+        // non-nullable GetString signature.
+        Assert.Throws<InvalidCastException>(() => reader.GetString(2));
+        Assert.Equal("Alan", reader.GetString(0));               // sibling non-null column unaffected
+    }
+
+    [Fact]
     public void Create_FeedsDataTableLoad() // C-3 functional bar via a real ADO.NET sink
     {
         using IDataReader reader = ObjectReader.Create(Sample(), "Name", "Age");
-        var table = new DataTable();
+        using var table = new DataTable();
         table.Load(reader);
 
         Assert.Equal(2, table.Columns.Count);

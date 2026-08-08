@@ -6,6 +6,9 @@ namespace Synto.Example.ObjectReader.Tests;
 
 public class ObjectReaderIncrementalTests
 {
+    // Extracted so the constant array is allocated once (CA1861) rather than at each call site.
+    private static readonly string[] TrackedSteps = ["Transform"];
+
     [Fact]
     public void Transform_IsCachedOnUnrelatedEdit() // C-5: equatable model => incremental cacheability
     {
@@ -26,6 +29,6 @@ public class ObjectReaderIncrementalTests
         // Mirrors TrackingNames.Transform (= nameof(Transform)); that type is internal to the Generator project.
         // Iterate ALL tracked steps (not just the terminal Transform) so the whole upstream chain — including
         // the Collect() feeding RegisterSourceOutput — is guarded, not only the single named step.
-        CacheabilityAssert.AllStepsCachedOrUnchanged(result, new[] { "Transform" });
+        CacheabilityAssert.AllStepsCachedOrUnchanged(result, TrackedSteps);
     }
 }

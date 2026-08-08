@@ -92,7 +92,7 @@ internal static class MatchTestHarness
     //   2. The netstandard2.0 BUILD of Roslyn 5.0.0 (lib/netstandard2.0/*.dll) — NOT the loaded net build. The
     //      loaded net build's System.Runtime 9.0 closure binds against the ns2.x BCL refs (System.Runtime
     //      4.1.2.0) at a skewed version and throws CS1705 on the incremental-provider API; the ns2.0 build is
-    //      exactly what src/Synto.SourceGenerator (netstandard2.0) compiles against, so it is the faithful view.
+    //      exactly what src/Synto.Generators (netstandard2.0) compiles against, so it is the faithful view.
     //   3. The four assemblies the ns2.0 Roslyn build references that the ref pack lacks (Immutable, Reflection
     //      .Metadata, CompilerServices.Unsafe, Encoding.CodePages), at the versions Roslyn 5.0.0 declares.
     // Roslyn's ns2.0 build legitimately embeds an INTERNAL IsExternalInit — unusable cross-assembly, so it does
@@ -154,7 +154,8 @@ internal static class MatchTestHarness
         result.GeneratedTrees.Single(tree => tree.ToString().Contains("IsExternalInit", StringComparison.Ordinal)).ToString();
 
     /// <summary>
-    /// Runs <see cref="SurfaceInjectionGenerator"/> over an empty compilation and returns the single injected
+    /// Runs <see cref="SurfaceInjectionGenerator"/> + <see cref="IncrementalSurfaceInjector"/> over an empty
+    /// compilation and returns the single injected
     /// (post-init) source whose text contains <paramref name="contentMarker"/> — e.g.
     /// <c>"readonly struct MatchPattern"</c> selects the injected data surface <c>ForMatchHelpers.g.cs</c>.
     /// This is the same surface a real consumer's generator project receives.
@@ -174,7 +175,11 @@ internal static class MatchTestHarness
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var result = CSharpGeneratorDriver
-            .Create(new SurfaceInjectionGenerator())
+            // Run ALL surface injectors so the probe sees the FULL injected surface: the Match marker surface
+            // (MatchSurfaceInjector, embedded in Synto.Match.dll), the Template marker surface incl.
+            // Interceptors (TemplateSurfaceInjector, embedded in Synto.Template.dll) plus the cacheable trio
+            // (IncrementalSurfaceInjector, embedded in Synto.Incremental.dll). They inject disjoint sets.
+            .Create(new MatchSurfaceInjector(), new TemplateSurfaceInjector(), new IncrementalSurfaceInjector())
             .RunGenerators(compilation)
             .GetRunResult();
 
@@ -323,6 +328,32 @@ internal static class MatchTestHarness
             """));
 
         return CreateNetStandardClosure(equatableArray, diagnostics, interceptors, polyfill).GetDiagnostics();
+    }
+
+    /// <summary>
+    /// C-2 self-containment proof for the injected <c>DiagnosticBag</c> collector + <c>Drain</c> extension:
+    /// compiles the injected (and namespace-shifted) EquatableArray + DiagnosticInfo + DiagnosticBag on the
+    /// FAITHFUL netstandard2.0 closure (which resolves <c>SourceProductionContext</c> from the ns2.0 Roslyn
+    /// build), alongside the IsExternalInit polyfill the record structs need. Returns the resulting
+    /// diagnostics (must be error-free).
+    /// </summary>
+    public static ImmutableArray<Diagnostic> CompileInjectedDiagnosticBagOnNetStandard20()
+    {
+        var equatableArray = InjectedSurfaceSource("struct EquatableArray");
+        var diagnostics = InjectedSurfaceSource("record struct DiagnosticInfo"); // carries LocationInfo + DiagnosticInfo
+        var bag = InjectedSurfaceSource("class DiagnosticBag");
+        var polyfill = GeneratedPolyfillSource(Run(
+            """
+            using Synto.Matching;
+            partial class M { }
+            public class Consumer
+            {
+                [Match<M>(MatchOption.Single)]
+                static object Sum([Capture] int a, [Capture] int b) => a + b;
+            }
+            """));
+
+        return CreateNetStandardClosure(equatableArray, diagnostics, bag, polyfill).GetDiagnostics();
     }
 
     private static CSharpCompilation CreateClosure(string assemblyName, ImmutableArray<MetadataReference> references, string[] sources)

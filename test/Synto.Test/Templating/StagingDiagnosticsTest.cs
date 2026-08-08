@@ -63,7 +63,7 @@ public class StagingDiagnosticsTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build(int generatedWorld) {
                     var bad = Unquote(generatedWorld + 1);  // live fragment needs a value that exists only in OUTPUT
                     System.Console.WriteLine(bad);
@@ -72,6 +72,74 @@ public class StagingDiagnosticsTest
             """);
         var diag = Assert.Single(diagnostics, d => d.Id == "SY1013");
         AssertHasRealSpan(diag);
+    }
+
+    // A lambda parameter declared INSIDE the binding expression (e.g. LINQ Select(x => ...)) is local to that
+    // expression, not an output-world value the cut crosses. It must NOT be mistaken for an impossible cut.
+    [Fact]
+    public void ImpossibleCut_LinqLambdaLocal_NotFlagged()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using System.Linq;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build() {
+                    var items = Unquote<IReadOnlyList<string>>();
+                    var total = Unquote(items.Select(x => x.Length).Sum());
+                    System.Console.WriteLine(total);
+                }
+            }
+            """);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SY1013");
+    }
+
+    // An out-var declared inside the binding expression is local to it, not an output-world cut.
+    [Fact]
+    public void ImpossibleCut_OutVarLocal_NotFlagged()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build() {
+                    var items = Unquote<IReadOnlyList<string>>();
+                    var parsed = Unquote(int.TryParse(items[0], out var n) ? n : 0);
+                    System.Console.WriteLine(parsed);
+                }
+            }
+            """);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SY1013");
+    }
+
+    // A pattern variable declared inside the binding expression is local to it, not an output-world cut.
+    [Fact]
+    public void ImpossibleCut_PatternVariableLocal_NotFlagged()
+    {
+        var diagnostics = RunAndGetDiagnostics(
+            """
+            using Synto.Templating;
+            using System.Collections.Generic;
+            using static Synto.Templating.Template;
+            partial class Factory {}
+            public class TestClass {
+                [Template<Factory>]
+                void Build() {
+                    var items = Unquote<IReadOnlyList<string>>();
+                    var count = Unquote(items is { Count: var c } ? c : 0);
+                    System.Console.WriteLine(count);
+                }
+            }
+            """);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SY1013");
     }
 
     // A live region nested inside another live region's body is not unrolled in v1.
@@ -85,10 +153,10 @@ public class StagingDiagnosticsTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build() {
-                    var rows = Parameter<IReadOnlyList<int>>();
-                    var cols = Parameter<IReadOnlyList<int>>();
+                    var rows = Unquote<IReadOnlyList<int>>();
+                    var cols = Unquote<IReadOnlyList<int>>();
                     foreach (var r in rows)
                         foreach (var c in cols)        // nested live region -> unsupported in v1
                             System.Console.WriteLine(r);
@@ -112,9 +180,9 @@ public class StagingDiagnosticsTest
             using static Synto.Templating.Template;
             partial class Factory {}
             public class TestClass {
-                [Template(typeof(Factory))]
+                [Template<Factory>]
                 void Build(int i) {
-                    var cols = Parameter<IReadOnlyList<int>>();
+                    var cols = Unquote<IReadOnlyList<int>>();
                     if (i > 0)                      // output-world if (i quoted) -> stays output, not a region
                         foreach (var c in cols)     // live foreach, parent is the if statement (not a block)
                             System.Console.WriteLine(c);

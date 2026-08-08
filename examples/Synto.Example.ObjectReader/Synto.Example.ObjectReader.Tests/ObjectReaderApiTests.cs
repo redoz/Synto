@@ -20,6 +20,12 @@ public class ObjectReaderApiTests
         var data = new[] { new Widget("A", 1) };
         string[] members = GetMembers(); // runtime value -> not compile-time constant
 
+        // Intentionally non-constant member list: this exercises the runtime-fallback path, so the generator's
+        // SOR0002 fires here on purpose. SOR0002 is reported by the generator off the GeneratorDriver, which
+        // bypasses the compiler's #pragma / editorconfig-severity / [SuppressMessage] filtering pipelines
+        // (all three are silent no-ops for it), so it is suppressed at the compiler level via <NoWarn> in the
+        // .csproj. No other file in this project's compilation emits SOR0002 (the diagnostics tests drive the
+        // generator through an in-memory harness), so the project-wide NoWarn masks nothing else.
         var ex = Assert.Throws<NotSupportedException>(() => ObjectReader.Create(data, members));
         Assert.Contains("constant", ex.Message, System.StringComparison.OrdinalIgnoreCase);
     }

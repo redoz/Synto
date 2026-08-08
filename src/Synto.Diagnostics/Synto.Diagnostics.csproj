@@ -1,23 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
 	<TargetFramework>netstandard2.0</TargetFramework>
 	<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 
-	<!-- Opt in to the shared Synto analyzer-packaging logic in Directory.Build.targets.
-		 Synto.dll is only needed by the generator at analysis time here, so it is NOT shipped
-		 as a consumer runtime dependency. -->
-	<IsSyntoGeneratorPackage>true</IsSyntoGeneratorPackage>
-	<developmentDependency>true</developmentDependency>
-
-	<!-- package-specific metadata (shared metadata lives in Directory.Build.targets) -->
-	<PackageReadmeFile>Synto.Diagnostics.NuGet.md</PackageReadmeFile>
-	<Description>Creates Diagnostics for Roslyn source generators</Description>
+	<!-- Synto.Diagnostics is no longer its own nupkg: it is one feature DLL bundled by the
+	     Synto umbrella (src/Synto.Generators). It ships no package metadata of its own and is
+	     resolved/packed by the umbrella's multi-assembly analyzer bundling. -->
+	<IsPackable>false</IsPackable>
   </PropertyGroup>
-
-  <ItemGroup>
-	<None Include="..\..\Synto.Diagnostics.NuGet.md" Pack="true" Visible="false" PackagePath="\" />
-  </ItemGroup>
 
   <ItemGroup>
 	<PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
@@ -29,7 +20,9 @@
   </ItemGroup>
 
   <ItemGroup>
-	<ProjectReference Include="..\Synto\Synto.csproj" PrivateAssets="all"/>
+	<ProjectReference Include="..\Synto.GenKit\Synto.GenKit.csproj" />
+	<ProjectReference Include="..\Synto.Incremental\Synto.Incremental.csproj" />
+	<ProjectReference Include="..\Synto.Core\Synto.Core.csproj" PrivateAssets="all"/>
   </ItemGroup>
 
 </Project>

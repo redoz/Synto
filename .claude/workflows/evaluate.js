@@ -148,7 +148,7 @@ if (!baseline) throw new Error(`evaluate: baseline failed after ${AGENT_ATTEMPTS
 phase('Triage')
 const triage = await withRetry('triage', AGENT_ATTEMPTS, () => agent(
   `${base}
-Produce a file triage map: for each project under src/ (src/Synto, src/Synto.SourceGenerator,
+Produce a file triage map: for each project under src/ (src/Synto.Core, src/Synto.Generators,
 src/Synto.Bootstrap, src/Synto.Diagnostics), list which quality dimensions are most relevant
 (use each project's *.csproj for what it owns and its dependency/package direction, plus the repo
 README.md for intent/functionality). This guides reviewers on what to read in depth.`,

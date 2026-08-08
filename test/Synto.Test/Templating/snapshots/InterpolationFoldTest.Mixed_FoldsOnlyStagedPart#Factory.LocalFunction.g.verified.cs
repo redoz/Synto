@@ -43,7 +43,12 @@ partial class Factory
                                    InvocationExpression(
                                        MemberAccessExpression(
                                            SimpleMemberAccessExpression, 
-                                           IdentifierName("Console"), 
+                                           QualifiedName(
+                                               AliasQualifiedName(
+                                                   IdentifierName("global"), 
+                                                   Token(ColonColonToken), 
+                                                   IdentifierName("System")), 
+                                               IdentifierName("Console")), 
                                            Token(DotToken), 
                                            IdentifierName("WriteLine")), 
                                        ArgumentList(
@@ -165,18 +170,38 @@ file static class LiteralSyntaxExtensions
 
     public static ExpressionSyntax ToSyntax(this float value)
     {
-        return SF.LiteralExpression(
-                   SyntaxKind.NumericLiteralExpression, 
-                   SF.Literal(value));
+        // SF.Literal(float.NaN).Text is the bare identifier "NaN" — a numeric literal cannot carry a
+        // non-finite value, so emit the well-known member access (float.NaN / float.PositiveInfinity /
+        // float.NegativeInfinity) instead, which round-trips to legal C#.
+        var member = NonFiniteMember(
+                         float.IsNaN(value), 
+                         float.IsPositiveInfinity(value), 
+                         float.IsNegativeInfinity(value));
+        return member is null ? SF.LiteralExpression(
+                                    SyntaxKind.NumericLiteralExpression, 
+                                    SF.Literal(value)) : NonFiniteMemberAccess(
+                                                                                                                   SyntaxKind.FloatKeyword, 
+                                                                                                                   member);
     }
 
     public static ExpressionSyntax ToSyntax(this double value)
     {
-        return SF.LiteralExpression(
-                   SyntaxKind.NumericLiteralExpression, 
-                   SF.Literal(value));
+        var member = NonFiniteMember(
+                         double.IsNaN(value), 
+                         double.IsPositiveInfinity(value), 
+                         double.IsNegativeInfinity(value));
+        return member is null ? SF.LiteralExpression(
+                                    SyntaxKind.NumericLiteralExpression, 
+                                    SF.Literal(value)) : NonFiniteMemberAccess(
+                                                                                                                   SyntaxKind.DoubleKeyword, 
+                                                                                                                   member);
     }
 
+    private static string? NonFiniteMember(bool isNaN, bool isPositiveInfinity, bool isNegativeInfinity) => isNaN ? "NaN" : isPositiveInfinity ? "PositiveInfinity" : isNegativeInfinity ? "NegativeInfinity" : null;
+    private static MemberAccessExpressionSyntax NonFiniteMemberAccess(SyntaxKind keyword, string member) => SF.MemberAccessExpression(
+                                                                                                                SyntaxKind.SimpleMemberAccessExpression, 
+                                                                                                                SF.PredefinedType(SF.Token(keyword)), 
+                                                                                                                SF.IdentifierName(member));
     public static ExpressionSyntax ToSyntax(this char value)
     {
         return SF.LiteralExpression(
@@ -203,7 +228,42 @@ file static class LiteralSyntaxExtensions
             float literal => literal.ToSyntax(),
             double literal => literal.ToSyntax(),
             char literal => literal.ToSyntax(),
+            Enum @enum => @enum.ToSyntax(),
             _ => throw new NotImplementedException($"You can provide you own implementation by applying the RuntimeAttribute to a static class implementing a more explicit version of this signature for type {value.GetType().FullName}.")};
+    }
+
+    /// <summary>
+    /// Lifts an enum value to a constant <see cref = "ExpressionSyntax"/>: a qualified enum-member access
+    /// (<c>global::Ns.Color.Red</c>) when the value maps to a single named member, otherwise a cast of the
+    /// underlying integral literal (<c>(global::Ns.Color)3</c>) for an undefined value or a <c>[Flags]</c>
+    /// combination. Nested enum types resolve with <c>.</c> (the reflected <c>+</c> is normalized).
+    /// </summary>
+    public static ExpressionSyntax ToSyntax(this Enum value)
+    {
+        if (value is null)
+            throw new ArgumentNullException(nameof(value));
+        Type enumType = value.GetType();
+        string qualifiedName = "global::" + enumType.FullName!.Replace(
+                                                '+', 
+                                                '.');
+        if (Enum.GetName(
+                enumType, 
+                value)is { } name)
+        {
+            return SF.MemberAccessExpression(
+                       SyntaxKind.SimpleMemberAccessExpression, 
+                       SF.ParseName(qualifiedName), 
+                       SF.IdentifierName(name));
+        }
+
+        // Undefined value or a flags combination: cast the underlying integral literal to the enum type.
+        object underlying = Convert.ChangeType(
+                                value, 
+                                Enum.GetUnderlyingType(enumType), 
+                                System.Globalization.CultureInfo.InvariantCulture);
+        return SF.CastExpression(
+                   SF.ParseTypeName(qualifiedName), 
+                   underlying.ToSyntax());
     }
 }
 
