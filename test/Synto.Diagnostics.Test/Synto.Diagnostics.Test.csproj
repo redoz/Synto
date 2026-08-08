@@ -29,10 +29,12 @@
     <ProjectReference Include="..\..\src\Synto.Core\Synto.Core.csproj" />
     <!-- The cacheable-[Diagnostic] harness runs IncrementalSurfaceInjector to inject the Synto.Generators trio
          (DiagnosticInfo / LocationInfo / EquatableArray) into the in-memory consumer compilation — exactly how a
-         real consumer receives it from the Synto package's bundled Synto.Incremental DLL. ReferenceOutputAssembly
-         so the test can instantiate the injector directly. -->
-    <ProjectReference Include="..\..\src\Synto.Incremental\Synto.Incremental.csproj"
-                      OutputItemType="Analyzer" ReferenceOutputAssembly="True" />
+         real consumer receives it from the Synto package's bundled Synto.Incremental DLL. The test constructs
+         the injector directly in C# (DiagnosticsGeneratorTest), so a plain metadata reference is all it needs:
+         OutputItemType="Analyzer" would additionally put Synto.Incremental.dll on THIS project's analyzer load
+         path, where its Synto.GenKit dependency is absent (CS8032 at build). A plain reference also lets
+         GenKit.dll flow transitively into the output + deps.json, which the injector needs at test time. -->
+    <ProjectReference Include="..\..\src\Synto.Incremental\Synto.Incremental.csproj" />
   </ItemGroup>
 
   <ItemGroup>
