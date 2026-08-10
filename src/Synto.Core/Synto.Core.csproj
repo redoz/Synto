@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="System.Reflection.Metadata" />
   </ItemGroup>
 
   <!-- The ForMatch helper surface (Matched<T> / MatchPattern<T> / SyntoMatchProviderExtensions) is
