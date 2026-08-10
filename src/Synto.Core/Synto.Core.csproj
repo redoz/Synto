@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="System.Collections.Immutable" />
   </ItemGroup>
 
   <!-- The ForMatch helper surface (Matched<T> / MatchPattern<T> / SyntoMatchProviderExtensions) is

@@ -37,7 +37,7 @@
 	  pack does NOT carry them. Restored only for their ref DLLs (ExcludeAssets=all in the test csproj),
 	  located at runtime via GeneratePathProperty + AssemblyMetadata attributes.
 	-->
-	<PackageVersion Include="System.Collections.Immutable" Version="9.0.0" />
+	<PackageVersion Include="System.Collections.Immutable" Version="10.0.10" />
 	<PackageVersion Include="System.Reflection.Metadata" Version="9.0.0" />
 	<PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.0" />
 	<PackageVersion Include="System.Text.Encoding.CodePages" Version="8.0.0" />
